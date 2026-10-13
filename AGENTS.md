@@ -35,15 +35,15 @@ The API tests start their own PostgreSQL with Testcontainers. They never use the
 **Instance mode.** The same image runs as two kinds of instance, chosen by `Wheelhouse:Mode` (`WHEELHOUSE_MODE` in a deployed instance's `.env`):
 
 - `Family` is a real family's private instance. Nothing is readable without signing in. It is the default when the setting is missing, and it must stay the default.
-- `Demo` is the public demo. `DemoAuthenticationHandler` signs every visitor in as a parent of a fictional family, which is seeded at startup and reset every night.
+- `Demo` is the public demo. Each visitor gets a private copy of a fictional family (`Demo/DemoCopies`) and is signed in to it as a parent. A copy is a family row with `ExpiresAt` set, deleted an hour or less after it expires. A real family has no `ExpiresAt`, so cleanup can never delete one.
 
 Local development and `docker compose up` run as `Demo`.
 
 **Family scoping.** Every table that holds a family's data implements `IFamilyOwned`. `WheelhouseDbContext` gives each of those a query filter on `CurrentFamilyId`, which comes from the signed-in principal's `wheelhouse:family` claim through `ICurrentFamily`. Outside a request there is no current family and filtered queries return nothing. Code that runs without a request, such as the demo seeder, must opt out with `IgnoreQueryFilters()` on purpose.
 
-**Authorization.** A policy scheme picks demo or cookie authentication per request from the instance mode. Endpoints require the `Family` policy (anyone signed in to a family) or the `Parent` policy. Only `/health` and `/api/session` are open; a new endpoint needs `RequireAuthorization(...)`.
+**Authorization.** Everyone is authenticated by one encrypted cookie that carries their family's id. On a demo instance `POST /api/demo/visit` issues it; that endpoint is the only sign-in without an account and answers 404 on a family instance. The web app calls it in an app initializer, so the cookie exists before any screen loads data. Endpoints require the `Family` policy (anyone signed in to a family) or the `Parent` policy. Only `/health`, `/api/session` and `/api/demo/visit` are open; a new endpoint needs `RequireAuthorization(...)`.
 
-**Startup.** `PrepareDatabaseAsync` applies migrations before the API takes requests, then seeds the demo family on a demo instance. If the database cannot be reached the process exits and the container's restart policy retries.
+**Startup.** `PrepareDatabaseAsync` applies migrations before the API takes requests. If the database cannot be reached the process exits and the container's restart policy retries.
 
 **Configuration is read late.** Read settings inside a DI factory or through `IOptions`, not from `builder.Configuration` while registering services. The integration tests add their overrides in a way that only takes effect once the host is built, so an early read sees the wrong database or mode.
 
@@ -54,8 +54,8 @@ Local development and `docker compose up` run as `Demo`.
 ## Project rules
 
 - **This repository will be made public.** Never commit a real family's names, email addresses, the family instance's domain, or anything from a server's `.env`. Demo data is fictional and stays that way.
-- **Every feature ships with its demo seed data** (see `Demo/`) and a minimal phone screen alongside the wall view.
+- **Every feature ships with its demo seed data** (built in `Demo/DemoFamily`) and a minimal phone screen alongside the wall view.
 - **Touch targets** are at least 56 px on the wall and 44 px on the phone.
 - **A store changes only after the server accepts.** `FamilyStore` sends each change, then updates its signal from the response, so a refused change never shows on screen.
-- **API tests run against real PostgreSQL** through `ApiFactory`. The `api` collection shares one container. `InMode(InstanceMode.Demo)` gives a host in another mode, and `DbContextFor(familyId)` reads and writes as a given family. Each test must pass when run alone.
+- **API tests run against real PostgreSQL** through `ApiFactory`. The `api` collection shares one container. `DemoVisitorAsync()` gives a client signed in as a parent of its own fresh copy of the demo family, which is how a test acts as a parent without touching another test's data. `DbContextFor(familyId)` reads and writes as a given family. Each test must pass when run alone.
 - **Changes reach `main` through pull requests.** CI runs on pull requests and on `main`.

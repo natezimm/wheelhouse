@@ -23,7 +23,7 @@ You need Docker with Compose.
 docker compose up --build -d
 ```
 
-Open http://localhost:8080 for the phone layout and http://localhost:8080/wall for the wall display. Locally the app runs as the demo, so you see the fictional Marlowe family without signing in. `http://localhost:8080/health` reports whether the API can reach its database.
+Open http://localhost:8080 for the phone layout and http://localhost:8080/wall for the wall display. Locally the app runs as the demo, so you get your own copy of the fictional Marlowe family without signing in. Change anything you like: only your browser sees it, and it is cleared after a day. `http://localhost:8080/health` reports whether the API can reach its database.
 
 ```bash
 docker compose down

@@ -1,38 +1,28 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.Extensions.DependencyInjection;
-using Wheelhouse.Api.Demo;
 using Wheelhouse.Api.Families;
-using Wheelhouse.Api.Instance;
 
 namespace Wheelhouse.Api.Tests;
 
-/// <summary>Demo visitors are parents of the demo family, so these tests act as a parent through a demo host.</summary>
+/// <summary>
+/// A demo visitor is a parent of their own copy of the demo family, so each test acts as a
+/// parent through a fresh visitor and starts from an untouched family.
+/// </summary>
 [Collection(ApiCollection.Name)]
 public sealed class FamilySettingsTests(ApiFactory factory) : IAsyncLifetime
 {
     private static readonly FamilySettingsRequest ValidSettings = new(
         "The Marlowe Crew", "Europe/Paris", DayOfWeek.Sunday, new TimeOnly(22, 0), new TimeOnly(7, 0), Units.Metric);
 
-    private WebApplicationFactory<Program> _demo = null!;
     private HttpClient _parent = null!;
 
-    public async Task InitializeAsync()
-    {
-        _demo = factory.InMode(InstanceMode.Demo);
-        _parent = _demo.CreateClient();
+    public async Task InitializeAsync() => _parent = await factory.DemoVisitorAsync();
 
-        // Each test starts from the untouched demo family, whatever ran before it.
-        await using var scope = _demo.Services.CreateAsyncScope();
-        await scope.ServiceProvider.GetRequiredService<DemoSeeder>().ResetAsync();
-    }
-
-    public async Task DisposeAsync()
+    public Task DisposeAsync()
     {
         _parent.Dispose();
-        await _demo.DisposeAsync();
+        return Task.CompletedTask;
     }
 
     private async Task<FamilyResponse> GetFamily() =>
@@ -170,12 +160,14 @@ public sealed class FamilySettingsTests(ApiFactory factory) : IAsyncLifetime
     [Theory]
     [InlineData("PUT", "/api/family")]
     [InlineData("POST", "/api/family/members")]
-    [InlineData("PUT", "/api/family/members/d0e00000-0000-4000-8000-000000000002")]
-    [InlineData("DELETE", "/api/family/members/d0e00000-0000-4000-8000-000000000002")]
+    [InlineData("PUT", "/api/family/members/{member}")]
+    [InlineData("DELETE", "/api/family/members/{member}")]
     public async Task Nothing_can_be_changed_on_a_family_instance_without_signing_in(string method, string url)
     {
+        // Aim at a member that really exists, so only the missing sign-in can explain the refusal.
+        var ben = (await GetFamily()).Members[0];
         using var stranger = factory.CreateClient();
-        using var request = new HttpRequestMessage(new HttpMethod(method), url)
+        using var request = new HttpRequestMessage(new HttpMethod(method), url.Replace("{member}", ben.Id.ToString()))
         {
             Content = JsonContent.Create(new MemberRequest("Hacked", "#2F5FC4", MemberRole.Parent), options: ApiFactory.Json),
         };

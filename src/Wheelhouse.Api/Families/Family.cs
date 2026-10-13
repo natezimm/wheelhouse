@@ -23,6 +23,12 @@ public sealed class Family
 
     public Units Units { get; set; } = Units.Imperial;
 
+    /// <summary>
+    /// Set only on a demo visitor's private copy: when it may be deleted. A real family has
+    /// none, so the demo's cleanup can never remove one.
+    /// </summary>
+    public DateTimeOffset? ExpiresAt { get; set; }
+
     public List<Member> Members { get; } = [];
 }
 
