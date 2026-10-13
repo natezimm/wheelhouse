@@ -28,7 +28,7 @@ The API tests start their own PostgreSQL with Testcontainers. They never use the
 
 ## Architecture
 
-**One web app, two layouts.** `web/` is a single Angular app. `/wall` is the wall display (a 1920 × 1080 touch screen in kiosk mode) and `/` is the phone layout. Both talk only to the API. State lives in root-provided stores under `web/src/app/core/` that expose read-only signals; components are standalone, the app is zoneless, and small components keep their template and styles inline.
+**One web app, two layouts.** `web/` is a single Angular app. `/wall` is the wall display (a 1920 × 1080 touch screen in kiosk mode) and `/` is the phone layout. Both talk only to the API. Settings live only on the phone, under `/settings`; the wall has none. State lives in root-provided stores under `web/src/app/core/` that expose read-only signals; components are standalone, the app is zoneless, and small components keep their template and styles inline.
 
 **API by feature.** `src/Wheelhouse.Api/` is ASP.NET Core minimal APIs in feature folders (`Families`, `Demo`, `Auth`, `Sessions`, `Health`). Each feature exposes a `MapX()` extension that `Program.cs` calls.
 
@@ -49,12 +49,13 @@ Local development and `docker compose up` run as `Demo`.
 
 **Deploy.** Pushing a `v*` tag runs `release.yml`: tests, images to GitHub Container Registry, then `deploy/deploy.sh` on the server, which moves every instance under `~/wheelhouse/*/` to that version. Each instance is its own Compose project from `deploy/compose.yaml` with its own database, network and secrets. The server's nginx terminates HTTPS and forwards to the instance's web container on a loopback port; that container serves the Angular build and forwards `/api`, `/hubs` and `/health` to the API.
 
-**Look and feel.** Colors and fonts are design tokens in `web/src/styles.css`, taken from the mockups. A member's color identifies them everywhere; tints are derived from it with `color-mix` rather than stored.
+**Look and feel.** Colors and fonts are design tokens in `web/src/styles.css`, taken from the mockups, alongside the shared classes the phone's forms use (`card`, `field`, `button`). A member's color identifies them everywhere; tints are derived from it with `color-mix` rather than stored.
 
 ## Project rules
 
 - **This repository will be made public.** Never commit a real family's names, email addresses, the family instance's domain, or anything from a server's `.env`. Demo data is fictional and stays that way.
 - **Every feature ships with its demo seed data** (see `Demo/`) and a minimal phone screen alongside the wall view.
 - **Touch targets** are at least 56 px on the wall and 44 px on the phone.
+- **A store changes only after the server accepts.** `FamilyStore` sends each change, then updates its signal from the response, so a refused change never shows on screen.
 - **API tests run against real PostgreSQL** through `ApiFactory`. The `api` collection shares one container. `InMode(InstanceMode.Demo)` gives a host in another mode, and `DbContextFor(familyId)` reads and writes as a given family. Each test must pass when run alone.
 - **Changes reach `main` through pull requests.** CI runs on pull requests and on `main`.

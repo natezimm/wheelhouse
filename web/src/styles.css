@@ -5,9 +5,11 @@
   --ink: #1f2328;
   --muted: #5a5f66;
   --line: #d6d2ca;
+  --hairline: #efede8;
   --accent: #2f5fc4;
   --ok: #137a6d;
   --warn: #b85a14;
+  --danger: #b3261e;
 
   --font-display: 'Outfit', system-ui, sans-serif;
   --font-body: 'Figtree', system-ui, sans-serif;
@@ -23,4 +25,80 @@ body {
   background: var(--ground);
   color: var(--ink);
   font-family: var(--font-body);
+}
+
+/* Shared building blocks for the phone's forms and lists. */
+.card {
+  background: var(--surface);
+  border-radius: 16px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.field input,
+.field select {
+  box-sizing: border-box;
+  width: 100%;
+  height: 48px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font: 400 16px var(--font-body);
+}
+
+.button {
+  min-height: 48px;
+  padding: 0 20px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--surface);
+  color: var(--ink);
+  font: 700 15px var(--font-body);
+  cursor: pointer;
+}
+
+.button.primary {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: #ffffff;
+}
+
+.button.danger {
+  border-color: var(--danger);
+  background: var(--danger);
+  color: #ffffff;
+}
+
+.button.quiet-danger {
+  border-color: transparent;
+  background: transparent;
+  color: var(--danger);
+}
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* For text that only screen readers should get. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
