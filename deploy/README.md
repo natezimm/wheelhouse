@@ -13,7 +13,10 @@ The server needs no registry credentials of its own. Each release signs it in wi
 
 ## Once per instance
 
-Pick a name (`demo` below), a domain, and a loopback port no other instance uses.
+Pick a name (`demo` below), a domain, a loopback port no other instance uses, and a mode:
+
+- `Demo` shows a fictional family to every visitor, with no sign-in, and resets it each night.
+- `Family` is private. Nothing is readable without signing in.
 
 1. Point the domain's DNS `A` record at the server.
 2. Create the instance folder and its `.env`. The file holds the database password, so it is readable only by you.
@@ -23,7 +26,7 @@ Pick a name (`demo` below), a domain, and a loopback port no other instance uses
    ```
 
    ```bash
-   (umask 077; printf 'WHEELHOUSE_HTTP_PORT=8610\nWHEELHOUSE_DB_PASSWORD=%s\n' "$(openssl rand -hex 24)" > ~/wheelhouse/demo/.env)
+   (umask 077; printf 'WHEELHOUSE_MODE=Demo\nWHEELHOUSE_HTTP_PORT=8610\nWHEELHOUSE_DB_PASSWORD=%s\n' "$(openssl rand -hex 24)" > ~/wheelhouse/demo/.env)
    ```
 
 3. Give the server's nginx a site for the domain. Start from [`nginx/site.conf.example`](nginx/site.conf.example), replacing the domain and port, then enable it and add HTTPS:

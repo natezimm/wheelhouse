@@ -9,6 +9,9 @@ RUN dotnet publish src/Wheelhouse.Api/Wheelhouse.Api.csproj -c Release -o /app -
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 COPY --from=build /app ./
+# Sign-in cookies are protected with keys kept here. Compose mounts a volume on it so the keys
+# outlive the container; creating it now, owned by the app user, makes that volume writable.
+RUN install --directory --owner=$APP_UID --group=$APP_UID /home/app/.aspnet/DataProtection-Keys
 USER $APP_UID
 EXPOSE 8080
 ENTRYPOINT ["dotnet", "Wheelhouse.Api.dll"]
