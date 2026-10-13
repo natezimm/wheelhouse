@@ -1,0 +1,126 @@
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { TestBed } from '@angular/core/testing';
+import { provideRouter, withComponentInputBinding } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
+import { routes } from '../app.routes';
+import { marlowes } from '../testing/marlowes';
+
+describe('Settings', () => {
+  let http: HttpTestingController;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideRouter(routes, withComponentInputBinding()), provideHttpClient(), provideHttpClientTesting()],
+    });
+    http = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => http.verify());
+
+  /** Opens Settings with the family loaded. */
+  async function open() {
+    const harness = await RouterTestingHarness.create('/settings');
+    http.expectOne('/api/family').flush(marlowes);
+    await harness.fixture.whenStable();
+    const page = harness.routeNativeElement as HTMLElement;
+    return { page, settle: () => harness.fixture.whenStable() };
+  }
+
+  const field = (page: HTMLElement, name: string) =>
+    page.querySelector<HTMLInputElement | HTMLSelectElement>(`[formControlName=${name}]`)!;
+
+  function type(control: HTMLInputElement | HTMLSelectElement, value: string) {
+    control.value = value;
+    control.dispatchEvent(new Event(control instanceof HTMLSelectElement ? 'change' : 'input'));
+  }
+
+  const saveButton = (page: HTMLElement) => page.querySelector<HTMLButtonElement>('button[type=submit]')!;
+  const message = (page: HTMLElement) => page.querySelector('[role=status]')?.textContent;
+
+  it('lists each member with a link to edit them, then a way to add one', async () => {
+    const { page } = await open();
+
+    const links = Array.from(page.querySelectorAll('.rows a'), (link) => [
+      link.querySelector('.name')?.textContent ?? link.textContent?.trim(),
+      link.querySelector('.role')?.textContent,
+      link.getAttribute('href'),
+    ]);
+    expect(links).toEqual([
+      ['Ben', 'Parent', '/settings/members/m1'],
+      ['Tess', 'Parent', '/settings/members/m2'],
+      ['Milo', 'Kid · no sign-in', '/settings/members/m3'],
+      ['Add a family member', undefined, '/settings/members/new'],
+    ]);
+  });
+
+  it("fills the details from the family, with times a time input can show", async () => {
+    const { page } = await open();
+
+    expect(field(page, 'name').value).toBe('The Marlowes');
+    expect(field(page, 'timeZone').value).toBe('America/New_York');
+    expect(field(page, 'weekStartsOn').value).toBe('Monday');
+    expect(field(page, 'units').value).toBe('Imperial');
+    expect(field(page, 'nightModeFrom').value).toBe('21:30');
+    expect(field(page, 'nightModeTo').value).toBe('06:30');
+  });
+
+  it('saves edited details in the form the server expects, and says so', async () => {
+    const { page, settle } = await open();
+    type(field(page, 'name'), '  The Marlowe Crew ');
+    type(field(page, 'weekStartsOn'), 'Sunday');
+    type(field(page, 'nightModeFrom'), '22:00');
+
+    saveButton(page).click();
+    const request = http.expectOne({ method: 'PUT', url: '/api/family' });
+    expect(request.request.body).toEqual({
+      name: 'The Marlowe Crew',
+      timeZone: 'America/New_York',
+      weekStartsOn: 'Sunday',
+      units: 'Imperial',
+      nightModeFrom: '22:00:00',
+      nightModeTo: '06:30:00',
+    });
+    request.flush({ ...marlowes, name: 'The Marlowe Crew', weekStartsOn: 'Sunday', nightModeFrom: '22:00:00' });
+    await settle();
+
+    expect(message(page)).toBe('Saved');
+    expect(field(page, 'name').value).toBe('The Marlowe Crew');
+  });
+
+  it('shows why the server refused, and keeps what was typed', async () => {
+    const { page, settle } = await open();
+    type(field(page, 'nightModeTo'), '21:30');
+
+    saveButton(page).click();
+    http
+      .expectOne({ method: 'PUT', url: '/api/family' })
+      .flush(
+        { errors: { nightModeTo: ['Night mode needs a different start and end time.'] } },
+        { status: 400, statusText: 'Bad Request' },
+      );
+    await settle();
+
+    expect(message(page)).toBe('Night mode needs a different start and end time.');
+    expect(field(page, 'nightModeTo').value).toBe('21:30');
+  });
+
+  it('cannot save without a family name', async () => {
+    const { page, settle } = await open();
+
+    type(field(page, 'name'), '');
+    await settle();
+
+    expect(saveButton(page).disabled).toBe(true);
+  });
+
+  it('says the instance is private instead of showing settings', async () => {
+    const harness = await RouterTestingHarness.create('/settings');
+    http.expectOne('/api/family').flush(null, { status: 401, statusText: 'Unauthorized' });
+    await harness.fixture.whenStable();
+
+    const page = harness.routeNativeElement as HTMLElement;
+    expect(page.querySelector('.notice')?.textContent).toBe('This Wheelhouse is private.');
+    expect(page.querySelector('form')).toBeNull();
+  });
+});

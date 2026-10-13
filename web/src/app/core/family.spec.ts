@@ -1,18 +1,8 @@
-import { provideHttpClient } from '@angular/common/http';
+import { HttpErrorResponse, provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { Family, FamilyStore } from './family';
-
-const marlowes: Family = {
-  id: 'f1',
-  name: 'The Marlowes',
-  timeZone: 'America/New_York',
-  weekStartsOn: 'Monday',
-  members: [
-    { id: 'm1', displayName: 'Ben', color: '#2F5FC4', initial: 'B', role: 'Parent' },
-    { id: 'm2', displayName: 'Milo', color: '#137A6D', initial: 'M', role: 'Kid' },
-  ],
-};
+import { marlowes } from '../testing/marlowes';
+import { FamilyStore, refusalMessage } from './family';
 
 describe('FamilyStore', () => {
   let store: FamilyStore;
@@ -36,7 +26,7 @@ describe('FamilyStore', () => {
     http.expectOne('/api/family').flush(marlowes);
 
     expect(store.state()).toEqual({ status: 'ready', family: marlowes });
-    expect(store.members().map((member) => member.displayName)).toEqual(['Ben', 'Milo']);
+    expect(store.members().map((member) => member.displayName)).toEqual(['Ben', 'Tess', 'Milo']);
   });
 
   it('is private when the server answers 401', () => {
@@ -52,5 +42,79 @@ describe('FamilyStore', () => {
     http.expectOne('/api/family').flush(null, { status: 500, statusText: 'Server Error' });
 
     expect(store.state()).toEqual({ status: 'unavailable' });
+  });
+
+  describe('once loaded', () => {
+    const names = () => store.members().map((member) => member.displayName);
+
+    beforeEach(() => {
+      store.load();
+      http.expectOne('/api/family').flush(marlowes);
+    });
+
+    it('replaces the family when settings are saved', () => {
+      const { id, members, ...settings } = marlowes;
+      const renamed = { ...marlowes, name: 'The Marlowe Crew' };
+
+      store.saveSettings({ ...settings, name: 'The Marlowe Crew' }).subscribe();
+      const request = http.expectOne({ method: 'PUT', url: '/api/family' });
+      expect(request.request.body).toEqual({ ...settings, name: 'The Marlowe Crew' });
+      request.flush(renamed);
+
+      expect(store.state()).toEqual({ status: 'ready', family: renamed });
+    });
+
+    it('adds a new member at the end', () => {
+      const ada = { id: 'm4', displayName: 'Ada', color: '#7243B8', initial: 'A', role: 'Kid' } as const;
+
+      store.addMember({ displayName: 'Ada', color: '#7243B8', role: 'Kid' }).subscribe();
+      http.expectOne({ method: 'POST', url: '/api/family/members' }).flush(ada);
+
+      expect(names()).toEqual(['Ben', 'Tess', 'Milo', 'Ada']);
+    });
+
+    it('swaps in an updated member without moving them', () => {
+      const miles = { ...marlowes.members[2], displayName: 'Miles' };
+
+      store.updateMember('m3', { displayName: 'Miles', color: '#137A6D', role: 'Kid' }).subscribe();
+      http.expectOne({ method: 'PUT', url: '/api/family/members/m3' }).flush(miles);
+
+      expect(names()).toEqual(['Ben', 'Tess', 'Miles']);
+    });
+
+    it('drops a removed member', () => {
+      store.removeMember('m3').subscribe();
+      http.expectOne({ method: 'DELETE', url: '/api/family/members/m3' }).flush(null);
+
+      expect(names()).toEqual(['Ben', 'Tess']);
+    });
+
+    it('changes nothing when the server refuses', () => {
+      let failed = false;
+
+      store.removeMember('m1').subscribe({ error: () => (failed = true) });
+      http
+        .expectOne({ method: 'DELETE', url: '/api/family/members/m1' })
+        .flush({ errors: { role: ['A family needs at least one parent.'] } }, { status: 400, statusText: 'Bad Request' });
+
+      expect(failed).toBe(true);
+      expect(names()).toEqual(['Ben', 'Tess', 'Milo']);
+    });
+  });
+});
+
+describe('refusalMessage', () => {
+  it("uses the server's first message", () => {
+    const error = new HttpErrorResponse({
+      status: 400,
+      error: { errors: { role: ['A family needs at least one parent.'] } },
+    });
+
+    expect(refusalMessage(error, 'fallback')).toBe('A family needs at least one parent.');
+  });
+
+  it('falls back when the server gave none', () => {
+    expect(refusalMessage(new HttpErrorResponse({ status: 500 }), 'fallback')).toBe('fallback');
+    expect(refusalMessage(new Error('offline'), 'fallback')).toBe('fallback');
   });
 });
