@@ -1,9 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
-using Wheelhouse.Api.Demo;
 using Wheelhouse.Api.Families;
-using Wheelhouse.Api.Instance;
 
 namespace Wheelhouse.Api.Tests;
 
@@ -11,11 +9,11 @@ namespace Wheelhouse.Api.Tests;
 public sealed class FamilyTests(ApiFactory factory)
 {
     [Fact]
-    public async Task Demo_visitors_see_the_demo_family_with_members_in_display_order()
+    public async Task A_demo_visitor_sees_the_demo_family_with_members_in_display_order()
     {
-        using var client = factory.InMode(InstanceMode.Demo).CreateClient();
+        using var visitor = await factory.DemoVisitorAsync();
 
-        var family = await client.GetFromJsonAsync<FamilyResponse>("/api/family", ApiFactory.Json);
+        var family = await visitor.GetFromJsonAsync<FamilyResponse>("/api/family", ApiFactory.Json);
 
         Assert.NotNull(family);
         Assert.Equal("The Marlowes", family.Name);
@@ -27,8 +25,8 @@ public sealed class FamilyTests(ApiFactory factory)
     [Fact]
     public async Task A_family_instance_answers_401_to_anyone_not_signed_in()
     {
-        // Seed the demo family first, so a 401 here cannot be mistaken for "nothing to show".
-        factory.InMode(InstanceMode.Demo).CreateClient().Dispose();
+        // A demo copy exists in the same database, so a 401 cannot be mistaken for "nothing to show".
+        (await factory.DemoVisitorAsync()).Dispose();
         using var client = factory.CreateClient();
 
         var response = await client.GetAsync("/api/family");
@@ -48,16 +46,16 @@ public sealed class FamilyTests(ApiFactory factory)
             await anyone.SaveChangesAsync();
         }
 
-        using var client = factory.InMode(InstanceMode.Demo).CreateClient();
-        var demo = await client.GetFromJsonAsync<FamilyResponse>("/api/family", ApiFactory.Json);
+        using var visitor = await factory.DemoVisitorAsync();
+        var mine = await visitor.GetFromJsonAsync<FamilyResponse>("/api/family", ApiFactory.Json);
         await using var asOther = factory.DbContextFor(otherFamilyId);
-        await using var asDemo = factory.DbContextFor(DemoFamily.Id);
+        await using var asMe = factory.DbContextFor(mine!.Id);
         await using var asNobody = factory.DbContextFor(familyId: null);
 
-        Assert.DoesNotContain("Zed", demo!.Members.Select(member => member.DisplayName));
+        Assert.DoesNotContain("Zed", mine.Members.Select(member => member.DisplayName));
         Assert.Equal(["Zed"], await asOther.Members.Select(member => member.DisplayName).ToListAsync());
         Assert.Equal(["The Others"], await asOther.Families.Select(family => family.Name).ToListAsync());
-        Assert.DoesNotContain("Zed", await asDemo.Members.Select(member => member.DisplayName).ToListAsync());
+        Assert.Equal(["Ben", "Tess", "Milo"], await asMe.Members.OrderBy(member => member.SortOrder).Select(member => member.DisplayName).ToListAsync());
         Assert.Empty(await asNobody.Members.ToListAsync());
         Assert.Empty(await asNobody.Families.ToListAsync());
     }

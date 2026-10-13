@@ -23,8 +23,8 @@ builder.Services.AddHealthChecks()
 builder.Services.AddWheelhouseAuth();
 
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddScoped<DemoSeeder>();
-builder.Services.AddHostedService<DemoResetService>();
+builder.Services.AddScoped<DemoCopies>();
+builder.Services.AddHostedService<DemoCleanupService>();
 
 // Enums travel as their names ("Parent", "Demo"), which the web app's types mirror.
 builder.Services.ConfigureHttpJsonOptions(options =>
@@ -39,6 +39,7 @@ app.UseAuthorization();
 
 app.MapHealth();
 app.MapSession();
+app.MapDemo();
 app.MapFamily();
 
 app.Run();
