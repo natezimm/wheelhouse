@@ -7,6 +7,12 @@ public sealed class InstanceOptions
 
     /// <summary>Defaults to <see cref="InstanceMode.Family"/>, so an unconfigured instance is private.</summary>
     public InstanceMode Mode { get; set; } = InstanceMode.Family;
+
+    /// <summary>
+    /// On a demo instance, the most visitor copies kept at once. New visitors are turned away
+    /// beyond it, which bounds how much a script hammering the demo can store.
+    /// </summary>
+    public int MaxDemoCopies { get; set; } = 1000;
 }
 
 public enum InstanceMode
@@ -14,6 +20,6 @@ public enum InstanceMode
     /// <summary>A real family's instance. Nothing is readable without signing in.</summary>
     Family,
 
-    /// <summary>The public demo: a fictional family that every visitor sees, reset nightly.</summary>
+    /// <summary>The public demo: every visitor gets a private copy of a fictional family, kept for a day.</summary>
     Demo,
 }

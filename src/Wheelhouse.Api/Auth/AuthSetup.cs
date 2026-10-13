@@ -1,7 +1,5 @@
-using Microsoft.AspNetCore.Authentication;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.Extensions.Options;
-using Wheelhouse.Api.Instance;
 
 namespace Wheelhouse.Api.Auth;
 
@@ -27,28 +25,36 @@ public static class Policies
     public const string Parent = "Parent";
 }
 
+public static class WheelhousePrincipal
+{
+    /// <summary>The identity the sign-in cookie carries for a parent of <paramref name="familyId"/>.</summary>
+    public static ClaimsPrincipal Parent(Guid familyId) => new(new ClaimsIdentity(
+        [
+            new Claim(WheelhouseClaims.Family, familyId.ToString()),
+            new Claim(WheelhouseClaims.Role, Roles.Parent),
+        ],
+        CookieAuthenticationDefaults.AuthenticationScheme));
+}
+
 public static class AuthSetup
 {
-    private const string SchemeByMode = "Wheelhouse";
-
     /// <summary>
-    /// A family instance authenticates with a cookie; the demo treats every visitor as a parent
-    /// of the demo family. Which one applies is decided per request from the instance's mode.
+    /// Everyone is authenticated by the same encrypted, HTTP-only cookie. What differs is how it
+    /// is issued: a demo instance hands one to each visitor for their private copy, and a family
+    /// instance will hand one out only after sign-in.
     /// </summary>
     public static IServiceCollection AddWheelhouseAuth(this IServiceCollection services)
     {
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentFamily, HttpCurrentFamily>();
 
-        services.AddAuthentication(SchemeByMode)
-            .AddPolicyScheme(SchemeByMode, displayName: null, options =>
-                options.ForwardDefaultSelector = context =>
-                    context.RequestServices.GetRequiredService<IOptions<InstanceOptions>>().Value.Mode == InstanceMode.Demo
-                        ? DemoAuthenticationHandler.SchemeName
-                        : CookieAuthenticationDefaults.AuthenticationScheme)
+        services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
             .AddCookie(options =>
             {
                 options.Cookie.Name = "wheelhouse";
+                // Lax keeps the cookie off cross-site POST, PUT and DELETE requests, so another
+                // site cannot change a family through a signed-in visitor's browser.
+                options.Cookie.SameSite = SameSiteMode.Lax;
                 // This is an API: answer with a status code, never a redirect to a login page.
                 options.Events.OnRedirectToLogin = context =>
                 {
@@ -60,8 +66,7 @@ public static class AuthSetup
                     context.Response.StatusCode = StatusCodes.Status403Forbidden;
                     return Task.CompletedTask;
                 };
-            })
-            .AddScheme<AuthenticationSchemeOptions, DemoAuthenticationHandler>(DemoAuthenticationHandler.SchemeName, configureOptions: null);
+            });
 
         services.AddAuthorizationBuilder()
             .AddPolicy(Policies.Family, policy => policy
