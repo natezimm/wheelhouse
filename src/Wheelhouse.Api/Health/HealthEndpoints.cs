@@ -11,7 +11,8 @@ public static class HealthEndpoints
     /// </summary>
     public static IEndpointRouteBuilder MapHealth(this IEndpointRouteBuilder app)
     {
-        app.MapHealthChecks("/health", new HealthCheckOptions { ResponseWriter = WriteAsync });
+        app.MapHealthChecks("/health", new HealthCheckOptions { ResponseWriter = WriteAsync })
+            .AllowAnonymous();
         return app;
     }
 

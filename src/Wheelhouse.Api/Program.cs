@@ -1,4 +1,5 @@
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Wheelhouse.Api.Auth;
 using Wheelhouse.Api.Data;
@@ -20,6 +21,17 @@ builder.Services.AddDbContext<WheelhouseDbContext>((services, options) =>
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<WheelhouseDbContext>("database");
 
+// Requests reach the API through the server's nginx, which terminates HTTPS, then the web
+// container's. Take the visitor's scheme and address from the X-Forwarded headers the server's
+// nginx sets, so the API knows a request came over HTTPS. Only the web container can reach the
+// API, so whichever proxy sent the request is trusted.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 builder.Services.AddWheelhouseAuth();
 
 builder.Services.AddSingleton(TimeProvider.System);
@@ -34,6 +46,7 @@ var app = builder.Build();
 
 await app.PrepareDatabaseAsync();
 
+app.UseForwardedHeaders();
 app.UseAuthentication();
 app.UseAuthorization();
 
