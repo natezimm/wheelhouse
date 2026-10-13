@@ -27,7 +27,7 @@ import { StatusLine } from '../shared/status-line';
       </ul>
     </header>
 
-    @if (family.state().status === 'private') {
+    @if (family.state().status === 'private' && !session.isDemoFull()) {
       <p class="private">This Wheelhouse is private.</p>
     }
 
@@ -108,8 +108,9 @@ export class WallShell {
   protected readonly clock = inject(Clock);
   protected readonly family = inject(FamilyStore);
 
+  protected readonly session = inject(SessionStore);
+
   constructor() {
-    inject(SessionStore).load();
     this.family.load();
   }
 }
