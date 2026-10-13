@@ -1,0 +1,43 @@
+# Local development stack. Ports bind to loopback only.
+#   docker compose up db -d          database for `dotnet run` and `npm start`
+#   docker compose up --build -d     the whole app at http://localhost:8080
+name: wheelhouse
+
+services:
+  db:
+    image: postgres:17.11-bookworm
+    environment:
+      POSTGRES_DB: wheelhouse
+      POSTGRES_USER: wheelhouse
+      POSTGRES_PASSWORD: ${WHEELHOUSE_DB_PASSWORD:-wheelhouse-local-dev}
+    ports:
+      - "127.0.0.1:${WHEELHOUSE_DB_PORT:-5432}:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wheelhouse -d wheelhouse"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: src/Wheelhouse.Api/Dockerfile
+    environment:
+      ConnectionStrings__Wheelhouse: Host=db;Port=5432;Database=wheelhouse;Username=wheelhouse;Password=${WHEELHOUSE_DB_PASSWORD:-wheelhouse-local-dev}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    ports:
+      - "127.0.0.1:${WHEELHOUSE_HTTP_PORT:-8080}:80"
+    depends_on:
+      - api
+
+volumes:
+  db-data:
