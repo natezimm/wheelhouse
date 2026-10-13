@@ -25,7 +25,14 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     private readonly PostgreSqlContainer _database = new PostgreSqlBuilder("postgres:17.11-bookworm").Build();
 
-    public Task InitializeAsync() => _database.StartAsync();
+    public async Task InitializeAsync()
+    {
+        await _database.StartAsync();
+
+        // Start the API once now. Its startup migrates the new database, so a test that writes
+        // rows directly does not depend on another test having started a host first.
+        CreateClient().Dispose();
+    }
 
     async Task IAsyncLifetime.DisposeAsync()
     {
