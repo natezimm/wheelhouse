@@ -1,29 +1,17 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from './app.routes';
-import { Family } from './core/family';
-
-const marlowes: Family = {
-  id: 'f1',
-  name: 'The Marlowes',
-  timeZone: 'America/New_York',
-  weekStartsOn: 'Monday',
-  members: [
-    { id: 'm1', displayName: 'Ben', color: '#2F5FC4', initial: 'B', role: 'Parent' },
-    { id: 'm2', displayName: 'Tess', color: '#B85A14', initial: 'T', role: 'Parent' },
-    { id: 'm3', displayName: 'Milo', color: '#137A6D', initial: 'M', role: 'Kid' },
-  ],
-};
+import { marlowes } from './testing/marlowes';
 
 describe('routes', () => {
   let http: HttpTestingController;
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideRouter(routes), provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideRouter(routes, withComponentInputBinding()), provideHttpClient(), provideHttpClientTesting()],
     });
     http = TestBed.inject(HttpTestingController);
   });
@@ -71,13 +59,15 @@ describe('routes', () => {
     expect(page.querySelector('.private')).toBeNull();
   });
 
-  it('names each family member on the phone', async () => {
+  it('names each family member on the phone, as the way into Settings', async () => {
     const { page, settle } = await open('/');
 
     http.expectOne('/api/family').flush(marlowes);
     await settle();
 
-    expect(text(page.querySelectorAll('.members .name'))).toEqual(['Ben', 'Tess', 'Milo']);
+    const link = page.querySelector('a.family');
+    expect(link?.getAttribute('href')).toBe('/settings');
+    expect(text(link!.querySelectorAll('.sr-only'))).toEqual(['Family settings:', 'Ben', 'Tess', 'Milo']);
   });
 
   it('says the instance is private when nobody is signed in', async () => {
