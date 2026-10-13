@@ -1,0 +1,91 @@
+name: Release
+
+# Pushing a tag such as v0.1.0 tests it, publishes its images and moves the server to it.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  images:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - name: api
+            dockerfile: src/Wheelhouse.Api/Dockerfile
+          - name: web
+            dockerfile: web/Dockerfile
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/wheelhouse-${{ matrix.name }}:${{ github.ref_name }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  deploy:
+    needs: images
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    env:
+      VERSION: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up SSH
+        env:
+          SSH_KEY: ${{ secrets.GCP_SSH_KEY }}
+          SSH_HOST: ${{ secrets.GCP_HOST }}
+          SSH_USER: ${{ secrets.GCP_USER }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host server
+            HostName $SSH_HOST
+            User $SSH_USER
+            IdentityFile ~/.ssh/id_deploy
+            IdentitiesOnly yes
+          EOF
+
+      - name: Copy the stack definition
+        run: |
+          ssh server 'mkdir -p ~/wheelhouse'
+          scp deploy/compose.yaml deploy/deploy.sh server:wheelhouse/
+
+      # The images are private, so the server signs in to the registry with this job's
+      # short-lived token for the length of the deploy and signs out again afterwards.
+      - name: Deploy
+        env:
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          printf '%s' "$REGISTRY_TOKEN" | ssh server "docker login ghcr.io --username '$REGISTRY_USER' --password-stdin"
+          ssh server "bash ~/wheelhouse/deploy.sh '$VERSION'; status=\$?; docker logout ghcr.io; exit \$status"
