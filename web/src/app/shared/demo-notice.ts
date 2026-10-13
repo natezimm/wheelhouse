@@ -1,12 +1,14 @@
 import { Component, inject } from '@angular/core';
 import { SessionStore } from '../core/session';
 
-/** Tells visitors to the public demo that nothing here is real or kept. */
+/** Tells visitors to the public demo that nothing here is real or kept, or that it has no room. */
 @Component({
   selector: 'app-demo-notice',
   template: `
     @if (session.isDemo()) {
-      <span>Demo · a fictional family, reset every night</span>
+      <span>Demo · your own copy of a fictional family, cleared after a day</span>
+    } @else if (session.isDemoFull()) {
+      <span>The demo is full right now. Please try again later.</span>
     }
   `,
   styles: `

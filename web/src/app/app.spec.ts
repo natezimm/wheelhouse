@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from './app.routes';
+import { SessionStore } from './core/session';
 import { marlowes } from './testing/marlowes';
 
 describe('routes', () => {
@@ -80,21 +81,46 @@ describe('routes', () => {
     expect(page.querySelectorAll('.members li').length).toBe(0);
   });
 
-  it('shows the demo notice only on a demo instance', async () => {
-    const { page, settle } = await open('/wall');
-    const notice = () => page.querySelector('app-demo-notice')?.textContent?.trim();
-    expect(notice()).toBe('');
+  describe('on a demo instance', () => {
+    /** Starts the session the way the app does at launch, as a demo visitor. */
+    async function startDemo(visit: { status: number }) {
+      const starting = TestBed.inject(SessionStore).start();
+      http.expectOne('/api/session').flush({ mode: 'Demo', signedIn: false });
+      await new Promise((resolve) => setTimeout(resolve));
+      http
+        .expectOne({ method: 'POST', url: '/api/demo/visit' })
+        .flush(null, { status: visit.status, statusText: visit.status === 204 ? 'No Content' : 'Service Unavailable' });
+      await starting;
+    }
 
-    http.expectOne('/api/session').flush({ mode: 'Demo', signedIn: true });
-    await settle();
+    it('tells the visitor the family is fictional and theirs alone', async () => {
+      await startDemo({ status: 204 });
+      const { page, settle } = await open('/wall');
+      await settle();
 
-    expect(notice()).toBe('Demo · a fictional family, reset every night');
+      expect(page.querySelector('app-demo-notice')?.textContent?.trim()).toBe(
+        'Demo · your own copy of a fictional family, cleared after a day',
+      );
+    });
+
+    it('says the demo is full instead of calling it private', async () => {
+      await startDemo({ status: 503 });
+      const { page, settle } = await open('/wall');
+      http.expectOne('/api/family').flush(null, { status: 401, statusText: 'Unauthorized' });
+      await settle();
+
+      expect(page.querySelector('app-demo-notice')?.textContent?.trim()).toBe(
+        'The demo is full right now. Please try again later.',
+      );
+      expect(page.querySelector('.private')).toBeNull();
+    });
   });
 
   it('shows no demo notice on a family instance', async () => {
-    const { page, settle } = await open('/wall');
-
+    const starting = TestBed.inject(SessionStore).start();
     http.expectOne('/api/session').flush({ mode: 'Family', signedIn: false });
+    await starting;
+    const { page, settle } = await open('/wall');
     await settle();
 
     expect(page.querySelector('app-demo-notice')?.textContent?.trim()).toBe('');
