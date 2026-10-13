@@ -11,7 +11,7 @@ public static class DemoEndpoints
 {
     public static IEndpointRouteBuilder MapDemo(this IEndpointRouteBuilder app)
     {
-        app.MapPost("/api/demo/visit", Visit);
+        app.MapPost("/api/demo/visit", Visit).AllowAnonymous();
         return app;
     }
 

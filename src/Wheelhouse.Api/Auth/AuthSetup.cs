@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Wheelhouse.Api.Auth;
 
@@ -55,6 +56,9 @@ public static class AuthSetup
                 // Lax keeps the cookie off cross-site POST, PUT and DELETE requests, so another
                 // site cannot change a family through a signed-in visitor's browser.
                 options.Cookie.SameSite = SameSiteMode.Lax;
+                // HTTPS-only whenever the visitor came over HTTPS, which the server's nginx reports
+                // in X-Forwarded-Proto (see Program.cs). Plain HTTP on localhost keeps working.
+                options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
                 // This is an API: answer with a status code, never a redirect to a login page.
                 options.Events.OnRedirectToLogin = context =>
                 {
@@ -68,10 +72,16 @@ public static class AuthSetup
                 };
             });
 
+        var family = new AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
+            .RequireClaim(WheelhouseClaims.Family)
+            .Build();
+
         services.AddAuthorizationBuilder()
-            .AddPolicy(Policies.Family, policy => policy
-                .RequireAuthenticatedUser()
-                .RequireClaim(WheelhouseClaims.Family))
+            .AddPolicy(Policies.Family, family)
+            // An endpoint that names no policy is not open by accident: it needs a family sign-in.
+            // The few open endpoints say so with AllowAnonymous().
+            .SetFallbackPolicy(family)
             .AddPolicy(Policies.Parent, policy => policy
                 .RequireAuthenticatedUser()
                 .RequireClaim(WheelhouseClaims.Family)
