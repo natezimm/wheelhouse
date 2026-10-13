@@ -26,7 +26,7 @@ services:
       dockerfile: src/Wheelhouse.Api/Dockerfile
     environment:
       ConnectionStrings__Wheelhouse: Host=db;Port=5432;Database=wheelhouse;Username=wheelhouse;Password=${WHEELHOUSE_DB_PASSWORD:-wheelhouse-local-dev};GSS Encryption Mode=Disable
-      # Locally the app runs as the demo: a fictional family, no sign-in.
+      # Locally the app runs as the demo: your own copy of a fictional family, no sign-in.
       Wheelhouse__Mode: Demo
     volumes:
       - keys:/home/app/.aspnet/DataProtection-Keys

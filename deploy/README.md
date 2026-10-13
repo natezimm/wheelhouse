@@ -15,7 +15,7 @@ The server needs no registry credentials of its own. Each release signs it in wi
 
 Pick a name (`demo` below), a domain, a loopback port no other instance uses, and a mode:
 
-- `Demo` shows a fictional family to every visitor, with no sign-in, and resets it each night.
+- `Demo` gives every visitor their own private copy of a fictional family, with no sign-in, and deletes each copy after a day.
 - `Family` is private. Nothing is readable without signing in.
 
 1. Point the domain's DNS `A` record at the server.

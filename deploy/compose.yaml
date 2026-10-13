@@ -22,7 +22,7 @@ services:
     restart: unless-stopped
     environment:
       ConnectionStrings__Wheelhouse: Host=db;Port=5432;Database=wheelhouse;Username=wheelhouse;Password=${WHEELHOUSE_DB_PASSWORD};GSS Encryption Mode=Disable
-      # Demo shows a fictional family to anyone. Family is private: nothing is readable without signing in.
+      # Demo gives every visitor a private copy of a fictional family. Family is private: nothing is readable without signing in.
       Wheelhouse__Mode: ${WHEELHOUSE_MODE:?Set WHEELHOUSE_MODE to Demo or Family in the instance's .env}
       # Workstation GC: the server is small and each instance should stay light.
       DOTNET_gcServer: "0"
