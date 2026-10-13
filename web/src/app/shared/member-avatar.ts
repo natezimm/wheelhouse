@@ -1,0 +1,30 @@
+import { Component, input } from '@angular/core';
+import { Member } from '../core/family';
+
+/** A member's initial on a circle of their color. Size it with the --avatar-size property. */
+@Component({
+  selector: 'app-member-avatar',
+  template: '{{ member().initial }}',
+  host: {
+    '[style.background]': 'member().color',
+    'aria-hidden': 'true',
+  },
+  styles: `
+    :host {
+      --size: var(--avatar-size, 34px);
+      flex-shrink: 0;
+      width: var(--size);
+      height: var(--size);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #ffffff;
+      font-size: calc(var(--size) * 0.45);
+      font-weight: 700;
+    }
+  `,
+})
+export class MemberAvatar {
+  readonly member = input.required<Member>();
+}
