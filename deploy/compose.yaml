@@ -21,9 +21,13 @@ services:
     image: ghcr.io/natezimm/wheelhouse-api:${WHEELHOUSE_VERSION:?deploy.sh sets WHEELHOUSE_VERSION}
     restart: unless-stopped
     environment:
-      ConnectionStrings__Wheelhouse: Host=db;Port=5432;Database=wheelhouse;Username=wheelhouse;Password=${WHEELHOUSE_DB_PASSWORD}
+      ConnectionStrings__Wheelhouse: Host=db;Port=5432;Database=wheelhouse;Username=wheelhouse;Password=${WHEELHOUSE_DB_PASSWORD};GSS Encryption Mode=Disable
+      # Demo shows a fictional family to anyone. Family is private: nothing is readable without signing in.
+      Wheelhouse__Mode: ${WHEELHOUSE_MODE:?Set WHEELHOUSE_MODE to Demo or Family in the instance's .env}
       # Workstation GC: the server is small and each instance should stay light.
       DOTNET_gcServer: "0"
+    volumes:
+      - keys:/home/app/.aspnet/DataProtection-Keys
     depends_on:
       db:
         condition: service_healthy
@@ -39,3 +43,4 @@ services:
 
 volumes:
   db-data:
+  keys:

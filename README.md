@@ -2,7 +2,7 @@
 
 Wheelhouse is a family command center: a wall-mounted touch display and a phone web app that share one live family view of Google Calendar events, chores, to-dos, and the week's meals with a grocery list.
 
-This is early work. Milestone 0 is in place: the API answers `/health`, the web app has its wall and phone frames, and both build and test in CI. Calendar, chores, lists and meals arrive in later milestones.
+This is early work. So far the wall and phone layouts show the family's members in their colors, and the app runs either as a private family instance or as a public demo with a fictional family. Sign-in, calendar, chores, lists and meals arrive in later milestones.
 
 ## Layout
 
@@ -23,7 +23,7 @@ You need Docker with Compose.
 docker compose up --build -d
 ```
 
-Open http://localhost:8080 for the phone layout and http://localhost:8080/wall for the wall display. `http://localhost:8080/health` reports whether the API can reach its database.
+Open http://localhost:8080 for the phone layout and http://localhost:8080/wall for the wall display. Locally the app runs as the demo, so you see the fictional Marlowe family without signing in. `http://localhost:8080/health` reports whether the API can reach its database.
 
 ```bash
 docker compose down
