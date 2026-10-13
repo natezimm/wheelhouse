@@ -99,6 +99,7 @@ import { StatusLine } from '../shared/status-line';
       display: flex;
       align-items: center;
       min-height: 44px;
+      text-decoration: none;
     }
 
     .private {
