@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Wheelhouse.Api/Wheelhouse.Api.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Wheelhouse.Api.Tests/Wheelhouse.Api.Tests.csproj" />
+  </Folder>
+</Solution>
