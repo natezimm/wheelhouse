@@ -1,0 +1,26 @@
+/* Design tokens, taken from the mockups. Components use these instead of raw values. */
+:root {
+  --ground: #f3f1ec;
+  --surface: #ffffff;
+  --ink: #1f2328;
+  --muted: #5a5f66;
+  --line: #d6d2ca;
+  --accent: #2f5fc4;
+  --ok: #137a6d;
+  --warn: #b85a14;
+
+  --font-display: 'Outfit', system-ui, sans-serif;
+  --font-body: 'Figtree', system-ui, sans-serif;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--ground);
+  color: var(--ink);
+  font-family: var(--font-body);
+}
