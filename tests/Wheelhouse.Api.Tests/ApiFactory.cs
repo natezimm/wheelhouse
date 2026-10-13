@@ -45,6 +45,22 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     public WebApplicationFactory<Program> InMode(InstanceMode mode) =>
         WithWebHostBuilder(builder => builder.UseSetting("Wheelhouse:Mode", mode));
 
+    /// <summary>A demo host on the same database, started once and shared.</summary>
+    public WebApplicationFactory<Program> Demo => _demo ??= InMode(InstanceMode.Demo);
+
+    private WebApplicationFactory<Program>? _demo;
+
+    /// <summary>
+    /// A new demo visitor: a client signed in to its own private copy of the demo family, as a
+    /// parent. Tests that need to act as a parent use one, and get data no other test touches.
+    /// </summary>
+    public async Task<HttpClient> DemoVisitorAsync()
+    {
+        var client = Demo.CreateClient();
+        (await client.PostAsync("/api/demo/visit", content: null)).EnsureSuccessStatusCode();
+        return client;
+    }
+
     /// <summary>A context that sees the database as <paramref name="familyId"/> would, or with no family at all.</summary>
     public WheelhouseDbContext DbContextFor(Guid? familyId) => new(
         new DbContextOptionsBuilder<WheelhouseDbContext>().UseNpgsql(_database.GetConnectionString()).Options,
