@@ -4,7 +4,8 @@ using Wheelhouse.Api.Health;
 
 namespace Wheelhouse.Api.Tests;
 
-public sealed class HealthTests(ApiFactory factory) : IClassFixture<ApiFactory>
+[Collection(ApiCollection.Name)]
+public sealed class HealthTests(ApiFactory factory)
 {
     [Fact]
     public async Task Health_is_200_and_healthy_when_the_database_is_reachable()
@@ -21,13 +22,15 @@ public sealed class HealthTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
-    public async Task Health_is_503_and_names_the_database_when_it_is_unreachable()
+    public async Task Health_turns_503_and_names_the_database_when_it_goes_away()
     {
-        // Port 1 on loopback refuses connections at once, so the check fails without waiting.
-        const string nothingListening = "Host=127.0.0.1;Port=1;Database=wheelhouse;Username=wheelhouse;Password=unused;Timeout=2";
-        await using var api = factory.WithWebHostBuilder(builder => builder.UseConnectionString(nothingListening));
-        using var client = api.CreateClient();
+        // Its own database, because this test takes it down.
+        await using var own = new ApiFactory();
+        await own.InitializeAsync();
+        using var client = own.CreateClient();
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/health")).StatusCode);
 
+        await own.StopDatabaseAsync();
         var response = await client.GetAsync("/health");
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
