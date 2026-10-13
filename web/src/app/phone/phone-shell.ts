@@ -1,5 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { Component, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { Clock } from '../core/clock';
 import { FamilyStore } from '../core/family';
 import { SessionStore } from '../core/session';
@@ -10,21 +11,24 @@ import { StatusLine } from '../shared/status-line';
 /** The phone layout's frame: today's date, who is in the family, and connection status. Sized for a 390 px wide screen. */
 @Component({
   selector: 'app-phone-shell',
-  imports: [DatePipe, DemoNotice, MemberAvatar, StatusLine],
+  imports: [DatePipe, DemoNotice, MemberAvatar, RouterLink, StatusLine],
   template: `
     <header>
       <div class="title">
         <span class="date">{{ clock.now() | date: 'EEE, MMM d' }}</span>
         <h1>Today</h1>
       </div>
-      <ul class="members" aria-label="Family members">
-        @for (member of family.members(); track member.id) {
-          <li>
-            <app-member-avatar [member]="member" />
-            <span class="name">{{ member.displayName }}</span>
-          </li>
-        }
-      </ul>
+      <a class="family" routerLink="/settings">
+        <span class="sr-only">Family settings:</span>
+        <ul class="members">
+          @for (member of family.members(); track member.id) {
+            <li>
+              <app-member-avatar [member]="member" />
+              <span class="sr-only">{{ member.displayName }}</span>
+            </li>
+          }
+        </ul>
+      </a>
     </header>
 
     @if (family.state().status === 'private') {
@@ -90,14 +94,12 @@ import { StatusLine } from '../shared/status-line';
       margin-left: -6px;
     }
 
-    /* The initial is decorative; the name is here for screen readers. */
-    .name {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      overflow: hidden;
-      clip-path: inset(50%);
-      white-space: nowrap;
+    /* The avatars are the way into Settings; keep the tap target comfortable. */
+    .family {
+      display: flex;
+      align-items: center;
+      min-height: 44px;
+      text-decoration: none;
     }
 
     .private {

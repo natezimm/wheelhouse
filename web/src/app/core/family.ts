@@ -1,5 +1,6 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { Observable, tap } from 'rxjs';
 
 export interface Member {
   id: string;
@@ -14,9 +15,34 @@ export interface Family {
   id: string;
   name: string;
   timeZone: string;
-  weekStartsOn: string;
+  weekStartsOn: 'Sunday' | 'Monday';
+  /** Local times as HH:mm:ss. The wall display dims to a clock between them. */
+  nightModeFrom: string;
+  nightModeTo: string;
+  units: 'Imperial' | 'Metric';
   members: Member[];
 }
+
+/** What a parent can change about the family itself. */
+export type FamilySettings = Omit<Family, 'id' | 'members'>;
+
+/** What a parent enters for a member; the server assigns the rest. */
+export type MemberDraft = Pick<Member, 'displayName' | 'color' | 'role'>;
+
+/**
+ * The colors a member can have. White text reads clearly on every one of them, which the
+ * avatars rely on.
+ */
+export const MEMBER_COLORS = [
+  { name: 'Blue', value: '#2F5FC4' },
+  { name: 'Orange', value: '#B85A14' },
+  { name: 'Teal', value: '#137A6D' },
+  { name: 'Purple', value: '#7243B8' },
+  { name: 'Magenta', value: '#A8326E' },
+  { name: 'Green', value: '#2E7D32' },
+  { name: 'Red', value: '#B3261E' },
+  { name: 'Slate', value: '#5B6470' },
+] as const;
 
 export type FamilyState =
   | { status: 'loading' }
@@ -44,4 +70,50 @@ export class FamilyStore {
         this.current.set({ status: error.status === 401 ? 'private' : 'unavailable' }),
     });
   }
+
+  // Each change below reaches the server first; the store updates only once it is accepted,
+  // so a refused change never shows on screen.
+
+  saveSettings(settings: FamilySettings): Observable<Family> {
+    return this.http
+      .put<Family>('/api/family', settings)
+      .pipe(tap((family) => this.current.set({ status: 'ready', family })));
+  }
+
+  addMember(draft: MemberDraft): Observable<Member> {
+    return this.http
+      .post<Member>('/api/family/members', draft)
+      .pipe(tap((added) => this.changeMembers((members) => [...members, added])));
+  }
+
+  updateMember(id: string, draft: MemberDraft): Observable<Member> {
+    return this.http
+      .put<Member>(`/api/family/members/${id}`, draft)
+      .pipe(
+        tap((updated) =>
+          this.changeMembers((members) => members.map((member) => (member.id === id ? updated : member))),
+        ),
+      );
+  }
+
+  removeMember(id: string): Observable<void> {
+    return this.http
+      .delete<void>(`/api/family/members/${id}`)
+      .pipe(tap(() => this.changeMembers((members) => members.filter((member) => member.id !== id))));
+  }
+
+  private changeMembers(change: (members: Member[]) => Member[]): void {
+    this.current.update((state) =>
+      state.status === 'ready'
+        ? { status: 'ready', family: { ...state.family, members: change(state.family.members) } }
+        : state,
+    );
+  }
+}
+
+/** The first message from a refused change, or a fallback when the server gave none. */
+export function refusalMessage(error: unknown, fallback: string): string {
+  const errors = error instanceof HttpErrorResponse ? error.error?.errors : undefined;
+  const first = errors && typeof errors === 'object' ? Object.values(errors)[0] : undefined;
+  return Array.isArray(first) && typeof first[0] === 'string' ? first[0] : fallback;
 }
