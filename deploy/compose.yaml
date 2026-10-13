@@ -1,0 +1,41 @@
+# Production stack for one Wheelhouse instance, such as the public demo or a family's own.
+# Every instance on the server runs this same file from its own folder with its own .env,
+# so instances share nothing: separate database, network and secrets. See deploy/README.md.
+services:
+  db:
+    image: postgres:17.11-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wheelhouse
+      POSTGRES_USER: wheelhouse
+      POSTGRES_PASSWORD: ${WHEELHOUSE_DB_PASSWORD:?Set WHEELHOUSE_DB_PASSWORD in the instance's .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wheelhouse -d wheelhouse"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    image: ghcr.io/natezimm/wheelhouse-api:${WHEELHOUSE_VERSION:?deploy.sh sets WHEELHOUSE_VERSION}
+    restart: unless-stopped
+    environment:
+      ConnectionStrings__Wheelhouse: Host=db;Port=5432;Database=wheelhouse;Username=wheelhouse;Password=${WHEELHOUSE_DB_PASSWORD}
+      # Workstation GC: the server is small and each instance should stay light.
+      DOTNET_gcServer: "0"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    image: ghcr.io/natezimm/wheelhouse-web:${WHEELHOUSE_VERSION}
+    restart: unless-stopped
+    ports:
+      # Loopback only. The server's own nginx terminates HTTPS and forwards here.
+      - "127.0.0.1:${WHEELHOUSE_HTTP_PORT:?Set WHEELHOUSE_HTTP_PORT in the instance's .env}:80"
+    depends_on:
+      - api
+
+volumes:
+  db-data:
