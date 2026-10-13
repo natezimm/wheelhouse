@@ -1,8 +1,9 @@
 name: CI
 
 on:
+  # Branches are tested through their pull request, so each change runs once, not twice.
   push:
-    branches: ['**']
+    branches: [main]
   pull_request:
   # The release workflow runs these same jobs before it publishes anything.
   workflow_call:
