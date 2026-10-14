@@ -13,7 +13,7 @@ This is early work. So far the wall and phone layouts show the family's members 
 | `web/` | Angular 22 app: `/wall` for the wall display, `/` for phones |
 | `compose.yaml` | Local stack: database, API and web |
 | `deploy/` | Production stack, the server-side deploy script and [how to deploy](deploy/README.md) |
-| `.github/workflows/` | CI on every push; a version tag publishes images and deploys |
+| `.github/workflows/` | CI on pull requests and on `main`; a version tag publishes images and deploys |
 
 ## Run it
 

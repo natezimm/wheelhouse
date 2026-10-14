@@ -15,7 +15,8 @@ public static class SessionEndpoints
     {
         app.MapGet("/api/session", (ClaimsPrincipal user, IOptions<InstanceOptions> instance) => new SessionResponse(
             instance.Value.Mode,
-            SignedIn: user.HasClaim(claim => claim.Type == WheelhouseClaims.Family)));
+            SignedIn: user.HasClaim(claim => claim.Type == WheelhouseClaims.Family)))
+            .AllowAnonymous();
 
         return app;
     }
