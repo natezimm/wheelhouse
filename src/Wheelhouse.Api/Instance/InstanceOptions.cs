@@ -13,6 +13,18 @@ public sealed class InstanceOptions
     /// beyond it, which bounds how much a script hammering the demo can store.
     /// </summary>
     public int MaxDemoCopies { get; set; } = 1000;
+
+    /// <summary>
+    /// On a family instance, the Google accounts allowed to sign in as parents, as email
+    /// addresses separated by commas. Nobody else can sign in, and removing an address here
+    /// signs that parent out on their next request.
+    /// </summary>
+    public string? ParentEmails { get; set; }
+
+    public bool IsParentEmail(string email) =>
+        (ParentEmails ?? "")
+            .Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Contains(email.Trim(), StringComparer.OrdinalIgnoreCase);
 }
 
 public enum InstanceMode

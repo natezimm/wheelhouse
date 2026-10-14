@@ -10,14 +10,14 @@ namespace Wheelhouse.Api.Tests;
 public sealed class AccessTests(ApiFactory factory)
 {
     [Fact]
-    public void Only_health_the_session_and_the_demo_visit_are_open()
+    public void Only_health_the_session_the_demo_visit_and_google_sign_in_are_open()
     {
         var open = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
             .OfType<RouteEndpoint>()
             .Where(endpoint => endpoint.Metadata.GetMetadata<IAllowAnonymous>() is not null)
             .Select(endpoint => endpoint.RoutePattern.RawText);
 
-        Assert.Equal(["/api/demo/visit", "/api/session", "/health"], open.Order());
+        Assert.Equal(["/api/auth/google", "/api/demo/visit", "/api/session", "/health"], open.Order());
     }
 
     [Fact]

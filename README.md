@@ -2,7 +2,7 @@
 
 Wheelhouse is a family command center: a wall-mounted touch display and a phone web app that share one live family view of Google Calendar events, chores, to-dos, and the week's meals with a grocery list.
 
-This is early work. So far the wall and phone layouts show the family's members in their colors, and the app runs either as a private family instance or as a public demo with a fictional family. Sign-in, calendar, chores, lists and meals arrive in later milestones.
+This is early work. So far the wall and phone layouts show the family's members in their colors, and the app runs either as a private family instance, where parents sign in with Google, or as a public demo with a fictional family. Calendar, chores, lists and meals arrive in later milestones.
 
 ## Layout
 
@@ -30,6 +30,15 @@ docker compose down
 ```
 
 `down` keeps the database volume. Add `--volumes` to delete it.
+
+To try a private family instance with Google sign-in instead, create a Google OAuth client as [deploy/README.md](deploy/README.md#google-sign-in) describes, with `http://localhost:8080/api/auth/google/callback` as a redirect URI, and start the app with these set in your shell or in a `.env` file next to `compose.yaml` (never committed):
+
+```
+WHEELHOUSE_MODE=Family
+WHEELHOUSE_GOOGLE_CLIENT_ID=<client id>
+WHEELHOUSE_GOOGLE_CLIENT_SECRET=<client secret>
+WHEELHOUSE_PARENT_EMAILS=<your address>
+```
 
 ## Develop
 

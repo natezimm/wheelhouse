@@ -12,6 +12,8 @@ public sealed class WheelhouseDbContext(DbContextOptions<WheelhouseDbContext> op
 
     public DbSet<Member> Members => Set<Member>();
 
+    public DbSet<UserAccount> UserAccounts => Set<UserAccount>();
+
     /// <summary>
     /// The family the query filters scope to. Null outside a signed-in request, and then
     /// filtered queries return nothing: code with no request, such as the demo seeder, has to
@@ -38,6 +40,16 @@ public sealed class WheelhouseDbContext(DbContextOptions<WheelhouseDbContext> op
             member.Property(m => m.Initial).HasMaxLength(2);
             member.Property(m => m.Role).HasConversion<string>().HasMaxLength(16);
             member.HasIndex(m => new { m.FamilyId, m.SortOrder });
+        });
+
+        modelBuilder.Entity<UserAccount>(account =>
+        {
+            account.Property(a => a.GoogleSubject).HasMaxLength(255);
+            account.Property(a => a.Email).HasMaxLength(320);
+            account.HasIndex(a => a.GoogleSubject).IsUnique();
+            account.HasIndex(a => a.MemberId).IsUnique();
+            account.HasOne(a => a.Member).WithOne().HasForeignKey<UserAccount>(a => a.MemberId).OnDelete(DeleteBehavior.Cascade);
+            account.HasOne<Family>().WithMany().HasForeignKey(a => a.FamilyId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // Every family-owned table gets the filter here, so a new one cannot be left unscoped.

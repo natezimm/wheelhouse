@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from '../app.routes';
+import { SessionStore } from '../core/session';
 import { marlowes } from '../testing/marlowes';
 
 describe('Settings', () => {
@@ -112,6 +113,32 @@ describe('Settings', () => {
     await settle();
 
     expect(saveButton(page).disabled).toBe(true);
+  });
+
+  it('lets a signed-in parent sign out, then shows Today as private', async () => {
+    const starting = TestBed.inject(SessionStore).start();
+    http.expectOne('/api/session').flush({ mode: 'Family', signedIn: true, canSignIn: true });
+    await starting;
+    const harness = await RouterTestingHarness.create('/settings');
+    http.expectOne('/api/family').flush(marlowes);
+    await harness.fixture.whenStable();
+
+    (harness.routeNativeElement as HTMLElement).querySelector<HTMLButtonElement>('button.sign-out')!.click();
+    http.expectOne({ method: 'POST', url: '/api/auth/sign-out' }).flush(null, { status: 204, statusText: 'No Content' });
+    await harness.fixture.whenStable();
+    http.expectOne('/api/family').flush(null, { status: 401, statusText: 'Unauthorized' });
+    http.expectOne('/health').flush({ status: 'Healthy', checks: {} });
+    await harness.fixture.whenStable();
+
+    const today = harness.routeNativeElement as HTMLElement;
+    expect(today.tagName.toLowerCase()).toBe('app-phone-shell');
+    expect(today.querySelector('app-sign-in a')?.textContent).toBe('Sign in with Google');
+  });
+
+  it('offers no sign-out unless a parent signed in with Google', async () => {
+    const { page } = await open();
+
+    expect(page.querySelector('button.sign-out')).toBeNull();
   });
 
   it('says the instance is private instead of showing settings', async () => {

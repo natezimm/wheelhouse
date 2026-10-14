@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Npgsql;
 using Testcontainers.PostgreSql;
 using Wheelhouse.Api.Auth;
 using Wheelhouse.Api.Data;
@@ -60,6 +61,27 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         (await client.PostAsync("/api/demo/visit", content: null)).EnsureSuccessStatusCode();
         return client;
     }
+
+    /// <summary>
+    /// A family instance with Google sign-in set up for <paramref name="parentEmails"/>, on a
+    /// database of its own: a family instance holds one family, which the shared database,
+    /// with every other test's families in it, cannot offer. Dispose it when done.
+    /// </summary>
+    public WebApplicationFactory<Program> NewFamilyInstance(string parentEmails)
+    {
+        var database = new NpgsqlConnectionStringBuilder(_database.GetConnectionString())
+        {
+            Database = $"family_{Guid.NewGuid():N}",
+        };
+
+        return WithWebHostBuilder(builder => builder
+            .UseSetting("ConnectionStrings:Wheelhouse", database.ConnectionString)
+            .UseSetting("Wheelhouse:ParentEmails", parentEmails)
+            .UseSetting("Google:ClientId", GoogleClientId)
+            .UseSetting("Google:ClientSecret", "test-secret"));
+    }
+
+    public const string GoogleClientId = "test-client.apps.googleusercontent.com";
 
     /// <summary>A context that sees the database as <paramref name="familyId"/> would, or with no family at all.</summary>
     public WheelhouseDbContext DbContextFor(Guid? familyId) => new(

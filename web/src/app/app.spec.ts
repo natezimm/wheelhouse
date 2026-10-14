@@ -116,9 +116,56 @@ describe('routes', () => {
     });
   });
 
+  describe('on a family instance', () => {
+    async function startFamily(session: { signedIn: boolean; canSignIn: boolean }) {
+      const starting = TestBed.inject(SessionStore).start();
+      http.expectOne('/api/session').flush({ mode: 'Family', ...session });
+      await starting;
+    }
+
+    /** Opens the phone with nobody signed in, so the family is private. */
+    async function openPrivate(url: string) {
+      const opened = await open(url);
+      http.expectOne('/api/family').flush(null, { status: 401, statusText: 'Unauthorized' });
+      await opened.settle();
+      return opened.page;
+    }
+
+    const signInLink = (page: HTMLElement) => page.querySelector<HTMLAnchorElement>('app-sign-in a');
+
+    it('offers a parent sign-in with Google on the phone, passing the browser time zone along', async () => {
+      await startFamily({ signedIn: false, canSignIn: true });
+      const page = await openPrivate('/');
+
+      const href = new URL(signInLink(page)!.href, 'http://localhost');
+      expect(signInLink(page)!.textContent).toBe('Sign in with Google');
+      expect(href.pathname).toBe('/api/auth/google');
+      expect(href.searchParams.get('returnUrl')).toBe('/');
+      expect(href.searchParams.get('timeZone')).toBe(Intl.DateTimeFormat().resolvedOptions().timeZone);
+      expect(page.querySelector('[role=alert]')).toBeNull();
+    });
+
+    it('says why Google sent someone back without signing them in', async () => {
+      await startFamily({ signedIn: false, canSignIn: true });
+      const page = await openPrivate('/?signin=refused');
+
+      expect(page.querySelector('[role=alert]')?.textContent).toBe(
+        "That Google account can't sign in to this Wheelhouse. Only the family's parents can.",
+      );
+    });
+
+    it('offers no sign-in where Google is not set up', async () => {
+      await startFamily({ signedIn: false, canSignIn: false });
+      const page = await openPrivate('/');
+
+      expect(page.querySelector('app-sign-in .private')?.textContent).toBe('This Wheelhouse is private.');
+      expect(signInLink(page)).toBeNull();
+    });
+  });
+
   it('shows no demo notice on a family instance', async () => {
     const starting = TestBed.inject(SessionStore).start();
-    http.expectOne('/api/session').flush({ mode: 'Family', signedIn: false });
+    http.expectOne('/api/session').flush({ mode: 'Family', signedIn: false, canSignIn: true });
     await starting;
     const { page, settle } = await open('/wall');
     await settle();
