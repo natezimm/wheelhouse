@@ -27,7 +27,11 @@ services:
     environment:
       ConnectionStrings__Wheelhouse: Host=db;Port=5432;Database=wheelhouse;Username=wheelhouse;Password=${WHEELHOUSE_DB_PASSWORD:-wheelhouse-local-dev};GSS Encryption Mode=Disable
       # Locally the app runs as the demo: your own copy of a fictional family, no sign-in.
-      Wheelhouse__Mode: Demo
+      # To try Google sign-in, set WHEELHOUSE_MODE=Family and the three settings below; see the README.
+      Wheelhouse__Mode: ${WHEELHOUSE_MODE:-Demo}
+      Wheelhouse__ParentEmails: ${WHEELHOUSE_PARENT_EMAILS:-}
+      Google__ClientId: ${WHEELHOUSE_GOOGLE_CLIENT_ID:-}
+      Google__ClientSecret: ${WHEELHOUSE_GOOGLE_CLIENT_SECRET:-}
     volumes:
       - keys:/home/app/.aspnet/DataProtection-Keys
     depends_on:
