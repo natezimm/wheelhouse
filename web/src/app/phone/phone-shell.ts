@@ -1,5 +1,5 @@
 import { DatePipe } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Clock } from '../core/clock';
 import { FamilyStore } from '../core/family';
@@ -7,11 +7,12 @@ import { SessionStore } from '../core/session';
 import { DemoNotice } from '../shared/demo-notice';
 import { MemberAvatar } from '../shared/member-avatar';
 import { StatusLine } from '../shared/status-line';
+import { SignIn } from './sign-in';
 
 /** The phone layout's frame: today's date, who is in the family, and connection status. Sized for a 390 px wide screen. */
 @Component({
   selector: 'app-phone-shell',
-  imports: [DatePipe, DemoNotice, MemberAvatar, RouterLink, StatusLine],
+  imports: [DatePipe, DemoNotice, MemberAvatar, RouterLink, SignIn, StatusLine],
   template: `
     <header>
       <div class="title">
@@ -32,7 +33,7 @@ import { StatusLine } from '../shared/status-line';
     </header>
 
     @if (family.state().status === 'private' && !session.isDemoFull()) {
-      <p class="private">This Wheelhouse is private.</p>
+      <app-sign-in [outcome]="signin()" />
     }
 
     <footer>
@@ -102,14 +103,6 @@ import { StatusLine } from '../shared/status-line';
       text-decoration: none;
     }
 
-    .private {
-      margin: 0;
-      text-align: center;
-      font-family: var(--font-display);
-      font-size: 22px;
-      color: var(--muted);
-    }
-
     footer {
       display: flex;
       flex-direction: column;
@@ -123,6 +116,9 @@ export class PhoneShell {
   protected readonly family = inject(FamilyStore);
 
   protected readonly session = inject(SessionStore);
+
+  /** Set by the API when Google sent someone back without signing them in: refused or failed. */
+  readonly signin = input<string>();
 
   constructor() {
     this.family.load();

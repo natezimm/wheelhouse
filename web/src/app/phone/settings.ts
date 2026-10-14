@@ -1,13 +1,15 @@
 import { Component, effect, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { Family, FamilySettings, FamilyStore, refusalMessage } from '../core/family';
+import { SessionStore } from '../core/session';
 import { MemberAvatar } from '../shared/member-avatar';
+import { SignIn } from './sign-in';
 
 /** Phone-only: who is in the family, and the family's own details. Parents manage both here. */
 @Component({
   selector: 'app-settings',
-  imports: [MemberAvatar, ReactiveFormsModule, RouterLink],
+  imports: [MemberAvatar, ReactiveFormsModule, RouterLink, SignIn],
   template: `
     <header>
       <a class="back" routerLink="/" aria-label="Back to Today">
@@ -81,9 +83,13 @@ import { MemberAvatar } from '../shared/member-avatar';
             <p class="message" role="status">{{ message() }}</p>
           </form>
         </section>
+
+        @if (session.canSignOut()) {
+          <button class="button sign-out" type="button" [disabled]="signingOut()" (click)="signOut()">Sign out</button>
+        }
       }
       @case ('private') {
-        <p class="notice">This Wheelhouse is private.</p>
+        <app-sign-in class="notice" returnUrl="/settings" />
       }
       @case ('unavailable') {
         <p class="notice">Could not load the family. Try again in a moment.</p>
@@ -192,6 +198,10 @@ import { MemberAvatar } from '../shared/member-avatar';
       color: var(--muted);
     }
 
+    .sign-out {
+      align-self: center;
+    }
+
     .notice {
       margin: auto 0;
       text-align: center;
@@ -206,6 +216,9 @@ export class Settings {
   protected readonly timeZones = Intl.supportedValuesOf('timeZone');
   protected readonly saving = signal(false);
   protected readonly message = signal('');
+  protected readonly session = inject(SessionStore);
+  protected readonly signingOut = signal(false);
+  private readonly router = inject(Router);
 
   protected readonly form = inject(FormBuilder).nonNullable.group({
     name: ['', [Validators.required, Validators.maxLength(100)]],
@@ -262,6 +275,15 @@ export class Settings {
         this.saving.set(false);
         this.message.set(refusalMessage(error, 'Could not save. Try again in a moment.'));
       },
+    });
+  }
+
+  protected signOut(): void {
+    this.signingOut.set(true);
+    this.session.signOut().subscribe({
+      // Today reloads the family, which is private now, so it offers sign-in again.
+      next: () => void this.router.navigateByUrl('/'),
+      error: () => this.signingOut.set(false),
     });
   }
 }

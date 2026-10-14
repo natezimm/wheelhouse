@@ -1,16 +1,18 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { firstValueFrom } from 'rxjs';
+import { Observable, firstValueFrom, tap } from 'rxjs';
 
 export interface Session {
   /** Demo: the public instance with a fictional family. Family: a real family's private one. */
   mode: 'Demo' | 'Family';
   signedIn: boolean;
+  /** A family instance with Google sign-in set up, so a parent can sign in here. */
+  canSignIn: boolean;
 }
 
 type SessionState =
   | { status: 'unknown' }
-  | { status: 'family' }
+  | { status: 'family'; signedIn: boolean; canSignIn: boolean }
   /** A demo visitor with their own private copy of the demo family. */
   | { status: 'demo' }
   /** A demo that has no room for another visitor right now. */
@@ -24,6 +26,16 @@ export class SessionStore {
 
   readonly isDemo = computed(() => this.current().status === 'demo');
   readonly isDemoFull = computed(() => this.current().status === 'demo-full');
+  /** A family instance where a parent can sign in with Google and nobody is signed in yet. */
+  readonly canSignIn = computed(() => {
+    const state = this.current();
+    return state.status === 'family' && state.canSignIn && !state.signedIn;
+  });
+  /** A parent signed in with Google, who can sign out. Demo visitors cannot. */
+  readonly canSignOut = computed(() => {
+    const state = this.current();
+    return state.status === 'family' && state.signedIn;
+  });
 
   /**
    * Runs once, before the app's first screen. On a demo instance it checks the visitor in,
@@ -35,7 +47,7 @@ export class SessionStore {
     try {
       const session = await firstValueFrom(this.http.get<Session>('/api/session'));
       if (session.mode !== 'Demo') {
-        this.current.set({ status: 'family' });
+        this.current.set({ status: 'family', signedIn: session.signedIn, canSignIn: session.canSignIn });
         return;
       }
 
@@ -49,4 +61,23 @@ export class SessionStore {
       this.current.set({ status: 'unknown' });
     }
   }
+
+  /** Ends a parent's sign-in. The session changes only once the server has signed them out. */
+  signOut(): Observable<void> {
+    return this.http.post<void>('/api/auth/sign-out', null).pipe(
+      tap(() =>
+        this.current.update((state) => (state.status === 'family' ? { ...state, signedIn: false } : state)),
+      ),
+    );
+  }
+}
+
+/**
+ * Where "Sign in with Google" goes: the API sends the browser on to Google and, once a parent
+ * is signed in, back to <returnUrl>. The browser's time zone becomes the family's if this
+ * first sign-in creates it.
+ */
+export function googleSignInUrl(returnUrl = '/'): string {
+  const query = new URLSearchParams({ returnUrl, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone });
+  return `/api/auth/google?${query}`;
 }

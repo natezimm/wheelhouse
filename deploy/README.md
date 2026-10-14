@@ -39,7 +39,29 @@ Pick a name (`demo` below), a domain, a loopback port no other instance uses, an
    sudo certbot --nginx -d wheelhouse.example.com
    ```
 
+4. For a `Family` instance, set up [Google sign-in](#google-sign-in). Until it is, nobody can sign in.
+
 The instance starts on the next release.
+
+## Google sign-in
+
+Parents sign in to a family instance with their own Google accounts. Google is used only to say who they are; nothing else is read from their accounts. The demo never calls Google.
+
+Once, in the [Google Cloud console](https://console.cloud.google.com/), in a project of your choosing:
+
+1. Under **Google Auth Platform**, configure the consent screen: an **External** app with the instance's name and your support email. The only scopes it needs are `openid`, `email` and `profile`, which need no Google review.
+2. **Publish** the app (Audience → Publish app) so it is "In production". In Testing mode Google expires each sign-in after 7 days.
+3. Under **Clients**, create an OAuth client of type **Web application**. Add `https://<the instance's domain>/api/auth/google/callback` as an authorized redirect URI. Add `http://localhost:8080/api/auth/google/callback` too if you want to try sign-in locally.
+
+Then add the client and the parents' addresses to the instance's `.env`. Only the addresses listed can sign in, and removing one signs that parent out on their next request.
+
+```
+WHEELHOUSE_GOOGLE_CLIENT_ID=<client id>.apps.googleusercontent.com
+WHEELHOUSE_GOOGLE_CLIENT_SECRET=<client secret>
+WHEELHOUSE_PARENT_EMAILS=<first parent's address>,<second parent's address>
+```
+
+The first parent to sign in creates the family, in their phone's time zone, with themselves as its first parent; rename it in Settings. If they add the other parent in Settings under the name on that parent's Google account, the other parent's first sign-in takes over that member instead of adding a second one.
 
 ## Release
 
