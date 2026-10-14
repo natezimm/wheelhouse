@@ -60,11 +60,41 @@ describe('SessionStore', () => {
   it('never checks in on a family instance', async () => {
     const starting = session.start();
 
-    http.expectOne('/api/session').flush({ mode: 'Family', signedIn: false });
+    http.expectOne('/api/session').flush({ mode: 'Family', signedIn: false, canSignIn: true });
     await starting;
 
     http.expectNone('/api/demo/visit');
     expect(session.isDemo()).toBe(false);
+    expect(session.canSignIn()).toBe(true);
+    expect(session.canSignOut()).toBe(false);
+  });
+
+  it('lets a signed-in parent sign out, once the server has signed them out', async () => {
+    const starting = session.start();
+    http.expectOne('/api/session').flush({ mode: 'Family', signedIn: true, canSignIn: true });
+    await starting;
+    expect(session.canSignIn()).toBe(false);
+    expect(session.canSignOut()).toBe(true);
+
+    let done = false;
+    session.signOut().subscribe(() => (done = true));
+    expect(session.canSignOut()).toBe(true);
+    http.expectOne({ method: 'POST', url: '/api/auth/sign-out' }).flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(done).toBe(true);
+    expect(session.canSignOut()).toBe(false);
+    expect(session.canSignIn()).toBe(true);
+  });
+
+  it('never offers sign-in or sign-out to a demo visitor', async () => {
+    const starting = session.start();
+    http.expectOne('/api/session').flush({ mode: 'Demo', signedIn: false, canSignIn: false });
+    await tick();
+    http.expectOne({ method: 'POST', url: '/api/demo/visit' }).flush(null);
+    await starting;
+
+    expect(session.canSignIn()).toBe(false);
+    expect(session.canSignOut()).toBe(false);
   });
 
   it('still finishes starting when the server cannot be reached', async () => {

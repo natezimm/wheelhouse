@@ -141,9 +141,9 @@ public sealed class DemoTests(ApiFactory factory)
         using var visitor = await factory.DemoVisitorAsync();
         using var stranger = factory.CreateClient();
 
-        Assert.Equal(new SessionResponse(InstanceMode.Demo, SignedIn: false), await SessionOf(newcomer));
-        Assert.Equal(new SessionResponse(InstanceMode.Demo, SignedIn: true), await SessionOf(visitor));
-        Assert.Equal(new SessionResponse(InstanceMode.Family, SignedIn: false), await SessionOf(stranger));
+        Assert.Equal(new SessionResponse(InstanceMode.Demo, SignedIn: false, CanSignIn: false), await SessionOf(newcomer));
+        Assert.Equal(new SessionResponse(InstanceMode.Demo, SignedIn: true, CanSignIn: false), await SessionOf(visitor));
+        Assert.Equal(new SessionResponse(InstanceMode.Family, SignedIn: false, CanSignIn: false), await SessionOf(stranger));
     }
 
     private static Task<SessionResponse?> SessionOf(HttpClient client) =>

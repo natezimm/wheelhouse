@@ -52,6 +52,7 @@ app.UseAuthorization();
 
 app.MapHealth();
 app.MapSession();
+app.MapAuth();
 app.MapDemo();
 app.MapFamily();
 
