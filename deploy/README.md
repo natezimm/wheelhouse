@@ -55,6 +55,26 @@ WHEELHOUSE_PARENT_EMAILS=<first parent's address>,<second parent's address>
 
 The first parent to sign in creates the family, in their phone's time zone, with themselves as its first parent; rename it in Settings. If they add the other parent in Settings under the name on that parent's Google account, the other parent's first sign-in takes over that member instead of adding a second one.
 
+## Change an instance's domain
+
+An instance can start on one domain, such as a subdomain, and move to another later. Keep the old domain working until everyone has moved.
+
+1. Point the new domain's DNS `A` record at the server.
+2. On the server, add the new name next to the old one in the instance's nginx site, then extend its certificate to cover both:
+
+   ```bash
+   sudo sed -i 's/server_name old.example.com;/server_name old.example.com new.example.com;/' /etc/nginx/sites-available/old.example.com
+   ```
+
+   ```bash
+   sudo certbot --nginx --expand -d old.example.com -d new.example.com
+   ```
+
+3. On a `Family` instance, add `https://<new domain>/api/auth/google/callback` to the Google OAuth client's authorized redirect URIs.
+4. The sign-in cookie belongs to the domain it was issued on, so nothing carries over. Each parent signs in again at the new address, and each wall display is removed in Settings, pointed at the new address and paired again. The family's data stays as it was.
+
+Nothing in the instance's `.env` names its domain, so no release is needed.
+
 ## Release
 
 ```bash
