@@ -51,6 +51,16 @@ for env_file in "${env_files[@]}"; do
     exit 1
   fi
   echo "   healthy"
+
+  # A family instance without Google sign-in runs, but nobody can sign in to it. Say so
+  # rather than fail, so one unfinished instance doesn't hold back the others.
+  if grep -q '^WHEELHOUSE_MODE=Family$' "$env_file"; then
+    for setting in WHEELHOUSE_GOOGLE_CLIENT_ID WHEELHOUSE_GOOGLE_CLIENT_SECRET WHEELHOUSE_PARENT_EMAILS; do
+      if ! grep -q "^$setting=." "$env_file"; then
+        echo "   warning: $setting is empty in $env_file, so nobody can sign in. See deploy/README.md#google-sign-in."
+      fi
+    done
+  fi
 done
 
 docker image prune --force > /dev/null
