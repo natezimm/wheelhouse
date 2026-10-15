@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
+using Wheelhouse.Api.Devices;
 
 namespace Wheelhouse.Api.Auth;
 
@@ -17,16 +18,22 @@ public static class WheelhouseClaims
 
     /// <summary>A parent's <see cref="UserAccount"/> id. Demo visitors have none.</summary>
     public const string Account = "wheelhouse:account";
+
+    /// <summary>A paired display's <see cref="Devices.Device"/> id.</summary>
+    public const string Device = "wheelhouse:device";
 }
 
 public static class Roles
 {
     public const string Parent = "parent";
+
+    /// <summary>A paired wall display. It can read the family but change nothing a parent manages.</summary>
+    public const string Device = "device";
 }
 
 public static class Policies
 {
-    /// <summary>Anyone signed in to a family: a parent, or later a paired display.</summary>
+    /// <summary>Anyone signed in to a family: a parent, or a paired display.</summary>
     public const string Family = "Family";
 
     /// <summary>A parent. Needed for settings and anything that manages the family.</summary>
@@ -53,6 +60,15 @@ public static class WheelhousePrincipal
 
         return new(new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme));
     }
+
+    /// <summary>The identity the sign-in cookie carries for a wall display paired with <paramref name="familyId"/>.</summary>
+    public static ClaimsPrincipal Device(Guid familyId, Guid deviceId) => new(new ClaimsIdentity(
+        [
+            new(WheelhouseClaims.Family, familyId.ToString()),
+            new(WheelhouseClaims.Role, Roles.Device),
+            new(WheelhouseClaims.Device, deviceId.ToString()),
+        ],
+        CookieAuthenticationDefaults.AuthenticationScheme));
 }
 
 public static class AuthSetup
@@ -91,17 +107,29 @@ public static class AuthSetup
                     return Task.CompletedTask;
                 };
                 // A parent's cookie stops working as soon as they are removed from the family
-                // or from the instance's parent list, not only when it expires.
+                // or from the instance's parent list, and a display's as soon as a parent removes
+                // it, not only when the cookie expires.
                 options.Events.OnValidatePrincipal = async context =>
                 {
-                    if (context.Principal?.FindFirstValue(WheelhouseClaims.Account) is not { } account)
+                    var services = context.HttpContext.RequestServices;
+                    var cancellationToken = context.HttpContext.RequestAborted;
+                    bool allowed;
+                    if (context.Principal?.FindFirstValue(WheelhouseClaims.Account) is { } account)
+                    {
+                        allowed = Guid.TryParse(account, out var accountId)
+                            && await services.GetRequiredService<ParentSignIn>().IsStillAllowedAsync(accountId, cancellationToken);
+                    }
+                    else if (context.Principal?.FindFirstValue(WheelhouseClaims.Device) is { } device)
+                    {
+                        allowed = Guid.TryParse(device, out var deviceId)
+                            && await services.GetRequiredService<DeviceCheckIn>().IsStillPairedAsync(deviceId, cancellationToken);
+                    }
+                    else
                     {
                         return;
                     }
 
-                    var signIn = context.HttpContext.RequestServices.GetRequiredService<ParentSignIn>();
-                    if (!Guid.TryParse(account, out var accountId)
-                        || !await signIn.IsStillAllowedAsync(accountId, context.HttpContext.RequestAborted))
+                    if (!allowed)
                     {
                         context.RejectPrincipal();
                         await context.HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);

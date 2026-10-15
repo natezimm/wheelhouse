@@ -1,3 +1,4 @@
+using Wheelhouse.Api.Devices;
 using Wheelhouse.Api.Families;
 
 namespace Wheelhouse.Api.Demo;
@@ -27,6 +28,18 @@ public static class DemoFamily
             Member(family, 2, "Tess", "#B85A14", MemberRole.Parent),
             Member(family, 3, "Milo", "#137A6D", MemberRole.Kid),
         ]);
+
+        // A display that looks as if it was paired when the copy was made, so a visitor's phone
+        // has one to show in Settings. Pairing a real browser at /wall adds another.
+        var created = expiresAt - DemoCopies.Lifetime;
+        family.Devices.Add(new Device
+        {
+            Id = Guid.CreateVersion7(),
+            FamilyId = family.Id,
+            Name = "Kitchen wall",
+            PairedAt = created,
+            LastSeenAt = created,
+        });
 
         return family;
     }

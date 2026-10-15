@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from './app.routes';
+import { ASK_EVERY_MS } from './core/pairing';
 import { SessionStore } from './core/session';
 import { marlowes } from './testing/marlowes';
 
@@ -57,7 +58,7 @@ describe('routes', () => {
     await settle();
 
     expect(text(page.querySelectorAll('.members li'))).toEqual(['B Ben', 'T Tess', 'M Milo']);
-    expect(page.querySelector('.private')).toBeNull();
+    expect(page.querySelector('app-pairing-screen')).toBeNull();
   });
 
   it('names each family member on the phone, as the way into Settings', async () => {
@@ -71,14 +72,39 @@ describe('routes', () => {
     expect(text(link!.querySelectorAll('.sr-only'))).toEqual(['Family settings:', 'Ben', 'Tess', 'Milo']);
   });
 
-  it('says the instance is private when nobody is signed in', async () => {
+  it('shows a pairing code on the wall when it is not signed in to a family', async () => {
     const { page, settle } = await open('/wall');
 
     http.expectOne('/api/family').flush(null, { status: 401, statusText: 'Unauthorized' });
     await settle();
+    http.expectOne({ method: 'POST', url: '/api/pairing' }).flush({ id: 'p1', code: '482913', expiresAt: '' });
+    await settle();
 
-    expect(page.querySelector('.private')?.textContent).toBe('This Wheelhouse is private.');
+    expect(page.querySelector('app-pairing-screen h1')?.textContent).toBe('Pair this display');
+    expect(page.querySelector('.code')?.getAttribute('aria-label')).toBe('Pairing code 482 913');
     expect(page.querySelectorAll('.members li').length).toBe(0);
+  });
+
+  it('switches the wall to the family once a parent enters its code', async () => {
+    const { page, settle } = await open('/wall');
+    http.expectOne('/api/family').flush(null, { status: 401, statusText: 'Unauthorized' });
+    await settle();
+
+    // Only the wait between questions is faked; the page settles on real time.
+    vi.useFakeTimers();
+    try {
+      http.expectOne({ method: 'POST', url: '/api/pairing' }).flush({ id: 'p1', code: '482913', expiresAt: '' });
+      vi.advanceTimersByTime(ASK_EVERY_MS);
+      http.expectOne('/api/pairing/p1/finish').flush(null, { status: 204, statusText: 'No Content' });
+    } finally {
+      vi.useRealTimers();
+    }
+    await settle();
+    http.expectOne('/api/family').flush(marlowes);
+    await settle();
+
+    expect(page.querySelector('app-pairing-screen')).toBeNull();
+    expect(text(page.querySelectorAll('.members li'))).toEqual(['B Ben', 'T Tess', 'M Milo']);
   });
 
   describe('on a demo instance', () => {
@@ -103,7 +129,27 @@ describe('routes', () => {
       );
     });
 
-    it('says the demo is full instead of calling it private', async () => {
+    it("pairs the demo's wall with the visitor's phone, and can go back without pairing", async () => {
+      await startDemo({ status: 204 });
+      const { page, settle } = await open('/wall');
+      http.expectOne('/api/family').flush(marlowes);
+      await settle();
+      const button = (label: string) =>
+        Array.from(page.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.trim() === label)!;
+
+      button('Pair with a phone').click();
+      await settle();
+      http.expectOne({ method: 'POST', url: '/api/pairing' }).flush({ id: 'p1', code: '482913', expiresAt: '' });
+      await settle();
+      expect(page.querySelector('app-pairing-screen h1')?.textContent).toBe('Pair this display');
+
+      button('Back to the family').click();
+      await settle();
+      expect(page.querySelector('app-pairing-screen')).toBeNull();
+      expect(text(page.querySelectorAll('.members li'))).toEqual(['B Ben', 'T Tess', 'M Milo']);
+    });
+
+    it('says the demo is full instead of showing a pairing code', async () => {
       await startDemo({ status: 503 });
       const { page, settle } = await open('/wall');
       http.expectOne('/api/family').flush(null, { status: 401, statusText: 'Unauthorized' });
@@ -112,7 +158,7 @@ describe('routes', () => {
       expect(page.querySelector('app-demo-notice')?.textContent?.trim()).toBe(
         'The demo is full right now. Please try again later.',
       );
-      expect(page.querySelector('.private')).toBeNull();
+      expect(page.querySelector('app-pairing-screen')).toBeNull();
     });
   });
 
