@@ -1,40 +1,53 @@
 import { DatePipe } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { Clock } from '../core/clock';
 import { FamilyStore } from '../core/family';
 import { SessionStore } from '../core/session';
 import { DemoNotice } from '../shared/demo-notice';
 import { MemberAvatar } from '../shared/member-avatar';
 import { StatusLine } from '../shared/status-line';
+import { PairingScreen } from './pairing-screen';
 
-/** The wall display's frame: date, clock, who is in the family, and connection status. Sized for 1920 × 1080. */
+/** How often the wall checks in: it picks up changes from the phones, and the server sees it is still there. */
+export const CHECK_IN_EVERY_MS = 5 * 60_000;
+
+/**
+ * The wall display's frame: date, clock, who is in the family, and connection status. Sized
+ * for 1920 × 1080. A display that is not signed in to a family shows a pairing code instead.
+ */
 @Component({
   selector: 'app-wall-shell',
-  imports: [DatePipe, DemoNotice, MemberAvatar, StatusLine],
+  imports: [DatePipe, DemoNotice, MemberAvatar, PairingScreen, StatusLine],
   template: `
-    <header>
-      <div class="now">
-        <h1>{{ clock.now() | date: 'EEEE, MMMM d' }}</h1>
-        <span class="time">{{ clock.now() | date: 'h:mm a' }}</span>
-      </div>
-      <ul class="members" aria-label="Family members">
-        @for (member of family.members(); track member.id) {
-          <li [style.--member]="member.color">
-            <app-member-avatar [member]="member" />
-            {{ member.displayName }}
-          </li>
-        }
-      </ul>
-    </header>
+    @if (showPairing()) {
+      <app-pairing-screen [cancellable]="pairingChosen()" (paired)="paired()" (cancelled)="pairingChosen.set(false)" />
+    } @else {
+      <header>
+        <div class="now">
+          <h1>{{ clock.now() | date: 'EEEE, MMMM d' }}</h1>
+          <span class="time">{{ clock.now() | date: 'h:mm a' }}</span>
+        </div>
+        <ul class="members" aria-label="Family members">
+          @for (member of family.members(); track member.id) {
+            <li [style.--member]="member.color">
+              <app-member-avatar [member]="member" />
+              {{ member.displayName }}
+            </li>
+          }
+        </ul>
+      </header>
 
-    @if (family.state().status === 'private' && !session.isDemoFull()) {
-      <p class="private">This Wheelhouse is private.</p>
+      <footer>
+        <app-status-line />
+        <div class="demo">
+          @if (session.isDemo()) {
+            <!-- On the demo the wall starts with a copy of its own; pairing joins the phone's copy. -->
+            <button class="pair" type="button" (click)="pairingChosen.set(true)">Pair with a phone</button>
+          }
+          <app-demo-notice />
+        </div>
+      </footer>
     }
-
-    <footer>
-      <app-status-line />
-      <app-demo-notice />
-    </footer>
   `,
   styles: `
     :host {
@@ -95,12 +108,21 @@ import { StatusLine } from '../shared/status-line';
       font-weight: 600;
     }
 
-    .private {
-      margin: 0;
-      text-align: center;
-      font-family: var(--font-display);
-      font-size: 34px;
-      color: var(--muted);
+    .demo {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .pair {
+      min-height: 56px;
+      padding: 0 24px;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      background: var(--surface);
+      color: var(--ink);
+      font: 700 18px var(--font-body);
+      cursor: pointer;
     }
   `,
 })
@@ -110,7 +132,22 @@ export class WallShell {
 
   protected readonly session = inject(SessionStore);
 
+  /** A demo visitor asked to pair this wall with their phone. */
+  protected readonly pairingChosen = signal(false);
+
+  protected readonly showPairing = computed(
+    () => this.pairingChosen() || (this.family.state().status === 'private' && !this.session.isDemoFull()),
+  );
+
   constructor() {
+    this.family.load();
+    const timer = setInterval(() => this.family.refresh(), CHECK_IN_EVERY_MS);
+    inject(DestroyRef).onDestroy(() => clearInterval(timer));
+  }
+
+  /** Signed in now: show the family the display was paired with. */
+  protected paired(): void {
+    this.pairingChosen.set(false);
     this.family.load();
   }
 }

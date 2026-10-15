@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Wheelhouse.Api.Auth;
 using Wheelhouse.Api.Data;
 using Wheelhouse.Api.Demo;
+using Wheelhouse.Api.Devices;
 using Wheelhouse.Api.Families;
 using Wheelhouse.Api.Health;
 using Wheelhouse.Api.Instance;
@@ -33,6 +34,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 });
 
 builder.Services.AddWheelhouseAuth();
+builder.Services.AddPairing();
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<DemoCopies>();
@@ -49,12 +51,14 @@ await app.PrepareDatabaseAsync();
 app.UseForwardedHeaders();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseRateLimiter();
 
 app.MapHealth();
 app.MapSession();
 app.MapAuth();
 app.MapDemo();
 app.MapFamily();
+app.MapDevices();
 
 app.Run();
 

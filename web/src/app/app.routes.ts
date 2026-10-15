@@ -13,6 +13,10 @@ export const routes: Routes = [
     path: 'settings/members/:id',
     loadComponent: () => import('./phone/member-editor').then((m) => m.MemberEditor),
   },
+  {
+    path: 'settings/displays/pair',
+    loadComponent: () => import('./phone/pair-display').then((m) => m.PairDisplay),
+  },
   { path: 'wall', loadComponent: () => import('./wall/wall-shell').then((m) => m.WallShell) },
   { path: '**', redirectTo: '' },
 ];
