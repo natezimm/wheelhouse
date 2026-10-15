@@ -13,35 +13,27 @@ The server needs no registry credentials of its own. Each release signs it in wi
 
 ## Once per instance
 
-Pick a name (`demo` below), a domain, a loopback port no other instance uses, and a mode:
+Pick a name (`demo` below), a domain and a mode:
 
 - `Demo` gives every visitor their own private copy of a fictional family, with no sign-in, and deletes each copy after a day.
 - `Family` is private. Nothing is readable without signing in.
 
 1. Point the domain's DNS `A` record at the server.
-2. Create the instance folder and its `.env`. The file holds the database password, so it is readable only by you.
+2. From a checkout of this repository, create the instance on the server. [`new-instance.sh`](new-instance.sh) makes the instance's folder and its `.env` (readable only by you, since it holds a fresh database password), picks a loopback port no other instance uses, and gives the server's nginx a site for the domain. It uses `sudo` for nginx, so the server's user needs to run `sudo` without a password, as a Google Cloud VM's does.
 
    ```bash
-   mkdir -p ~/wheelhouse/demo
+   ssh <server> 'bash -s' -- demo wheelhouse.example.com Demo < deploy/new-instance.sh
    ```
 
-   ```bash
-   (umask 077; printf 'WHEELHOUSE_MODE=Demo\nWHEELHOUSE_HTTP_PORT=8610\nWHEELHOUSE_DB_PASSWORD=%s\n' "$(openssl rand -hex 24)" > ~/wheelhouse/demo/.env)
-   ```
-
-3. Give the server's nginx a site for the domain. Start from [`nginx/site.conf.example`](nginx/site.conf.example), replacing the domain and port, then enable it and add HTTPS:
-
-   ```bash
-   sudo nginx -t && sudo systemctl reload nginx
-   ```
+3. Once the domain points at the server, add HTTPS on the server:
 
    ```bash
    sudo certbot --nginx -d wheelhouse.example.com
    ```
 
-4. For a `Family` instance, set up [Google sign-in](#google-sign-in). Until it is, nobody can sign in.
+4. For a `Family` instance, set up [Google sign-in](#google-sign-in). Until it is, nobody can sign in, and each release says so.
 
-The instance starts on the next release.
+The instance starts on the next release. To start it without a new version, open the latest **Release** run under the repository's Actions and choose **Re-run all jobs**.
 
 ## Google sign-in
 
@@ -53,7 +45,7 @@ Once, in the [Google Cloud console](https://console.cloud.google.com/), in a pro
 2. **Publish** the app (Audience → Publish app) so it is "In production". In Testing mode Google expires each sign-in after 7 days.
 3. Under **Clients**, create an OAuth client of type **Web application**. Add `https://<the instance's domain>/api/auth/google/callback` as an authorized redirect URI. Add `http://localhost:8080/api/auth/google/callback` too if you want to try sign-in locally.
 
-Then add the client and the parents' addresses to the instance's `.env`. Only the addresses listed can sign in, and removing one signs that parent out on their next request.
+Then fill in the client and the parents' addresses in the instance's `.env` on the server (`~/wheelhouse/<name>/.env`), and re-run the latest release to apply them. Only the addresses listed can sign in, and removing one signs that parent out on their next request.
 
 ```
 WHEELHOUSE_GOOGLE_CLIENT_ID=<client id>.apps.googleusercontent.com
