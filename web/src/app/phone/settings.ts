@@ -1,15 +1,18 @@
+import { DatePipe } from '@angular/common';
 import { Component, effect, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { Clock } from '../core/clock';
+import { Display, DisplayStore, ONLINE_WITHIN_MS } from '../core/displays';
 import { Family, FamilySettings, FamilyStore, refusalMessage } from '../core/family';
 import { SessionStore } from '../core/session';
 import { MemberAvatar } from '../shared/member-avatar';
 import { SignIn } from './sign-in';
 
-/** Phone-only: who is in the family, and the family's own details. Parents manage both here. */
+/** Phone-only: who is in the family, its wall displays, and its own details. Parents manage them here. */
 @Component({
   selector: 'app-settings',
-  imports: [MemberAvatar, ReactiveFormsModule, RouterLink, SignIn],
+  imports: [DatePipe, MemberAvatar, ReactiveFormsModule, RouterLink, SignIn],
   template: `
     <header>
       <a class="back" routerLink="/" aria-label="Back to Today">
@@ -36,6 +39,48 @@ import { SignIn } from './sign-in';
             }
             <li><a class="add" routerLink="/settings/members/new">Add a family member</a></li>
           </ul>
+        </section>
+
+        <section aria-labelledby="displays-heading">
+          <h2 id="displays-heading">Displays</h2>
+          <div class="card displays">
+            @switch (displays.state().status) {
+              @case ('ready') {
+                @for (display of displayList(); track display.id) {
+                  <div class="display">
+                    <span class="dot" [class.online]="isOnline(display)" aria-hidden="true"></span>
+                    <span class="about">
+                      <span class="name">{{ display.name }}</span>
+                      <span class="seen">
+                        @if (!display.lastSeenAt) {
+                          Waiting to sign in
+                        } @else if (isOnline(display)) {
+                          Online · last seen {{ minutesAgo(display) }}
+                        } @else {
+                          Last seen {{ display.lastSeenAt | date: 'MMM d, h:mm a' }}
+                        }
+                      </span>
+                    </span>
+                    @if (removing() === display.id) {
+                      <button class="button small danger" type="button" (click)="removeDisplay(display)">Remove</button>
+                      <button class="button small" type="button" (click)="removing.set(null)">Keep</button>
+                    } @else {
+                      <button class="button small" type="button" (click)="removing.set(display.id)">Remove</button>
+                    }
+                  </div>
+                } @empty {
+                  <p class="none">No displays yet. A display shows a code until it's paired.</p>
+                }
+              }
+              @case ('unavailable') {
+                <p class="none">Could not load the displays.</p>
+              }
+            }
+            <a class="button primary pair" routerLink="/settings/displays/pair">Pair a display</a>
+            @if (displayMessage()) {
+              <p class="message" role="alert">{{ displayMessage() }}</p>
+            }
+          </div>
         </section>
 
         <section aria-labelledby="details-heading">
@@ -185,6 +230,68 @@ import { SignIn } from './sign-in';
       font-weight: 600;
     }
 
+    .displays {
+      padding: 2px 14px 12px;
+      gap: 0;
+    }
+
+    .display {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 56px;
+      border-bottom: 1px solid var(--hairline);
+    }
+
+    .dot {
+      flex-shrink: 0;
+      width: 10px;
+      height: 10px;
+      border-radius: 5px;
+      background: var(--line);
+    }
+
+    .dot.online {
+      background: var(--ok);
+    }
+
+    .about {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .about .name {
+      font-size: 15px;
+    }
+
+    .seen {
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .button.small {
+      min-height: 44px;
+      padding: 0 14px;
+      font-size: 13px;
+    }
+
+    .none {
+      margin: 0;
+      padding: 14px 0;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .displays .pair {
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+    }
+
     .pair {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -218,6 +325,11 @@ export class Settings {
   protected readonly message = signal('');
   protected readonly session = inject(SessionStore);
   protected readonly signingOut = signal(false);
+  protected readonly displays = inject(DisplayStore);
+  /** The display whose removal is waiting to be confirmed. */
+  protected readonly removing = signal<string | null>(null);
+  protected readonly displayMessage = signal('');
+  private readonly clock = inject(Clock);
   private readonly router = inject(Router);
 
   protected readonly form = inject(FormBuilder).nonNullable.group({
@@ -233,6 +345,9 @@ export class Settings {
     if (this.family.state().status === 'loading') {
       this.family.load();
     }
+
+    // Always fresh: a display may have signed in since this screen was last open.
+    this.displays.load();
 
     // Fill the form from the family once it arrives, but never over edits in progress.
     effect(() => {
@@ -274,6 +389,31 @@ export class Settings {
       error: (error: unknown) => {
         this.saving.set(false);
         this.message.set(refusalMessage(error, 'Could not save. Try again in a moment.'));
+      },
+    });
+  }
+
+  protected displayList(): Display[] {
+    const state = this.displays.state();
+    return state.status === 'ready' ? state.displays : [];
+  }
+
+  protected isOnline(display: Display): boolean {
+    return !!display.lastSeenAt && this.clock.now().getTime() - Date.parse(display.lastSeenAt) < ONLINE_WITHIN_MS;
+  }
+
+  protected minutesAgo(display: Display): string {
+    const minutes = Math.floor((this.clock.now().getTime() - Date.parse(display.lastSeenAt!)) / 60_000);
+    return minutes < 1 ? 'just now' : `${minutes} min ago`;
+  }
+
+  protected removeDisplay(display: Display): void {
+    this.displayMessage.set('');
+    this.displays.remove(display.id).subscribe({
+      next: () => this.removing.set(null),
+      error: () => {
+        this.removing.set(null);
+        this.displayMessage.set(`Could not remove ${display.name}. Try again in a moment.`);
       },
     });
   }

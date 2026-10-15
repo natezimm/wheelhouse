@@ -71,6 +71,21 @@ export class FamilyStore {
     });
   }
 
+  /**
+   * The wall's regular check-in. It picks up changes made on a phone and notices when the
+   * display has been removed, but a failed attempt keeps what is on screen.
+   */
+  refresh(): void {
+    this.http.get<Family>('/api/family').subscribe({
+      next: (family) => this.current.set({ status: 'ready', family }),
+      error: (error: HttpErrorResponse) => {
+        if (error.status === 401) {
+          this.current.set({ status: 'private' });
+        }
+      },
+    });
+  }
+
   // Each change below reaches the server first; the store updates only once it is accepted,
   // so a refused change never shows on screen.
 

@@ -1,6 +1,7 @@
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Wheelhouse.Api.Auth;
+using Wheelhouse.Api.Devices;
 using Wheelhouse.Api.Families;
 
 namespace Wheelhouse.Api.Data;
@@ -13,6 +14,10 @@ public sealed class WheelhouseDbContext(DbContextOptions<WheelhouseDbContext> op
     public DbSet<Member> Members => Set<Member>();
 
     public DbSet<UserAccount> UserAccounts => Set<UserAccount>();
+
+    public DbSet<Device> Devices => Set<Device>();
+
+    public DbSet<PairingCode> PairingCodes => Set<PairingCode>();
 
     /// <summary>
     /// The family the query filters scope to. Null outside a signed-in request, and then
@@ -50,6 +55,20 @@ public sealed class WheelhouseDbContext(DbContextOptions<WheelhouseDbContext> op
             account.HasIndex(a => a.MemberId).IsUnique();
             account.HasOne(a => a.Member).WithOne().HasForeignKey<UserAccount>(a => a.MemberId).OnDelete(DeleteBehavior.Cascade);
             account.HasOne<Family>().WithMany().HasForeignKey(a => a.FamilyId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Device>(device =>
+        {
+            device.Property(d => d.Name).HasMaxLength(50);
+            device.HasOne<Family>().WithMany(f => f.Devices).HasForeignKey(d => d.FamilyId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PairingCode>(pairing =>
+        {
+            pairing.Property(p => p.Code).HasMaxLength(6);
+            pairing.HasIndex(p => p.Code).IsUnique();
+            // Removing a display, or the demo copy it belongs to, takes its unused code with it.
+            pairing.HasOne<Device>().WithMany().HasForeignKey(p => p.DeviceId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // Every family-owned table gets the filter here, so a new one cannot be left unscoped.

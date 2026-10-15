@@ -1,3 +1,5 @@
+using Wheelhouse.Api.Devices;
+
 namespace Wheelhouse.Api.Families;
 
 public sealed class Family
@@ -30,6 +32,9 @@ public sealed class Family
     public DateTimeOffset? ExpiresAt { get; set; }
 
     public List<Member> Members { get; } = [];
+
+    /// <summary>The wall displays paired with the family.</summary>
+    public List<Device> Devices { get; } = [];
 }
 
 public enum Units
