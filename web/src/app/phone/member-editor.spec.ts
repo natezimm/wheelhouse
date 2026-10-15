@@ -18,7 +18,11 @@ describe('MemberEditor', () => {
     router = TestBed.inject(Router);
   });
 
-  afterEach(() => http.verify());
+  afterEach(() => {
+    // Settings, where a saved change returns to, also loads the family's displays.
+    http.match('/api/devices');
+    http.verify();
+  });
 
   /** Opens the editor at a URL with the family loaded. */
   async function open(url: string) {
