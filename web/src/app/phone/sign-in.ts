@@ -1,4 +1,5 @@
 import { Component, computed, inject, input } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { SessionStore, googleSignInUrl } from '../core/session';
 
 /**
@@ -7,6 +8,7 @@ import { SessionStore, googleSignInUrl } from '../core/session';
  */
 @Component({
   selector: 'app-sign-in',
+  imports: [RouterLink],
   template: `
     <p class="private">This Wheelhouse is private.</p>
     @if (session.canSignIn()) {
@@ -20,6 +22,7 @@ import { SessionStore, googleSignInUrl } from '../core/session';
         }
       }
     }
+    <a class="privacy" routerLink="/privacy">Privacy</a>
   `,
   styles: `
     :host {
@@ -41,6 +44,14 @@ import { SessionStore, googleSignInUrl } from '../core/session';
       display: inline-flex;
       align-items: center;
       text-decoration: none;
+    }
+
+    .privacy {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      font-size: 14px;
+      color: var(--muted);
     }
 
     .outcome {

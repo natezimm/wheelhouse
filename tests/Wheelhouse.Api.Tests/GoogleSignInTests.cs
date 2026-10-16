@@ -34,18 +34,8 @@ public sealed class GoogleSignInTests(ApiFactory factory)
         return await scope.ServiceProvider.GetRequiredService<ParentSignIn>().SignInAsync(google, timeZone, CancellationToken.None);
     }
 
-    /// <summary>A client carrying the cookie the API issues at the end of a successful Google sign-in.</summary>
-    private static async Task<HttpClient> ParentAsync(WebApplicationFactory<Program> instance, GoogleIdentity google)
-    {
-        var principal = await SignInAsync(instance, google) ?? throw new InvalidOperationException("Sign-in was refused.");
-        var cookie = instance.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
-            .Get(CookieAuthenticationDefaults.AuthenticationScheme);
-        var ticket = new AuthenticationTicket(principal, new AuthenticationProperties { IsPersistent = true }, CookieAuthenticationDefaults.AuthenticationScheme);
-
-        var client = instance.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false });
-        client.DefaultRequestHeaders.Add("Cookie", $"wheelhouse={cookie.TicketDataFormat.Protect(ticket)}");
-        return client;
-    }
+    private static Task<HttpClient> ParentAsync(WebApplicationFactory<Program> instance, GoogleIdentity google) =>
+        ApiFactory.ParentAsync(instance, google);
 
     private static async Task<FamilyResponse> FamilyOf(HttpClient client) =>
         (await client.GetFromJsonAsync<FamilyResponse>("/api/family", ApiFactory.Json))!;

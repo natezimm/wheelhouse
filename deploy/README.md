@@ -37,13 +37,13 @@ The instance starts on the next release. To start it without a new version, open
 
 ## Google sign-in
 
-Parents sign in to a family instance with their own Google accounts. Google is used only to say who they are; nothing else is read from their accounts. The demo never calls Google.
+Parents sign in to a family instance with their own Google accounts. Google is used only to say who they are; nothing else is read from their accounts. The family's calendars come from one shared Google account that a parent connects afterwards (see [Google Calendar](#google-calendar)). The demo never calls Google.
 
 Once, in the [Google Cloud console](https://console.cloud.google.com/), in a project of your choosing:
 
 1. Under **Google Auth Platform**, configure the consent screen: an **External** app with the instance's name and your support email. The only scopes it needs are `openid`, `email` and `profile`, which need no Google review.
-2. Leave the app in **Testing** and add each parent's Google address under **Audience → Test users**. Only test users can sign in, which suits a family instance. Testing mode expires Google's own grants after 7 days, but Wheelhouse uses Google only at sign-in and then keeps parents signed in with its own cookie. Publishing becomes necessary once the app keeps a Google token, as the Calendar connection will.
-3. Under **Clients**, create an OAuth client of type **Web application**. Add `https://<the instance's domain>/api/auth/google/callback` as an authorized redirect URI. Add `http://localhost:8080/api/auth/google/callback` too if you want to try sign-in locally.
+2. Add each parent's Google address and the shared calendar account under **Audience → Test users** while the app is in **Testing**. Testing expires Google's grants after 7 days, which is fine for sign-in but not for the Calendar connection, so publish the app once Calendar is set up (see [Google Calendar](#google-calendar)).
+3. Under **Clients**, create an OAuth client of type **Web application**. Add `https://<the instance's domain>/api/auth/google/callback` and `https://<the instance's domain>/api/calendar/google/callback` as authorized redirect URIs. Add the same two paths on `http://localhost:8080` too if you want to try them locally.
 
 Then fill in the client and the parents' addresses in the instance's `.env` on the server (`~/wheelhouse/<name>/.env`), and re-run the latest release to apply them. Only the addresses listed can sign in, and removing one signs that parent out on their next request.
 
@@ -54,6 +54,19 @@ WHEELHOUSE_PARENT_EMAILS=<first parent's address>,<second parent's address>
 ```
 
 The first parent to sign in creates the family, in their phone's time zone, with themselves as its first parent; rename it in Settings. If they add the other parent in Settings under the name on that parent's Google account, the other parent's first sign-in takes over that member instead of adding a second one.
+
+## Google Calendar
+
+The family's calendars live in one shared Google account, with a calendar for each person or type, each shared to both parents' own accounts with edit rights. Wheelhouse keeps one refresh token for that account, encrypted, so it can read the calendars with nobody signed in.
+
+Once, in the same Google Cloud project as sign-in:
+
+1. Under **APIs & Services → Library**, enable the **Google Calendar API**.
+2. Under **Google Auth Platform → Data Access**, add the scope `https://www.googleapis.com/auth/calendar`.
+3. Under **Branding**, set the app's home page to `https://<the instance's domain>/` and its privacy policy to `https://<the instance's domain>/privacy`.
+4. Under **Audience**, **Publish app**. In Testing, Google expires the Calendar grant after 7 days and the wall stops updating. A published app that asks for Calendar access but has not been verified by Google shows a warning on its consent screen and is limited to 100 accounts, which a family never reaches. To go on past the warning, choose **Advanced**, then the link to continue.
+
+Then, signed in as a parent, open **Settings → Calendars → Connect Google Calendar** on a phone, pick the shared account, and allow calendar access. Choose which calendars show and whose each one is. If Google later stops accepting the connection (its password changed, or access was removed in the account), Settings says so and offers to connect again.
 
 ## Change an instance's domain
 
@@ -70,7 +83,7 @@ An instance can start on one domain, such as a subdomain, and move to another la
    sudo certbot --nginx --expand -d old.example.com -d new.example.com
    ```
 
-3. On a `Family` instance, add `https://<new domain>/api/auth/google/callback` to the Google OAuth client's authorized redirect URIs.
+3. On a `Family` instance, add `https://<new domain>/api/auth/google/callback` and `https://<new domain>/api/calendar/google/callback` to the Google OAuth client's authorized redirect URIs, and point the app's home page and privacy policy at the new domain.
 4. The sign-in cookie belongs to the domain it was issued on, so nothing carries over. Each parent signs in again at the new address, and each wall display is removed in Settings, pointed at the new address and paired again. The family's data stays as it was.
 
 Nothing in the instance's `.env` names its domain, so no release is needed.
