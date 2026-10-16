@@ -1,9 +1,10 @@
-import { DatePipe } from '@angular/common';
-import { Component, inject, input } from '@angular/core';
+import { DatePipe, LowerCasePipe } from '@angular/common';
+import { Component, effect, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Clock } from '../core/clock';
 import { FamilyStore } from '../core/family';
 import { SessionStore } from '../core/session';
+import { WeatherStore } from '../core/weather';
 import { DemoNotice } from '../shared/demo-notice';
 import { MemberAvatar } from '../shared/member-avatar';
 import { StatusLine } from '../shared/status-line';
@@ -12,16 +13,20 @@ import { SignIn } from './sign-in';
 import { TodayEvents } from './today-events';
 
 /**
- * The phone's Today screen: the date, who is in the family, what is on the calendar for the
- * rest of the day, and connection status. Sized for a 390 px wide screen.
+ * The phone's Today screen: the date and weather, who is in the family, what is on the
+ * calendar for the rest of the day, and connection status. Sized for a 390 px wide screen.
  */
 @Component({
   selector: 'app-phone-shell',
-  imports: [DatePipe, DemoNotice, MemberAvatar, PhoneNav, RouterLink, SignIn, StatusLine, TodayEvents],
+  imports: [DatePipe, DemoNotice, LowerCasePipe, MemberAvatar, PhoneNav, RouterLink, SignIn, StatusLine, TodayEvents],
   template: `
     <header>
       <div class="title">
-        <span class="date">{{ clock.now() | date: 'EEE, MMM d' }}</span>
+        <span class="date"
+          >{{ clock.now() | date: 'EEE, MMM d' }}@if (weather.weather(); as today) {
+            · {{ today.temperature }}° {{ today.description | lowercase }}
+          }</span
+        >
         <h1>Today</h1>
       </div>
       <a class="family" routerLink="/settings">
@@ -130,11 +135,18 @@ export class PhoneShell {
   protected readonly family = inject(FamilyStore);
 
   protected readonly session = inject(SessionStore);
+  protected readonly weather = inject(WeatherStore);
 
   /** Set by the API when Google sent someone back without signing them in: refused or failed. */
   readonly signin = input<string>();
 
   constructor() {
     this.family.load();
+    effect(() => {
+      const state = this.family.state();
+      if (state.status === 'ready') {
+        this.weather.show(state.family);
+      }
+    });
   }
 }
