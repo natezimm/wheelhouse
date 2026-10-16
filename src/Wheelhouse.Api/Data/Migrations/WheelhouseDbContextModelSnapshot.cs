@@ -74,6 +74,9 @@ namespace Wheelhouse.Api.Data.Migrations
                     b.Property<DateTimeOffset?>("LastSyncedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTimeOffset?>("ListedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<Guid?>("MemberId")
                         .HasColumnType("uuid");
 
@@ -81,6 +84,10 @@ namespace Wheelhouse.Api.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
+
+                    b.Property<string>("SyncToken")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
 
                     b.HasKey("Id");
 

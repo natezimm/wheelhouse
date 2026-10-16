@@ -24,6 +24,11 @@ public static class GoogleConnectionEndpoints
     {
         services.AddScoped<GoogleTokens>();
         services.AddHttpClient<IGoogleCalendar, GoogleCalendarApi>(client => client.Timeout = TimeSpan.FromSeconds(20));
+        services.AddOptions<CalendarSyncOptions>().BindConfiguration(CalendarSyncOptions.Section);
+        services.AddScoped<CalendarSync>();
+        services.AddSingleton<CalendarSyncTrigger>();
+        services.AddSingleton<CalendarSyncHealth>();
+        services.AddHostedService<CalendarSyncService>();
         return services;
     }
 
@@ -104,6 +109,7 @@ public static class GoogleConnectionEndpoints
         IGoogleCalendar google,
         IOptions<InstanceOptions> instance,
         IOptions<GoogleSignInOptions> client,
+        CalendarSyncTrigger sync,
         TimeProvider time,
         ILogger<GoogleConnection> logger,
         CancellationToken cancellationToken)
@@ -165,6 +171,8 @@ public static class GoogleConnectionEndpoints
         connection.Status = GoogleConnectionStatus.Connected;
         connection.ConnectedAt = time.GetUtcNow();
         await db.SaveChangesAsync(cancellationToken);
+        // A reconnected account's calendars catch up at once.
+        sync.SyncSoon(familyId);
 
         return TypedResults.Redirect("/settings/calendars");
     }
@@ -244,6 +252,7 @@ public static class GoogleConnectionEndpoints
         ICurrentFamily family,
         GoogleTokens tokens,
         IGoogleCalendar google,
+        CalendarSyncTrigger sync,
         ILogger<GoogleConnection> logger,
         CancellationToken cancellationToken)
     {
@@ -284,7 +293,7 @@ public static class GoogleConnectionEndpoints
             var source = sources.SingleOrDefault(s => s.GoogleCalendarId == choice.GoogleCalendarId);
             if (source is null)
             {
-                // Its events arrive with the next sync.
+                // Its events arrive with the sync this asks for below.
                 source = new CalendarSource { Id = Guid.CreateVersion7(), FamilyId = familyId, GoogleCalendarId = choice.GoogleCalendarId, Name = "" };
                 db.CalendarSources.Add(source);
             }
@@ -294,6 +303,10 @@ public static class GoogleConnectionEndpoints
         }
 
         await db.SaveChangesAsync(cancellationToken);
+        if (await db.GoogleConnections.AnyAsync(cancellationToken))
+        {
+            sync.SyncSoon(familyId);
+        }
 
         return TypedResults.Ok(new CalendarChoicesResponse(available.Calendars!
             .Select(c => new CalendarChoice(c.Id, c.Name, c.Color, wanted.ContainsKey(c.Id), wanted.GetValueOrDefault(c.Id)?.MemberId))

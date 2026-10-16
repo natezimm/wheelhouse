@@ -65,6 +65,79 @@ public sealed class GoogleCalendarApiTests
         await Assert.ThrowsAsync<GoogleGrantRevokedException>(() => api.ListCalendarsAsync("refresh", CancellationToken.None));
     }
 
+    [Fact]
+    public async Task Events_in_a_window_come_back_one_per_occurrence_page_by_page()
+    {
+        var asked = new List<string>();
+        var api = ApiOver((request, _) =>
+        {
+            var url = request.RequestUri!.AbsoluteUri;
+            asked.Add(url);
+            return url.Contains("pageToken=2")
+                ? (HttpStatusCode.OK, """{"items":[{"id":"trip","status":"confirmed","summary":" Field trip ","start":{"date":"2026-10-20"},"end":{"date":"2026-10-21"}}]}""")
+                : (HttpStatusCode.OK, """
+                    {"items":[
+                      {"id":"swim_20261016T220000Z","status":"confirmed","summary":"Swim","location":"Pool","recurringEventId":"swim","start":{"dateTime":"2026-10-16T15:00:00-07:00"},"end":{"dateTime":"2026-10-16T16:00:00-07:00"}},
+                      {"id":"private","status":"confirmed","start":{"dateTime":"2026-10-17T09:00:00Z"},"end":{"dateTime":"2026-10-17T10:00:00Z"}},
+                      {"id":"called-off","status":"cancelled","summary":"Called off","start":{"date":"2026-10-18"},"end":{"date":"2026-10-19"}}
+                    ],"nextPageToken":"2"}
+                    """);
+        });
+
+        var events = await api.ListEventsAsync("access", "alex@group.calendar.google.com",
+            new DateTimeOffset(2026, 9, 16, 0, 0, 0, TimeSpan.Zero), new DateTimeOffset(2027, 4, 14, 0, 0, 0, TimeSpan.Zero), CancellationToken.None);
+
+        Assert.Equal(
+            [
+                new GoogleEvent("swim_20261016T220000Z", "swim", "Swim", "Pool",
+                    new DateTimeOffset(2026, 10, 16, 22, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 10, 16, 23, 0, 0, TimeSpan.Zero), null, null),
+                new GoogleEvent("private", null, "Busy", null,
+                    new DateTimeOffset(2026, 10, 17, 9, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 10, 17, 10, 0, 0, TimeSpan.Zero), null, null),
+                new GoogleEvent("trip", null, "Field trip", null, null, null, new DateOnly(2026, 10, 20), new DateOnly(2026, 10, 21)),
+            ],
+            events);
+        Assert.StartsWith($"{GoogleCalendarApi.CalendarApi}calendars/alex%40group.calendar.google.com/events?", asked[0]);
+        Assert.Contains("singleEvents=true", asked[0]);
+        Assert.Contains("timeMin=2026-09-16T00%3A00%3A00Z", asked[0]);
+    }
+
+    [Fact]
+    public async Task Asking_what_changed_reads_every_page_and_returns_the_next_sync_token()
+    {
+        var asked = new List<string>();
+        var api = ApiOver((request, _) =>
+        {
+            var url = request.RequestUri!.AbsoluteUri;
+            asked.Add(url);
+            return url.Contains("pageToken=2")
+                ? (HttpStatusCode.OK, """{"items":[],"nextSyncToken":"after"}""")
+                : (HttpStatusCode.OK, """{"items":[{"id":"swim","status":"cancelled"}],"nextPageToken":"2"}""");
+        });
+
+        var changes = await api.ListChangesAsync("access", "alex-cal", "before", CancellationToken.None);
+
+        Assert.Equal(new GoogleChanges(Changed: true, "after"), changes);
+        Assert.All(asked, url => Assert.Contains("syncToken=before", url));
+    }
+
+    [Fact]
+    public async Task No_items_since_the_sync_token_means_nothing_changed()
+    {
+        var api = ApiOver((_, _) => (HttpStatusCode.OK, """{"items":[],"nextSyncToken":"same"}"""));
+
+        Assert.Equal(new GoogleChanges(Changed: false, "same"), await api.ListChangesAsync("access", "alex-cal", "before", CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task Google_answering_gone_or_not_found_is_told_apart()
+    {
+        var expired = ApiOver((_, _) => (HttpStatusCode.Gone, """{"error":{"code":410}}"""));
+        var missing = ApiOver((_, _) => (HttpStatusCode.NotFound, """{"error":{"code":404}}"""));
+
+        await Assert.ThrowsAsync<GoogleSyncTokenExpiredException>(() => expired.ListChangesAsync("access", "alex-cal", "old", CancellationToken.None));
+        await Assert.ThrowsAsync<GoogleCalendarGoneException>(() => missing.ListChangesAsync("access", "alex-cal", null, CancellationToken.None));
+    }
+
     private sealed class StandIn(Func<HttpRequestMessage, string, (HttpStatusCode, string)> google, List<string> sent) : HttpMessageHandler
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)

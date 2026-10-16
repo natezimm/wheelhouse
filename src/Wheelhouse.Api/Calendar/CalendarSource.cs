@@ -24,5 +24,17 @@ public sealed class CalendarSource : IFamilyOwned
     /// <summary>When its events in the cache were last brought up to date.</summary>
     public DateTimeOffset? LastSyncedAt { get; set; }
 
+    /// <summary>
+    /// Google's token for asking what changed since the last sync. Null before the first sync,
+    /// and for demo calendars.
+    /// </summary>
+    public string? SyncToken { get; set; }
+
+    /// <summary>
+    /// When the cached window of events was last read from Google in full. The window moves with
+    /// the days, so it is read again at least once a day even when nothing changed.
+    /// </summary>
+    public DateTimeOffset? ListedAt { get; set; }
+
     public List<EventInstance> Events { get; } = [];
 }

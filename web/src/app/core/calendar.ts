@@ -30,12 +30,14 @@ export interface CalendarEvent {
 interface CalendarResponse {
   calendars: CalendarSource[];
   events: CalendarEvent[];
+  /** Google stopped accepting the family's connection, so the events have stopped updating. */
+  needsReconnect: boolean;
 }
 
 export type CalendarState =
   | { status: 'idle' }
   | { status: 'loading'; from: Day; to: Day }
-  | { status: 'ready'; from: Day; to: Day; calendars: CalendarSource[]; events: CalendarEvent[] }
+  | ({ status: 'ready'; from: Day; to: Day } & CalendarResponse)
   | { status: 'unavailable'; from: Day; to: Day };
 
 /** The filter key for whole-family events. Members' events use the member's id. */
@@ -115,6 +117,12 @@ export class CalendarStore {
   readonly events = computed(() => {
     const hidden = this.hiddenOwners();
     return this.allEvents().filter((event) => !hidden.has(ownerOf(event)));
+  });
+
+  /** Whether a parent has to connect Google again before the calendar updates. */
+  readonly needsReconnect = computed(() => {
+    const state = this.current();
+    return state.status === 'ready' && state.needsReconnect;
   });
 
   /** Whether any calendar is the whole family's, so the filter needs a chip for it. */
