@@ -62,17 +62,25 @@ jobs:
           SSH_KEY: ${{ secrets.GCP_SSH_KEY }}
           SSH_HOST: ${{ secrets.GCP_HOST }}
           SSH_USER: ${{ secrets.GCP_USER }}
+          # The server's host key, pinned so the deploy never talks to a machine posing as it.
+          KNOWN_HOSTS: ${{ secrets.GCP_KNOWN_HOSTS }}
         run: |
+          if [ -z "$KNOWN_HOSTS" ]; then
+            echo "::error::The GCP_KNOWN_HOSTS secret is not set." >&2
+            exit 1
+          fi
           mkdir -p ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/id_deploy
           chmod 600 ~/.ssh/id_deploy
-          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
           cat > ~/.ssh/config <<EOF
           Host server
             HostName $SSH_HOST
             User $SSH_USER
             IdentityFile ~/.ssh/id_deploy
             IdentitiesOnly yes
+            StrictHostKeyChecking yes
           EOF
 
       - name: Copy the stack definition
