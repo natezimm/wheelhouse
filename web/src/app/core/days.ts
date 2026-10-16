@@ -73,3 +73,16 @@ export function daysBetween(from: Day, to: Day): Day[] {
   }
   return days;
 }
+
+const clockFormats = new Map<string, Intl.DateTimeFormat>();
+
+/** Minutes since midnight on the family's clock at an instant, 0 to 1439. */
+export function minutesIn(timeZone: string, instant: Date | string): number {
+  let format = clockFormats.get(timeZone);
+  if (!format) {
+    format = new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+    clockFormats.set(timeZone, format);
+  }
+  const [hours, minutes] = format.format(new Date(instant)).split(':').map(Number);
+  return hours * 60 + minutes;
+}
