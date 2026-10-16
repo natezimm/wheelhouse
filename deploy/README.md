@@ -7,7 +7,7 @@ Pushing a version tag runs the tests, publishes the images to GitHub Container R
 ## Once per server
 
 1. Install Docker with the Compose plugin, and make sure the deploy user can run `docker ps` without `sudo`.
-2. Add three secrets to the GitHub repository: `GCP_HOST` (the server's address), `GCP_USER` (the deploy user) and `GCP_SSH_KEY` (a private key that user accepts).
+2. Add four secrets to the GitHub repository: `GCP_HOST` (the server's address), `GCP_USER` (the deploy user), `GCP_SSH_KEY` (a private key that user accepts) and `GCP_KNOWN_HOSTS` (the server's host key as a `known_hosts` line, such as `203.0.113.10 ssh-ed25519 AAAA...`, for the same address as `GCP_HOST`). The deploy refuses to connect to a server whose host key does not match.
 
 The server needs no registry credentials of its own. Each release signs it in with a short-lived token and signs it out afterwards.
 
