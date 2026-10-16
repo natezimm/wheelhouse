@@ -59,6 +59,18 @@ body {
   font: 400 16px var(--font-body);
 }
 
+/* iOS Safari gives date and time inputs a wide built-in minimum width and centers their
+   value, so they overflow a half-width column. Let them shrink and read like the rest. */
+.field input[type='time'] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+}
+
+.field input[type='time']::-webkit-date-and-time-value {
+  text-align: left;
+}
+
 .button {
   min-height: 48px;
   padding: 0 20px;
