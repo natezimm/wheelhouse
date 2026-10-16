@@ -9,6 +9,9 @@ export const marlowes: Family = {
   nightModeFrom: '21:30:00',
   nightModeTo: '06:30:00',
   units: 'Imperial',
+  // No place by default, so specs that are not about the weather never ask for it.
+  latitude: null,
+  longitude: null,
   members: [
     { id: 'm1', displayName: 'Ben', color: '#2F5FC4', initial: 'B', role: 'Parent' },
     { id: 'm2', displayName: 'Tess', color: '#B85A14', initial: 'T', role: 'Parent' },

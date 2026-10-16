@@ -9,7 +9,7 @@ import { SessionStore } from '../core/session';
 import { MemberAvatar } from '../shared/member-avatar';
 import { SignIn } from './sign-in';
 
-/** Phone-only: who is in the family, its wall displays, and its own details. Parents manage them here. */
+/** Phone-only: who is in the family, its wall displays, its own details and where its weather is for. Parents manage them here. */
 @Component({
   selector: 'app-settings',
   imports: [DatePipe, MemberAvatar, ReactiveFormsModule, RouterLink, SignIn],
@@ -127,6 +127,26 @@ import { SignIn } from './sign-in';
             <button class="button primary" type="submit" [disabled]="form.invalid || saving()">Save details</button>
             <p class="message" role="status">{{ message() }}</p>
           </form>
+        </section>
+
+        <section aria-labelledby="weather-heading">
+          <h2 id="weather-heading">Weather</h2>
+          <div class="card">
+            <p class="place">
+              @if (place(); as at) {
+                Weather is for {{ at }}.
+              } @else {
+                Set where you live to show the weather on the wall and on Today.
+              }
+            </p>
+            <button class="button primary" type="button" [disabled]="locating()" (click)="useThisPhone()">
+              {{ locating() ? 'Finding this phone…' : "Use this phone's location" }}
+            </button>
+            @if (place()) {
+              <button class="button" type="button" [disabled]="locating()" (click)="clearPlace()">Stop showing the weather</button>
+            }
+            <p class="message" role="status">{{ placeMessage() }}</p>
+          </div>
         </section>
 
         @if (session.canSignOut()) {
@@ -305,6 +325,11 @@ import { SignIn } from './sign-in';
       color: var(--muted);
     }
 
+    .place {
+      margin: 0;
+      font-size: 15px;
+    }
+
     .sign-out {
       align-self: center;
     }
@@ -329,6 +354,8 @@ export class Settings {
   /** The display whose removal is waiting to be confirmed. */
   protected readonly removing = signal<string | null>(null);
   protected readonly displayMessage = signal('');
+  protected readonly locating = signal(false);
+  protected readonly placeMessage = signal('');
   private readonly clock = inject(Clock);
   private readonly router = inject(Router);
 
@@ -389,6 +416,57 @@ export class Settings {
       error: (error: unknown) => {
         this.saving.set(false);
         this.message.set(refusalMessage(error, 'Could not save. Try again in a moment.'));
+      },
+    });
+  }
+
+  /** Where the weather is for, as coordinates, or null when nowhere is set. */
+  protected place(): string | null {
+    const state = this.family.state();
+    if (state.status !== 'ready' || state.family.latitude === null || state.family.longitude === null) {
+      return null;
+    }
+    const { latitude, longitude } = state.family;
+    return `${Math.abs(latitude).toFixed(2)}° ${latitude < 0 ? 'S' : 'N'}, ${Math.abs(longitude).toFixed(2)}° ${longitude < 0 ? 'W' : 'E'}`;
+  }
+
+  /** Asks the browser where this phone is; the server keeps it to about a kilometre. */
+  protected useThisPhone(): void {
+    if (!('geolocation' in navigator)) {
+      this.placeMessage.set("This browser can't share its location.");
+      return;
+    }
+    this.locating.set(true);
+    this.placeMessage.set('');
+    navigator.geolocation.getCurrentPosition(
+      (position) => this.savePlace(position.coords.latitude, position.coords.longitude, 'Saved'),
+      (error) => {
+        this.locating.set(false);
+        this.placeMessage.set(
+          error.code === error.PERMISSION_DENIED
+            ? 'Location is blocked for this site. Allow it in the browser, then try again.'
+            : 'Could not find this phone. Try again in a moment.',
+        );
+      },
+      { maximumAge: 10 * 60_000, timeout: 20_000 },
+    );
+  }
+
+  protected clearPlace(): void {
+    this.locating.set(true);
+    this.placeMessage.set('');
+    this.savePlace(null, null, 'The weather is off');
+  }
+
+  private savePlace(latitude: number | null, longitude: number | null, done: string): void {
+    this.family.saveLocation(latitude, longitude).subscribe({
+      next: () => {
+        this.locating.set(false);
+        this.placeMessage.set(done);
+      },
+      error: (error: unknown) => {
+        this.locating.set(false);
+        this.placeMessage.set(refusalMessage(error, 'Could not save. Try again in a moment.'));
       },
     });
   }

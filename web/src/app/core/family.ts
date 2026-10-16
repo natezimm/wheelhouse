@@ -20,11 +20,14 @@ export interface Family {
   nightModeFrom: string;
   nightModeTo: string;
   units: 'Imperial' | 'Metric';
+  /** Where the weather is for, to about a kilometre. Null until a parent sets it. */
+  latitude: number | null;
+  longitude: number | null;
   members: Member[];
 }
 
 /** What a parent can change about the family itself. */
-export type FamilySettings = Omit<Family, 'id' | 'members'>;
+export type FamilySettings = Omit<Family, 'id' | 'members' | 'latitude' | 'longitude'>;
 
 /** What a parent enters for a member; the server assigns the rest. */
 export type MemberDraft = Pick<Member, 'displayName' | 'color' | 'role'>;
@@ -92,6 +95,13 @@ export class FamilyStore {
   saveSettings(settings: FamilySettings): Observable<Family> {
     return this.http
       .put<Family>('/api/family', settings)
+      .pipe(tap((family) => this.current.set({ status: 'ready', family })));
+  }
+
+  /** Sets where the weather is for; null for both clears it. */
+  saveLocation(latitude: number | null, longitude: number | null): Observable<Family> {
+    return this.http
+      .put<Family>('/api/family/location', { latitude, longitude })
       .pipe(tap((family) => this.current.set({ status: 'ready', family })));
   }
 

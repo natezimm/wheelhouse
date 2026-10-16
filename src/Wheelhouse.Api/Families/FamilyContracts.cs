@@ -10,6 +10,8 @@ public sealed record FamilyResponse(
     TimeOnly NightModeFrom,
     TimeOnly NightModeTo,
     Units Units,
+    double? Latitude,
+    double? Longitude,
     IReadOnlyList<MemberResponse> Members)
 {
     public static FamilyResponse From(Family family) => new(
@@ -20,6 +22,8 @@ public sealed record FamilyResponse(
         family.NightModeFrom,
         family.NightModeTo,
         family.Units,
+        family.Latitude,
+        family.Longitude,
         [.. family.Members.Select(MemberResponse.From)]);
 }
 
@@ -65,6 +69,32 @@ public sealed record FamilySettingsRequest(
         if (!Enum.IsDefined(Units))
         {
             errors["units"] = ["Choose Imperial or Metric."];
+        }
+
+        return errors;
+    }
+}
+
+/// <summary>Where the weather is for. Both null clears it.</summary>
+public sealed record FamilyLocationRequest(double? Latitude, double? Longitude)
+{
+    public Dictionary<string, string[]> Validate()
+    {
+        var errors = new Dictionary<string, string[]>();
+
+        if (Latitude is null != Longitude is null)
+        {
+            errors["latitude"] = ["Give both a latitude and a longitude, or neither."];
+        }
+
+        if (Latitude is < -90 or > 90 || Latitude is double.NaN)
+        {
+            errors["latitude"] = ["A latitude is between -90 and 90."];
+        }
+
+        if (Longitude is < -180 or > 180 || Longitude is double.NaN)
+        {
+            errors["longitude"] = ["A longitude is between -180 and 180."];
         }
 
         return errors;
