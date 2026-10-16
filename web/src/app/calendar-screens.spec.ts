@@ -5,6 +5,7 @@ import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from './app.routes';
 import { CalendarEvent } from './core/calendar';
+import { RETURN_AFTER_MS } from './wall/wall-shell';
 import { allDay, marloweCalendars, timed } from './testing/calendar';
 import { marlowes } from './testing/marlowes';
 
@@ -99,6 +100,82 @@ describe('calendar screens', () => {
 
       expect(page.querySelector('app-week-view h2')?.textContent).toBe('Oct 19 – 25');
       expect(page.querySelectorAll('.day li').length).toBe(0);
+    });
+  });
+
+  describe('on the wall, by day and by month', () => {
+    const button = (page: HTMLElement, label: string) =>
+      Array.from(page.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.trim() === label)!;
+
+    /** Opens the wall's week, then switches it to another view, answering for its days. */
+    async function switchTo(label: string, range: { from: string; to: string }) {
+      const opened = await open('/wall', { from: '2026-10-12', to: '2026-10-19' });
+      button(opened.page, label).click();
+      await opened.settle();
+      http
+        .expectOne((r) => r.params.get('from') === range.from && r.params.get('to') === range.to)
+        .flush({ calendars: marloweCalendars, events });
+      await opened.settle();
+      return opened;
+    }
+
+    it('shows a day as a column per person, with all-day events on top', async () => {
+      const { page } = await switchTo('Day', { from: '2026-10-12', to: '2026-10-13' });
+
+      expect(page.querySelector('app-calendar-nav h2')?.textContent).toBe('Today · 4 events');
+      expect(texts(page.querySelectorAll('.head .who'))).toEqual(['B Ben', 'T Tess', 'M Milo', 'F Family']);
+      expect(texts(page.querySelectorAll('.head .all-day'))).toEqual(['Grandma in town']);
+      expect(rows(page.querySelectorAll('ul.column[aria-label="Milo"] li'))).toEqual(['Swim lesson 5:30 – 6:15 PM']);
+      expect(rows(page.querySelectorAll('ul.column[aria-label="Tess"] li'))).toEqual(['Book club 7:00 – 9:00 PM']);
+      expect(page.querySelector('app-day-view .now span')?.textContent).toBe('5:22 PM');
+    });
+
+    it("drops a hidden person's column from the day", async () => {
+      const { page, settle } = await switchTo('Day', { from: '2026-10-12', to: '2026-10-13' });
+
+      Array.from(page.querySelectorAll<HTMLButtonElement>('app-calendar-filter button'))
+        .find((b) => b.textContent?.includes('Tess'))!
+        .click();
+      await settle();
+
+      expect(texts(page.querySelectorAll('.head .who'))).toEqual(['B Ben', 'M Milo', 'F Family']);
+    });
+
+    it('shows the month with the first events of each day, and opens a day when it is tapped', async () => {
+      const { page, settle } = await switchTo('Month', { from: '2026-09-28', to: '2026-11-02' });
+      const cell = (label: string) =>
+        Array.from(page.querySelectorAll<HTMLButtonElement>('app-month-view .grid > button')).find((b) =>
+          b.getAttribute('aria-label')?.startsWith(label),
+        )!;
+
+      expect(page.querySelector('app-calendar-nav h2')?.textContent).toBe('October 2026');
+      expect(page.querySelectorAll('app-month-view .grid > button').length).toBe(35);
+      expect(cell('Monday, October 12').getAttribute('aria-label')).toBe('Monday, October 12, 4 events');
+      expect(texts(cell('Monday, October 12').querySelectorAll('.event'))).toEqual(['Grandma in town', 'Dentist']);
+      expect(cell('Monday, October 12').querySelector('.more')?.textContent).toBe('+2 more');
+
+      cell('Tuesday, October 13').click();
+      await settle();
+      http.expectOne((r) => r.params.get('from') === '2026-10-13').flush({ calendars: marloweCalendars, events });
+      await settle();
+
+      expect(page.querySelector('app-calendar-nav h2')?.textContent).toBe('Tuesday, Oct 13 · 2 events');
+      expect(button(page, 'Day').getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('goes back to this week a while after the last touch', async () => {
+      const { page, settle } = await switchTo('Month', { from: '2026-09-28', to: '2026-11-02' });
+      vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+      page.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      vi.advanceTimersByTime(RETURN_AFTER_MS - 1);
+      expect(button(page, 'Month').getAttribute('aria-pressed')).toBe('true');
+
+      vi.advanceTimersByTime(1);
+      vi.useFakeTimers({ toFake: ['Date'] });
+      await settle();
+
+      expect(button(page, 'Week').getAttribute('aria-pressed')).toBe('true');
+      expect(page.querySelector('app-calendar-nav h2')?.textContent).toBe('Oct 12 – 18');
     });
   });
 
