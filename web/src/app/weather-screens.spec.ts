@@ -41,6 +41,7 @@ describe('weather', () => {
     await harness.fixture.whenStable();
     http.match((r) => r.url === '/api/calendar').forEach((r) => r.flush({ calendars: marloweCalendars, events: [] }));
     http.match('/api/devices').forEach((r) => r.flush([]));
+    http.match('/api/calendar/google').forEach((r) => r.flush({ canConnect: false, email: null, status: null }));
     return { page: harness.routeNativeElement as HTMLElement, settle: () => harness.fixture.whenStable() };
   }
 

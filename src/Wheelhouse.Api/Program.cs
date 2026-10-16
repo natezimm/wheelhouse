@@ -38,6 +38,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 builder.Services.AddWheelhouseAuth();
 builder.Services.AddPairing();
 builder.Services.AddWeather();
+builder.Services.AddGoogleCalendar();
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<DemoCopies>();
@@ -63,6 +64,7 @@ app.MapDemo();
 app.MapFamily();
 app.MapDevices();
 app.MapCalendar();
+app.MapGoogleConnection();
 app.MapWeather();
 
 app.Run();

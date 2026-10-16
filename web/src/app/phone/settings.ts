@@ -1,15 +1,19 @@
 import { DatePipe } from '@angular/common';
-import { Component, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Clock } from '../core/clock';
 import { Display, DisplayStore, ONLINE_WITHIN_MS } from '../core/displays';
 import { Family, FamilySettings, FamilyStore, refusalMessage } from '../core/family';
+import { GOOGLE_CONNECT_URL, GoogleStore } from '../core/google';
 import { SessionStore } from '../core/session';
 import { MemberAvatar } from '../shared/member-avatar';
 import { SignIn } from './sign-in';
 
-/** Phone-only: who is in the family, its wall displays, its own details and where its weather is for. Parents manage them here. */
+/**
+ * Phone-only: who is in the family, its wall displays, its Google calendars, its own details and
+ * where its weather is for. Parents manage them here.
+ */
 @Component({
   selector: 'app-settings',
   imports: [DatePipe, MemberAvatar, ReactiveFormsModule, RouterLink, SignIn],
@@ -83,6 +87,47 @@ import { SignIn } from './sign-in';
           </div>
         </section>
 
+        <section aria-labelledby="calendars-heading">
+          <h2 id="calendars-heading">Calendars</h2>
+          <div class="card">
+            @switch (google.state().status) {
+              @case ('ready') {
+                @if (connection(); as connected) {
+                  @if (connected.email) {
+                    <p class="place">Connected to <strong>{{ connected.email }}</strong>.</p>
+                    @if (connected.status === 'NeedsReauth') {
+                      <p class="warning">Google stopped accepting the connection, so the calendar can't stay up to date.</p>
+                      <a class="button primary link" [href]="connectUrl">Connect again</a>
+                    }
+                    <a class="button link" routerLink="/settings/calendars">Choose calendars</a>
+                    @if (disconnecting()) {
+                      <p class="place">Disconnecting removes the family's calendars from Wheelhouse. They stay in Google.</p>
+                      <div class="pair">
+                        <button class="button danger" type="button" (click)="disconnect()">Disconnect</button>
+                        <button class="button" type="button" (click)="disconnecting.set(false)">Keep</button>
+                      </div>
+                    } @else {
+                      <button class="button" type="button" (click)="disconnecting.set(true)">Disconnect Google</button>
+                    }
+                  } @else if (connected.canConnect) {
+                    <p class="place">Connect the family's shared Google account, the one with a calendar for each person.</p>
+                    <a class="button primary link" [href]="connectUrl">Connect Google Calendar</a>
+                  } @else {
+                    <p class="place">The demo's calendars are made up, so there is no Google account to connect. You can still say whose calendar is whose.</p>
+                    <a class="button link" routerLink="/settings/calendars">Choose calendars</a>
+                  }
+                }
+              }
+              @case ('unavailable') {
+                <p class="none">Could not load the calendar connection.</p>
+              }
+            }
+            @if (googleMessage()) {
+              <p class="message" role="alert">{{ googleMessage() }}</p>
+            }
+          </div>
+        </section>
+
         <section aria-labelledby="details-heading">
           <h2 id="details-heading">Details</h2>
           <form class="card" [formGroup]="form" (ngSubmit)="save()">
@@ -152,6 +197,7 @@ import { SignIn } from './sign-in';
         @if (session.canSignOut()) {
           <button class="button sign-out" type="button" [disabled]="signingOut()" (click)="signOut()">Sign out</button>
         }
+        <a class="privacy" routerLink="/privacy">Privacy</a>
       }
       @case ('private') {
         <app-sign-in class="notice" returnUrl="/settings" />
@@ -330,6 +376,28 @@ import { SignIn } from './sign-in';
       font-size: 15px;
     }
 
+    .warning {
+      margin: 0;
+      font-size: 14px;
+      color: var(--danger);
+    }
+
+    .link {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-decoration: none;
+    }
+
+    .privacy {
+      align-self: center;
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
     .sign-out {
       align-self: center;
     }
@@ -356,6 +424,33 @@ export class Settings {
   protected readonly displayMessage = signal('');
   protected readonly locating = signal(false);
   protected readonly placeMessage = signal('');
+  protected readonly google = inject(GoogleStore);
+  protected readonly connectUrl = GOOGLE_CONNECT_URL;
+  /** Waiting for a second tap to confirm disconnecting Google. */
+  protected readonly disconnecting = signal(false);
+  private readonly disconnectMessage = signal('');
+
+  /** How the last trip to Google's consent screen ended, from the API's redirect. */
+  readonly googleOutcome = input<string>(undefined, { alias: 'google' });
+
+  protected readonly connection = computed(() => {
+    const state = this.google.state();
+    return state.status === 'ready' ? state.connection : null;
+  });
+
+  protected readonly googleMessage = computed(() => {
+    switch (this.googleOutcome()) {
+      case 'cancelled':
+        return "Google wasn't connected: its screen was closed before allowing access.";
+      case 'no-calendar':
+        return 'Google was connected without calendar access. Connect again and leave calendar access ticked.';
+      case 'failed':
+        return "Connecting Google didn't finish. Try again.";
+      default:
+        return this.disconnectMessage();
+    }
+  });
+
   private readonly clock = inject(Clock);
   private readonly router = inject(Router);
 
@@ -375,6 +470,7 @@ export class Settings {
 
     // Always fresh: a display may have signed in since this screen was last open.
     this.displays.load();
+    this.google.load();
 
     // Fill the form from the family once it arrives, but never over edits in progress.
     effect(() => {
@@ -467,6 +563,17 @@ export class Settings {
       error: (error: unknown) => {
         this.locating.set(false);
         this.placeMessage.set(refusalMessage(error, 'Could not save. Try again in a moment.'));
+      },
+    });
+  }
+
+  protected disconnect(): void {
+    this.disconnectMessage.set('');
+    this.google.disconnect().subscribe({
+      next: () => this.disconnecting.set(false),
+      error: () => {
+        this.disconnecting.set(false);
+        this.disconnectMessage.set('Could not disconnect Google. Try again in a moment.');
       },
     });
   }

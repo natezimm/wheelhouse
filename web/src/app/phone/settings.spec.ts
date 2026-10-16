@@ -27,6 +27,7 @@ describe('Settings', () => {
     const harness = await RouterTestingHarness.create('/settings');
     http.expectOne('/api/family').flush(marlowes);
     http.expectOne('/api/devices').flush(displays);
+    http.expectOne('/api/calendar/google').flush({ canConnect: false, email: null, status: null });
     await harness.fixture.whenStable();
     const page = harness.routeNativeElement as HTMLElement;
     return { page, settle: () => harness.fixture.whenStable() };
@@ -190,6 +191,7 @@ describe('Settings', () => {
     const harness = await RouterTestingHarness.create('/settings');
     http.expectOne('/api/family').flush(marlowes);
     http.expectOne('/api/devices').flush([]);
+    http.expectOne('/api/calendar/google').flush({ canConnect: true, email: null, status: null });
     await harness.fixture.whenStable();
 
     (harness.routeNativeElement as HTMLElement).querySelector<HTMLButtonElement>('button.sign-out')!.click();
@@ -203,7 +205,7 @@ describe('Settings', () => {
 
     const today = harness.routeNativeElement as HTMLElement;
     expect(today.tagName.toLowerCase()).toBe('app-phone-shell');
-    expect(today.querySelector('app-sign-in a')?.textContent).toBe('Sign in with Google');
+    expect(today.querySelector('app-sign-in a.button')?.textContent).toBe('Sign in with Google');
   });
 
   it('offers no sign-out unless a parent signed in with Google', async () => {
@@ -216,10 +218,11 @@ describe('Settings', () => {
     const harness = await RouterTestingHarness.create('/settings');
     http.expectOne('/api/family').flush(null, { status: 401, statusText: 'Unauthorized' });
     http.expectOne('/api/devices').flush(null, { status: 401, statusText: 'Unauthorized' });
+    http.expectOne('/api/calendar/google').flush(null, { status: 401, statusText: 'Unauthorized' });
     await harness.fixture.whenStable();
 
     const page = harness.routeNativeElement as HTMLElement;
-    expect(page.querySelector('.notice')?.textContent).toBe('This Wheelhouse is private.');
+    expect(page.querySelector('.notice .private')?.textContent).toBe('This Wheelhouse is private.');
     expect(page.querySelector('form')).toBeNull();
   });
 });

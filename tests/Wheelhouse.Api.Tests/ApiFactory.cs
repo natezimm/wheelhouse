@@ -1,9 +1,14 @@
+using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Npgsql;
 using Testcontainers.PostgreSql;
 using Wheelhouse.Api.Auth;
@@ -82,6 +87,30 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
     }
 
     public const string GoogleClientId = "test-client.apps.googleusercontent.com";
+
+    /// <summary>
+    /// A client on a family <paramref name="instance"/> carrying the cookie the API issues at the
+    /// end of a successful Google sign-in as <paramref name="google"/>.
+    /// </summary>
+    public static async Task<HttpClient> ParentAsync(WebApplicationFactory<Program> instance, GoogleIdentity google)
+    {
+        ClaimsPrincipal? principal;
+        await using (var scope = instance.Services.CreateAsyncScope())
+        {
+            principal = await scope.ServiceProvider.GetRequiredService<ParentSignIn>().SignInAsync(google, timeZone: null, CancellationToken.None);
+        }
+
+        var cookie = instance.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
+            .Get(CookieAuthenticationDefaults.AuthenticationScheme);
+        var ticket = new AuthenticationTicket(
+            principal ?? throw new InvalidOperationException("Sign-in was refused."),
+            new AuthenticationProperties { IsPersistent = true },
+            CookieAuthenticationDefaults.AuthenticationScheme);
+
+        var client = instance.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = false, AllowAutoRedirect = false });
+        client.DefaultRequestHeaders.Add("Cookie", $"wheelhouse={cookie.TicketDataFormat.Protect(ticket)}");
+        return client;
+    }
 
     /// <summary>A context that sees the database as <paramref name="familyId"/> would, or with no family at all.</summary>
     public WheelhouseDbContext DbContextFor(Guid? familyId) => new(
