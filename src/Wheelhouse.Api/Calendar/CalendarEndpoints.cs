@@ -68,7 +68,9 @@ public static class CalendarEndpoints
             .ThenBy(e => e.Title, StringComparer.Ordinal)
             .ToList();
 
-        return TypedResults.Ok(new CalendarResponse(calendars, ordered));
+        var needsReconnect = await db.GoogleConnections.AnyAsync(c => c.Status == GoogleConnectionStatus.NeedsReauth, cancellationToken);
+
+        return TypedResults.Ok(new CalendarResponse(calendars, ordered, needsReconnect));
     }
 
     /// <summary>The instant a local day begins in <paramref name="zone"/>, as UTC.</summary>

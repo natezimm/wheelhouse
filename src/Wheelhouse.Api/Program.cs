@@ -22,7 +22,8 @@ builder.Services.AddDbContext<WheelhouseDbContext>((services, options) =>
     options.UseNpgsql(services.GetRequiredService<IConfiguration>().GetConnectionString("Wheelhouse")));
 
 builder.Services.AddHealthChecks()
-    .AddDbContextCheck<WheelhouseDbContext>("database");
+    .AddDbContextCheck<WheelhouseDbContext>("database")
+    .AddCheck<CalendarSyncHealth>("calendar");
 
 // Requests reach the API through the server's nginx, which terminates HTTPS, then the web
 // container's. Take the visitor's scheme and address from the X-Forwarded headers the server's
