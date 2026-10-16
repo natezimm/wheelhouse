@@ -23,7 +23,50 @@ public interface IGoogleCalendar
 
     /// <summary>Tells Google to forget the grant, so the account no longer lists the app as having access.</summary>
     Task RevokeAsync(string refreshToken, CancellationToken cancellationToken);
+
+    /// <summary>A short-lived access token for the calls below.</summary>
+    /// <exception cref="GoogleGrantRevokedException">Google no longer accepts the refresh token.</exception>
+    Task<string> AccessTokenAsync(string refreshToken, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Whether anything in the calendar changed since <paramref name="syncToken"/>, and the token
+    /// to ask with next time. Without a token it reads the whole calendar once to get the first one
+    /// (https://developers.google.com/calendar/api/guides/sync).
+    /// </summary>
+    /// <exception cref="GoogleSyncTokenExpiredException">Google invalidated the sync token.</exception>
+    /// <exception cref="GoogleCalendarGoneException">The account can no longer see the calendar.</exception>
+    Task<GoogleChanges> ListChangesAsync(string accessToken, string calendarId, string? syncToken, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Every occurrence that overlaps <paramref name="from"/> to <paramref name="to"/>, with
+    /// recurring events expanded by Google. Cancelled occurrences are left out.
+    /// </summary>
+    /// <exception cref="GoogleCalendarGoneException">The account can no longer see the calendar.</exception>
+    Task<IReadOnlyList<GoogleEvent>> ListEventsAsync(
+        string accessToken, string calendarId, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken);
 }
+
+public sealed record GoogleChanges(bool Changed, string NextSyncToken);
+
+/// <summary>
+/// One occurrence, timed (<paramref name="StartsAt"/>, <paramref name="EndsAt"/>) or all-day
+/// (<paramref name="StartDate"/> and an exclusive <paramref name="EndDate"/>).
+/// </summary>
+public sealed record GoogleEvent(
+    string Id,
+    string? RecurringEventId,
+    string Title,
+    string? Location,
+    DateTimeOffset? StartsAt,
+    DateTimeOffset? EndsAt,
+    DateOnly? StartDate,
+    DateOnly? EndDate);
+
+/// <summary>Google answered 410 Gone: the sync token is no good, and the calendar must be read in full again.</summary>
+public sealed class GoogleSyncTokenExpiredException() : Exception("Google invalidated the calendar's sync token.");
+
+/// <summary>Google answered 404 or 403 for a calendar: it was deleted, or is no longer shared with the account.</summary>
+public sealed class GoogleCalendarGoneException(string calendarId) : Exception($"The account can no longer see calendar {calendarId}.");
 
 /// <summary>What a finished consent gives the API. Google sends a refresh token only with offline access.</summary>
 public sealed record GoogleGrant(string? RefreshToken, string Email, string Scopes);
@@ -99,7 +142,95 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
         }
     }
 
-    private async Task<string> AccessTokenAsync(string refreshToken, CancellationToken cancellationToken)
+    public async Task<GoogleChanges> ListChangesAsync(string accessToken, string calendarId, string? syncToken, CancellationToken cancellationToken)
+    {
+        var changed = false;
+        string? pageToken = null;
+        while (true)
+        {
+            // A sync token only works with the same parameters it was issued for, so these never change.
+            var query = new Dictionary<string, string?>
+            {
+                ["maxResults"] = "2500",
+                ["syncToken"] = syncToken,
+                ["pageToken"] = pageToken,
+            };
+            var page = await GetEventsAsync(accessToken, calendarId, query, cancellationToken);
+            changed |= syncToken is null || page.Items is { Count: > 0 };
+            if (page.NextSyncToken is { } next)
+            {
+                return new GoogleChanges(changed, next);
+            }
+
+            pageToken = page.NextPageToken ?? throw new HttpRequestException("Google ended a sync without a sync token.");
+        }
+    }
+
+    public async Task<IReadOnlyList<GoogleEvent>> ListEventsAsync(
+        string accessToken, string calendarId, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)
+    {
+        var events = new List<GoogleEvent>();
+        string? pageToken = null;
+        do
+        {
+            var page = await GetEventsAsync(accessToken, calendarId, new Dictionary<string, string?>
+            {
+                ["timeMin"] = from.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"),
+                ["timeMax"] = to.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"),
+                ["singleEvents"] = "true",
+                ["maxResults"] = "2500",
+                ["pageToken"] = pageToken,
+            }, cancellationToken);
+            events.AddRange((page.Items ?? []).Where(item => item.Status != "cancelled").Select(ToEvent).OfType<GoogleEvent>());
+            pageToken = page.NextPageToken;
+        }
+        while (pageToken is not null);
+
+        return events;
+    }
+
+    private async Task<EventsPage> GetEventsAsync(
+        string accessToken, string calendarId, Dictionary<string, string?> query, CancellationToken cancellationToken)
+    {
+        var url = $"{CalendarApi}calendars/{Uri.EscapeDataString(calendarId)}/events"
+            + QueryString.Create(query.Where(pair => pair.Value is not null));
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        using var response = await http.SendAsync(request, cancellationToken);
+
+        switch (response.StatusCode)
+        {
+            case HttpStatusCode.Gone:
+                throw new GoogleSyncTokenExpiredException();
+            case HttpStatusCode.NotFound or HttpStatusCode.Forbidden:
+                throw new GoogleCalendarGoneException(calendarId);
+        }
+
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadFromJsonAsync<EventsPage>(cancellationToken)
+            ?? throw new HttpRequestException("Google sent an empty page of events.");
+    }
+
+    /// <summary>An occurrence as the cache keeps it, or null for one with no usable start and end.</summary>
+    private static GoogleEvent? ToEvent(EventItem item)
+    {
+        var title = string.IsNullOrWhiteSpace(item.Summary) ? "Busy" : item.Summary.Trim();
+        var location = string.IsNullOrWhiteSpace(item.Location) ? null : item.Location.Trim();
+        if (item.Start?.Date is { } startDate && item.End?.Date is { } endDate)
+        {
+            return new GoogleEvent(item.Id, item.RecurringEventId, title, location, null, null,
+                DateOnly.ParseExact(startDate, "yyyy-MM-dd"), DateOnly.ParseExact(endDate, "yyyy-MM-dd"));
+        }
+
+        if (item.Start?.DateTime is { } startsAt && item.End?.DateTime is { } endsAt)
+        {
+            return new GoogleEvent(item.Id, item.RecurringEventId, title, location, startsAt.ToUniversalTime(), endsAt.ToUniversalTime(), null, null);
+        }
+
+        return null;
+    }
+
+    public async Task<string> AccessTokenAsync(string refreshToken, CancellationToken cancellationToken)
     {
         var tokens = await RequestTokensAsync(new Dictionary<string, string>
         {
@@ -169,4 +300,22 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
         [property: JsonPropertyName("backgroundColor")] string? BackgroundColor,
         [property: JsonPropertyName("accessRole")] string? AccessRole,
         [property: JsonPropertyName("primary")] bool Primary);
+
+    private sealed record EventsPage(
+        [property: JsonPropertyName("items")] List<EventItem>? Items,
+        [property: JsonPropertyName("nextPageToken")] string? NextPageToken,
+        [property: JsonPropertyName("nextSyncToken")] string? NextSyncToken);
+
+    private sealed record EventItem(
+        [property: JsonPropertyName("id")] string Id,
+        [property: JsonPropertyName("status")] string? Status,
+        [property: JsonPropertyName("summary")] string? Summary,
+        [property: JsonPropertyName("location")] string? Location,
+        [property: JsonPropertyName("recurringEventId")] string? RecurringEventId,
+        [property: JsonPropertyName("start")] EventTime? Start,
+        [property: JsonPropertyName("end")] EventTime? End);
+
+    private sealed record EventTime(
+        [property: JsonPropertyName("date")] string? Date,
+        [property: JsonPropertyName("dateTime")] DateTimeOffset? DateTime);
 }

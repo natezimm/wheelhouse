@@ -119,7 +119,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
 
     protected override void ConfigureWebHost(IWebHostBuilder builder) => builder
         .UseSetting("ConnectionStrings:Wheelhouse", _database.GetConnectionString())
-        .UseSetting("Wheelhouse:Mode", InstanceMode.Family);
+        .UseSetting("Wheelhouse:Mode", InstanceMode.Family)
+        // The sync tests run each sync themselves rather than wait on the worker.
+        .UseSetting("CalendarSync:Enabled", false);
 
     private sealed record FixedFamily(Guid? Id) : ICurrentFamily;
 }
