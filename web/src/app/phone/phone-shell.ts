@@ -7,12 +7,17 @@ import { SessionStore } from '../core/session';
 import { DemoNotice } from '../shared/demo-notice';
 import { MemberAvatar } from '../shared/member-avatar';
 import { StatusLine } from '../shared/status-line';
+import { PhoneNav } from './phone-nav';
 import { SignIn } from './sign-in';
+import { TodayEvents } from './today-events';
 
-/** The phone layout's frame: today's date, who is in the family, and connection status. Sized for a 390 px wide screen. */
+/**
+ * The phone's Today screen: the date, who is in the family, what is on the calendar for the
+ * rest of the day, and connection status. Sized for a 390 px wide screen.
+ */
 @Component({
   selector: 'app-phone-shell',
-  imports: [DatePipe, DemoNotice, MemberAvatar, RouterLink, SignIn, StatusLine],
+  imports: [DatePipe, DemoNotice, MemberAvatar, PhoneNav, RouterLink, SignIn, StatusLine, TodayEvents],
   template: `
     <header>
       <div class="title">
@@ -34,12 +39,16 @@ import { SignIn } from './sign-in';
 
     @if (family.state().status === 'private' && !session.isDemoFull()) {
       <app-sign-in [outcome]="signin()" />
+    } @else if (family.state().status === 'ready') {
+      <app-today-events />
     }
 
     <footer>
       <app-demo-notice />
       <app-status-line />
     </footer>
+
+    <app-phone-nav />
   `,
   styles: `
     :host {
@@ -48,7 +57,11 @@ import { SignIn } from './sign-in';
       padding: 24px 18px 12px;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      gap: 14px;
+    }
+
+    app-sign-in {
+      margin: auto 0;
     }
 
     header {
@@ -104,6 +117,7 @@ import { SignIn } from './sign-in';
     }
 
     footer {
+      margin-top: auto;
       display: flex;
       flex-direction: column;
       align-items: flex-start;

@@ -1,6 +1,7 @@
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Wheelhouse.Api.Auth;
+using Wheelhouse.Api.Calendar;
 using Wheelhouse.Api.Devices;
 using Wheelhouse.Api.Families;
 
@@ -18,6 +19,10 @@ public sealed class WheelhouseDbContext(DbContextOptions<WheelhouseDbContext> op
     public DbSet<Device> Devices => Set<Device>();
 
     public DbSet<PairingCode> PairingCodes => Set<PairingCode>();
+
+    public DbSet<CalendarSource> CalendarSources => Set<CalendarSource>();
+
+    public DbSet<EventInstance> EventInstances => Set<EventInstance>();
 
     /// <summary>
     /// The family the query filters scope to. Null outside a signed-in request, and then
@@ -69,6 +74,30 @@ public sealed class WheelhouseDbContext(DbContextOptions<WheelhouseDbContext> op
             pairing.HasIndex(p => p.Code).IsUnique();
             // Removing a display, or the demo copy it belongs to, takes its unused code with it.
             pairing.HasOne<Device>().WithMany().HasForeignKey(p => p.DeviceId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CalendarSource>(source =>
+        {
+            source.Property(s => s.GoogleCalendarId).HasMaxLength(1024);
+            source.Property(s => s.Name).HasMaxLength(255);
+            source.HasIndex(s => new { s.FamilyId, s.GoogleCalendarId }).IsUnique();
+            source.HasOne<Family>().WithMany(f => f.Calendars).HasForeignKey(s => s.FamilyId).OnDelete(DeleteBehavior.Cascade);
+            // A calendar outlives the member it belonged to; a parent gives it to someone else.
+            source.HasOne<Member>().WithMany().HasForeignKey(s => s.MemberId).OnDelete(DeleteBehavior.SetNull);
+            source.HasMany(s => s.Events).WithOne().HasForeignKey(e => e.CalendarSourceId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<EventInstance>(instance =>
+        {
+            instance.Ignore(e => e.IsAllDay);
+            instance.Property(e => e.GoogleEventId).HasMaxLength(1024);
+            instance.Property(e => e.RecurringEventId).HasMaxLength(1024);
+            instance.Property(e => e.Title).HasMaxLength(1024);
+            instance.Property(e => e.Location).HasMaxLength(1024);
+            instance.HasIndex(e => new { e.CalendarSourceId, e.GoogleEventId }).IsUnique();
+            // The calendar screens ask for a range of days.
+            instance.HasIndex(e => new { e.FamilyId, e.StartsAt });
+            instance.HasIndex(e => new { e.FamilyId, e.StartDate });
         });
 
         // Every family-owned table gets the filter here, so a new one cannot be left unscoped.
