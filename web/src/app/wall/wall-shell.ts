@@ -1,23 +1,26 @@
 import { DatePipe } from '@angular/common';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { CalendarStore } from '../core/calendar';
 import { Clock } from '../core/clock';
 import { FamilyStore } from '../core/family';
 import { SessionStore } from '../core/session';
+import { CalendarFilter } from '../shared/calendar-filter';
 import { DemoNotice } from '../shared/demo-notice';
-import { MemberAvatar } from '../shared/member-avatar';
 import { StatusLine } from '../shared/status-line';
 import { PairingScreen } from './pairing-screen';
+import { WeekView } from './week-view';
 
 /** How often the wall checks in: it picks up changes from the phones, and the server sees it is still there. */
 export const CHECK_IN_EVERY_MS = 5 * 60_000;
 
 /**
- * The wall display's frame: date, clock, who is in the family, and connection status. Sized
+ * The wall display's frame: date, clock, the week's calendar with a chip per person to filter
+ * it, and connection status. Sized
  * for 1920 × 1080. A display that is not signed in to a family shows a pairing code instead.
  */
 @Component({
   selector: 'app-wall-shell',
-  imports: [DatePipe, DemoNotice, MemberAvatar, PairingScreen, StatusLine],
+  imports: [CalendarFilter, DatePipe, DemoNotice, PairingScreen, StatusLine, WeekView],
   template: `
     @if (showPairing()) {
       <app-pairing-screen [cancellable]="pairingChosen()" (paired)="paired()" (cancelled)="pairingChosen.set(false)" />
@@ -27,15 +30,12 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
           <h1>{{ clock.now() | date: 'EEEE, MMMM d' }}</h1>
           <span class="time">{{ clock.now() | date: 'h:mm a' }}</span>
         </div>
-        <ul class="members" aria-label="Family members">
-          @for (member of family.members(); track member.id) {
-            <li [style.--member]="member.color">
-              <app-member-avatar [member]="member" />
-              {{ member.displayName }}
-            </li>
-          }
-        </ul>
+        <app-calendar-filter />
       </header>
+
+      @if (family.state().status === 'ready') {
+        <app-week-view />
+      }
 
       <footer>
         <app-status-line />
@@ -52,11 +52,15 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
   styles: `
     :host {
       box-sizing: border-box;
-      min-height: 100vh;
+      height: 100vh;
       padding: 28px 36px 24px;
       display: flex;
       flex-direction: column;
-      justify-content: space-between;
+      gap: 20px;
+    }
+
+    app-week-view {
+      flex: 1;
     }
 
     header,
@@ -65,6 +69,10 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
       align-items: center;
       justify-content: space-between;
       gap: 24px;
+    }
+
+    footer {
+      margin-top: auto;
     }
 
     .now {
@@ -85,27 +93,6 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
       font-family: var(--font-display);
       font-size: 34px;
       color: var(--muted);
-    }
-
-    .members {
-      margin: 0;
-      padding: 0;
-      list-style: none;
-      display: flex;
-      gap: 10px;
-    }
-
-    /* Each chip is tinted with its member's color, as in the mockups. */
-    .members li {
-      display: flex;
-      align-items: center;
-      gap: 9px;
-      height: 56px;
-      padding: 0 20px 0 11px;
-      border-radius: 28px;
-      background: color-mix(in srgb, var(--member) 14%, white);
-      font-size: 18px;
-      font-weight: 600;
     }
 
     .demo {
@@ -129,6 +116,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
 export class WallShell {
   protected readonly clock = inject(Clock);
   protected readonly family = inject(FamilyStore);
+  private readonly calendar = inject(CalendarStore);
 
   protected readonly session = inject(SessionStore);
 
@@ -141,7 +129,10 @@ export class WallShell {
 
   constructor() {
     this.family.load();
-    const timer = setInterval(() => this.family.refresh(), CHECK_IN_EVERY_MS);
+    const timer = setInterval(() => {
+      this.family.refresh();
+      this.calendar.refresh();
+    }, CHECK_IN_EVERY_MS);
     inject(DestroyRef).onDestroy(() => clearInterval(timer));
   }
 

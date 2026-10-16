@@ -41,6 +41,8 @@ public static class DemoFamily
             LastSeenAt = created,
         });
 
+        DemoCalendar.AddTo(family, created);
+
         return family;
     }
 

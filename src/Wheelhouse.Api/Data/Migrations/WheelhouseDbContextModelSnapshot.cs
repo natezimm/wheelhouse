@@ -57,6 +57,95 @@ namespace Wheelhouse.Api.Data.Migrations
                     b.ToTable("UserAccounts");
                 });
 
+            modelBuilder.Entity("Wheelhouse.Api.Calendar.CalendarSource", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("FamilyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("GoogleCalendarId")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<DateTimeOffset?>("LastSyncedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("MemberId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MemberId");
+
+                    b.HasIndex("FamilyId", "GoogleCalendarId")
+                        .IsUnique();
+
+                    b.ToTable("CalendarSources");
+                });
+
+            modelBuilder.Entity("Wheelhouse.Api.Calendar.EventInstance", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CalendarSourceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly?>("EndDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset?>("EndsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("FamilyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("GoogleEventId")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<string>("RecurringEventId")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<DateOnly?>("StartDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset?>("StartsAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CalendarSourceId", "GoogleEventId")
+                        .IsUnique();
+
+                    b.HasIndex("FamilyId", "StartDate");
+
+                    b.HasIndex("FamilyId", "StartsAt");
+
+                    b.ToTable("EventInstances");
+                });
+
             modelBuilder.Entity("Wheelhouse.Api.Devices.Device", b =>
                 {
                     b.Property<Guid>("Id")
@@ -213,10 +302,33 @@ namespace Wheelhouse.Api.Data.Migrations
                     b.Navigation("Member");
                 });
 
+            modelBuilder.Entity("Wheelhouse.Api.Calendar.CalendarSource", b =>
+                {
+                    b.HasOne("Wheelhouse.Api.Families.Family", null)
+                        .WithMany("Calendars")
+                        .HasForeignKey("FamilyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Wheelhouse.Api.Families.Member", null)
+                        .WithMany()
+                        .HasForeignKey("MemberId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("Wheelhouse.Api.Calendar.EventInstance", b =>
+                {
+                    b.HasOne("Wheelhouse.Api.Calendar.CalendarSource", null)
+                        .WithMany("Events")
+                        .HasForeignKey("CalendarSourceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Wheelhouse.Api.Devices.Device", b =>
                 {
                     b.HasOne("Wheelhouse.Api.Families.Family", null)
-                        .WithMany()
+                        .WithMany("Devices")
                         .HasForeignKey("FamilyId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -239,8 +351,17 @@ namespace Wheelhouse.Api.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Wheelhouse.Api.Calendar.CalendarSource", b =>
+                {
+                    b.Navigation("Events");
+                });
+
             modelBuilder.Entity("Wheelhouse.Api.Families.Family", b =>
                 {
+                    b.Navigation("Calendars");
+
+                    b.Navigation("Devices");
+
                     b.Navigation("Members");
                 });
 #pragma warning restore 612, 618

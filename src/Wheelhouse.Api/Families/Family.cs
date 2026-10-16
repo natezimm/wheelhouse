@@ -1,3 +1,4 @@
+using Wheelhouse.Api.Calendar;
 using Wheelhouse.Api.Devices;
 
 namespace Wheelhouse.Api.Families;
@@ -35,6 +36,9 @@ public sealed class Family
 
     /// <summary>The wall displays paired with the family.</summary>
     public List<Device> Devices { get; } = [];
+
+    /// <summary>The Google calendars the family shows.</summary>
+    public List<CalendarSource> Calendars { get; } = [];
 }
 
 public enum Units
