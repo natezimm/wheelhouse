@@ -57,7 +57,7 @@ describe('routes', () => {
     http.expectOne('/api/family').flush(marlowes);
     await settle();
 
-    expect(text(page.querySelectorAll('.members li'))).toEqual(['B Ben', 'T Tess', 'M Milo']);
+    expect(text(page.querySelectorAll('app-calendar-filter button'))).toEqual(['B Ben', 'T Tess', 'M Milo']);
     expect(page.querySelector('app-pairing-screen')).toBeNull();
   });
 
@@ -82,7 +82,7 @@ describe('routes', () => {
 
     expect(page.querySelector('app-pairing-screen h1')?.textContent).toBe('Pair this display');
     expect(page.querySelector('.code')?.getAttribute('aria-label')).toBe('Pairing code 482 913');
-    expect(page.querySelectorAll('.members li').length).toBe(0);
+    expect(page.querySelectorAll('app-calendar-filter button').length).toBe(0);
   });
 
   it('switches the wall to the family once a parent enters its code', async () => {
@@ -104,7 +104,7 @@ describe('routes', () => {
     await settle();
 
     expect(page.querySelector('app-pairing-screen')).toBeNull();
-    expect(text(page.querySelectorAll('.members li'))).toEqual(['B Ben', 'T Tess', 'M Milo']);
+    expect(text(page.querySelectorAll('app-calendar-filter button'))).toEqual(['B Ben', 'T Tess', 'M Milo']);
   });
 
   describe('on a demo instance', () => {
@@ -146,7 +146,7 @@ describe('routes', () => {
       button('Back to the family').click();
       await settle();
       expect(page.querySelector('app-pairing-screen')).toBeNull();
-      expect(text(page.querySelectorAll('.members li'))).toEqual(['B Ben', 'T Tess', 'M Milo']);
+      expect(text(page.querySelectorAll('app-calendar-filter button'))).toEqual(['B Ben', 'T Tess', 'M Milo']);
     });
 
     it('says the demo is full instead of showing a pairing code', async () => {
