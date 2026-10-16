@@ -61,6 +61,12 @@ export class FamilyStore {
   private readonly current = signal<FamilyState>({ status: 'loading' });
 
   readonly state = this.current.asReadonly();
+
+  /** The family once loaded, or null. */
+  readonly family = computed(() => {
+    const state = this.current();
+    return state.status === 'ready' ? state.family : null;
+  });
   readonly members = computed(() => {
     const state = this.current();
     return state.status === 'ready' ? state.family.members : [];

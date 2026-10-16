@@ -2,6 +2,7 @@ import { DatePipe } from '@angular/common';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { CalendarStore } from '../core/calendar';
 import { Clock } from '../core/clock';
+import { Day } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { SessionStore } from '../core/session';
 import { CalendarFilter } from '../shared/calendar-filter';
@@ -9,20 +10,25 @@ import { DemoNotice } from '../shared/demo-notice';
 import { StatusLine } from '../shared/status-line';
 import { WeatherStore } from '../core/weather';
 import { PairingScreen } from './pairing-screen';
+import { WallView } from './calendar-nav';
+import { DayView } from './day-view';
+import { MonthView } from './month-view';
 import { WallWeather } from './wall-weather';
 import { WeekView } from './week-view';
+
+/** How long the wall stays on another day or view after the last touch before it goes back to this week. */
+export const RETURN_AFTER_MS = 2 * 60_000;
 
 /** How often the wall checks in: it picks up changes from the phones, and the server sees it is still there. */
 export const CHECK_IN_EVERY_MS = 5 * 60_000;
 
 /**
- * The wall display's frame: date, clock, a chip per person to filter the week's calendar,
- * today's weather, and connection status. Sized
- * for 1920 × 1080. A display that is not signed in to a family shows a pairing code instead.
+ * The wall display's frame: date, clock, a chip per person to filter the calendar, today's
+ * weather, the calendar by day, week or month, and connection status. Sized for 1920 × 1080. A display that is not signed in to a family shows a pairing code instead.
  */
 @Component({
   selector: 'app-wall-shell',
-  imports: [CalendarFilter, DatePipe, DemoNotice, PairingScreen, StatusLine, WallWeather, WeekView],
+  imports: [CalendarFilter, DatePipe, DayView, DemoNotice, MonthView, PairingScreen, StatusLine, WallWeather, WeekView],
   template: `
     @if (showPairing()) {
       <app-pairing-screen [cancellable]="pairingChosen()" (paired)="paired()" (cancelled)="pairingChosen.set(false)" />
@@ -37,7 +43,17 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
       </header>
 
       @if (family.state().status === 'ready') {
-        <app-week-view />
+        @switch (view()) {
+          @case ('day') {
+            <app-day-view [(view)]="view" [(focus)]="focus" />
+          }
+          @case ('week') {
+            <app-week-view [(view)]="view" [(focus)]="focus" />
+          }
+          @case ('month') {
+            <app-month-view [(view)]="view" [(focus)]="focus" (opened)="openDay($event)" />
+          }
+        }
       }
 
       <footer>
@@ -52,6 +68,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
       </footer>
     }
   `,
+  host: { '(pointerdown)': 'touched()' },
   styles: `
     :host {
       box-sizing: border-box;
@@ -62,7 +79,9 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
       gap: 20px;
     }
 
-    app-week-view {
+    app-day-view,
+    app-week-view,
+    app-month-view {
       flex: 1;
     }
 
@@ -124,6 +143,10 @@ export class WallShell {
 
   protected readonly session = inject(SessionStore);
 
+  /** Which calendar view is on screen, and a day it shows; null means around today. */
+  protected readonly view = signal<WallView>('week');
+  protected readonly focus = signal<Day | null>(null);
+
   /** A demo visitor asked to pair this wall with their phone. */
   protected readonly pairingChosen = signal(false);
 
@@ -138,7 +161,27 @@ export class WallShell {
       this.calendar.refresh();
       this.weather.refresh();
     }, CHECK_IN_EVERY_MS);
-    inject(DestroyRef).onDestroy(() => clearInterval(timer));
+    inject(DestroyRef).onDestroy(() => {
+      clearInterval(timer);
+      clearTimeout(this.idle);
+    });
+  }
+
+  private idle?: ReturnType<typeof setTimeout>;
+
+  /** Any touch restarts the wait before the wall goes back to this week, so nobody leaves it on next month. */
+  protected touched(): void {
+    clearTimeout(this.idle);
+    this.idle = setTimeout(() => {
+      this.view.set('week');
+      this.focus.set(null);
+    }, RETURN_AFTER_MS);
+  }
+
+  /** A day tapped in the month opens on its own. */
+  protected openDay(day: Day): void {
+    this.focus.set(day);
+    this.view.set('day');
   }
 
   /** Signed in now: show the family the display was paired with. */
