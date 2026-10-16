@@ -8,10 +8,12 @@ import { SessionStore } from '../core/session';
 import { CalendarFilter } from '../shared/calendar-filter';
 import { DemoNotice } from '../shared/demo-notice';
 import { StatusLine } from '../shared/status-line';
+import { WeatherStore } from '../core/weather';
 import { PairingScreen } from './pairing-screen';
 import { WallView } from './calendar-nav';
 import { DayView } from './day-view';
 import { MonthView } from './month-view';
+import { WallWeather } from './wall-weather';
 import { WeekView } from './week-view';
 
 /** How long the wall stays on another day or view after the last touch before it goes back to this week. */
@@ -21,13 +23,12 @@ export const RETURN_AFTER_MS = 2 * 60_000;
 export const CHECK_IN_EVERY_MS = 5 * 60_000;
 
 /**
- * The wall display's frame: date, clock, the week's calendar with a chip per person to filter
- * it, and connection status. Sized
- * for 1920 × 1080. A display that is not signed in to a family shows a pairing code instead.
+ * The wall display's frame: date, clock, a chip per person to filter the calendar, today's
+ * weather, the calendar by day, week or month, and connection status. Sized for 1920 × 1080. A display that is not signed in to a family shows a pairing code instead.
  */
 @Component({
   selector: 'app-wall-shell',
-  imports: [CalendarFilter, DatePipe, DayView, DemoNotice, MonthView, PairingScreen, StatusLine, WeekView],
+  imports: [CalendarFilter, DatePipe, DayView, DemoNotice, MonthView, PairingScreen, StatusLine, WallWeather, WeekView],
   template: `
     @if (showPairing()) {
       <app-pairing-screen [cancellable]="pairingChosen()" (paired)="paired()" (cancelled)="pairingChosen.set(false)" />
@@ -38,6 +39,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
           <span class="time">{{ clock.now() | date: 'h:mm a' }}</span>
         </div>
         <app-calendar-filter />
+        <app-wall-weather />
       </header>
 
       @if (family.state().status === 'ready') {
@@ -137,6 +139,7 @@ export class WallShell {
   protected readonly clock = inject(Clock);
   protected readonly family = inject(FamilyStore);
   private readonly calendar = inject(CalendarStore);
+  private readonly weather = inject(WeatherStore);
 
   protected readonly session = inject(SessionStore);
 
@@ -156,6 +159,7 @@ export class WallShell {
     const timer = setInterval(() => {
       this.family.refresh();
       this.calendar.refresh();
+      this.weather.refresh();
     }, CHECK_IN_EVERY_MS);
     inject(DestroyRef).onDestroy(() => {
       clearInterval(timer);

@@ -10,6 +10,7 @@ using Wheelhouse.Api.Families;
 using Wheelhouse.Api.Health;
 using Wheelhouse.Api.Instance;
 using Wheelhouse.Api.Sessions;
+using Wheelhouse.Api.Weather;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -36,6 +37,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 
 builder.Services.AddWheelhouseAuth();
 builder.Services.AddPairing();
+builder.Services.AddWeather();
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<DemoCopies>();
@@ -61,6 +63,7 @@ app.MapDemo();
 app.MapFamily();
 app.MapDevices();
 app.MapCalendar();
+app.MapWeather();
 
 app.Run();
 
