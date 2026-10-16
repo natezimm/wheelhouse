@@ -1,5 +1,5 @@
 import { Component, computed, effect, inject } from '@angular/core';
-import { CalendarEvent, CalendarStore, colorOf, daysOf } from '../core/calendar';
+import { CalendarEvent, CalendarStore, colorOf, daysOf, timeRange } from '../core/calendar';
 import { Clock } from '../core/clock';
 import { addDays, dayIn, timeIn } from '../core/days';
 import { Family, FamilyStore } from '../core/family';
@@ -181,11 +181,7 @@ const whose = (event: CalendarEvent, family: Family) =>
 
 /** "5:30 – 6:15 PM · Milo · Riverside Rec Center". */
 function detail(event: CalendarEvent, family: Family): string {
-  const start = timeIn(family.timeZone, event.startsAt!);
-  const end = timeIn(family.timeZone, event.endsAt!);
-  const sameHalf = start.slice(-2) === end.slice(-2);
-  const times = `${sameHalf ? start.slice(0, -3) : start} – ${end}`;
-  return [times, whose(event, family), event.location].filter(Boolean).join(' · ');
+  return [timeRange(event, family.timeZone), whose(event, family), event.location].filter(Boolean).join(' · ');
 }
 
 /** "UP NEXT · IN 8 MIN", "UP NEXT · AT 3:00 PM", or "NOW · UNTIL 6:15 PM". */

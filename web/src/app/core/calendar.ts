@@ -78,6 +78,13 @@ export function whenOn(event: CalendarEvent, day: Day, timeZone: string): string
   return ends ? `Until ${timeIn(timeZone, event.endsAt!)}` : 'All day';
 }
 
+/** A timed event's times, such as "10:30 – 11:15 AM", or "11:30 AM – 12:15 PM" across noon. */
+export function timeRange(event: CalendarEvent, timeZone: string): string {
+  const start = timeIn(timeZone, event.startsAt!);
+  const end = timeIn(timeZone, event.endsAt!);
+  return start.slice(-2) === end.slice(-2) ? `${start.slice(0, -3)} – ${end}` : `${start} – ${end}`;
+}
+
 /**
  * The calendar for the days a screen is showing, and which people's events are filtered out.
  * Google Calendar stays the source of truth; this reads the server's copy of it.

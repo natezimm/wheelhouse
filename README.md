@@ -2,7 +2,7 @@
 
 Wheelhouse is a family command center: a wall-mounted touch display and a phone web app that share one live family view of Google Calendar events, chores, to-dos, and the week's meals with a grocery list.
 
-This is early work. So far the wall shows the family's week of calendar events in each person's color, the phone shows today and the month, and the app runs either as a private family instance, where parents sign in with Google, or as a public demo with a fictional family. The Google Calendar connection, chores, lists and meals arrive in later milestones; until then only the demo has calendar events.
+This is early work. So far the wall shows the family's calendar by day, week or month in each person's color, the phone shows today and the month, and the app runs either as a private family instance, where parents sign in with Google, or as a public demo with a fictional family. The Google Calendar connection, chores, lists and meals arrive in later milestones; until then only the demo has calendar events.
 
 ## Layout
 
