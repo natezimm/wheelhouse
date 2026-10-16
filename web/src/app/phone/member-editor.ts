@@ -126,6 +126,8 @@ import { FamilyStore, MEMBER_COLORS, Member, MemberDraft, refusalMessage } from 
       display: grid;
       grid-template-columns: repeat(4, 48px);
       gap: 12px;
+      /* Room above and below for the chosen swatch's ring, drawn 6 px outside the circle. */
+      padding-block: 6px;
     }
 
     /* The whole circle is the radio's label; a ring marks the chosen one. */
