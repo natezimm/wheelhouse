@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Wheelhouse.Api.Auth;
+using Wheelhouse.Api.Calendar;
 using Wheelhouse.Api.Data;
 using Wheelhouse.Api.Demo;
 using Wheelhouse.Api.Devices;
@@ -59,6 +60,7 @@ app.MapAuth();
 app.MapDemo();
 app.MapFamily();
 app.MapDevices();
+app.MapCalendar();
 
 app.Run();
 

@@ -1,0 +1,41 @@
+using Wheelhouse.Api.Data;
+
+namespace Wheelhouse.Api.Calendar;
+
+/// <summary>
+/// One occurrence of an event, cached from Google Calendar, which stays the source of truth.
+/// Google expands recurring events, so a weekly event is one row per week, each pointing at
+/// its series through <see cref="RecurringEventId"/>.
+/// </summary>
+/// <remarks>
+/// A timed event has <see cref="StartsAt"/> and <see cref="EndsAt"/>, stored as UTC instants. An
+/// all-day event has <see cref="StartDate"/> and <see cref="EndDate"/> instead, with the end
+/// exclusive, as Google does: a one-day event on the 12th ends on the 13th.
+/// </remarks>
+public sealed class EventInstance : IFamilyOwned
+{
+    public Guid Id { get; set; }
+
+    public Guid FamilyId { get; set; }
+
+    public Guid CalendarSourceId { get; set; }
+
+    public required string GoogleEventId { get; set; }
+
+    /// <summary>The series this occurrence belongs to, or null for a one-off event.</summary>
+    public string? RecurringEventId { get; set; }
+
+    public required string Title { get; set; }
+
+    public string? Location { get; set; }
+
+    public DateTimeOffset? StartsAt { get; set; }
+
+    public DateTimeOffset? EndsAt { get; set; }
+
+    public DateOnly? StartDate { get; set; }
+
+    public DateOnly? EndDate { get; set; }
+
+    public bool IsAllDay => StartDate is not null;
+}

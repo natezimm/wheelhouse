@@ -4,6 +4,7 @@ import { Routes } from '@angular/router';
 // Settings exist only on the phone; the wall has none.
 export const routes: Routes = [
   { path: '', loadComponent: () => import('./phone/phone-shell').then((m) => m.PhoneShell) },
+  { path: 'calendar', loadComponent: () => import('./phone/calendar').then((m) => m.PhoneCalendar) },
   { path: 'settings', loadComponent: () => import('./phone/settings').then((m) => m.Settings) },
   {
     path: 'settings/members/new',
