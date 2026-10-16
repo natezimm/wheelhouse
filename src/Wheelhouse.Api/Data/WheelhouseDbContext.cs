@@ -24,6 +24,8 @@ public sealed class WheelhouseDbContext(DbContextOptions<WheelhouseDbContext> op
 
     public DbSet<EventInstance> EventInstances => Set<EventInstance>();
 
+    public DbSet<GoogleConnection> GoogleConnections => Set<GoogleConnection>();
+
     /// <summary>
     /// The family the query filters scope to. Null outside a signed-in request, and then
     /// filtered queries return nothing: code with no request, such as the demo seeder, has to
@@ -85,6 +87,16 @@ public sealed class WheelhouseDbContext(DbContextOptions<WheelhouseDbContext> op
             // A calendar outlives the member it belonged to; a parent gives it to someone else.
             source.HasOne<Member>().WithMany().HasForeignKey(s => s.MemberId).OnDelete(DeleteBehavior.SetNull);
             source.HasMany(s => s.Events).WithOne().HasForeignKey(e => e.CalendarSourceId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<GoogleConnection>(connection =>
+        {
+            connection.Property(c => c.Email).HasMaxLength(320);
+            connection.Property(c => c.Scopes).HasMaxLength(1024);
+            connection.Property(c => c.Status).HasConversion<string>().HasMaxLength(16);
+            // One shared account per family.
+            connection.HasIndex(c => c.FamilyId).IsUnique();
+            connection.HasOne<Family>().WithMany().HasForeignKey(c => c.FamilyId).OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<EventInstance>(instance =>
