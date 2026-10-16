@@ -19,6 +19,7 @@ describe('PairDisplay', () => {
     // Settings, where pairing returns to, loads the family and its displays.
     http.match('/api/family');
     http.match('/api/devices');
+    http.match('/api/calendar/google');
     http.verify();
   });
 

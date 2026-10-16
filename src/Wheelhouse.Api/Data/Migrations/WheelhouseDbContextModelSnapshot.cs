@@ -146,6 +146,45 @@ namespace Wheelhouse.Api.Data.Migrations
                     b.ToTable("EventInstances");
                 });
 
+            modelBuilder.Entity("Wheelhouse.Api.Calendar.GoogleConnection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("ConnectedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("character varying(320)");
+
+                    b.Property<string>("EncryptedRefreshToken")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("FamilyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Scopes")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FamilyId")
+                        .IsUnique();
+
+                    b.ToTable("GoogleConnections");
+                });
+
             modelBuilder.Entity("Wheelhouse.Api.Devices.Device", b =>
                 {
                     b.Property<Guid>("Id")
@@ -321,6 +360,15 @@ namespace Wheelhouse.Api.Data.Migrations
                     b.HasOne("Wheelhouse.Api.Calendar.CalendarSource", null)
                         .WithMany("Events")
                         .HasForeignKey("CalendarSourceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Wheelhouse.Api.Calendar.GoogleConnection", b =>
+                {
+                    b.HasOne("Wheelhouse.Api.Families.Family", null)
+                        .WithMany()
+                        .HasForeignKey("FamilyId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

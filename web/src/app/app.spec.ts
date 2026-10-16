@@ -177,7 +177,7 @@ describe('routes', () => {
       return opened.page;
     }
 
-    const signInLink = (page: HTMLElement) => page.querySelector<HTMLAnchorElement>('app-sign-in a');
+    const signInLink = (page: HTMLElement) => page.querySelector<HTMLAnchorElement>('app-sign-in a.button');
 
     it('offers a parent sign-in with Google on the phone, passing the browser time zone along', async () => {
       await startFamily({ signedIn: false, canSignIn: true });

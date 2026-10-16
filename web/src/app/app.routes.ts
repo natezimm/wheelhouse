@@ -15,9 +15,14 @@ export const routes: Routes = [
     loadComponent: () => import('./phone/member-editor').then((m) => m.MemberEditor),
   },
   {
+    path: 'settings/calendars',
+    loadComponent: () => import('./phone/calendar-picker').then((m) => m.CalendarPicker),
+  },
+  {
     path: 'settings/displays/pair',
     loadComponent: () => import('./phone/pair-display').then((m) => m.PairDisplay),
   },
+  { path: 'privacy', loadComponent: () => import('./phone/privacy').then((m) => m.Privacy) },
   { path: 'wall', loadComponent: () => import('./wall/wall-shell').then((m) => m.WallShell) },
   { path: '**', redirectTo: '' },
 ];
