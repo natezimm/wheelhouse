@@ -19,6 +19,7 @@ public sealed class HealthTests(ApiFactory factory)
         Assert.NotNull(body);
         Assert.Equal("Healthy", body.Status);
         Assert.Equal("Healthy", body.Checks["database"]);
+        Assert.Equal("Healthy", body.Checks["calendar"]);
     }
 
     [Fact]

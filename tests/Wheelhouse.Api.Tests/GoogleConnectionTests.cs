@@ -14,46 +14,18 @@ namespace Wheelhouse.Api.Tests;
 
 /// <summary>
 /// Connecting the family's shared Google account and choosing its calendars. Each test runs a
-/// family instance of its own with Google replaced by <see cref="FakeGoogle"/>.
+/// family instance of its own with Google replaced by <see cref="FakeGoogle"/> (see <see cref="GoogleFamily"/>).
 /// </summary>
 [Collection(ApiCollection.Name)]
 public sealed class GoogleConnectionTests(ApiFactory factory)
 {
     private static readonly GoogleIdentity Alex = new("google-alex", "alex@example.com", EmailVerified: true, "Alex", "Alex Rivera");
 
-    private const string Full = $"openid email {GoogleConnectionEndpoints.CalendarScope}";
+    private const string Full = FakeGoogle.Full;
 
-    private sealed class Family : IAsyncDisposable
-    {
-        public required WebApplicationFactory<Program> Instance { get; init; }
-        public required WebApplicationFactory<Program> WithFake { get; init; }
-        public required FakeGoogle Google { get; init; }
-        public required HttpClient Parent { get; init; }
+    private Task<GoogleFamily> FamilyAsync() => GoogleFamily.StartAsync(factory, Alex);
 
-        public async ValueTask DisposeAsync()
-        {
-            Parent.Dispose();
-            await WithFake.DisposeAsync();
-            await Instance.DisposeAsync();
-        }
-    }
-
-    private async Task<Family> FamilyAsync()
-    {
-        var google = new FakeGoogle();
-        var instance = factory.NewFamilyInstance(Alex.Email);
-        var withFake = instance.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
-            services.AddSingleton<IGoogleCalendar>(google)));
-        return new Family { Instance = instance, WithFake = withFake, Google = google, Parent = await ApiFactory.ParentAsync(withFake, Alex) };
-    }
-
-    /// <summary>Goes to Google's consent screen and back, as the phone's browser would, with Google sending <paramref name="code"/>.</summary>
-    private static async Task<HttpResponseMessage> ConnectAsync(HttpClient parent, string code = "first")
-    {
-        var toGoogle = await parent.GetAsync("/api/calendar/google/connect");
-        var state = HttpUtility.ParseQueryString(toGoogle.Headers.Location!.Query)["state"]!;
-        return await parent.GetAsync($"/api/calendar/google/callback?code={code}&state={Uri.EscapeDataString(state)}");
-    }
+    private static Task<HttpResponseMessage> ConnectAsync(HttpClient parent, string code = "first") => GoogleFamily.ConnectAsync(parent, code);
 
     private static async Task<GoogleConnectionResponse> ConnectionOf(HttpClient parent) =>
         (await parent.GetFromJsonAsync<GoogleConnectionResponse>("/api/calendar/google", ApiFactory.Json))!;
@@ -266,46 +238,5 @@ public sealed class GoogleConnectionTests(ApiFactory factory)
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await stranger.GetAsync("/api/calendar/google")).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await stranger.GetAsync("/api/calendar/sources")).StatusCode);
-    }
-
-    private sealed class FakeGoogle : IGoogleCalendar
-    {
-        public const string Account = "family.calendars@example.com";
-
-        public string Email { get; set; } = Account;
-        public string Scopes { get; set; } = Full;
-        public bool Revoked { get; set; }
-        public List<(string Code, string RedirectUri)> Exchanged { get; } = [];
-        public List<string> RevokedTokens { get; } = [];
-        public string? LastRefreshToken { get; private set; }
-
-        public Task<GoogleGrant> ExchangeCodeAsync(string code, string redirectUri, CancellationToken cancellationToken)
-        {
-            Exchanged.Add((code, redirectUri));
-            return Task.FromResult(new GoogleGrant($"refresh-{code}", Email, Scopes));
-        }
-
-        public Task<IReadOnlyList<GoogleCalendarEntry>> ListCalendarsAsync(string refreshToken, CancellationToken cancellationToken)
-        {
-            LastRefreshToken = refreshToken;
-            if (Revoked)
-            {
-                throw new GoogleGrantRevokedException();
-            }
-
-            return Task.FromResult<IReadOnlyList<GoogleCalendarEntry>>(
-            [
-                new("holidays", "Holidays", "#16a765", CanWrite: false, Primary: false),
-                new("family-cal", "Family", "#4986e7", CanWrite: true, Primary: false),
-                new("primary", "Shared account", "#9fc6e7", CanWrite: true, Primary: true),
-                new("alex-cal", "Alex", "#f83a22", CanWrite: true, Primary: false),
-            ]);
-        }
-
-        public Task RevokeAsync(string refreshToken, CancellationToken cancellationToken)
-        {
-            RevokedTokens.Add(refreshToken);
-            return Task.CompletedTask;
-        }
     }
 }

@@ -23,6 +23,12 @@ export const RETURN_AFTER_MS = 2 * 60_000;
 export const CHECK_IN_EVERY_MS = 5 * 60_000;
 
 /**
+ * How often the wall reads the calendar again. The server syncs with Google every two minutes,
+ * so an event added in Google shows within about three.
+ */
+export const CALENDAR_EVERY_MS = 30_000;
+
+/**
  * The wall display's frame: date, clock, a chip per person to filter the calendar, today's
  * weather, the calendar by day, week or month, and connection status. Sized for 1920 × 1080. A display that is not signed in to a family shows a pairing code instead.
  */
@@ -57,7 +63,14 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
       }
 
       <footer>
-        <app-status-line />
+        <div class="status">
+          <app-status-line />
+          @if (calendar.needsReconnect()) {
+            <p class="reconnect" role="alert">
+              Google Calendar has stopped updating. A parent can connect it again in Settings on their phone.
+            </p>
+          }
+        </div>
         <div class="demo">
           @if (session.isDemo()) {
             <!-- On the demo the wall starts with a copy of its own; pairing joins the phone's copy. -->
@@ -117,6 +130,21 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
       color: var(--muted);
     }
 
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .reconnect {
+      margin: 0;
+      padding: 10px 18px;
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--warn) 16%, var(--surface));
+      color: var(--ink);
+      font: 600 17px var(--font-body);
+    }
+
     .demo {
       display: flex;
       align-items: center;
@@ -138,7 +166,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
 export class WallShell {
   protected readonly clock = inject(Clock);
   protected readonly family = inject(FamilyStore);
-  private readonly calendar = inject(CalendarStore);
+  protected readonly calendar = inject(CalendarStore);
   private readonly weather = inject(WeatherStore);
 
   protected readonly session = inject(SessionStore);
@@ -158,11 +186,12 @@ export class WallShell {
     this.family.load();
     const timer = setInterval(() => {
       this.family.refresh();
-      this.calendar.refresh();
       this.weather.refresh();
     }, CHECK_IN_EVERY_MS);
+    const calendarTimer = setInterval(() => this.calendar.refresh(), CALENDAR_EVERY_MS);
     inject(DestroyRef).onDestroy(() => {
       clearInterval(timer);
+      clearInterval(calendarTimer);
       clearTimeout(this.idle);
     });
   }

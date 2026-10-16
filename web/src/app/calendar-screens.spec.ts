@@ -5,7 +5,7 @@ import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from './app.routes';
 import { CalendarEvent } from './core/calendar';
-import { RETURN_AFTER_MS } from './wall/wall-shell';
+import { CALENDAR_EVERY_MS, RETURN_AFTER_MS } from './wall/wall-shell';
 import { allDay, marloweCalendars, timed } from './testing/calendar';
 import { marlowes } from './testing/marlowes';
 
@@ -64,7 +64,7 @@ describe('calendar screens', () => {
 
       expect(page.querySelector('app-week-view h2')?.textContent).toBe('Oct 12 – 18');
       expect(texts(page.querySelectorAll('.day .dow'))).toEqual(['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']);
-      expect(column(page, 'Monday, October 12')).toEqual(['Grandma in town', 'Dentist', 'Swim lesson', 'Book club']);
+      expect(texts(page.querySelectorAll('section[aria-label="Monday, October 12"] li .title'))).toEqual(['Grandma in town', 'Dentist', 'Swim lesson', 'Book club']);
       expect(column(page, 'Tuesday, October 13')).toEqual(['Grandma in town', 'Trash & recycling']);
       expect(page.querySelector('.day.is-today')?.getAttribute('aria-label')).toBe('Monday, October 12');
       expect(rows(page.querySelectorAll('section[aria-label="Thursday, October 15"] li'))).toEqual([
@@ -84,7 +84,7 @@ describe('calendar screens', () => {
       await settle();
 
       expect(chip('Family').getAttribute('aria-pressed')).toBe('false');
-      expect(column(page, 'Monday, October 12')).toEqual(['Dentist', 'Swim lesson', 'Book club']);
+      expect(texts(page.querySelectorAll('section[aria-label="Monday, October 12"] li .title'))).toEqual(['Dentist', 'Swim lesson', 'Book club']);
     });
 
     it('moves a week at a time', async () => {
@@ -161,6 +161,41 @@ describe('calendar screens', () => {
 
       expect(page.querySelector('app-calendar-nav h2')?.textContent).toBe('Tuesday, Oct 13 · 2 events');
       expect(button(page, 'Day').getAttribute('aria-pressed')).toBe('true');
+    });
+
+    it('reads the calendar again every half minute, so changes made in Google appear', async () => {
+      vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+      vi.setSystemTime(new Date('2026-10-12T21:22:00Z'));
+      const { page, settle } = await open('/wall', { from: '2026-10-12', to: '2026-10-19' });
+
+      vi.advanceTimersByTime(CALENDAR_EVERY_MS);
+      http
+        .expectOne((r) => r.url === '/api/calendar')
+        .flush({ calendars: marloweCalendars, events: [...events, timed('Piano', 'm2', '2026-10-14T22:00:00Z', '2026-10-14T23:00:00Z')] });
+      await settle();
+
+      expect(texts(page.querySelectorAll('section[aria-label="Wednesday, October 14"] li .title'))).toEqual(['Piano']);
+      vi.useFakeTimers({ toFake: ['Date'] });
+    });
+
+    it('asks a parent to connect Google again when it has stopped accepting the connection', async () => {
+      const harness = await RouterTestingHarness.create('/wall');
+      http.expectOne('/api/family').flush(marlowes);
+      await harness.fixture.whenStable();
+      http.expectOne((r) => r.url === '/api/calendar').flush({ calendars: marloweCalendars, events, needsReconnect: true });
+      await harness.fixture.whenStable();
+      const page = harness.routeNativeElement as HTMLElement;
+
+      expect(page.querySelector('.reconnect')?.textContent?.trim()).toBe(
+        'Google Calendar has stopped updating. A parent can connect it again in Settings on their phone.',
+      );
+      expect(texts(page.querySelectorAll('section[aria-label="Monday, October 12"] li .title'))).toContain('Dentist');
+    });
+
+    it('shows no reconnect notice while Google is connected', async () => {
+      const { page } = await open('/wall', { from: '2026-10-12', to: '2026-10-19' });
+
+      expect(page.querySelector('.reconnect')).toBeNull();
     });
 
     it('goes back to this week a while after the last touch', async () => {

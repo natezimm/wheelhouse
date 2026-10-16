@@ -82,6 +82,7 @@ public sealed class WheelhouseDbContext(DbContextOptions<WheelhouseDbContext> op
         {
             source.Property(s => s.GoogleCalendarId).HasMaxLength(1024);
             source.Property(s => s.Name).HasMaxLength(255);
+            source.Property(s => s.SyncToken).HasMaxLength(1024);
             source.HasIndex(s => new { s.FamilyId, s.GoogleCalendarId }).IsUnique();
             source.HasOne<Family>().WithMany(f => f.Calendars).HasForeignKey(s => s.FamilyId).OnDelete(DeleteBehavior.Cascade);
             // A calendar outlives the member it belonged to; a parent gives it to someone else.
