@@ -42,7 +42,7 @@ Parents sign in to a family instance with their own Google accounts. Google is u
 Once, in the [Google Cloud console](https://console.cloud.google.com/), in a project of your choosing:
 
 1. Under **Google Auth Platform**, configure the consent screen: an **External** app with the instance's name and your support email. The only scopes it needs are `openid`, `email` and `profile`, which need no Google review.
-2. **Publish** the app (Audience → Publish app) so it is "In production". In Testing mode Google expires each sign-in after 7 days.
+2. Leave the app in **Testing** and add each parent's Google address under **Audience → Test users**. Only test users can sign in, which suits a family instance. Testing mode expires Google's own grants after 7 days, but Wheelhouse uses Google only at sign-in and then keeps parents signed in with its own cookie. Publishing becomes necessary once the app keeps a Google token, as the Calendar connection will.
 3. Under **Clients**, create an OAuth client of type **Web application**. Add `https://<the instance's domain>/api/auth/google/callback` as an authorized redirect URI. Add `http://localhost:8080/api/auth/google/callback` too if you want to try sign-in locally.
 
 Then fill in the client and the parents' addresses in the instance's `.env` on the server (`~/wheelhouse/<name>/.env`), and re-run the latest release to apply them. Only the addresses listed can sign in, and removing one signs that parent out on their next request.
