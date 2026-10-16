@@ -1,29 +1,25 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, model } from '@angular/core';
 import { CalendarStore, colorOf, daysOf, whenOn } from '../core/calendar';
 import { Clock } from '../core/clock';
 import { Day, addDays, dayIn, formatDay, startOfWeek } from '../core/days';
 import { FamilyStore } from '../core/family';
+import { CalendarNav, WallView } from './calendar-nav';
 
 /** The wall's week: a column per day with that day's events, in each person's color. */
 @Component({
   selector: 'app-week-view',
+  imports: [CalendarNav],
   template: `
     @if (week(); as week) {
-      <div class="toolbar">
-        <button type="button" class="round" aria-label="Previous week" (click)="offset.set(offset() - 1)">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
-        </button>
-        <button type="button" class="round" aria-label="Next week" (click)="offset.set(offset() + 1)">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
-        </button>
-        <h2>{{ week.label }}</h2>
-        @if (offset() !== 0) {
-          <button type="button" class="today" (click)="offset.set(0)">This week</button>
-        }
-        @if (calendar.state().status === 'unavailable') {
-          <span class="problem" role="status">Can't load the calendar right now.</span>
-        }
-      </div>
+      <app-calendar-nav
+        [(view)]="view"
+        unit="week"
+        [label]="week.label"
+        [backLabel]="week.isThisWeek ? null : 'This week'"
+        (previous)="move(-7)"
+        (next)="move(7)"
+        (back)="focus.set(null)"
+      />
 
       <div class="days">
         @for (day of week.days; track day.day) {
@@ -52,51 +48,6 @@ import { FamilyStore } from '../core/family';
       flex-direction: column;
       gap: 12px;
       min-height: 0;
-    }
-
-    .toolbar {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .round {
-      width: 56px;
-      height: 56px;
-      border-radius: 28px;
-      border: 1px solid var(--line);
-      background: var(--surface);
-      color: var(--ink);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-    }
-
-    h2 {
-      margin: 0 0 0 10px;
-      font-family: var(--font-display);
-      font-size: 24px;
-      font-weight: 500;
-    }
-
-    .today {
-      height: 56px;
-      margin-left: 8px;
-      padding: 0 22px;
-      border: 1px solid var(--line);
-      border-radius: 28px;
-      background: var(--surface);
-      color: var(--ink);
-      font: 600 17px var(--font-body);
-      cursor: pointer;
-    }
-
-    .problem {
-      margin-left: auto;
-      color: var(--warn);
-      font-size: 16px;
-      font-weight: 600;
     }
 
     .days {
@@ -206,13 +157,12 @@ export class WeekView {
   private readonly family = inject(FamilyStore);
   private readonly clock = inject(Clock);
 
-  /** Weeks away from this one; the arrows move it. */
-  protected readonly offset = signal(0);
+  readonly view = model.required<WallView>();
 
-  private readonly settings = computed(() => {
-    const state = this.family.state();
-    return state.status === 'ready' ? state.family : null;
-  });
+  /** A day in the week to show; null shows this week. */
+  readonly focus = model<Day | null>(null);
+
+  private readonly settings = this.family.family;
 
   private readonly today = computed(() => {
     const family = this.settings();
@@ -221,8 +171,8 @@ export class WeekView {
 
   private readonly start = computed(() => {
     const family = this.settings();
-    const today = this.today();
-    return family && today ? addDays(startOfWeek(today, family.weekStartsOn), this.offset() * 7) : null;
+    const day = this.focus() ?? this.today();
+    return family && day ? startOfWeek(day, family.weekStartsOn) : null;
   });
 
   protected readonly week = computed(() => {
@@ -244,6 +194,7 @@ export class WeekView {
 
     return {
       label: rangeLabel(days[0], days[6]),
+      isThisWeek: days.includes(this.today()!),
       days: days.map((day) => ({
         day,
         name: formatDay(day, { weekday: 'long', month: 'long', day: 'numeric' }),
@@ -255,6 +206,10 @@ export class WeekView {
       })),
     };
   });
+
+  protected move(days: number): void {
+    this.focus.set(addDays(this.start()!, days));
+  }
 
   constructor() {
     effect(() => {
