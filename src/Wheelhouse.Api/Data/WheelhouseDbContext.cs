@@ -1,5 +1,6 @@
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using Wheelhouse.Api.Auth;
 using Wheelhouse.Api.Calendar;
 using Wheelhouse.Api.Devices;
@@ -7,7 +8,7 @@ using Wheelhouse.Api.Families;
 
 namespace Wheelhouse.Api.Data;
 
-public sealed class WheelhouseDbContext(DbContextOptions<WheelhouseDbContext> options, ICurrentFamily currentFamily)
+public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbContext> options, ICurrentFamily currentFamily)
     : DbContext(options)
 {
     public DbSet<Family> Families => Set<Family>();
@@ -40,6 +41,9 @@ public sealed class WheelhouseDbContext(DbContextOptions<WheelhouseDbContext> op
             family.HasQueryFilter(f => f.Id == CurrentFamilyId);
             family.Property(f => f.Name).HasMaxLength(100);
             family.Property(f => f.TimeZone).HasMaxLength(64);
+            // Saving a tracked Family with an older value must never put the counter back.
+            family.Property(f => f.CalendarChangeNumber).HasDefaultValue(0L)
+                .Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
             family.Property(f => f.WeekStartsOn).HasConversion<string>().HasMaxLength(16);
             family.Property(f => f.Units).HasConversion<string>().HasMaxLength(16);
             family.HasMany(f => f.Members).WithOne().HasForeignKey(m => m.FamilyId).OnDelete(DeleteBehavior.Cascade);
