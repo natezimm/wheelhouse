@@ -13,7 +13,8 @@ describe('event screens', () => {
   let http: HttpTestingController;
 
   const swim = timed('Swim lesson', 'm3', '2026-10-12T21:30:00Z', '2026-10-12T22:15:00Z', 'Riverside Rec Center');
-  const events: CalendarEvent[] = [swim];
+  const soccer = { ...timed('Soccer practice', 'm3', '2026-10-14T21:30:00Z', '2026-10-14T22:45:00Z'), recurring: true };
+  const events: CalendarEvent[] = [swim, soccer];
 
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] });
@@ -46,7 +47,7 @@ describe('event screens', () => {
   }
 
   describe('on the wall', () => {
-    it('adds an event from the steppers and chips, and shows it once the server has it', async () => {
+    it('adds a weekly event from the steppers and chips, and shows it once the server has it', async () => {
       const { page, settle } = await open('/wall');
 
       button(page, 'Add event').click();
@@ -59,7 +60,9 @@ describe('event screens', () => {
       button(dialog, 'Start later').click();
       button(dialog, 'A day later').click();
       Array.from(dialog.querySelectorAll<HTMLButtonElement>('.chip')).find((chip) => chip.textContent?.trim().endsWith('Milo'))!.click();
+      button(dialog, 'Weekly').click();
       await settle();
+      expect(button(dialog, 'Weekly').getAttribute('aria-pressed')).toBe('true');
       expect(Array.from(dialog.querySelectorAll('.stepper > span'), (s) => s.textContent?.trim())).toEqual([
         'Tue, Oct 13',
         '6:30 PM',
@@ -77,6 +80,7 @@ describe('event screens', () => {
         startTime: '18:30:00',
         endDate: '2026-10-13',
         endTime: '19:30:00',
+        repeat: 'Weekly',
       });
       request.flush(timed('Parent & tot swim', 'm3', '2026-10-13T22:30:00Z', '2026-10-13T23:30:00Z'));
       http.expectOne((r) => r.url === '/api/calendar');
@@ -105,6 +109,29 @@ describe('event screens', () => {
 
       expect(dialog.querySelector('[role="alert"]')?.textContent).toContain('changed this event in Google Calendar first');
       expect(dialog.querySelector<HTMLInputElement>('#event-title')!.value).toBe('Swim lesson, indoor pool');
+    });
+
+    it('changes every event of a series, keeping each on its own day', async () => {
+      const { page, settle } = await open('/wall');
+
+      page.querySelector<HTMLButtonElement>('section[aria-label="Wednesday, October 14"] li > button')!.click();
+      await settle();
+      const dialog = page.querySelector<HTMLElement>('app-event-dialog form')!;
+      const tess = () => Array.from(dialog.querySelectorAll<HTMLButtonElement>('.chip')).find((chip) => chip.textContent?.trim().endsWith('Tess'))!;
+      expect(button(dialog, 'This event').getAttribute('aria-pressed')).toBe('true');
+      expect(tess().disabled).toBe(true);
+
+      button(dialog, 'A day later').click();
+      button(dialog, 'All events').click();
+      await settle();
+      expect(button(dialog, 'A day later').disabled).toBe(true);
+      expect(dialog.querySelector('.stepper > span')?.textContent?.trim()).toBe('Wed, Oct 14');
+      tess().click();
+      button(dialog, 'Start later').click();
+      button(dialog, 'Save changes').click();
+
+      const request = http.expectOne({ method: 'PUT', url: `/api/calendar/events/${soccer.id}?series=true` });
+      expect(request.request.body).toMatchObject({ calendarId: 'c2', startDate: '2026-10-14', startTime: '17:45:00', endTime: '19:00:00' });
     });
 
     it('deletes an event only once it is confirmed', async () => {
@@ -149,6 +176,29 @@ describe('event screens', () => {
         startDate: '2026-10-15',
         endDate: '2026-10-16',
       });
+    });
+
+    it('deletes a whole series when asked to', async () => {
+      const { page, settle } = await open('/calendar');
+
+      page.querySelector<HTMLButtonElement>('.grid button[aria-label="Wednesday, October 14"]')!.click();
+      await settle();
+      page.querySelector<HTMLButtonElement>('.agenda li > button')!.click();
+      await settle();
+      const sheet = page.querySelector<HTMLElement>('app-event-sheet form')!;
+      const change = Array.from(sheet.querySelectorAll('select')).find((select) => select.parentElement?.textContent?.includes('Change'))!;
+      change.value = 'all';
+      change.dispatchEvent(new Event('change'));
+      await settle();
+      expect(sheet.querySelector<HTMLInputElement>('input[type="date"]')!.disabled).toBe(true);
+      button(sheet, 'Delete event').click();
+      await settle();
+      button(sheet, 'Delete all events').click();
+
+      http.expectOne({ method: 'DELETE', url: `/api/calendar/events/${soccer.id}?series=true` }).flush(null, { status: 204, statusText: 'No Content' });
+      http.expectOne((r) => r.url === '/api/calendar');
+      await settle();
+      expect(page.querySelector('app-event-sheet')).toBeNull();
     });
 
     it('keeps a refused event open with the server’s reason', async () => {

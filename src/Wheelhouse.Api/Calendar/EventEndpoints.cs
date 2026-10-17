@@ -16,7 +16,8 @@ namespace Wheelhouse.Api.Calendar;
 /// </summary>
 /// <remarks>
 /// Anyone signed in to the family may do this, a paired wall included: the plan has events
-/// added from the wall, and kids have no sign-in of their own.
+/// added from the wall, and kids have no sign-in of their own. A change or delete with
+/// <c>?series=true</c> applies to every event of a repeating series (<see cref="EventSeries"/>).
 /// </remarks>
 public static class EventEndpoints
 {
@@ -34,12 +35,16 @@ public static class EventEndpoints
         return app;
     }
 
+    /// <summary>Adds an event, or a series of them. A series answers with its first event.</summary>
     private static async Task<Results<Created<EventResponse>, ValidationProblem, ProblemHttpResult, NotFound>> Add(
         EventRequest request,
         WheelhouseDbContext db,
         ICurrentFamily family,
         GoogleTokens tokens,
         IGoogleCalendar google,
+        CalendarSync sync,
+        CalendarSyncTrigger syncSoon,
+        TimeProvider time,
         IOptions<InstanceOptions> instance,
         ILogger<GoogleConnection> logger,
         CancellationToken cancellationToken)
@@ -57,49 +62,89 @@ public static class EventEndpoints
             return TypedResults.ValidationProblem(errors);
         }
 
-        GoogleEvent stored;
+        draft = draft! with { Recurrence = EventSeries.RuleFor(request.Repeat) };
+        EventInstance RowFor(GoogleEvent stored)
+        {
+            var row = new EventInstance
+            {
+                Id = Guid.CreateVersion7(),
+                FamilyId = familyId,
+                CalendarSourceId = source!.Id,
+                GoogleEventId = stored.Id,
+                Title = "",
+            };
+            CalendarSync.CopyTo(row, stored);
+            db.EventInstances.Add(row);
+            return row;
+        }
+
         if (IsDemo(instance))
         {
-            stored = new GoogleEvent(Guid.NewGuid().ToString("N"), null, draft!.Title, draft.Location,
-                draft.StartsAt, draft.EndsAt, draft.StartDate, draft.EndDate);
-        }
-        else
-        {
-            var write = await GoogleWrite.StartAsync(db, tokens, google, logger, cancellationToken);
-            if (write.Problem is { } problem)
-            {
-                return problem;
-            }
-
-            try
-            {
-                stored = await google.InsertEventAsync(write.AccessToken!, source!.GoogleCalendarId, draft!, cancellationToken);
-            }
-            catch (Exception exception) when (GoogleWrite.IsProblem(exception))
-            {
-                return await write.ProblemFor(exception, source!, cancellationToken);
-            }
+            var id = Guid.NewGuid().ToString("N");
+            var zone = Zone(draft);
+            var first = draft.Recurrence is null
+                ? RowFor(new GoogleEvent(id, null, draft.Title, draft.Location, draft.StartsAt, draft.EndsAt, draft.StartDate, draft.EndDate))
+                : EventSeries.Occurrences(draft, request.Repeat, id, Today(time, zone).AddDays(CalendarSync.Ahead.Days), zone)
+                    .Select(RowFor)
+                    .ToList()[0];
+            await db.SaveChangesAsync(cancellationToken);
+            return TypedResults.Created($"/api/calendar/events/{first.Id}", EventResponse.From(first, source!));
         }
 
-        var row = new EventInstance
+        var write = await GoogleWrite.StartAsync(db, tokens, google, logger, cancellationToken);
+        if (write.Problem is { } problem)
         {
-            Id = Guid.CreateVersion7(),
-            FamilyId = familyId,
-            CalendarSourceId = source!.Id,
-            GoogleEventId = stored.Id,
-            Title = "",
-        };
-        CalendarSync.CopyTo(row, stored);
-        db.EventInstances.Add(row);
-        await db.SaveChangesAsync(cancellationToken);
+            return problem;
+        }
 
-        return TypedResults.Created($"/api/calendar/events/{row.Id}", EventResponse.From(row, source));
+        GoogleEvent stored;
+        try
+        {
+            stored = await google.InsertEventAsync(write.AccessToken!, source!.GoogleCalendarId, draft, cancellationToken);
+        }
+        catch (Exception exception) when (GoogleWrite.IsProblem(exception))
+        {
+            return await write.ProblemFor(exception, source!, cancellationToken);
+        }
+
+        if (draft.Recurrence is null)
+        {
+            var row = RowFor(stored);
+            await db.SaveChangesAsync(cancellationToken);
+            return TypedResults.Created($"/api/calendar/events/{row.Id}", EventResponse.From(row, source));
+        }
+
+        // Google expands the series; reading the calendar again brings in its occurrences.
+        try
+        {
+            await sync.ListAsync(source, write.AccessToken!, cancellationToken);
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception exception) when (GoogleWrite.IsProblem(exception))
+        {
+            logger.LogWarning(exception, "Google could not be reached to read a new series; the next sync brings it in.");
+            syncSoon.SyncSoon(familyId);
+        }
+
+        var firstOccurrence = await db.EventInstances
+            .Where(e => e.CalendarSourceId == source.Id && e.RecurringEventId == stored.Id)
+            .OrderBy(e => e.StartDate).ThenBy(e => e.StartsAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        if (firstOccurrence is null)
+        {
+            // Until the next sync replaces it, the series shows as its first event.
+            firstOccurrence = RowFor(stored with { RecurringEventId = stored.Id });
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        return TypedResults.Created($"/api/calendar/events/{firstOccurrence.Id}", EventResponse.From(firstOccurrence, source));
     }
 
     /// <summary>
-    /// Changes an event, or one occurrence of a repeating one. A different calendar moves it,
-    /// which Google allows only for a whole event, so an occurrence stays in its calendar.
-    /// Answers 409 with the event as Google has it now when it changed there first.
+    /// Changes an event, or one occurrence of a repeating one, or with <paramref name="series"/>
+    /// every event of its series. A different calendar moves it, which Google allows only for a
+    /// whole event or series, so an occurrence on its own stays in its calendar. Answers 409 with
+    /// the event as Google has it now when it changed there first.
     /// </summary>
     private static async Task<Results<Ok<EventResponse>, Conflict<EventResponse>, ValidationProblem, ProblemHttpResult, NotFound>> Change(
         Guid id,
@@ -107,9 +152,12 @@ public static class EventEndpoints
         WheelhouseDbContext db,
         GoogleTokens tokens,
         IGoogleCalendar google,
+        CalendarSync sync,
+        CalendarSyncTrigger syncSoon,
         IOptions<InstanceOptions> instance,
         ILogger<GoogleConnection> logger,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool series = false)
     {
         var row = await db.EventInstances.SingleOrDefaultAsync(e => e.Id == id, cancellationToken);
         if (row is null)
@@ -117,6 +165,7 @@ public static class EventEndpoints
             return TypedResults.NotFound();
         }
 
+        series &= row.RecurringEventId is not null;
         var (draft, errors) = await DraftAsync(request, db, cancellationToken);
         var sources = await db.CalendarSources
             .Where(s => s.Id == row.CalendarSourceId || s.Id == request.CalendarId)
@@ -124,9 +173,13 @@ public static class EventEndpoints
         var from = sources[row.CalendarSourceId];
         var to = sources.GetValueOrDefault(request.CalendarId);
         errors ??= WritableErrors(from) ?? WritableErrors(to);
-        if (errors is null && from != to && row.RecurringEventId is not null)
+        if (errors is null && series)
         {
-            errors = new() { ["calendarId"] = ["A repeating event moves to another calendar as a whole series, in Google Calendar."] };
+            errors = EventSeries.Errors(row, request, Zone(draft!));
+        }
+        else if (errors is null && from != to && row.RecurringEventId is not null)
+        {
+            errors = new() { ["calendarId"] = ["One event of a series stays in the series' calendar. Change all events to move them."] };
         }
 
         if (errors is not null)
@@ -134,56 +187,119 @@ public static class EventEndpoints
             return TypedResults.ValidationProblem(errors);
         }
 
-        GoogleEvent stored;
         if (IsDemo(instance))
         {
-            stored = new GoogleEvent(row.GoogleEventId, row.RecurringEventId, draft!.Title, draft.Location,
-                draft.StartsAt, draft.EndsAt, draft.StartDate, draft.EndDate);
-        }
-        else
-        {
-            var write = await GoogleWrite.StartAsync(db, tokens, google, logger, cancellationToken);
-            if (write.Problem is { } problem)
+            if (series)
             {
-                return problem;
+                EventSeries.Apply(await SeriesOf(row, db, cancellationToken), draft!, Zone(draft!));
+                await MoveSeriesAsync(row, to!, db, cancellationToken);
+            }
+            else
+            {
+                CalendarSync.CopyTo(row, new GoogleEvent(row.GoogleEventId, row.RecurringEventId, draft!.Title, draft.Location,
+                    draft.StartsAt, draft.EndsAt, draft.StartDate, draft.EndDate));
+                row.CalendarSourceId = to!.Id;
             }
 
-            try
+            await db.SaveChangesAsync(cancellationToken);
+            return TypedResults.Ok(EventResponse.From(row, to!));
+        }
+
+        var write = await GoogleWrite.StartAsync(db, tokens, google, logger, cancellationToken);
+        if (write.Problem is { } problem)
+        {
+            return problem;
+        }
+
+        try
+        {
+            if (series)
             {
-                stored = await google.PatchEventAsync(write.AccessToken!, from.GoogleCalendarId, row.GoogleEventId, row.ETag, draft!, cancellationToken);
+                // The series is changed through its first event, so the occurrence on screen is checked by hand.
+                var current = await google.GetEventAsync(write.AccessToken!, from.GoogleCalendarId, row.GoogleEventId, cancellationToken);
+                var master = await google.GetEventAsync(write.AccessToken!, from.GoogleCalendarId, row.RecurringEventId!, cancellationToken);
+                if (current?.ETag != row.ETag || master is null)
+                {
+                    return await write.ShowAsync(row, from, master is null ? null : current, cancellationToken) is { } shown
+                        ? TypedResults.Conflict(shown)
+                        : TypedResults.NotFound();
+                }
+
+                await google.PatchEventAsync(write.AccessToken!, from.GoogleCalendarId, master.Id, master.ETag,
+                    EventSeries.MasterDraft(master, draft!, Zone(draft!)), cancellationToken);
+                if (from != to)
+                {
+                    await google.MoveEventAsync(write.AccessToken!, from.GoogleCalendarId, master.Id, to!.GoogleCalendarId, cancellationToken);
+                }
+            }
+            else
+            {
+                var stored = await google.PatchEventAsync(write.AccessToken!, from.GoogleCalendarId, row.GoogleEventId, row.ETag, draft!, cancellationToken);
                 if (from != to)
                 {
                     stored = await google.MoveEventAsync(write.AccessToken!, from.GoogleCalendarId, row.GoogleEventId, to!.GoogleCalendarId, cancellationToken);
                 }
-            }
-            catch (GoogleEventChangedException)
-            {
-                return await write.RefreshAsync(row, from, cancellationToken) is { } current
-                    ? TypedResults.Conflict(current)
-                    : TypedResults.NotFound();
-            }
-            catch (GoogleEventGoneException)
-            {
-                db.EventInstances.Remove(row);
+
+                CalendarSync.CopyTo(row, stored);
+                row.CalendarSourceId = to!.Id;
                 await db.SaveChangesAsync(cancellationToken);
-                return TypedResults.NotFound();
-            }
-            catch (Exception exception) when (GoogleWrite.IsProblem(exception))
-            {
-                return await write.ProblemFor(exception, from, cancellationToken);
+                return TypedResults.Ok(EventResponse.From(row, to));
             }
         }
+        catch (GoogleEventChangedException)
+        {
+            return await write.RefreshAsync(row, from, cancellationToken) is { } current
+                ? TypedResults.Conflict(current)
+                : TypedResults.NotFound();
+        }
+        catch (GoogleEventGoneException)
+        {
+            db.EventInstances.Remove(row);
+            await db.SaveChangesAsync(cancellationToken);
+            return TypedResults.NotFound();
+        }
+        catch (Exception exception) when (GoogleWrite.IsProblem(exception))
+        {
+            return await write.ProblemFor(exception, from, cancellationToken);
+        }
 
-        CalendarSync.CopyTo(row, stored);
-        row.CalendarSourceId = to!.Id;
-        await db.SaveChangesAsync(cancellationToken);
+        // Google gives every occurrence a new version, and new ids when the times changed, so the
+        // calendars are read again. The answer is the occurrence on the day that was on screen.
+        var zone = Zone(draft!);
+        var (seriesId, day) = (row.RecurringEventId!, EventSeries.DayOf(row, zone));
+        try
+        {
+            await sync.ListAsync(from, write.AccessToken!, cancellationToken);
+            if (from != to)
+            {
+                await sync.ListAsync(to!, write.AccessToken!, cancellationToken);
+            }
 
-        return TypedResults.Ok(EventResponse.From(row, to));
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception exception) when (GoogleWrite.IsProblem(exception))
+        {
+            logger.LogWarning(exception, "Google could not be reached to read a changed series; the next sync brings it in.");
+            syncSoon.SyncSoon(row.FamilyId);
+            db.ChangeTracker.Clear();
+            row = await db.EventInstances.SingleAsync(e => e.Id == id, cancellationToken);
+            EventSeries.Apply(await SeriesOf(row, db, cancellationToken), draft!, zone);
+            await MoveSeriesAsync(row, to!, db, cancellationToken);
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        var occurrences = await db.EventInstances
+            .Where(e => e.CalendarSourceId == to!.Id && e.RecurringEventId == seriesId)
+            .OrderBy(e => e.StartDate).ThenBy(e => e.StartsAt)
+            .ToListAsync(cancellationToken);
+        var answer = occurrences.FirstOrDefault(e => EventSeries.DayOf(e, zone) == day) ?? occurrences.FirstOrDefault();
+        return answer is null ? TypedResults.NotFound() : TypedResults.Ok(EventResponse.From(answer, to!));
     }
 
     /// <summary>
-    /// Deletes an event, or one occurrence of a repeating one. Answers 409 with the event as
-    /// Google has it now when it changed there first, so nobody deletes a change they never saw.
+    /// Deletes an event, or one occurrence of a repeating one, or with <paramref name="series"/>
+    /// the whole series. Answers 409 with the event as Google has it now when it changed there
+    /// first, so nobody deletes a change they never saw.
     /// </summary>
     private static async Task<Results<NoContent, Conflict<EventResponse>, ValidationProblem, ProblemHttpResult, NotFound>> Delete(
         Guid id,
@@ -192,7 +308,8 @@ public static class EventEndpoints
         IGoogleCalendar google,
         IOptions<InstanceOptions> instance,
         ILogger<GoogleConnection> logger,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool series = false)
     {
         var row = await db.EventInstances.SingleOrDefaultAsync(e => e.Id == id, cancellationToken);
         if (row is null)
@@ -200,6 +317,7 @@ public static class EventEndpoints
             return TypedResults.NotFound();
         }
 
+        series &= row.RecurringEventId is not null;
         var source = await db.CalendarSources.SingleAsync(s => s.Id == row.CalendarSourceId, cancellationToken);
         if (WritableErrors(source) is { } errors)
         {
@@ -216,7 +334,20 @@ public static class EventEndpoints
 
             try
             {
-                await google.DeleteEventAsync(write.AccessToken!, source.GoogleCalendarId, row.GoogleEventId, row.ETag, cancellationToken);
+                if (series)
+                {
+                    var current = await google.GetEventAsync(write.AccessToken!, source.GoogleCalendarId, row.GoogleEventId, cancellationToken);
+                    if (current is not null && current.ETag != row.ETag)
+                    {
+                        return TypedResults.Conflict((await write.ShowAsync(row, source, current, cancellationToken))!);
+                    }
+
+                    await google.DeleteEventAsync(write.AccessToken!, source.GoogleCalendarId, row.RecurringEventId!, etag: null, cancellationToken);
+                }
+                else
+                {
+                    await google.DeleteEventAsync(write.AccessToken!, source.GoogleCalendarId, row.GoogleEventId, row.ETag, cancellationToken);
+                }
             }
             catch (GoogleEventChangedException)
             {
@@ -230,11 +361,30 @@ public static class EventEndpoints
             }
         }
 
-        db.EventInstances.Remove(row);
+        db.EventInstances.RemoveRange(series ? await SeriesOf(row, db, cancellationToken) : [row]);
         await db.SaveChangesAsync(cancellationToken);
 
         return TypedResults.NoContent();
     }
+
+    /// <summary>The cached occurrences of <paramref name="row"/>'s series in its calendar, itself included.</summary>
+    private static Task<List<EventInstance>> SeriesOf(EventInstance row, WheelhouseDbContext db, CancellationToken cancellationToken) =>
+        db.EventInstances
+            .Where(e => e.CalendarSourceId == row.CalendarSourceId && e.RecurringEventId == row.RecurringEventId)
+            .ToListAsync(cancellationToken);
+
+    private static async Task MoveSeriesAsync(EventInstance row, CalendarSource to, WheelhouseDbContext db, CancellationToken cancellationToken)
+    {
+        foreach (var occurrence in await SeriesOf(row, db, cancellationToken))
+        {
+            occurrence.CalendarSourceId = to.Id;
+        }
+    }
+
+    private static TimeZoneInfo Zone(GoogleEventDraft draft) => TimeZoneInfo.FindSystemTimeZoneById(draft.TimeZone);
+
+    private static DateOnly Today(TimeProvider time, TimeZoneInfo zone) =>
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(time.GetUtcNow(), zone).DateTime);
 
     private static bool IsDemo(IOptions<InstanceOptions> instance) => instance.Value.Mode == InstanceMode.Demo;
 
@@ -364,9 +514,12 @@ public static class EventEndpoints
         /// Brings a row that changed in Google up to date and returns it, or removes it and
         /// returns null when it was deleted there.
         /// </summary>
-        public async Task<EventResponse?> RefreshAsync(EventInstance row, CalendarSource source, CancellationToken cancellationToken)
+        public async Task<EventResponse?> RefreshAsync(EventInstance row, CalendarSource source, CancellationToken cancellationToken) =>
+            await ShowAsync(row, source, await _google.GetEventAsync(AccessToken!, source.GoogleCalendarId, row.GoogleEventId, cancellationToken), cancellationToken);
+
+        /// <summary>Like <see cref="RefreshAsync"/>, with the row as Google has it now already read.</summary>
+        public async Task<EventResponse?> ShowAsync(EventInstance row, CalendarSource source, GoogleEvent? current, CancellationToken cancellationToken)
         {
-            var current = await _google.GetEventAsync(AccessToken!, source.GoogleCalendarId, row.GoogleEventId, cancellationToken);
             if (current is null)
             {
                 _db.EventInstances.Remove(row);

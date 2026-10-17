@@ -40,8 +40,15 @@ public sealed class EventTests(ApiFactory factory)
         return (await response.Content.ReadFromJsonAsync<EventResponse>(ApiFactory.Json))!;
     }
 
-    private static Task<HttpResponseMessage> ChangeAsync(HttpClient client, Guid id, EventRequest request) =>
-        client.PutAsJsonAsync($"/api/calendar/events/{id}", request, ApiFactory.Json);
+    private static Task<HttpResponseMessage> ChangeAsync(HttpClient client, Guid id, EventRequest request, bool series = false) =>
+        client.PutAsJsonAsync($"/api/calendar/events/{id}{(series ? "?series=true" : "")}", request, ApiFactory.Json);
+
+    /// <summary>The day and clock an occurrence starts at, in the family's zone.</summary>
+    private static (DateOnly Day, TimeOnly Time) Local(EventResponse e, TimeZoneInfo zone)
+    {
+        var local = TimeZoneInfo.ConvertTime(e.StartsAt!.Value, zone).DateTime;
+        return (DateOnly.FromDateTime(local), TimeOnly.FromDateTime(local));
+    }
 
     [Fact]
     public async Task A_visitor_adds_an_event_at_the_familys_own_time()
@@ -286,4 +293,164 @@ public sealed class EventTests(ApiFactory factory)
         Assert.Empty(family.Google.Writes);
         Assert.True((await CalendarOf(family.Parent, Day, 1)).NeedsReconnect);
     }
+
+    [Fact]
+    public async Task A_new_weekly_event_repeats_and_a_change_to_all_events_keeps_each_on_its_day()
+    {
+        using var visitor = await factory.DemoVisitorAsync();
+        var zone = TimeZoneInfo.FindSystemTimeZoneById((await FamilyOf(visitor)).TimeZone);
+        var milos = await CalendarIdAsync(visitor, "Milo");
+        var tesss = await CalendarIdAsync(visitor, "Tess");
+
+        var first = await AddAsync(visitor, Timed(milos, "Art class", new(17, 30), new(18, 15)) with { Repeat = EventRepeat.Weekly });
+
+        Assert.True(first.Recurring);
+        var classes = (await CalendarOf(visitor, Day, 21)).Events.Where(e => e.Title == "Art class").ToList();
+        Assert.Equal([Day, Day.AddDays(7), Day.AddDays(14)], classes.Select(e => Local(e, zone).Day));
+        Assert.Equal(first.Id, classes[0].Id);
+
+        var second = classes[1];
+        var day = Local(second, zone).Day;
+        var changed = await ChangeAsync(visitor, second.Id,
+            new EventRequest(tesss, "Art class with Tess", "Studio B", false, day, new(18, 0), day, new(19, 30)), series: true);
+
+        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+        Assert.Equal(second.Id, (await changed.Content.ReadFromJsonAsync<EventResponse>(ApiFactory.Json))!.Id);
+        var after = (await CalendarOf(visitor, Day, 21)).Events.Where(e => e.Title == "Art class with Tess").ToList();
+        Assert.Equal([Day, Day.AddDays(7), Day.AddDays(14)], after.Select(e => Local(e, zone).Day));
+        Assert.All(after, e =>
+        {
+            Assert.Equal((new TimeOnly(18, 0), TimeSpan.FromMinutes(90), tesss, "Studio B"), (Local(e, zone).Time, e.EndsAt - e.StartsAt, e.CalendarId, e.Location));
+        });
+
+        // A series keeps its days; one event of it can still move on its own.
+        var moved = await ChangeAsync(visitor, second.Id,
+            new EventRequest(tesss, "Art class", null, false, day.AddDays(1), new(18, 0), day.AddDays(1), new(19, 0)), series: true);
+        Assert.Equal(HttpStatusCode.BadRequest, moved.StatusCode);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await visitor.DeleteAsync($"/api/calendar/events/{second.Id}?series=true")).StatusCode);
+        Assert.DoesNotContain((await CalendarOf(visitor, Day, 21)).Events, e => e.Title.StartsWith("Art class"));
+    }
+
+    [Fact]
+    public async Task Deleting_one_event_of_a_series_leaves_the_rest()
+    {
+        using var visitor = await factory.DemoVisitorAsync();
+        var lessons = (await CalendarOf(visitor, Day, 21)).Events.Where(e => e.Title == "Swim lesson").ToList();
+
+        Assert.Equal(HttpStatusCode.NoContent, (await visitor.DeleteAsync($"/api/calendar/events/{lessons[0].Id}")).StatusCode);
+
+        Assert.Equal(lessons.Skip(1).Select(e => e.Id), (await CalendarOf(visitor, Day, 21)).Events.Where(e => e.Title == "Swim lesson").Select(e => e.Id));
+    }
+
+    [Fact]
+    public void A_monthly_event_on_the_31st_skips_the_shorter_months_and_a_daily_one_keeps_its_length()
+    {
+        var zone = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+        var startsAt = CalendarEndpoints.At(new DateOnly(2027, 1, 31), new TimeOnly(19, 0), zone);
+        var draft = new GoogleEventDraft("Book club", null, startsAt, startsAt.AddHours(2), null, null, zone.Id);
+
+        var monthly = EventSeries.Occurrences(draft, EventRepeat.Monthly, "s", new DateOnly(2027, 6, 30), zone).ToList();
+        var daily = EventSeries.Occurrences(draft with { StartsAt = null, EndsAt = null, StartDate = new(2027, 3, 13), EndDate = new(2027, 3, 15) },
+            EventRepeat.Daily, "d", new DateOnly(2027, 3, 15), zone).ToList();
+
+        Assert.Equal(["s_20270131", "s_20270331", "s_20270531"], monthly.Select(e => e.Id));
+        // Across the change to summer time the clock stays at 7 PM.
+        Assert.Equal(new TimeOnly(19, 0), TimeOnly.FromDateTime(TimeZoneInfo.ConvertTime(monthly[1].StartsAt!.Value, zone).DateTime));
+        Assert.Equal([(new DateOnly(2027, 3, 13), new DateOnly(2027, 3, 15)), (new(2027, 3, 14), new(2027, 3, 16)), (new(2027, 3, 15), new(2027, 3, 17))],
+            daily.Select(e => (e.StartDate!.Value, e.EndDate!.Value)));
+    }
+
+    /// <summary>A weekly series in Alex's Google calendar, from <see cref="Day"/> at 3 PM, synced into the cache.</summary>
+    private static async Task<List<EventResponse>> SyncedSeriesAsync(GoogleFamily family, string title)
+    {
+        var startsAt = new DateTimeOffset(Day.ToDateTime(new TimeOnly(15, 0)), TimeSpan.Zero);
+        family.Google.PutSeries("alex-cal", new GoogleEvent("practice", null, title, null, startsAt, startsAt.AddHours(1), null, null), "RRULE:FREQ=WEEKLY", "UTC");
+        await family.SyncAsync();
+        return [.. (await CalendarOf(family.Parent, Day, 21)).Events.Where(e => e.Title == title)];
+    }
+
+    [Fact]
+    public async Task A_new_series_is_written_to_google_with_its_rule_and_every_event_shows_at_once()
+    {
+        await using var family = await ConnectedAsync();
+        var alexs = await CalendarIdAsync(family.Parent, "Alex");
+
+        var added = await AddAsync(family.Parent, AllDay(alexs, "Trash day", Day, days: 1) with { Repeat = EventRepeat.Weekly });
+
+        var (change, _, seriesId, _) = Assert.Single(family.Google.Writes);
+        Assert.Equal("insert", change);
+        Assert.Equal("RRULE:FREQ=WEEKLY", family.Google.RuleOf(seriesId));
+        var shown = (await CalendarOf(family.Parent, Day, 21)).Events.Where(e => e.Title == "Trash day").ToList();
+        Assert.Equal([Day, Day.AddDays(7), Day.AddDays(14)], shown.Select(e => e.StartDate!.Value));
+        Assert.All(shown, e => Assert.True(e.Recurring));
+        Assert.Equal(added.Id, shown[0].Id);
+
+        await family.SyncAsync();
+        Assert.Equal(shown.Select(e => e.Id), (await CalendarOf(family.Parent, Day, 21)).Events.Where(e => e.Title == "Trash day").Select(e => e.Id));
+    }
+
+    [Fact]
+    public async Task A_change_to_all_events_changes_the_series_in_google_and_can_move_it()
+    {
+        await using var family = await ConnectedAsync();
+        var practices = await SyncedSeriesAsync(family, "Practice");
+        var etag = family.Google.Find("alex-cal", "practice")!.ETag;
+        var everyone = await CalendarIdAsync(family.Parent, "Family");
+        var second = practices[1];
+        var day = Local(second, TimeZoneInfo.Utc).Day;
+
+        var changed = await ChangeAsync(family.Parent, second.Id,
+            new EventRequest(second.CalendarId, "Practice, new field", null, false, day, new(9, 0), day, new(10, 30)), series: true);
+
+        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+        Assert.Equal(("patch", "practice", etag), (family.Google.Writes[0].Change, family.Google.Writes[0].EventId, family.Google.Writes[0].IfMatch));
+        var master = family.Google.Find("alex-cal", "practice")!;
+        Assert.Equal((Day, new TimeOnly(9, 0), TimeSpan.FromMinutes(90)), (Local(Response(master), TimeZoneInfo.Utc).Day, Local(Response(master), TimeZoneInfo.Utc).Time, master.EndsAt - master.StartsAt));
+        Assert.Equal(day, Local((await changed.Content.ReadFromJsonAsync<EventResponse>(ApiFactory.Json))!, TimeZoneInfo.Utc).Day);
+        var after = (await CalendarOf(family.Parent, Day, 21)).Events.Where(e => e.Title == "Practice, new field").ToList();
+        Assert.Equal([Day, Day.AddDays(7), Day.AddDays(14)], after.Select(e => Local(e, TimeZoneInfo.Utc).Day));
+        Assert.All(after, e => Assert.Equal(new TimeOnly(9, 0), Local(e, TimeZoneInfo.Utc).Time));
+
+        // The cache took Google's new versions, so changing one event next is not refused.
+        var alone = await ChangeAsync(family.Parent, after[2].Id,
+            new EventRequest(second.CalendarId, "Practice, away game", null, false, Day.AddDays(14), new(9, 0), Day.AddDays(14), new(11, 0)));
+        Assert.Equal(HttpStatusCode.OK, alone.StatusCode);
+
+        var moved = await ChangeAsync(family.Parent, after[0].Id,
+            new EventRequest(everyone, "Practice, new field", null, false, Day, new(9, 0), Day, new(10, 30)), series: true);
+
+        Assert.Equal(HttpStatusCode.OK, moved.StatusCode);
+        Assert.Equal("move", family.Google.Writes[^1].Change);
+        var inFamily = (await CalendarOf(family.Parent, Day, 21)).Events.Where(e => e.Title.StartsWith("Practice")).ToList();
+        Assert.Equal(3, inFamily.Count);
+        Assert.All(inFamily, e => Assert.Equal(everyone, e.CalendarId));
+    }
+
+    [Fact]
+    public async Task A_series_changed_in_google_first_is_shown_and_deleting_all_events_deletes_the_series()
+    {
+        await using var family = await ConnectedAsync();
+        var practices = await SyncedSeriesAsync(family, "Practice");
+        var startsAt = practices[0].StartsAt!.Value;
+        family.Google.PutSeries("alex-cal", new GoogleEvent("practice", null, "Practice, moved indoors", null, startsAt, startsAt.AddHours(1), null, null), "RRULE:FREQ=WEEKLY", "UTC");
+        var day = Local(practices[1], TimeZoneInfo.Utc).Day;
+
+        var changed = await ChangeAsync(family.Parent, practices[1].Id,
+            new EventRequest(practices[1].CalendarId, "Practice, cancelled", null, false, day, new(15, 0), day, new(16, 0)), series: true);
+
+        Assert.Equal(HttpStatusCode.Conflict, changed.StatusCode);
+        Assert.Equal("Practice, moved indoors", (await changed.Content.ReadFromJsonAsync<EventResponse>(ApiFactory.Json))!.Title);
+        Assert.Empty(family.Google.Writes);
+
+        var deleted = await family.Parent.DeleteAsync($"/api/calendar/events/{practices[1].Id}?series=true");
+
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+        Assert.Equal(("delete", "practice"), (family.Google.Writes[^1].Change, family.Google.Writes[^1].EventId));
+        Assert.Null(family.Google.Find("alex-cal", "practice"));
+        Assert.DoesNotContain((await CalendarOf(family.Parent, Day, 21)).Events, e => e.Title.StartsWith("Practice"));
+    }
+
+    private static EventResponse Response(GoogleEvent e) =>
+        new(Guid.Empty, Guid.Empty, null, e.Title, e.Location, false, e.StartsAt, e.EndsAt, null, null, true);
 }
