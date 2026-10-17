@@ -12,7 +12,9 @@ import {
   moveLastDay,
   moveStart,
   newDraft,
+  onDayOf,
   problemWith,
+  REPEATS,
   requestOf,
   writableCalendars,
 } from '../core/event-draft';
@@ -53,11 +55,11 @@ import { SessionStore } from '../core/session';
             <span id="event-when">WHEN</span>
             <div class="when" role="group" aria-labelledby="event-when">
               <div class="stepper date">
-                <button type="button" [attr.aria-label]="draft.allDay ? 'First day earlier' : 'A day earlier'" (click)="adjust(moveDays, -1)">
+                <button type="button" [attr.aria-label]="draft.allDay ? 'First day earlier' : 'A day earlier'" [disabled]="series()" (click)="adjust(moveDays, -1)">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
                 </button>
                 <span>{{ dayLabel(draft.startDate) }}</span>
-                <button type="button" [attr.aria-label]="draft.allDay ? 'First day later' : 'A day later'" (click)="adjust(moveDays, 1)">
+                <button type="button" [attr.aria-label]="draft.allDay ? 'First day later' : 'A day later'" [disabled]="series()" (click)="adjust(moveDays, 1)">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
                 </button>
               </div>
@@ -108,7 +110,7 @@ import { SessionStore } from '../core/session';
                   class="chip"
                   [style.--member]="choice.color"
                   [attr.aria-pressed]="choice.id === draft.calendarId"
-                  [disabled]="event()?.recurring && choice.id !== draft.calendarId"
+                  [disabled]="event()?.recurring && !series() && choice.id !== draft.calendarId"
                   (click)="set({ calendarId: choice.id })"
                 >
                   <span class="mark" aria-hidden="true">{{ choice.initial }}</span>{{ choice.label }}
@@ -118,15 +120,30 @@ import { SessionStore } from '../core/session';
           </div>
 
           <div class="field">
-            <span aria-hidden="true">&nbsp;</span>
+            @if (!event()) {
+              <span id="event-repeat">REPEAT</span>
+            } @else if (event()!.recurring) {
+              <span id="event-repeat">CHANGE</span>
+            } @else {
+              <span aria-hidden="true">&nbsp;</span>
+            }
             <div class="options">
+              @if (!event()) {
+                <div class="segments" role="group" aria-labelledby="event-repeat">
+                  @for (repeat of repeats; track repeat) {
+                    <button type="button" [attr.aria-pressed]="draft.repeat === repeat" (click)="set({ repeat })">{{ repeat }}</button>
+                  }
+                </div>
+              } @else if (event()!.recurring) {
+                <div class="segments" role="group" aria-labelledby="event-repeat">
+                  <button type="button" [attr.aria-pressed]="!series()" (click)="setSeries(false)">This event</button>
+                  <button type="button" [attr.aria-pressed]="series()" (click)="setSeries(true)">All events</button>
+                </div>
+              }
               <label class="all-day">
-                <input type="checkbox" [checked]="draft.allDay" (change)="set({ allDay: $any($event.target).checked })" />
+                <input type="checkbox" [checked]="draft.allDay" [disabled]="series()" (change)="set({ allDay: $any($event.target).checked })" />
                 All day
               </label>
-              @if (event()?.recurring) {
-                <p class="note">This changes only this occurrence of a repeating event.</p>
-              }
             </div>
           </div>
 
@@ -144,9 +161,9 @@ import { SessionStore } from '../core/session';
 
           <div class="actions">
             @if (confirmingDelete()) {
-              <span class="confirm">Delete this event?</span>
+              <span class="confirm">{{ series() ? 'Delete every event in this series?' : 'Delete this event?' }}</span>
               <button type="button" class="ghost" (click)="confirmingDelete.set(false)">Keep it</button>
-              <button type="button" class="danger" [disabled]="busy()" (click)="remove()">Delete event</button>
+              <button type="button" class="danger" [disabled]="busy()" (click)="remove()">{{ series() ? 'Delete all events' : 'Delete event' }}</button>
             } @else {
               @if (event()) {
                 <button type="button" class="quiet-danger" [disabled]="busy()" (click)="confirmingDelete.set(true)">Delete</button>
@@ -378,10 +395,35 @@ import { SessionStore } from '../core/session';
       accent-color: var(--ink);
     }
 
-    .note {
-      margin: 0;
-      font-size: 16px;
-      color: var(--muted);
+    .stepper button:disabled,
+    .all-day:has(input:disabled) {
+      opacity: 0.35;
+      cursor: default;
+    }
+
+    .segments {
+      flex: 1;
+      display: grid;
+      grid-auto-columns: minmax(0, 1fr);
+      grid-auto-flow: column;
+      padding: 4px;
+      border-radius: 16px;
+      background: #e6e2da;
+    }
+
+    .segments button {
+      height: 56px;
+      border: 0;
+      border-radius: 12px;
+      background: transparent;
+      color: #4a4f57;
+      font: 600 17px var(--font-body);
+      cursor: pointer;
+    }
+
+    .segments button[aria-pressed='true'] {
+      background: var(--ink);
+      color: #ffffff;
     }
 
     .actions {
@@ -468,6 +510,7 @@ export class EventDialog {
   protected readonly moveLastDay = moveLastDay;
   protected readonly moveStart = moveStart;
   protected readonly moveEnd = moveEnd;
+  protected readonly repeats = REPEATS;
 
   private readonly titleInput = viewChild<ElementRef<HTMLInputElement>>('title');
 
@@ -496,6 +539,10 @@ export class EventDialog {
   protected readonly heading = computed(() => (this.event() ? 'Edit event' : 'New event'));
   protected readonly savesTo = computed(() => (this.session.isDemo() ? 'Saves to the demo calendar' : 'Saves to Google Calendar'));
 
+  /** Whether a change to one event of a series goes to every event of it. */
+  private readonly wholeSeries = signal(false);
+  protected readonly series = computed(() => !!this.event()?.recurring && this.wholeSeries());
+
   protected readonly busy = signal(false);
   protected readonly confirmingDelete = signal(false);
   protected readonly message = signal<string | null>(null);
@@ -519,6 +566,22 @@ export class EventDialog {
     if (draft) {
       this.change(move(draft, by));
     }
+  }
+
+  /**
+   * Every event of a series stays on its own day and in one calendar, so choosing all of them
+   * puts the day back, and choosing one again puts its calendar back.
+   */
+  protected setSeries(series: boolean): void {
+    const draft = this.draft();
+    const event = this.event();
+    const family = this.family.family();
+    if (!draft || !event || !family) {
+      return;
+    }
+    const original = draftOf(event, family.timeZone);
+    this.wholeSeries.set(series);
+    this.change(series ? onDayOf(draft, original) : { ...draft, calendarId: original.calendarId });
   }
 
   private change(draft: EventDraft): void {
@@ -547,7 +610,7 @@ export class EventDialog {
     const event = this.event();
     const request = requestOf(draft);
     this.busy.set(true);
-    (event ? this.calendar.update(event.id, request) : this.calendar.add(request)).subscribe({
+    (event ? this.calendar.update(event.id, request, this.series()) : this.calendar.add(request)).subscribe({
       next: () => this.closed.emit(),
       error: (error: HttpErrorResponse) => this.refused(error),
     });
@@ -559,7 +622,7 @@ export class EventDialog {
       return;
     }
     this.busy.set(true);
-    this.calendar.remove(event.id).subscribe({
+    this.calendar.remove(event.id, this.series()).subscribe({
       next: () => this.closed.emit(),
       error: (error: HttpErrorResponse) => this.refused(error),
     });

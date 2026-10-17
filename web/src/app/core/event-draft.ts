@@ -1,4 +1,4 @@
-import { CalendarEvent, CalendarSource, EventRequest, FAMILY_COLOR } from './calendar';
+import { CalendarEvent, CalendarSource, EventRequest, FAMILY_COLOR, Repeat } from './calendar';
 import { Day, addDays, dayIn, minutesIn } from './days';
 import { Member } from './family';
 
@@ -16,7 +16,12 @@ export interface EventDraft {
   startTime: string;
   endDate: Day;
   endTime: string;
+  /** How a new event repeats. */
+  repeat: Repeat;
 }
+
+/** The choices of the Repeat row. */
+export const REPEATS: readonly Repeat[] = ['Never', 'Daily', 'Weekly', 'Monthly'];
 
 /** How far one tap moves a time on the wall. */
 export const STEP_MINUTES = 15;
@@ -28,7 +33,17 @@ export function newDraft(day: Day, calendarId: string, timeZone: string, now: Da
   const today = dayIn(timeZone, now);
   const start = day === today ? Math.min(Math.floor(minutesIn(timeZone, now) / 60) + 1, 23) * 60 : 9 * 60;
   const [endDate, endTime] = split(minutesOf(day, clock(start)) + 60);
-  return { calendarId, title: '', location: '', allDay: false, startDate: day, startTime: clock(start), endDate, endTime };
+  return {
+    calendarId,
+    title: '',
+    location: '',
+    allDay: false,
+    startDate: day,
+    startTime: clock(start),
+    endDate,
+    endTime,
+    repeat: 'Never',
+  };
 }
 
 /** An event as it is now, ready to change. */
@@ -43,6 +58,7 @@ export function draftOf(event: CalendarEvent, timeZone: string): EventDraft {
       startTime: '09:00',
       endDate: addDays(event.endDate!, -1),
       endTime: '10:00',
+      repeat: 'Never',
     };
   }
   return {
@@ -54,7 +70,17 @@ export function draftOf(event: CalendarEvent, timeZone: string): EventDraft {
     startTime: clock(minutesIn(timeZone, event.startsAt!)),
     endDate: dayIn(timeZone, event.endsAt!),
     endTime: clock(minutesIn(timeZone, event.endsAt!)),
+    repeat: 'Never',
   };
+}
+
+/**
+ * A draft put back on <code>original</code>'s day, all day or timed as it was, keeping its new
+ * times and length: a change to a whole series keeps each event on its own day.
+ */
+export function onDayOf(draft: EventDraft, original: EventDraft): EventDraft {
+  const days = (Date.parse(original.startDate) - Date.parse(draft.startDate)) / (24 * 60 * 60_000);
+  return moveDays({ ...draft, allDay: original.allDay }, days);
 }
 
 /** What the server is sent for a draft. */
@@ -68,6 +94,7 @@ export function requestOf(draft: EventDraft): EventRequest {
     startTime: draft.allDay ? null : `${draft.startTime}:00`,
     endDate: draft.allDay ? addDays(draft.endDate, 1) : draft.endDate,
     endTime: draft.allDay ? null : `${draft.endTime}:00`,
+    repeat: draft.repeat,
   };
 }
 

@@ -5,6 +5,9 @@ namespace Wheelhouse.Api.Tests;
 /// <summary>
 /// Google, as far as the API sees it: one shared account with four calendars, whose events a
 /// test adds, changes and removes. Each change moves the calendar's sync token on, as Google's does.
+/// A series is kept as its first event and a rule, and expanded into occurrences when read, with
+/// ids and versions made the way Google makes them; an occurrence changed on its own is kept as
+/// an event of its own, as Google keeps it.
 /// </summary>
 internal sealed class FakeGoogle : IGoogleCalendar
 {
@@ -29,6 +32,8 @@ internal sealed class FakeGoogle : IGoogleCalendar
     public List<(string CalendarId, DateTimeOffset From, DateTimeOffset To)> Listed { get; } = [];
 
     private readonly Dictionary<string, List<GoogleEvent>> _events = [];
+    private readonly Dictionary<string, (string Rule, string TimeZone)> _series = [];
+    private readonly HashSet<string> _cancelled = [];
     private readonly Dictionary<string, int> _versions = [];
 
     /// <summary>Every change a screen made in Google: what was done, to which calendar and event, and the etag it sent.</summary>
@@ -43,8 +48,52 @@ internal sealed class FakeGoogle : IGoogleCalendar
         Changed(calendarId);
     }
 
-    /// <summary>The event as Google has it now.</summary>
-    public GoogleEvent? Find(string calendarId, string eventId) => EventsOf(calendarId).SingleOrDefault(e => e.Id == eventId);
+    /// <summary>Adds a series starting with <paramref name="first"/>, repeating by <paramref name="rule"/>, as if made in Google Calendar.</summary>
+    public void PutSeries(string calendarId, GoogleEvent first, string rule, string timeZone)
+    {
+        _series[first.Id] = (rule, timeZone);
+        Put(calendarId, first);
+    }
+
+    /// <summary>The rule of a series, or null for an event that does not repeat.</summary>
+    public string? RuleOf(string eventId) => _series.TryGetValue(eventId, out var series) ? series.Rule : null;
+
+    /// <summary>The event, series or occurrence as Google has it now.</summary>
+    public GoogleEvent? Find(string calendarId, string eventId) =>
+        EventsOf(calendarId).SingleOrDefault(e => e.Id == eventId)
+        ?? Expanded(calendarId, DateTimeOffset.MinValue, DateTimeOffset.MaxValue).FirstOrDefault(e => e.Id == eventId);
+
+    /// <summary>The calendar's events as the screens see them, with each series expanded into its occurrences.</summary>
+    public IEnumerable<GoogleEvent> Occurrences(string calendarId, DateTimeOffset from, DateTimeOffset to) =>
+        EventsOf(calendarId).Where(e => !_series.ContainsKey(e.Id)).Concat(Expanded(calendarId, from, to));
+
+    private IEnumerable<GoogleEvent> Expanded(string calendarId, DateTimeOffset from, DateTimeOffset to)
+    {
+        var events = EventsOf(calendarId);
+        foreach (var first in events.Where(e => _series.ContainsKey(e.Id)).ToList())
+        {
+            var (rule, timeZone) = _series[first.Id];
+            var zone = TimeZoneInfo.FindSystemTimeZoneById(timeZone);
+            var draft = new GoogleEventDraft(first.Title, first.Location, first.StartsAt, first.EndsAt, first.StartDate, first.EndDate, timeZone);
+            var repeat = Enum.Parse<EventRepeat>(rule["RRULE:FREQ=".Length..], ignoreCase: true);
+            // Two years of occurrences is more than any test reads.
+            var until = DateOnly.FromDateTime((first.StartsAt?.UtcDateTime ?? first.StartDate!.Value.ToDateTime(TimeOnly.MinValue)).AddYears(2));
+            foreach (var occurrence in EventSeries.Occurrences(draft, repeat, first.Id, until, zone))
+            {
+                var id = occurrence.StartsAt is { } startsAt ? $"{first.Id}_{startsAt.UtcDateTime:yyyyMMdd'T'HHmmss'Z'}" : occurrence.Id;
+                var start = occurrence.StartsAt ?? new DateTimeOffset(occurrence.StartDate!.Value.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+                if (start >= to)
+                {
+                    break;
+                }
+
+                if (start >= from && !_cancelled.Contains(id) && events.All(e => e.Id != id))
+                {
+                    yield return occurrence with { Id = id, ETag = $"{first.ETag}{id}" };
+                }
+            }
+        }
+    }
 
     public void Remove(string calendarId, string eventId)
     {
@@ -120,7 +169,7 @@ internal sealed class FakeGoogle : IGoogleCalendar
         }
 
         Listed.Add((calendarId, from, to));
-        return Task.FromResult<IReadOnlyList<GoogleEvent>>([.. EventsOf(calendarId)]);
+        return Task.FromResult<IReadOnlyList<GoogleEvent>>([.. Occurrences(calendarId, from - TimeSpan.FromDays(1), to)]);
     }
 
     public Task<GoogleEvent> InsertEventAsync(string accessToken, string calendarId, GoogleEventDraft draft, CancellationToken cancellationToken)
@@ -132,6 +181,11 @@ internal sealed class FakeGoogle : IGoogleCalendar
 
         var id = $"new-{Guid.NewGuid():N}";
         Writes.Add(("insert", calendarId, id, null));
+        if (draft.Recurrence is { } rule)
+        {
+            _series[id] = (rule, draft.TimeZone);
+        }
+
         Put(calendarId, From(draft, id, recurringEventId: null));
         return Task.FromResult(Find(calendarId, id)!);
     }
@@ -152,16 +206,29 @@ internal sealed class FakeGoogle : IGoogleCalendar
         var current = Current(calendarId, eventId, etag: null);
         Remove(calendarId, eventId);
         Put(toCalendarId, current);
+        // A series takes its occurrences that were changed on their own along.
+        foreach (var changedAlone in EventsOf(calendarId).Where(e => e.RecurringEventId == eventId).ToList())
+        {
+            Remove(calendarId, changedAlone.Id);
+            Put(toCalendarId, changedAlone);
+        }
         return Task.FromResult(Find(toCalendarId, eventId)!);
     }
 
     public Task DeleteEventAsync(string accessToken, string calendarId, string eventId, string? etag, CancellationToken cancellationToken)
     {
         Writes.Add(("delete", calendarId, eventId, etag));
-        if (Find(calendarId, eventId) is not null)
+        if (Find(calendarId, eventId) is { } found)
         {
             Current(calendarId, eventId, etag);
             Remove(calendarId, eventId);
+            if (found.RecurringEventId is not null)
+            {
+                _cancelled.Add(eventId);
+            }
+
+            EventsOf(calendarId).RemoveAll(e => e.RecurringEventId == eventId);
+            _series.Remove(eventId);
         }
 
         return Task.CompletedTask;
