@@ -246,12 +246,14 @@ public sealed class EventTests(ApiFactory factory)
         var synced = await SyncedAsync(family, "alex-cal", "swim", "Swim");
         var startsAt = synced.StartsAt!.Value;
         family.Google.Put("alex-cal", new GoogleEvent("swim", null, "Swim, moved indoors", null, startsAt, startsAt.AddHours(1), null, null));
+        var before = (await CalendarOf(family.Parent, Day)).ChangeNumber;
 
         var changed = await ChangeAsync(family.Parent, synced.Id, Timed(synced.CalendarId, "Swim, cancelled", new(9, 0), new(10, 0)));
 
         Assert.Equal(HttpStatusCode.Conflict, changed.StatusCode);
         Assert.Equal("Swim, moved indoors", (await changed.Content.ReadFromJsonAsync<EventResponse>(ApiFactory.Json))!.Title);
         Assert.Equal("Swim, moved indoors", family.Google.Find("alex-cal", "swim")!.Title);
+        Assert.Equal(before + 1, (await CalendarOf(family.Parent, Day)).ChangeNumber);
         // The cache now holds Google's version, so a delete after seeing it goes through.
         var deleted = await family.Parent.DeleteAsync($"/api/calendar/events/{synced.Id}");
         Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
@@ -264,11 +266,13 @@ public sealed class EventTests(ApiFactory factory)
         await using var family = await ConnectedAsync();
         var synced = await SyncedAsync(family, "alex-cal", "party", "Party");
         family.Google.Remove("alex-cal", "party");
+        var before = (await CalendarOf(family.Parent, Day)).ChangeNumber;
 
         var changed = await ChangeAsync(family.Parent, synced.Id, Timed(synced.CalendarId, "Party!", new(9, 0), new(10, 0)));
 
         Assert.Equal(HttpStatusCode.NotFound, changed.StatusCode);
         Assert.DoesNotContain((await CalendarOf(family.Parent, Day.AddDays(-1), 3)).Events, e => e.Id == synced.Id);
+        Assert.Equal(before + 1, (await CalendarOf(family.Parent, Day)).ChangeNumber);
     }
 
     [Fact]

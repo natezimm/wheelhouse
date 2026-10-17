@@ -162,7 +162,7 @@ public static class GoogleConnectionEndpoints
         else if (!string.Equals(connection.Email, grant.Email, StringComparison.OrdinalIgnoreCase))
         {
             // Another account's calendars mean nothing to this one.
-            await db.CalendarSources.ExecuteDeleteAsync(cancellationToken);
+            db.CalendarSources.RemoveRange(await db.CalendarSources.ToListAsync(cancellationToken));
         }
 
         connection.Email = grant.Email;
@@ -204,7 +204,7 @@ public static class GoogleConnectionEndpoints
             logger.LogWarning(exception, "Google could not be told to drop the family's connection.");
         }
 
-        await db.CalendarSources.ExecuteDeleteAsync(cancellationToken);
+        db.CalendarSources.RemoveRange(await db.CalendarSources.ToListAsync(cancellationToken));
         db.GoogleConnections.Remove(connection);
         await db.SaveChangesAsync(cancellationToken);
 

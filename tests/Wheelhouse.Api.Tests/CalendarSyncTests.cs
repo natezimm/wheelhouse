@@ -179,6 +179,44 @@ public sealed class CalendarSyncTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Only_visible_sync_changes_advance_the_calendar_number()
+    {
+        await using var family = await ConnectedAsync();
+        var before = (await CalendarOf(family.Parent)).ChangeNumber;
+        var time = new ManualTime(DateTimeOffset.UtcNow);
+        await family.SyncAsync(time);
+        Assert.Equal(before, (await CalendarOf(family.Parent)).ChangeNumber);
+
+        var swim = Timed("swim", "Swim practice", Soon);
+        family.Google.Put("alex-cal", swim);
+        await family.SyncAsync(time);
+        Assert.Equal(before + 1, (await CalendarOf(family.Parent)).ChangeNumber);
+
+        await family.SyncAsync(time);
+        // A new Google etag with the same event fields is only bookkeeping, too.
+        family.Google.Put("alex-cal", swim);
+        await family.SyncAsync(time);
+        time.Advance(CalendarSync.ListEvery);
+        await family.SyncAsync(time);
+        Assert.Equal(before + 1, (await CalendarOf(family.Parent)).ChangeNumber);
+
+        family.Google.Put("alex-cal", swim with { Title = "Swim meet" });
+        await family.SyncAsync(time);
+        Assert.Equal(before + 2, (await CalendarOf(family.Parent)).ChangeNumber);
+        family.Google.Remove("alex-cal", "swim");
+        await family.SyncAsync(time);
+        Assert.Equal(before + 3, (await CalendarOf(family.Parent)).ChangeNumber);
+
+        family.Google.Revoked = true;
+        Assert.False(await family.SyncAsync(time));
+        var revoked = await CalendarOf(family.Parent);
+        Assert.Equal(before + 4, revoked.ChangeNumber);
+        Assert.True(revoked.NeedsReconnect);
+        Assert.False(await family.SyncAsync(time));
+        Assert.Equal(revoked.ChangeNumber, (await CalendarOf(family.Parent)).ChangeNumber);
+    }
+
+    [Fact]
     public async Task The_demo_never_needs_reconnecting()
     {
         using var visitor = await factory.DemoVisitorAsync();
