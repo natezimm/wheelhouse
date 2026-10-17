@@ -1,8 +1,8 @@
 import { DatePipe } from '@angular/common';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
-import { CalendarStore } from '../core/calendar';
+import { CalendarEvent, CalendarStore } from '../core/calendar';
 import { Clock } from '../core/clock';
-import { Day } from '../core/days';
+import { Day, dayIn } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { SessionStore } from '../core/session';
 import { CalendarFilter } from '../shared/calendar-filter';
@@ -12,6 +12,7 @@ import { WeatherStore } from '../core/weather';
 import { PairingScreen } from './pairing-screen';
 import { WallView } from './calendar-nav';
 import { DayView } from './day-view';
+import { EventDialog } from './event-dialog';
 import { MonthView } from './month-view';
 import { WallWeather } from './wall-weather';
 import { WeekView } from './week-view';
@@ -34,7 +35,7 @@ export const CALENDAR_EVERY_MS = 30_000;
  */
 @Component({
   selector: 'app-wall-shell',
-  imports: [CalendarFilter, DatePipe, DayView, DemoNotice, MonthView, PairingScreen, StatusLine, WallWeather, WeekView],
+  imports: [CalendarFilter, DatePipe, DayView, DemoNotice, EventDialog, MonthView, PairingScreen, StatusLine, WallWeather, WeekView],
   template: `
     @if (showPairing()) {
       <app-pairing-screen [cancellable]="pairingChosen()" (paired)="paired()" (cancelled)="pairingChosen.set(false)" />
@@ -51,10 +52,10 @@ export const CALENDAR_EVERY_MS = 30_000;
       @if (family.state().status === 'ready') {
         @switch (view()) {
           @case ('day') {
-            <app-day-view [(view)]="view" [(focus)]="focus" />
+            <app-day-view [(view)]="view" [(focus)]="focus" (edit)="editEvent($event)" />
           }
           @case ('week') {
-            <app-week-view [(view)]="view" [(focus)]="focus" />
+            <app-week-view [(view)]="view" [(focus)]="focus" (edit)="editEvent($event)" />
           }
           @case ('month') {
             <app-month-view [(view)]="view" [(focus)]="focus" (opened)="openDay($event)" />
@@ -77,8 +78,18 @@ export const CALENDAR_EVERY_MS = 30_000;
             <button class="pair" type="button" (click)="pairingChosen.set(true)">Pair with a phone</button>
           }
           <app-demo-notice />
+          @if (canAdd()) {
+            <button class="add" type="button" (click)="addEvent()">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+              Add event
+            </button>
+          }
         </div>
       </footer>
+
+      @if (editing(); as open) {
+        <app-event-dialog [event]="open.event" [day]="open.day" (closed)="editing.set(null)" />
+      }
     }
   `,
   host: { '(pointerdown)': 'touched()' },
@@ -151,6 +162,20 @@ export const CALENDAR_EVERY_MS = 30_000;
       gap: 16px;
     }
 
+    .add {
+      min-height: 64px;
+      padding: 0 30px;
+      border: 0;
+      border-radius: 32px;
+      background: var(--accent);
+      color: #ffffff;
+      font: 700 20px var(--font-body);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+    }
+
     .pair {
       min-height: 56px;
       padding: 0 24px;
@@ -174,6 +199,12 @@ export class WallShell {
   /** Which calendar view is on screen, and a day it shows; null means around today. */
   protected readonly view = signal<WallView>('week');
   protected readonly focus = signal<Day | null>(null);
+
+  /** The event being added (no event) or changed in the dialog, or null when it is closed. */
+  protected readonly editing = signal<{ event: CalendarEvent | null; day: Day } | null>(null);
+
+  /** Whether any calendar takes new events; a family with none has nothing to add to. */
+  protected readonly canAdd = computed(() => this.calendar.calendars().some((calendar) => calendar.canWrite));
 
   /** A demo visitor asked to pair this wall with their phone. */
   protected readonly pairingChosen = signal(false);
@@ -204,7 +235,25 @@ export class WallShell {
     this.idle = setTimeout(() => {
       this.view.set('week');
       this.focus.set(null);
+      // Nobody is coming back to a half-typed event.
+      this.editing.set(null);
     }, RETURN_AFTER_MS);
+  }
+
+  /** A new event goes on the day on screen in the day view, otherwise on today. */
+  protected addEvent(): void {
+    const family = this.family.family();
+    if (family) {
+      const day = (this.view() === 'day' && this.focus()) || dayIn(family.timeZone, this.clock.now());
+      this.editing.set({ event: null, day });
+    }
+  }
+
+  protected editEvent(id: string): void {
+    const event = this.calendar.allEvents().find((e) => e.id === id);
+    if (event) {
+      this.editing.set({ event, day: event.startDate ?? dayIn(this.family.family()!.timeZone, event.startsAt!) });
+    }
   }
 
   /** A day tapped in the month opens on its own. */

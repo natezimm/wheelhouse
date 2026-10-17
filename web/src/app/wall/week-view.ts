@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, model } from '@angular/core';
+import { Component, computed, effect, inject, model, output } from '@angular/core';
 import { CalendarStore, colorOf, daysOf, whenOn } from '../core/calendar';
 import { Clock } from '../core/clock';
 import { Day, addDays, dayIn, formatDay, startOfWeek } from '../core/days';
@@ -31,9 +31,11 @@ import { CalendarNav, WallView } from './calendar-nav';
             <ul>
               @for (event of day.events; track event.id) {
                 <li [style.--member]="event.color">
-                  <span class="when">{{ event.when }}</span>
-                  <span class="title">{{ event.title }}</span>
-                  <span class="who"><span class="dot" aria-hidden="true"></span>{{ event.who }}</span>
+                  <button type="button" [disabled]="!event.canEdit" (click)="edit.emit(event.id)">
+                    <span class="when">{{ event.when }}</span>
+                    <span class="title">{{ event.title }}</span>
+                    <span class="who"><span class="dot" aria-hidden="true"></span>{{ event.who }}</span>
+                  </button>
                 </li>
               }
             </ul>
@@ -114,13 +116,23 @@ import { CalendarNav, WallView } from './calendar-nav';
       gap: 8px;
     }
 
-    li {
+    li button {
+      width: 100%;
       padding: 10px 12px;
+      border: 0;
       border-radius: 12px;
       background: color-mix(in srgb, var(--member) 14%, white);
+      color: var(--ink);
+      font: inherit;
+      text-align: left;
       display: flex;
       flex-direction: column;
       gap: 3px;
+      cursor: pointer;
+    }
+
+    li button:disabled {
+      cursor: default;
     }
 
     .when {
@@ -162,6 +174,9 @@ export class WeekView {
   /** A day in the week to show; null shows this week. */
   readonly focus = model<Day | null>(null);
 
+  /** An event was tapped to change it; carries its id. */
+  readonly edit = output<string>();
+
   private readonly settings = this.family.family;
 
   private readonly today = computed(() => {
@@ -184,11 +199,13 @@ export class WeekView {
 
     const days = Array.from({ length: 7 }, (_, i) => addDays(start, i));
     const byDay = new Map<Day, WeekEvent[]>(days.map((day) => [day, []]));
+    const writable = new Set(this.calendar.calendars().filter((c) => c.canWrite).map((c) => c.id));
     for (const event of this.calendar.events()) {
+      const canEdit = writable.has(event.calendarId);
       const color = colorOf(event, family.members);
       const who = family.members.find((member) => member.id === event.memberId)?.displayName ?? 'Family';
       for (const day of daysOf(event, family.timeZone)) {
-        byDay.get(day)?.push({ id: event.id, title: event.title, when: whenOn(event, day, family.timeZone), color, who });
+        byDay.get(day)?.push({ id: event.id, title: event.title, when: whenOn(event, day, family.timeZone), color, who, canEdit });
       }
     }
 
@@ -227,6 +244,7 @@ interface WeekEvent {
   when: string;
   color: string;
   who: string;
+  canEdit: boolean;
 }
 
 /** "Oct 12 – 18", or "Oct 26 – Nov 1" across a month's end. */

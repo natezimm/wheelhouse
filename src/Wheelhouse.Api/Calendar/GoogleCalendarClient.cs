@@ -44,6 +44,36 @@ public interface IGoogleCalendar
     /// <exception cref="GoogleCalendarGoneException">The account can no longer see the calendar.</exception>
     Task<IReadOnlyList<GoogleEvent>> ListEventsAsync(
         string accessToken, string calendarId, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken);
+
+    /// <summary>Adds an event to the calendar and returns it as Google stored it.</summary>
+    /// <exception cref="GoogleCalendarGoneException">The account can no longer see or change the calendar.</exception>
+    Task<GoogleEvent> InsertEventAsync(string accessToken, string calendarId, GoogleEventDraft draft, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Changes an event's title, place and times, leaving everything else about it (its
+    /// description, guests, reminders) as it was. With <paramref name="etag"/> Google refuses the
+    /// change if the event changed since that version
+    /// (https://developers.google.com/calendar/api/guides/version-resources).
+    /// </summary>
+    /// <exception cref="GoogleEventChangedException">The event changed in Google since <paramref name="etag"/>.</exception>
+    /// <exception cref="GoogleEventGoneException">The event was deleted.</exception>
+    /// <exception cref="GoogleCalendarGoneException">The account can no longer change the calendar.</exception>
+    Task<GoogleEvent> PatchEventAsync(
+        string accessToken, string calendarId, string eventId, string? etag, GoogleEventDraft draft, CancellationToken cancellationToken);
+
+    /// <summary>Moves an event to another of the account's calendars, keeping its id.</summary>
+    /// <exception cref="GoogleEventGoneException">The event was deleted.</exception>
+    /// <exception cref="GoogleCalendarGoneException">The account can no longer change one of the calendars.</exception>
+    Task<GoogleEvent> MoveEventAsync(
+        string accessToken, string calendarId, string eventId, string toCalendarId, CancellationToken cancellationToken);
+
+    /// <summary>Deletes an event, or one occurrence of a recurring one. An event already deleted counts as done.</summary>
+    /// <exception cref="GoogleEventChangedException">The event changed in Google since <paramref name="etag"/>.</exception>
+    /// <exception cref="GoogleCalendarGoneException">The account can no longer change the calendar.</exception>
+    Task DeleteEventAsync(string accessToken, string calendarId, string eventId, string? etag, CancellationToken cancellationToken);
+
+    /// <summary>The event as Google has it now, or null when it was deleted or cancelled.</summary>
+    Task<GoogleEvent?> GetEventAsync(string accessToken, string calendarId, string eventId, CancellationToken cancellationToken);
 }
 
 public sealed record GoogleChanges(bool Changed, string NextSyncToken);
@@ -51,6 +81,7 @@ public sealed record GoogleChanges(bool Changed, string NextSyncToken);
 /// <summary>
 /// One occurrence, timed (<paramref name="StartsAt"/>, <paramref name="EndsAt"/>) or all-day
 /// (<paramref name="StartDate"/> and an exclusive <paramref name="EndDate"/>).
+/// <paramref name="ETag"/> is Google's version of it.
 /// </summary>
 public sealed record GoogleEvent(
     string Id,
@@ -60,7 +91,28 @@ public sealed record GoogleEvent(
     DateTimeOffset? StartsAt,
     DateTimeOffset? EndsAt,
     DateOnly? StartDate,
-    DateOnly? EndDate);
+    DateOnly? EndDate,
+    string? ETag = null);
+
+/// <summary>
+/// What the screens set on an event: timed (<paramref name="StartsAt"/>, <paramref name="EndsAt"/>)
+/// or all-day (<paramref name="StartDate"/> and an exclusive <paramref name="EndDate"/>). A timed
+/// event is given the family's <paramref name="TimeZone"/>, so Google shows it at the family's time.
+/// </summary>
+public sealed record GoogleEventDraft(
+    string Title,
+    string? Location,
+    DateTimeOffset? StartsAt,
+    DateTimeOffset? EndsAt,
+    DateOnly? StartDate,
+    DateOnly? EndDate,
+    string TimeZone);
+
+/// <summary>Google answered 412: the event changed since the version the screen was editing.</summary>
+public sealed class GoogleEventChangedException(string eventId) : Exception($"Event {eventId} changed in Google first.");
+
+/// <summary>Google answered 404 or 410 for an event: it was deleted.</summary>
+public sealed class GoogleEventGoneException(string eventId) : Exception($"Event {eventId} is no longer in Google.");
 
 /// <summary>Google answered 410 Gone: the sync token is no good, and the calendar must be read in full again.</summary>
 public sealed class GoogleSyncTokenExpiredException() : Exception("Google invalidated the calendar's sync token.");
@@ -211,6 +263,121 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
             ?? throw new HttpRequestException("Google sent an empty page of events.");
     }
 
+    public async Task<GoogleEvent> InsertEventAsync(string accessToken, string calendarId, GoogleEventDraft draft, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Post, EventsUrl(calendarId)) { Content = JsonContent.Create(Body(draft)) };
+        return await SendForEventAsync(request, accessToken, calendarId, eventId: null, cancellationToken);
+    }
+
+    public async Task<GoogleEvent> PatchEventAsync(
+        string accessToken, string calendarId, string eventId, string? etag, GoogleEventDraft draft, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Patch, EventUrl(calendarId, eventId)) { Content = JsonContent.Create(Body(draft)) };
+        IfMatch(request, etag);
+        return await SendForEventAsync(request, accessToken, calendarId, eventId, cancellationToken);
+    }
+
+    public async Task<GoogleEvent> MoveEventAsync(
+        string accessToken, string calendarId, string eventId, string toCalendarId, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post, $"{EventUrl(calendarId, eventId)}/move?destination={Uri.EscapeDataString(toCalendarId)}");
+        return await SendForEventAsync(request, accessToken, calendarId, eventId, cancellationToken);
+    }
+
+    public async Task DeleteEventAsync(string accessToken, string calendarId, string eventId, string? etag, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Delete, EventUrl(calendarId, eventId));
+        IfMatch(request, etag);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        using var response = await http.SendAsync(request, cancellationToken);
+        if (response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone)
+        {
+            return;
+        }
+
+        ThrowForEventStatus(response, calendarId, eventId);
+        response.EnsureSuccessStatusCode();
+    }
+
+    public async Task<GoogleEvent?> GetEventAsync(string accessToken, string calendarId, string eventId, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, EventUrl(calendarId, eventId));
+        try
+        {
+            return await SendForEventAsync(request, accessToken, calendarId, eventId, cancellationToken);
+        }
+        catch (GoogleEventGoneException)
+        {
+            return null;
+        }
+    }
+
+    private static string EventsUrl(string calendarId) => $"{CalendarApi}calendars/{Uri.EscapeDataString(calendarId)}/events";
+
+    private static string EventUrl(string calendarId, string eventId) => $"{EventsUrl(calendarId)}/{Uri.EscapeDataString(eventId)}";
+
+    /// <summary>Google's etags carry their own quotes, so the header takes them as they are.</summary>
+    private static void IfMatch(HttpRequestMessage request, string? etag)
+    {
+        if (etag is not null)
+        {
+            request.Headers.TryAddWithoutValidation("If-Match", etag);
+        }
+    }
+
+    /// <summary>
+    /// A patch merges into the event, so a change between timed and all-day clears the other
+    /// kind of time with an explicit null.
+    /// </summary>
+    private static Dictionary<string, object?> Body(GoogleEventDraft draft)
+    {
+        Dictionary<string, object?> Time(DateTimeOffset? instant, DateOnly? date) => instant is { } at
+            ? new() { ["dateTime"] = at.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"), ["timeZone"] = draft.TimeZone, ["date"] = null }
+            : new() { ["date"] = date!.Value.ToString("yyyy-MM-dd"), ["dateTime"] = null, ["timeZone"] = null };
+
+        return new()
+        {
+            ["summary"] = draft.Title,
+            ["location"] = draft.Location ?? "",
+            ["start"] = Time(draft.StartsAt, draft.StartDate),
+            ["end"] = Time(draft.EndsAt, draft.EndDate),
+        };
+    }
+
+    private async Task<GoogleEvent> SendForEventAsync(
+        HttpRequestMessage request, string accessToken, string calendarId, string? eventId, CancellationToken cancellationToken)
+    {
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        using var response = await http.SendAsync(request, cancellationToken);
+        if (eventId is not null && response.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Gone)
+        {
+            throw new GoogleEventGoneException(eventId);
+        }
+
+        ThrowForEventStatus(response, calendarId, eventId ?? "(new)");
+        response.EnsureSuccessStatusCode();
+        var item = await response.Content.ReadFromJsonAsync<EventItem>(cancellationToken)
+            ?? throw new HttpRequestException("Google sent an empty event.");
+        if (item.Status == "cancelled")
+        {
+            throw new GoogleEventGoneException(item.Id);
+        }
+
+        return ToEvent(item) ?? throw new HttpRequestException("Google sent an event with no start or end.");
+    }
+
+    private static void ThrowForEventStatus(HttpResponseMessage response, string calendarId, string eventId)
+    {
+        switch (response.StatusCode)
+        {
+            case HttpStatusCode.PreconditionFailed:
+                throw new GoogleEventChangedException(eventId);
+            case HttpStatusCode.NotFound or HttpStatusCode.Forbidden:
+                throw new GoogleCalendarGoneException(calendarId);
+        }
+    }
+
     /// <summary>An occurrence as the cache keeps it, or null for one with no usable start and end.</summary>
     private static GoogleEvent? ToEvent(EventItem item)
     {
@@ -219,12 +386,12 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
         if (item.Start?.Date is { } startDate && item.End?.Date is { } endDate)
         {
             return new GoogleEvent(item.Id, item.RecurringEventId, title, location, null, null,
-                DateOnly.ParseExact(startDate, "yyyy-MM-dd"), DateOnly.ParseExact(endDate, "yyyy-MM-dd"));
+                DateOnly.ParseExact(startDate, "yyyy-MM-dd"), DateOnly.ParseExact(endDate, "yyyy-MM-dd"), item.ETag);
         }
 
         if (item.Start?.DateTime is { } startsAt && item.End?.DateTime is { } endsAt)
         {
-            return new GoogleEvent(item.Id, item.RecurringEventId, title, location, startsAt.ToUniversalTime(), endsAt.ToUniversalTime(), null, null);
+            return new GoogleEvent(item.Id, item.RecurringEventId, title, location, startsAt.ToUniversalTime(), endsAt.ToUniversalTime(), null, null, item.ETag);
         }
 
         return null;
@@ -308,6 +475,7 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
 
     private sealed record EventItem(
         [property: JsonPropertyName("id")] string Id,
+        [property: JsonPropertyName("etag")] string? ETag,
         [property: JsonPropertyName("status")] string? Status,
         [property: JsonPropertyName("summary")] string? Summary,
         [property: JsonPropertyName("location")] string? Location,
