@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Wheelhouse.Api.Auth;
 using Wheelhouse.Api.Data;
+using Wheelhouse.Api.Calendar;
 
 namespace Wheelhouse.Api.Devices;
 
@@ -80,6 +81,7 @@ public static class DeviceEndpoints
         HttpContext http,
         Pairing pairing,
         TimeProvider time,
+        CalendarConnections calendar,
         CancellationToken cancellationToken)
     {
         switch (await pairing.FinishAsync(id, cancellationToken))
@@ -87,6 +89,9 @@ public static class DeviceEndpoints
             case PairingOutcome.Waiting:
                 return TypedResults.Accepted((string?)null);
             case PairingOutcome.Paired(var device):
+                // An already signed-in demo wall is leaving its old copy, or a wall is
+                // pairing again. Its existing socket must not stay in the old family group.
+                await calendar.DisconnectAsync(http.User);
                 await http.SignInAsync(
                     CookieAuthenticationDefaults.AuthenticationScheme,
                     WheelhousePrincipal.Device(device.FamilyId, device.Id),
@@ -129,10 +134,14 @@ public static class DeviceEndpoints
         return TypedResults.Created($"/api/devices/{device.Id}", DeviceResponse.From(device));
     }
 
-    private static async Task<Results<NoContent, NotFound>> Remove(Guid id, WheelhouseDbContext db, CancellationToken cancellationToken)
+    private static async Task<Results<NoContent, NotFound>> Remove(Guid id, WheelhouseDbContext db, CalendarConnections calendar, CancellationToken cancellationToken)
     {
         // The display's cookie is checked against this row on every request, so it is signed out at once.
         var removed = await db.Devices.Where(d => d.Id == id).ExecuteDeleteAsync(cancellationToken);
+        if (removed > 0)
+        {
+            await calendar.DisconnectDeviceAsync(id);
+        }
         return removed == 0 ? TypedResults.NotFound() : TypedResults.NoContent();
     }
 }
