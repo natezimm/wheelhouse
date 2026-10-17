@@ -57,6 +57,8 @@ Local development and `docker compose up` run as `Demo`.
 
 **Look and feel.** Colors and fonts are design tokens in `web/src/styles.css`, taken from the mockups, alongside the shared classes the phone's forms use (`card`, `field`, `button`). A member's color identifies them everywhere; tints are derived from it with `color-mix` rather than stored.
 
+**Calendar change numbers.** `GET /api/calendar` includes `changeNumber`, a durable per-family `bigint` on `Family`. The endpoint uses a PostgreSQL repeatable-read transaction so the number, calendar sources, events and reconnect flag belong to one snapshot. `WheelhouseDbContext.SaveChanges` advances the number once per affected family in the same transaction as visible calendar changes, including demo seeds, series edits, Google sync and conflict refreshes. An etag-only change, sync token or sync timestamp does not advance it. Calendar sources must be removed through tracked deletes, not `ExecuteDelete`, so their removal and revision commit together. Deleting a member also advances the number because the database clears calendar ownership. A family's time-zone change advances it because it changes the day range's meaning. The counter is incremented directly in PostgreSQL; a tracked `Family` can hold an older value, so read the current number through an untracked query or projection. This is the persistence foundation for live updates; the hub and client recovery come next.
+
 ## Project rules
 
 - **This repository will be made public.** Never commit a real family's names, email addresses, the family instance's domain, or anything from a server's `.env`. Demo data is fictional and stays that way.

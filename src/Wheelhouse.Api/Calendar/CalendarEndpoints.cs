@@ -1,3 +1,4 @@
+using System.Data;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Wheelhouse.Api.Auth;
@@ -37,13 +38,17 @@ public static class CalendarEndpoints
             });
         }
 
-        var timeZoneId = await db.Families.Select(family => family.TimeZone).SingleOrDefaultAsync(cancellationToken);
-        if (timeZoneId is null)
+        // These are several queries. PostgreSQL's repeatable-read snapshot keeps the revision,
+        // calendars, occurrences and reconnect flag together even if a writer commits between them.
+        await using var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
+        var family = await db.Families.AsNoTracking()
+            .Select(f => new { f.TimeZone, f.CalendarChangeNumber }).SingleOrDefaultAsync(cancellationToken);
+        if (family is null)
         {
             return TypedResults.NotFound();
         }
 
-        var zone = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+        var zone = TimeZoneInfo.FindSystemTimeZoneById(family.TimeZone);
         var fromUtc = StartOfDay(from, zone);
         var toUtc = StartOfDay(to, zone);
 
@@ -71,7 +76,8 @@ public static class CalendarEndpoints
 
         var needsReconnect = await db.GoogleConnections.AnyAsync(c => c.Status == GoogleConnectionStatus.NeedsReauth, cancellationToken);
 
-        return TypedResults.Ok(new CalendarResponse(calendars, ordered, needsReconnect));
+        await snapshot.CommitAsync(cancellationToken);
+        return TypedResults.Ok(new CalendarResponse(calendars, ordered, needsReconnect, family.CalendarChangeNumber));
     }
 
     /// <summary>The instant a local day begins in <paramref name="zone"/>, as UTC.</summary>

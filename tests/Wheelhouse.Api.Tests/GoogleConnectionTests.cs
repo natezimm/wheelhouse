@@ -38,6 +38,30 @@ public sealed class GoogleConnectionTests(ApiFactory factory)
 
     private static CalendarChoiceRequest Choice(string googleCalendarId, Guid? memberId) => new(googleCalendarId, memberId);
 
+    private static async Task<long> NumberOf(HttpClient client) =>
+        (await client.GetFromJsonAsync<CalendarResponse>("/api/calendar?from=2027-01-01&to=2027-01-02", ApiFactory.Json))!.ChangeNumber;
+
+    [Fact]
+    public async Task Connecting_reconnecting_and_disconnecting_advance_the_calendar_number()
+    {
+        await using var family = await FamilyAsync();
+        Assert.Equal(0, await NumberOf(family.Parent));
+        await ConnectAsync(family.Parent);
+        Assert.Equal(1, await NumberOf(family.Parent));
+        (await ChooseAsync(family.Parent, Choice("alex-cal", null))).EnsureSuccessStatusCode();
+        Assert.Equal(2, await NumberOf(family.Parent));
+
+        family.Google.Revoked = true;
+        Assert.Equal(HttpStatusCode.Conflict, (await family.Parent.GetAsync("/api/calendar/sources")).StatusCode);
+        Assert.Equal(3, await NumberOf(family.Parent));
+        family.Google.Revoked = false;
+        await ConnectAsync(family.Parent, code: "second");
+        Assert.Equal(4, await NumberOf(family.Parent));
+
+        (await family.Parent.DeleteAsync("/api/calendar/google")).EnsureSuccessStatusCode();
+        Assert.Equal(5, await NumberOf(family.Parent));
+    }
+
     [Fact]
     public async Task Connecting_asks_google_for_calendar_access_that_lasts_with_nobody_signed_in()
     {
@@ -189,11 +213,13 @@ public sealed class GoogleConnectionTests(ApiFactory factory)
         await ConnectAsync(family.Parent);
         await ChooseAsync(family.Parent, Choice("alex-cal", null));
         family.Google.Email = "another.account@example.com";
+        var before = await NumberOf(family.Parent);
 
         await ConnectAsync(family.Parent, code: "second");
 
         Assert.Equal("another.account@example.com", (await ConnectionOf(family.Parent)).Email);
         Assert.All(await ChoicesOf(family.Parent), c => Assert.False(c.Shown));
+        Assert.Equal(before + 1, await NumberOf(family.Parent));
     }
 
     [Fact]

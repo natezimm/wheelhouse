@@ -4,11 +4,14 @@ namespace Wheelhouse.Api.Calendar;
 /// The calendars a family shows, and their events in the range that was asked for.
 /// <paramref name="NeedsReconnect"/> says Google stopped accepting the family's connection, so
 /// the events have stopped updating until a parent connects again.
+/// <paramref name="ChangeNumber"/> identifies the complete committed calendar snapshot,
+/// across all date ranges. A later number means the client should read its days again.
 /// </summary>
 public sealed record CalendarResponse(
     IReadOnlyList<CalendarSourceResponse> Calendars,
     IReadOnlyList<EventResponse> Events,
-    bool NeedsReconnect);
+    bool NeedsReconnect,
+    long ChangeNumber);
 
 /// <summary><paramref name="CanWrite"/> says whether the screens can add and change events in it.</summary>
 public sealed record CalendarSourceResponse(Guid Id, string Name, Guid? MemberId, bool CanWrite)

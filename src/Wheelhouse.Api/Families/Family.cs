@@ -12,6 +12,12 @@ public sealed class Family
     /// <summary>IANA zone id such as <c>America/New_York</c>. Every screen renders times in this zone.</summary>
     public required string TimeZone { get; set; }
 
+    /// <summary>
+    /// The durable version of this family's cached calendar. The database context advances it
+    /// atomically with calendar changes; clients compare it with their last complete snapshot.
+    /// </summary>
+    public long CalendarChangeNumber { get; private set; }
+
     public DayOfWeek WeekStartsOn { get; set; } = DayOfWeek.Monday;
 
     /// <summary>The wall display dims to a clock between these two local times.</summary>
