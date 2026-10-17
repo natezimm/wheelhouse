@@ -67,7 +67,7 @@ describe('calendar screens', () => {
       expect(texts(page.querySelectorAll('section[aria-label="Monday, October 12"] li .title'))).toEqual(['Grandma in town', 'Dentist', 'Swim lesson', 'Book club']);
       expect(column(page, 'Tuesday, October 13')).toEqual(['Grandma in town', 'Trash & recycling']);
       expect(page.querySelector('.day.is-today')?.getAttribute('aria-label')).toBe('Monday, October 12');
-      expect(rows(page.querySelectorAll('section[aria-label="Thursday, October 15"] li'))).toEqual([
+      expect(rows(page.querySelectorAll('section[aria-label="Thursday, October 15"] li > button'))).toEqual([
         '6:10 AM Flight to Chicago Ben',
       ]);
     });
@@ -243,7 +243,7 @@ describe('calendar screens', () => {
       await settle();
 
       expect(page.querySelector('#agenda')?.textContent).toBe('Tue, Oct 13 · 2 events');
-      expect(rows(page.querySelectorAll('.agenda li'))).toEqual(['F All day Grandma in town', 'F All day Trash & recycling']);
+      expect(rows(page.querySelectorAll('.agenda li > button'))).toEqual(['F All day Grandma in town', 'F All day Trash & recycling']);
     });
   });
 });

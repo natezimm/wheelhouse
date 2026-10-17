@@ -1,0 +1,167 @@
+import { CalendarEvent, CalendarSource, EventRequest, FAMILY_COLOR } from './calendar';
+import { Day, addDays, dayIn, minutesIn } from './days';
+import { Member } from './family';
+
+/**
+ * An event being added or changed on a screen, in the family's days and clock. Times are
+ * 'HH:mm'. For an all-day event endDate is the last day it covers; for a timed one it is the day
+ * its end time falls on.
+ */
+export interface EventDraft {
+  calendarId: string;
+  title: string;
+  location: string;
+  allDay: boolean;
+  startDate: Day;
+  startTime: string;
+  endDate: Day;
+  endTime: string;
+}
+
+/** How far one tap moves a time on the wall. */
+export const STEP_MINUTES = 15;
+
+const DAY_MINUTES = 24 * 60;
+
+/** A new event on <code>day</code>: the next whole hour when it is today, otherwise 9 AM, for an hour. */
+export function newDraft(day: Day, calendarId: string, timeZone: string, now: Date): EventDraft {
+  const today = dayIn(timeZone, now);
+  const start = day === today ? Math.min(Math.floor(minutesIn(timeZone, now) / 60) + 1, 23) * 60 : 9 * 60;
+  const [endDate, endTime] = split(minutesOf(day, clock(start)) + 60);
+  return { calendarId, title: '', location: '', allDay: false, startDate: day, startTime: clock(start), endDate, endTime };
+}
+
+/** An event as it is now, ready to change. */
+export function draftOf(event: CalendarEvent, timeZone: string): EventDraft {
+  if (event.allDay) {
+    return {
+      calendarId: event.calendarId,
+      title: event.title,
+      location: event.location ?? '',
+      allDay: true,
+      startDate: event.startDate!,
+      startTime: '09:00',
+      endDate: addDays(event.endDate!, -1),
+      endTime: '10:00',
+    };
+  }
+  return {
+    calendarId: event.calendarId,
+    title: event.title,
+    location: event.location ?? '',
+    allDay: false,
+    startDate: dayIn(timeZone, event.startsAt!),
+    startTime: clock(minutesIn(timeZone, event.startsAt!)),
+    endDate: dayIn(timeZone, event.endsAt!),
+    endTime: clock(minutesIn(timeZone, event.endsAt!)),
+  };
+}
+
+/** What the server is sent for a draft. */
+export function requestOf(draft: EventDraft): EventRequest {
+  return {
+    calendarId: draft.calendarId,
+    title: draft.title.trim(),
+    location: draft.location.trim() || null,
+    allDay: draft.allDay,
+    startDate: draft.startDate,
+    startTime: draft.allDay ? null : `${draft.startTime}:00`,
+    endDate: draft.allDay ? addDays(draft.endDate, 1) : draft.endDate,
+    endTime: draft.allDay ? null : `${draft.endTime}:00`,
+  };
+}
+
+/** What stops a draft from being saved, said for people, or null when it can be. */
+export function problemWith(draft: EventDraft): string | null {
+  if (!draft.title.trim()) {
+    return 'Give the event a title.';
+  }
+  if (draft.allDay) {
+    return draft.endDate < draft.startDate ? 'End the event on or after the day it starts.' : null;
+  }
+  return endOf(draft) <= startOf(draft) ? 'End the event after it starts.' : null;
+}
+
+/** Moves the whole event by whole days. */
+export function moveDays(draft: EventDraft, days: number): EventDraft {
+  return { ...draft, startDate: addDays(draft.startDate, days), endDate: addDays(draft.endDate, days) };
+}
+
+/** Moves an all-day event's last day, never before its first. */
+export function moveLastDay(draft: EventDraft, days: number): EventDraft {
+  const endDate = addDays(draft.endDate, days);
+  return endDate < draft.startDate ? draft : { ...draft, endDate };
+}
+
+/** Moves the start within its day, keeping the event's length. */
+export function moveStart(draft: EventDraft, minutes: number): EventDraft {
+  const start = minutesOf(draft.startDate, draft.startTime);
+  const moved = Math.min(Math.max(start + minutes, minutesOf(draft.startDate, '00:00')), minutesOf(draft.startDate, '23:45'));
+  const [endDate, endTime] = split(endOf(draft) + moved - start);
+  return { ...draft, startTime: clock(moved % DAY_MINUTES), endDate, endTime };
+}
+
+/** Moves the end, never to or before the start. */
+export function moveEnd(draft: EventDraft, minutes: number): EventDraft {
+  const end = Math.max(endOf(draft) + minutes, startOf(draft) + STEP_MINUTES);
+  const [endDate, endTime] = split(end);
+  return { ...draft, endDate, endTime };
+}
+
+/** A time such as '17:30' as the family reads it, "5:30 PM". */
+export function clockLabel(time: string): string {
+  const [hours, minutes] = time.split(':').map(Number);
+  return `${hours % 12 || 12}:${String(minutes).padStart(2, '0')} ${hours < 12 ? 'AM' : 'PM'}`;
+}
+
+/** A calendar an event can go in, labelled by whose it is. */
+export interface CalendarChoice {
+  id: string;
+  label: string;
+  initial: string;
+  color: string;
+}
+
+/**
+ * The calendars events can be added to, in the members' order and then the family's. A
+ * member's calendar takes their name, unless they have more than one.
+ */
+export function writableCalendars(calendars: readonly CalendarSource[], members: readonly Member[]): CalendarChoice[] {
+  const writable = calendars.filter((calendar) => calendar.canWrite);
+  const owned = (memberId: string | null) => writable.filter((calendar) => calendar.memberId === memberId);
+  const choices: CalendarChoice[] = [];
+  for (const member of members) {
+    const theirs = owned(member.id);
+    for (const calendar of theirs) {
+      const label = theirs.length === 1 ? member.displayName : calendar.name;
+      choices.push({ id: calendar.id, label, initial: member.initial, color: member.color });
+    }
+  }
+  for (const calendar of writable.filter((c) => !choices.some((choice) => choice.id === c.id))) {
+    choices.push({ id: calendar.id, label: calendar.name, initial: calendar.name.charAt(0).toUpperCase(), color: FAMILY_COLOR });
+  }
+  return choices;
+}
+
+function startOf(draft: EventDraft): number {
+  return minutesOf(draft.startDate, draft.startTime);
+}
+
+function endOf(draft: EventDraft): number {
+  return minutesOf(draft.endDate, draft.endTime);
+}
+
+/** Minutes since the start of 1970's first day, for comparing and adding to a day and time. */
+function minutesOf(day: Day, time: string): number {
+  const [hours, minutes] = time.split(':').map(Number);
+  return (Date.parse(`${day}T00:00:00Z`) / 60_000) + hours * 60 + minutes;
+}
+
+function split(total: number): [Day, string] {
+  const day = new Date(Math.floor(total / DAY_MINUTES) * DAY_MINUTES * 60_000).toISOString().slice(0, 10);
+  return [day, clock(((total % DAY_MINUTES) + DAY_MINUTES) % DAY_MINUTES)];
+}
+
+function clock(minutes: number): string {
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+}

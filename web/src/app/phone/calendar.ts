@@ -1,16 +1,17 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
-import { CalendarStore, FAMILY, FAMILY_COLOR, colorOf, daysOf, ownerOf, whenOn } from '../core/calendar';
+import { CalendarEvent, CalendarStore, FAMILY, FAMILY_COLOR, colorOf, daysOf, ownerOf, whenOn } from '../core/calendar';
 import { Clock } from '../core/clock';
 import { Day, addDays, addMonths, dayIn, formatDay, startOfMonth, startOfWeek } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { CalendarFilter } from '../shared/calendar-filter';
+import { EventSheet } from './event-sheet';
 import { PhoneNav } from './phone-nav';
 import { SignIn } from './sign-in';
 
 /** The phone's month: a dot for each person busy on a day, and the chosen day's events below. */
 @Component({
   selector: 'app-phone-calendar',
-  imports: [CalendarFilter, PhoneNav, SignIn],
+  imports: [CalendarFilter, EventSheet, PhoneNav, SignIn],
   template: `
     @if (family.state().status === 'private') {
       <app-sign-in />
@@ -65,13 +66,25 @@ import { SignIn } from './sign-in';
         <ul>
           @for (event of agenda().events; track event.id) {
             <li [style.--member]="event.color">
-              <span class="mark" role="img" [attr.aria-label]="event.who">{{ event.initial }}</span>
-              <span class="when">{{ event.when }}</span>
-              <span class="title">{{ event.title }}</span>
+              <button type="button" [disabled]="!event.canEdit" (click)="edit(event.id)">
+                <span class="mark" role="img" [attr.aria-label]="event.who">{{ event.initial }}</span>
+                <span class="when">{{ event.when }}</span>
+                <span class="title">{{ event.title }}</span>
+              </button>
             </li>
           }
         </ul>
       </section>
+
+      @if (canAdd()) {
+        <button type="button" class="add" aria-label="Add event" (click)="add()">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+        </button>
+      }
+
+      @if (editing(); as open) {
+        <app-event-sheet [event]="open.event" [day]="open.day" (closed)="editing.set(null)" />
+      }
     }
 
     <app-phone-nav />
@@ -218,15 +231,47 @@ import { SignIn } from './sign-in';
       gap: 6px;
     }
 
-    li {
+    li button {
+      width: 100%;
       min-height: 44px;
       box-sizing: border-box;
       padding: 8px 12px;
+      border: 0;
       border-radius: 12px;
       background: color-mix(in srgb, var(--member) 14%, white);
+      color: var(--ink);
+      font: inherit;
+      text-align: left;
       display: flex;
       align-items: center;
       gap: 10px;
+      cursor: pointer;
+    }
+
+    li button:disabled {
+      cursor: default;
+    }
+
+    /* Room under the last event, so the add button never covers it. */
+    .agenda {
+      padding-bottom: 64px;
+    }
+
+    .add {
+      position: fixed;
+      right: 18px;
+      bottom: 100px;
+      width: 56px;
+      height: 56px;
+      border: 0;
+      border-radius: 28px;
+      background: var(--accent);
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 6px 16px rgba(31, 35, 40, 0.22);
+      cursor: pointer;
     }
 
     .mark {
@@ -286,6 +331,13 @@ export class PhoneCalendar {
   });
 
   protected readonly chosen = computed(() => this.selected() ?? this.today());
+
+  /** The event being added (no event) or changed in the sheet, or null when it is closed. */
+  protected readonly editing = signal<{ event: CalendarEvent | null; day: Day } | null>(null);
+
+  private readonly writable = computed(() => new Set(this.calendar.calendars().filter((c) => c.canWrite).map((c) => c.id)));
+
+  protected readonly canAdd = computed(() => this.writable().size > 0);
 
   /** The weeks the month covers, whole, from the family's first day of the week. */
   private readonly grid = computed(() => {
@@ -364,6 +416,7 @@ export class PhoneCalendar {
           who: member?.displayName ?? 'Family',
           initial: member?.initial ?? 'F',
           color: colorOf(event, family.members),
+          canEdit: this.writable().has(event.calendarId),
         };
       });
     const count = events.length === 1 ? '1 event' : `${events.length === 0 ? 'No' : events.length} events`;
@@ -378,6 +431,22 @@ export class PhoneCalendar {
         this.calendar.show(grid.start, grid.end);
       }
     });
+  }
+
+  /** A new event goes on the day chosen in the month. */
+  protected add(): void {
+    const day = this.chosen();
+    if (day) {
+      this.editing.set({ event: null, day });
+    }
+  }
+
+  protected edit(id: string): void {
+    const event = this.calendar.allEvents().find((e) => e.id === id);
+    const day = this.chosen();
+    if (event && day) {
+      this.editing.set({ event, day });
+    }
   }
 
   /** Moves to the same date a month away, or that month's last day when it is shorter. */

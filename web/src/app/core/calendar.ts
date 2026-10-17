@@ -1,13 +1,16 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
+import { Observable, tap } from 'rxjs';
 import { Day, addDays, dayIn, timeIn } from './days';
-import { Member } from './family';
+import { Member, refusalMessage } from './family';
 
 /** One of the family's Google calendars. A null member means it is the whole family's. */
 export interface CalendarSource {
   id: string;
   name: string;
   memberId: string | null;
+  /** Whether events can be added to and changed in it from the screens. */
+  canWrite: boolean;
 }
 
 /**
@@ -25,6 +28,24 @@ export interface CalendarEvent {
   endsAt: string | null;
   startDate: Day | null;
   endDate: Day | null;
+  /** One occurrence of a repeating event. A change to it changes only this occurrence. */
+  recurring: boolean;
+}
+
+/**
+ * An event as a screen sets it, in the family's days and clock. A timed event runs from
+ * startTime on startDate to endTime on endDate, as 'HH:mm:ss'; an all-day one has no times and
+ * an exclusive endDate.
+ */
+export interface EventRequest {
+  calendarId: string;
+  title: string;
+  location: string | null;
+  allDay: boolean;
+  startDate: Day;
+  startTime: string | null;
+  endDate: Day;
+  endTime: string | null;
 }
 
 interface CalendarResponse {
@@ -146,6 +167,58 @@ export class CalendarStore {
     }
   }
 
+  // Each change below reaches Google, through the server, first; the store takes the event as
+  // the server returns it, so a refused change never shows on screen.
+
+  add(request: EventRequest): Observable<CalendarEvent> {
+    return this.http.post<CalendarEvent>('/api/calendar/events', request).pipe(tap((added) => this.put(added)));
+  }
+
+  /**
+   * Changes an event. When it changed in Google first, the server answers 409 with Google's
+   * version, which the store shows instead; 404 means it was deleted there.
+   */
+  update(id: string, request: EventRequest): Observable<CalendarEvent> {
+    return this.http.put<CalendarEvent>(`/api/calendar/events/${id}`, request).pipe(
+      tap({
+        next: (changed) => this.put(changed),
+        error: (error: { status?: number; error?: unknown }) => this.afterRefusal(id, error),
+      }),
+    );
+  }
+
+  remove(id: string): Observable<void> {
+    return this.http.delete<void>(`/api/calendar/events/${id}`).pipe(
+      tap({
+        next: () => this.drop(id),
+        error: (error: { status?: number; error?: unknown }) => this.afterRefusal(id, error),
+      }),
+    );
+  }
+
+  /** Shows what Google has now when a change was refused because the event changed or went away there. */
+  private afterRefusal(id: string, error: { status?: number; error?: unknown }): void {
+    if (error.status === 409 && isEvent(error.error)) {
+      this.put(error.error);
+    } else if (error.status === 404) {
+      this.drop(id);
+    }
+  }
+
+  /** Adds or replaces an event on screen, then reads the days again for the server's order. */
+  private put(event: CalendarEvent): void {
+    this.current.update((state) =>
+      state.status === 'ready' ? { ...state, events: [...state.events.filter((e) => e.id !== event.id), event] } : state,
+    );
+    this.refresh();
+  }
+
+  private drop(id: string): void {
+    this.current.update((state) =>
+      state.status === 'ready' ? { ...state, events: state.events.filter((e) => e.id !== id) } : state,
+    );
+  }
+
   toggle(owner: string): void {
     this.hiddenOwners.update((hidden) => {
       const next = new Set(hidden);
@@ -173,4 +246,33 @@ export class CalendarStore {
       },
     });
   }
+}
+
+/** A 409 for a change carries Google's version of the event; one for a lost connection carries a problem. */
+function isEvent(body: unknown): body is CalendarEvent {
+  return typeof body === 'object' && body !== null && 'calendarId' in body && 'title' in body;
+}
+
+/**
+ * Why a change to an event was refused, said for people. When the event changed in Google
+ * first, <code>changed</code> is Google's version, which the screen shows instead.
+ */
+export function eventRefusal(error: HttpErrorResponse): { message: string; changed: CalendarEvent | null } {
+  if (error.status === 409 && isEvent(error.error)) {
+    return {
+      message: 'Someone changed this event in Google Calendar first. This is their version now.',
+      changed: error.error,
+    };
+  }
+  if (error.status === 404) {
+    return { message: 'This event was deleted in Google Calendar.', changed: null };
+  }
+  if (error.status === 400) {
+    return { message: refusalMessage(error, "This event can't be saved."), changed: null };
+  }
+  const title = typeof error.error?.title === 'string' ? error.error.title : null;
+  if (title && (error.status === 409 || error.status === 503)) {
+    return { message: title, changed: null };
+  }
+  return { message: "Can't save right now. Try again in a moment.", changed: null };
 }
