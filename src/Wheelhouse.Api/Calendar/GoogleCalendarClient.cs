@@ -45,7 +45,10 @@ public interface IGoogleCalendar
     Task<IReadOnlyList<GoogleEvent>> ListEventsAsync(
         string accessToken, string calendarId, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken);
 
-    /// <summary>Adds an event to the calendar and returns it as Google stored it.</summary>
+    /// <summary>
+    /// Adds an event to the calendar and returns it as Google stored it. A series comes back as
+    /// its first event, under the series' id; its occurrences have ids of their own.
+    /// </summary>
     /// <exception cref="GoogleCalendarGoneException">The account can no longer see or change the calendar.</exception>
     Task<GoogleEvent> InsertEventAsync(string accessToken, string calendarId, GoogleEventDraft draft, CancellationToken cancellationToken);
 
@@ -98,6 +101,7 @@ public sealed record GoogleEvent(
 /// What the screens set on an event: timed (<paramref name="StartsAt"/>, <paramref name="EndsAt"/>)
 /// or all-day (<paramref name="StartDate"/> and an exclusive <paramref name="EndDate"/>). A timed
 /// event is given the family's <paramref name="TimeZone"/>, so Google shows it at the family's time.
+/// <paramref name="Recurrence"/> is the rule of a new series, which then starts with this event.
 /// </summary>
 public sealed record GoogleEventDraft(
     string Title,
@@ -106,7 +110,8 @@ public sealed record GoogleEventDraft(
     DateTimeOffset? EndsAt,
     DateOnly? StartDate,
     DateOnly? EndDate,
-    string TimeZone);
+    string TimeZone,
+    string? Recurrence = null);
 
 /// <summary>Google answered 412: the event changed since the version the screen was editing.</summary>
 public sealed class GoogleEventChangedException(string eventId) : Exception($"Event {eventId} changed in Google first.");
@@ -336,13 +341,19 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
             ? new() { ["dateTime"] = at.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"), ["timeZone"] = draft.TimeZone, ["date"] = null }
             : new() { ["date"] = date!.Value.ToString("yyyy-MM-dd"), ["dateTime"] = null, ["timeZone"] = null };
 
-        return new()
+        var body = new Dictionary<string, object?>
         {
             ["summary"] = draft.Title,
             ["location"] = draft.Location ?? "",
             ["start"] = Time(draft.StartsAt, draft.StartDate),
             ["end"] = Time(draft.EndsAt, draft.EndDate),
         };
+        if (draft.Recurrence is { } rule)
+        {
+            body["recurrence"] = new[] { rule };
+        }
+
+        return body;
     }
 
     private async Task<GoogleEvent> SendForEventAsync(
