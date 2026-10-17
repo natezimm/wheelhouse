@@ -105,6 +105,7 @@ public sealed class WheelhouseDbContext(DbContextOptions<WheelhouseDbContext> op
             instance.Ignore(e => e.IsAllDay);
             instance.Property(e => e.GoogleEventId).HasMaxLength(1024);
             instance.Property(e => e.RecurringEventId).HasMaxLength(1024);
+            instance.Property(e => e.ETag).HasMaxLength(255);
             instance.Property(e => e.Title).HasMaxLength(1024);
             instance.Property(e => e.Location).HasMaxLength(1024);
             instance.HasIndex(e => new { e.CalendarSourceId, e.GoogleEventId }).IsUnique();

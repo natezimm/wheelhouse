@@ -25,6 +25,12 @@ public sealed class EventInstance : IFamilyOwned
     /// <summary>The series this occurrence belongs to, or null for a one-off event.</summary>
     public string? RecurringEventId { get; set; }
 
+    /// <summary>
+    /// Google's version of the occurrence, sent back in <c>If-Match</c> when it is changed, so a
+    /// change made elsewhere first is noticed rather than overwritten. Null for demo events.
+    /// </summary>
+    public string? ETag { get; set; }
+
     public required string Title { get; set; }
 
     public string? Location { get; set; }

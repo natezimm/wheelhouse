@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, model } from '@angular/core';
+import { Component, computed, effect, inject, model, output } from '@angular/core';
 import { CalendarEvent, CalendarStore, FAMILY, FAMILY_COLOR, daysOf, ownerOf, timeRange } from '../core/calendar';
 import { Clock } from '../core/clock';
 import { Day, addDays, dayIn, formatDay, minutesIn, timeIn } from '../core/days';
@@ -35,7 +35,7 @@ const LAST_HOUR = 21;
                 {{ column.name }}
               </div>
               @for (event of column.allDay; track event.id) {
-                <div class="all-day">{{ event.title }}</div>
+                <button type="button" class="all-day" [disabled]="!canEdit(event)" (click)="edit.emit(event.id)">{{ event.title }}</button>
               }
             </div>
           }
@@ -59,6 +59,13 @@ const LAST_HOUR = 21;
                 >
                   <span class="title">{{ event.title }}</span>
                   <span class="when">{{ event.when }}</span>
+                  <button
+                    type="button"
+                    class="open"
+                    [attr.aria-label]="event.title + ', ' + event.when"
+                    [disabled]="!event.canEdit"
+                    (click)="edit.emit(event.id)"
+                  ></button>
                 </li>
               }
             </ul>
@@ -141,8 +148,13 @@ const LAST_HOUR = 21;
     .all-day {
       height: 30px;
       padding: 0 12px;
+      border: 0;
       border-radius: 8px;
       background: color-mix(in srgb, var(--member) 14%, white);
+      color: var(--ink);
+      font-family: inherit;
+      text-align: left;
+      cursor: pointer;
       display: flex;
       align-items: center;
       font-size: 15px;
@@ -198,6 +210,20 @@ const LAST_HOUR = 21;
       justify-content: center;
       gap: 2px;
       overflow: hidden;
+    }
+
+    /* The whole event is the button that opens it. */
+    .column .open {
+      position: absolute;
+      inset: 0;
+      border: 0;
+      background: none;
+      cursor: pointer;
+    }
+
+    .all-day:disabled,
+    .column .open:disabled {
+      cursor: default;
     }
 
     .column li.short {
@@ -259,6 +285,15 @@ export class DayView {
   /** The day to show; null shows today. */
   readonly focus = model<Day | null>(null);
 
+  /** An event was tapped to change it; carries its id. */
+  readonly edit = output<string>();
+
+  private readonly writable = computed(() => new Set(this.calendar.calendars().filter((c) => c.canWrite).map((c) => c.id)));
+
+  protected canEdit(event: CalendarEvent): boolean {
+    return this.writable().has(event.calendarId);
+  }
+
   private readonly today = computed(() => {
     const family = this.family.family();
     return family ? dayIn(family.timeZone, this.clock.now()) : null;
@@ -299,6 +334,7 @@ export class DayView {
           id: event.id,
           title: event.title,
           when: timeRange(event, family.timeZone),
+          canEdit: this.canEdit(event),
           top: at(start),
           height: at(Math.max(end, start + 30)) - at(start),
           left: (lane / lanes) * 100,

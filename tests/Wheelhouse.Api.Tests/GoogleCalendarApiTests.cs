@@ -138,6 +138,41 @@ public sealed class GoogleCalendarApiTests
         await Assert.ThrowsAsync<GoogleCalendarGoneException>(() => missing.ListChangesAsync("access", "alex-cal", null, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task A_change_names_the_version_it_was_made_to_and_clears_the_other_kind_of_time()
+    {
+        var sent = new List<string>();
+        HttpRequestMessage? patch = null;
+        var api = ApiOver((request, _) =>
+        {
+            patch = request;
+            return (HttpStatusCode.OK, """{"id":"trip","etag":"\"2\"","status":"confirmed","summary":"Field trip","start":{"date":"2026-10-20"},"end":{"date":"2026-10-22"}}""");
+        }, sent);
+        var draft = new GoogleEventDraft("Field trip", null, null, null, new DateOnly(2026, 10, 20), new DateOnly(2026, 10, 22), "America/New_York");
+
+        var stored = await api.PatchEventAsync("access", "kid-cal", "trip", "\"1\"", draft, CancellationToken.None);
+
+        Assert.Equal(HttpMethod.Patch, patch!.Method);
+        Assert.Equal($"{GoogleCalendarApi.CalendarApi}calendars/kid-cal/events/trip", patch.RequestUri!.AbsoluteUri);
+        Assert.Equal("\"1\"", Assert.Single(patch.Headers.GetValues("If-Match")));
+        Assert.Contains("\"start\":{\"date\":\"2026-10-20\",\"dateTime\":null,\"timeZone\":null}", Assert.Single(sent));
+        Assert.Equal(new GoogleEvent("trip", null, "Field trip", null, null, null, new DateOnly(2026, 10, 20), new DateOnly(2026, 10, 22), "\"2\""), stored);
+    }
+
+    [Fact]
+    public async Task Google_refusing_a_stale_change_or_missing_the_event_is_told_apart()
+    {
+        var draft = new GoogleEventDraft("Swim", null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddHours(1), null, null, "UTC");
+        var stale = ApiOver((_, _) => (HttpStatusCode.PreconditionFailed, """{"error":{"code":412}}"""));
+        var deleted = ApiOver((_, _) => (HttpStatusCode.Gone, """{"error":{"code":410}}"""));
+
+        await Assert.ThrowsAsync<GoogleEventChangedException>(() => stale.PatchEventAsync("access", "cal", "swim", "\"1\"", draft, CancellationToken.None));
+        await Assert.ThrowsAsync<GoogleEventGoneException>(() => deleted.PatchEventAsync("access", "cal", "swim", "\"1\"", draft, CancellationToken.None));
+        Assert.Null(await deleted.GetEventAsync("access", "cal", "swim", CancellationToken.None));
+        // Deleting what is already gone counts as done.
+        await deleted.DeleteEventAsync("access", "cal", "swim", "\"1\"", CancellationToken.None);
+    }
+
     private sealed class StandIn(Func<HttpRequestMessage, string, (HttpStatusCode, string)> google, List<string> sent) : HttpMessageHandler
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)

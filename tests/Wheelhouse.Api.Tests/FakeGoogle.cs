@@ -31,13 +31,20 @@ internal sealed class FakeGoogle : IGoogleCalendar
     private readonly Dictionary<string, List<GoogleEvent>> _events = [];
     private readonly Dictionary<string, int> _versions = [];
 
+    /// <summary>Every change a screen made in Google: what was done, to which calendar and event, and the etag it sent.</summary>
+    public List<(string Change, string CalendarId, string EventId, string? IfMatch)> Writes { get; } = [];
+
+    /// <summary>Adds or replaces an event, as if changed in Google Calendar itself, with a new etag.</summary>
     public void Put(string calendarId, GoogleEvent googleEvent)
     {
         var events = EventsOf(calendarId);
         events.RemoveAll(e => e.Id == googleEvent.Id);
-        events.Add(googleEvent);
+        events.Add(googleEvent with { ETag = $"\"{Guid.NewGuid():N}\"" });
         Changed(calendarId);
     }
+
+    /// <summary>The event as Google has it now.</summary>
+    public GoogleEvent? Find(string calendarId, string eventId) => EventsOf(calendarId).SingleOrDefault(e => e.Id == eventId);
 
     public void Remove(string calendarId, string eventId)
     {
@@ -115,4 +122,66 @@ internal sealed class FakeGoogle : IGoogleCalendar
         Listed.Add((calendarId, from, to));
         return Task.FromResult<IReadOnlyList<GoogleEvent>>([.. EventsOf(calendarId)]);
     }
+
+    public Task<GoogleEvent> InsertEventAsync(string accessToken, string calendarId, GoogleEventDraft draft, CancellationToken cancellationToken)
+    {
+        if (Gone.Contains(calendarId))
+        {
+            throw new GoogleCalendarGoneException(calendarId);
+        }
+
+        var id = $"new-{Guid.NewGuid():N}";
+        Writes.Add(("insert", calendarId, id, null));
+        Put(calendarId, From(draft, id, recurringEventId: null));
+        return Task.FromResult(Find(calendarId, id)!);
+    }
+
+    public Task<GoogleEvent> PatchEventAsync(
+        string accessToken, string calendarId, string eventId, string? etag, GoogleEventDraft draft, CancellationToken cancellationToken)
+    {
+        Writes.Add(("patch", calendarId, eventId, etag));
+        var current = Current(calendarId, eventId, etag);
+        Put(calendarId, From(draft, eventId, current.RecurringEventId));
+        return Task.FromResult(Find(calendarId, eventId)!);
+    }
+
+    public Task<GoogleEvent> MoveEventAsync(
+        string accessToken, string calendarId, string eventId, string toCalendarId, CancellationToken cancellationToken)
+    {
+        Writes.Add(("move", calendarId, eventId, null));
+        var current = Current(calendarId, eventId, etag: null);
+        Remove(calendarId, eventId);
+        Put(toCalendarId, current);
+        return Task.FromResult(Find(toCalendarId, eventId)!);
+    }
+
+    public Task DeleteEventAsync(string accessToken, string calendarId, string eventId, string? etag, CancellationToken cancellationToken)
+    {
+        Writes.Add(("delete", calendarId, eventId, etag));
+        if (Find(calendarId, eventId) is not null)
+        {
+            Current(calendarId, eventId, etag);
+            Remove(calendarId, eventId);
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task<GoogleEvent?> GetEventAsync(string accessToken, string calendarId, string eventId, CancellationToken cancellationToken) =>
+        Task.FromResult(Find(calendarId, eventId));
+
+    /// <summary>The event as Google has it, refusing a change made against an older version as Google does.</summary>
+    private GoogleEvent Current(string calendarId, string eventId, string? etag)
+    {
+        if (Gone.Contains(calendarId))
+        {
+            throw new GoogleCalendarGoneException(calendarId);
+        }
+
+        var current = Find(calendarId, eventId) ?? throw new GoogleEventGoneException(eventId);
+        return etag is not null && etag != current.ETag ? throw new GoogleEventChangedException(eventId) : current;
+    }
+
+    private static GoogleEvent From(GoogleEventDraft draft, string id, string? recurringEventId) =>
+        new(id, recurringEventId, draft.Title, draft.Location, draft.StartsAt, draft.EndsAt, draft.StartDate, draft.EndDate);
 }

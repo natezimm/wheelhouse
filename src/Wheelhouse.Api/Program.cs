@@ -65,6 +65,7 @@ app.MapDemo();
 app.MapFamily();
 app.MapDevices();
 app.MapCalendar();
+app.MapCalendarEvents();
 app.MapGoogleConnection();
 app.MapWeather();
 
