@@ -63,6 +63,9 @@ namespace Wheelhouse.Api.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("CanWrite")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid>("FamilyId")
                         .HasColumnType("uuid");
 
@@ -107,6 +110,10 @@ namespace Wheelhouse.Api.Data.Migrations
 
                     b.Property<Guid>("CalendarSourceId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("ETag")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
 
                     b.Property<DateOnly?>("EndDate")
                         .HasColumnType("date");

@@ -21,6 +21,13 @@ public sealed class CalendarSource : IFamilyOwned
     /// <summary>Whose calendar it is. Null means it is the whole family's.</summary>
     public Guid? MemberId { get; set; }
 
+    /// <summary>
+    /// Whether the shared account may add and change events in it, as Google's calendar list
+    /// says. Read-only calendars, such as a holidays calendar, are shown but never offered for a
+    /// new event. Demo calendars are writable; their changes stay in the cache.
+    /// </summary>
+    public bool CanWrite { get; set; } = true;
+
     /// <summary>When its events in the cache were last brought up to date.</summary>
     public DateTimeOffset? LastSyncedAt { get; set; }
 

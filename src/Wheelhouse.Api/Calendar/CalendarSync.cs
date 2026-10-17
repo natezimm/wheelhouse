@@ -131,29 +131,36 @@ public sealed class CalendarSync(
         var fresh = events.DistinctBy(e => e.Id).ToDictionary(e => e.Id);
         db.EventInstances.RemoveRange(cached.Values.Where(e => !fresh.ContainsKey(e.GoogleEventId)));
 
-        foreach (var google in fresh.Values)
+        foreach (var googleEvent in fresh.Values)
         {
-            if (!cached.TryGetValue(google.Id, out var row))
+            if (!cached.TryGetValue(googleEvent.Id, out var row))
             {
                 row = new EventInstance
                 {
                     Id = Guid.CreateVersion7(),
                     FamilyId = source.FamilyId,
                     CalendarSourceId = source.Id,
-                    GoogleEventId = google.Id,
+                    GoogleEventId = googleEvent.Id,
                     Title = "",
                 };
                 db.EventInstances.Add(row);
             }
 
-            row.RecurringEventId = google.RecurringEventId;
-            row.Title = Limit(google.Title)!;
-            row.Location = Limit(google.Location);
-            row.StartsAt = google.StartsAt;
-            row.EndsAt = google.EndsAt;
-            row.StartDate = google.StartDate;
-            row.EndDate = google.EndDate;
+            CopyTo(row, googleEvent);
         }
+    }
+
+    /// <summary>Sets a cached row to the occurrence as Google has it, for a sync or after a change made from a screen.</summary>
+    public static void CopyTo(EventInstance row, GoogleEvent google)
+    {
+        row.RecurringEventId = google.RecurringEventId;
+        row.ETag = google.ETag;
+        row.Title = Limit(google.Title)!;
+        row.Location = Limit(google.Location);
+        row.StartsAt = google.StartsAt;
+        row.EndsAt = google.EndsAt;
+        row.StartDate = google.StartDate;
+        row.EndDate = google.EndDate;
     }
 
     /// <summary>Google allows longer text than the cache's columns; the screens never show that much.</summary>

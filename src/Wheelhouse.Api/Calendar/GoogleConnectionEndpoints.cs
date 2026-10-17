@@ -279,12 +279,13 @@ public static class GoogleConnectionEndpoints
             return problem;
         }
 
-        var names = available.Calendars!.ToDictionary(c => c.Id, c => c.Name);
-        if (chosen.Any(c => !names.ContainsKey(c.GoogleCalendarId)))
+        var listed = available.Calendars!.ToDictionary(c => c.Id);
+        if (chosen.Any(c => !listed.ContainsKey(c.GoogleCalendarId)))
         {
             return TypedResults.ValidationProblem(new Dictionary<string, string[]> { ["calendars"] = ["Choose from the account's calendars."] });
         }
 
+        var connection = await db.GoogleConnections.AnyAsync(cancellationToken);
         var sources = await db.CalendarSources.ToListAsync(cancellationToken);
         var wanted = chosen.ToDictionary(c => c.GoogleCalendarId);
         db.CalendarSources.RemoveRange(sources.Where(s => !wanted.ContainsKey(s.GoogleCalendarId)));
@@ -298,12 +299,18 @@ public static class GoogleConnectionEndpoints
                 db.CalendarSources.Add(source);
             }
 
-            source.Name = names[choice.GoogleCalendarId];
+            var entry = listed[choice.GoogleCalendarId];
+            source.Name = entry.Name;
             source.MemberId = choice.MemberId;
+            // Without a connection (the demo) the list is the family's own calendars, which stay as they are.
+            if (connection)
+            {
+                source.CanWrite = entry.CanWrite;
+            }
         }
 
         await db.SaveChangesAsync(cancellationToken);
-        if (await db.GoogleConnections.AnyAsync(cancellationToken))
+        if (connection)
         {
             sync.SyncSoon(familyId);
         }
