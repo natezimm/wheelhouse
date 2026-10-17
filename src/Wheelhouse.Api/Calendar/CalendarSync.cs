@@ -110,14 +110,25 @@ public sealed class CalendarSync(
         var now = time.GetUtcNow();
         if (changes.Changed || source.ListedAt is not { } listedAt || now - listedAt >= ListEvery)
         {
-            var events = await google.ListEventsAsync(accessToken, source.GoogleCalendarId, now - Behind, now + Ahead, cancellationToken);
-            await ReplaceEventsAsync(source, events, cancellationToken);
-            source.ListedAt = now;
+            await ListAsync(source, accessToken, cancellationToken);
         }
 
         source.SyncToken = changes.NextSyncToken;
         source.LastSyncedAt = now;
         await db.SaveChangesAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Reads the calendar's events in the window and replaces its cache with them, without saving.
+    /// A screen's change to a whole series does this at once, since Google gives every occurrence
+    /// a new version, and often a new id.
+    /// </summary>
+    public async Task ListAsync(CalendarSource source, string accessToken, CancellationToken cancellationToken)
+    {
+        var now = time.GetUtcNow();
+        var events = await google.ListEventsAsync(accessToken, source.GoogleCalendarId, now - Behind, now + Ahead, cancellationToken);
+        await ReplaceEventsAsync(source, events, cancellationToken);
+        source.ListedAt = now;
     }
 
     /// <summary>Makes the calendar's cached events exactly <paramref name="events"/>, keeping the rows of those already there.</summary>

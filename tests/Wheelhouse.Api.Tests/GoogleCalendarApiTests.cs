@@ -160,6 +160,23 @@ public sealed class GoogleCalendarApiTests
     }
 
     [Fact]
+    public async Task A_new_series_carries_its_rule_and_a_change_never_does()
+    {
+        var sent = new List<string>();
+        var api = ApiOver((_, _) => (HttpStatusCode.OK,
+            """{"id":"yoga","etag":"\"1\"","status":"confirmed","summary":"Yoga","start":{"dateTime":"2026-10-20T22:30:00Z"},"end":{"dateTime":"2026-10-20T23:30:00Z"}}"""), sent);
+        var startsAt = new DateTimeOffset(2026, 10, 20, 22, 30, 0, TimeSpan.Zero);
+        var draft = new GoogleEventDraft("Yoga", null, startsAt, startsAt.AddHours(1), null, null, "America/New_York", "RRULE:FREQ=WEEKLY");
+
+        await api.InsertEventAsync("access", "cal", draft, CancellationToken.None);
+        await api.PatchEventAsync("access", "cal", "yoga", "\"1\"", draft with { Recurrence = null }, CancellationToken.None);
+
+        Assert.Contains("\"recurrence\":[\"RRULE:FREQ=WEEKLY\"]", sent[0]);
+        Assert.Contains("\"timeZone\":\"America/New_York\"", sent[0]);
+        Assert.DoesNotContain("recurrence", sent[1]);
+    }
+
+    [Fact]
     public async Task Google_refusing_a_stale_change_or_missing_the_event_is_told_apart()
     {
         var draft = new GoogleEventDraft("Swim", null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddHours(1), null, null, "UTC");

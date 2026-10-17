@@ -1,6 +1,6 @@
 import { marloweCalendars, allDay, timed } from '../testing/calendar';
 import { marlowes } from '../testing/marlowes';
-import { clockLabel, draftOf, moveEnd, moveStart, newDraft, problemWith, requestOf, writableCalendars } from './event-draft';
+import { clockLabel, draftOf, moveEnd, moveStart, newDraft, onDayOf, problemWith, requestOf, writableCalendars } from './event-draft';
 
 describe('event drafts', () => {
   const zone = 'America/New_York';
@@ -37,6 +37,7 @@ describe('event drafts', () => {
       startTime: null,
       endDate: '2026-10-14',
       endTime: null,
+      repeat: 'Never',
     });
     expect(requestOf({ ...trip, allDay: false, endDate: '2026-10-12' })).toMatchObject({ startTime: '09:00:00', endTime: '10:00:00' });
   });
@@ -49,6 +50,13 @@ describe('event drafts', () => {
     expect(moveEnd(late, -120)).toMatchObject({ endDate: '2026-10-14', endTime: '22:45' });
     expect(clockLabel('00:30')).toBe('12:30 AM');
     expect(clockLabel('17:05')).toBe('5:05 PM');
+  });
+
+  it('go back to their own day for a change to a whole series, keeping the new times', () => {
+    const original = draftOf(timed('Soccer', 'm3', '2026-10-14T21:30:00Z', '2026-10-14T22:45:00Z'), zone);
+    const moved = { ...moveStart({ ...original, startDate: '2026-10-16', endDate: '2026-10-16' }, 30), allDay: true };
+
+    expect(onDayOf(moved, original)).toMatchObject({ allDay: false, startDate: '2026-10-14', startTime: '18:00', endDate: '2026-10-14', endTime: '19:15' });
   });
 
   it('need a title and an end after the start', () => {

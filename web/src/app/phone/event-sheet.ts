@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { CalendarEvent, CalendarStore, eventRefusal } from '../core/calendar';
 import { Day } from '../core/days';
-import { EventDraft, draftOf, newDraft, problemWith, requestOf, writableCalendars } from '../core/event-draft';
+import { EventDraft, REPEATS, draftOf, newDraft, onDayOf, problemWith, requestOf, writableCalendars } from '../core/event-draft';
 import { FamilyStore } from '../core/family';
 import { SessionStore } from '../core/session';
 
@@ -24,22 +24,41 @@ import { SessionStore } from '../core/session';
 
         <label class="field">
           Calendar
-          <select [disabled]="event()?.recurring" (change)="set({ calendarId: $any($event.target).value })">
+          <select [disabled]="event()?.recurring && !series()" (change)="set({ calendarId: $any($event.target).value })">
             @for (choice of choices(); track choice.id) {
               <option [value]="choice.id" [selected]="choice.id === draft.calendarId">{{ choice.label }}</option>
             }
           </select>
         </label>
 
+        @if (!event()) {
+          <label class="field">
+            Repeat
+            <select (change)="set({ repeat: $any($event.target).value })">
+              @for (repeat of repeats; track repeat) {
+                <option [value]="repeat" [selected]="repeat === draft.repeat">{{ repeat }}</option>
+              }
+            </select>
+          </label>
+        } @else if (event()!.recurring) {
+          <label class="field">
+            Change
+            <select (change)="setSeries($any($event.target).value === 'all')">
+              <option value="this" [selected]="!series()">This event</option>
+              <option value="all" [selected]="series()">All events in the series</option>
+            </select>
+          </label>
+        }
+
         <label class="all-day">
-          <input type="checkbox" [checked]="draft.allDay" (change)="set({ allDay: $any($event.target).checked })" />
+          <input type="checkbox" [checked]="draft.allDay" [disabled]="series()" (change)="set({ allDay: $any($event.target).checked })" />
           All day
         </label>
 
         <div class="pair">
           <label class="field">
             {{ draft.allDay ? 'First day' : 'Starts' }}
-            <input type="date" [value]="draft.startDate" (change)="setStartDate($any($event.target).value)" />
+            <input type="date" [value]="draft.startDate" [disabled]="series()" (change)="setStartDate($any($event.target).value)" />
           </label>
           @if (!draft.allDay) {
             <label class="field">
@@ -52,7 +71,7 @@ import { SessionStore } from '../core/session';
         <div class="pair">
           <label class="field">
             {{ draft.allDay ? 'Last day' : 'Ends' }}
-            <input type="date" [value]="draft.endDate" (change)="set({ endDate: $any($event.target).value })" />
+            <input type="date" [value]="draft.endDate" [disabled]="series() && !draft.allDay" (change)="set({ endDate: $any($event.target).value })" />
           </label>
           @if (!draft.allDay) {
             <label class="field">
@@ -67,8 +86,8 @@ import { SessionStore } from '../core/session';
           <input type="text" maxlength="255" autocomplete="off" [value]="draft.location" (input)="set({ location: $any($event.target).value })" />
         </label>
 
-        @if (event()?.recurring) {
-          <p class="note">This changes only this occurrence of a repeating event.</p>
+        @if (series()) {
+          <p class="note">Every event in the series keeps its own day.</p>
         }
 
         @if (message(); as message) {
@@ -83,7 +102,7 @@ import { SessionStore } from '../core/session';
         @if (event()) {
           @if (confirmingDelete()) {
             <div class="actions">
-              <button type="button" class="button danger" [disabled]="busy()" (click)="remove()">Delete event</button>
+              <button type="button" class="button danger" [disabled]="busy()" (click)="remove()">{{ series() ? 'Delete all events' : 'Delete event' }}</button>
               <button type="button" class="button" (click)="confirmingDelete.set(false)">Keep it</button>
             </div>
           } @else {
@@ -136,6 +155,10 @@ import { SessionStore } from '../core/session';
       gap: 10px;
       font-size: 16px;
       font-weight: 600;
+    }
+
+    .all-day:has(input:disabled) {
+      opacity: 0.45;
     }
 
     .all-day input {
@@ -206,6 +229,12 @@ export class EventSheet {
   protected readonly heading = computed(() => (this.event() ? 'Edit event' : 'New event'));
   protected readonly savesTo = computed(() => (this.session.isDemo() ? 'Saves to the demo calendar' : 'Saves to Google Calendar'));
 
+  protected readonly repeats = REPEATS;
+
+  /** Whether a change to one event of a series goes to every event of it. */
+  private readonly wholeSeries = signal(false);
+  protected readonly series = computed(() => !!this.event()?.recurring && this.wholeSeries());
+
   protected readonly busy = signal(false);
   protected readonly confirmingDelete = signal(false);
   protected readonly message = signal<string | null>(null);
@@ -216,6 +245,19 @@ export class EventSheet {
       this.edits.set({ ...draft, ...change });
       this.message.set(null);
     }
+  }
+
+  /** All events of a series keep their own days and share a calendar; see the wall's dialog. */
+  protected setSeries(series: boolean): void {
+    const draft = this.draft();
+    const event = this.event();
+    const family = this.family.family();
+    if (!draft || !event || !family) {
+      return;
+    }
+    const original = draftOf(event, family.timeZone);
+    this.wholeSeries.set(series);
+    this.set(series ? onDayOf(draft, original) : { calendarId: original.calendarId });
   }
 
   /** A new first day moves the last day with it, so the event keeps its length. */
@@ -241,7 +283,7 @@ export class EventSheet {
     const event = this.event();
     const request = requestOf(draft);
     this.busy.set(true);
-    (event ? this.calendar.update(event.id, request) : this.calendar.add(request)).subscribe({
+    (event ? this.calendar.update(event.id, request, this.series()) : this.calendar.add(request)).subscribe({
       next: () => this.closed.emit(),
       error: (error: HttpErrorResponse) => this.refused(error),
     });
@@ -253,7 +295,7 @@ export class EventSheet {
       return;
     }
     this.busy.set(true);
-    this.calendar.remove(event.id).subscribe({
+    this.calendar.remove(event.id, this.series()).subscribe({
       next: () => this.closed.emit(),
       error: (error: HttpErrorResponse) => this.refused(error),
     });

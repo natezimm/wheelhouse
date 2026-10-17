@@ -28,14 +28,17 @@ export interface CalendarEvent {
   endsAt: string | null;
   startDate: Day | null;
   endDate: Day | null;
-  /** One occurrence of a repeating event. A change to it changes only this occurrence. */
+  /** One event of a repeating series. A change to it changes only this event, unless the whole series is asked for. */
   recurring: boolean;
 }
+
+/** How often a new event repeats. */
+export type Repeat = 'Never' | 'Daily' | 'Weekly' | 'Monthly';
 
 /**
  * An event as a screen sets it, in the family's days and clock. A timed event runs from
  * startTime on startDate to endTime on endDate, as 'HH:mm:ss'; an all-day one has no times and
- * an exclusive endDate.
+ * an exclusive endDate. Repeat makes a new event a series; a change leaves how an event repeats alone.
  */
 export interface EventRequest {
   calendarId: string;
@@ -46,6 +49,7 @@ export interface EventRequest {
   startTime: string | null;
   endDate: Day;
   endTime: string | null;
+  repeat: Repeat;
 }
 
 interface CalendarResponse {
@@ -170,16 +174,18 @@ export class CalendarStore {
   // Each change below reaches Google, through the server, first; the store takes the event as
   // the server returns it, so a refused change never shows on screen.
 
+  /** Adds an event, or a series, which the server answers with its first event. */
   add(request: EventRequest): Observable<CalendarEvent> {
     return this.http.post<CalendarEvent>('/api/calendar/events', request).pipe(tap((added) => this.put(added)));
   }
 
   /**
-   * Changes an event. When it changed in Google first, the server answers 409 with Google's
-   * version, which the store shows instead; 404 means it was deleted there.
+   * Changes an event, or with <code>series</code> every event of its series, each staying on its
+   * own day. When it changed in Google first, the server answers 409 with Google's version, which
+   * the store shows instead; 404 means it was deleted there.
    */
-  update(id: string, request: EventRequest): Observable<CalendarEvent> {
-    return this.http.put<CalendarEvent>(`/api/calendar/events/${id}`, request).pipe(
+  update(id: string, request: EventRequest, series = false): Observable<CalendarEvent> {
+    return this.http.put<CalendarEvent>(`/api/calendar/events/${id}`, request, { params: seriesParams(series) }).pipe(
       tap({
         next: (changed) => this.put(changed),
         error: (error: { status?: number; error?: unknown }) => this.afterRefusal(id, error),
@@ -187,10 +193,15 @@ export class CalendarStore {
     );
   }
 
-  remove(id: string): Observable<void> {
-    return this.http.delete<void>(`/api/calendar/events/${id}`).pipe(
+  remove(id: string, series = false): Observable<void> {
+    return this.http.delete<void>(`/api/calendar/events/${id}`, { params: seriesParams(series) }).pipe(
       tap({
-        next: () => this.drop(id),
+        next: () => {
+          this.drop(id);
+          if (series) {
+            this.refresh();
+          }
+        },
         error: (error: { status?: number; error?: unknown }) => this.afterRefusal(id, error),
       }),
     );
@@ -246,6 +257,10 @@ export class CalendarStore {
       },
     });
   }
+}
+
+function seriesParams(series: boolean): Record<string, string> {
+  return series ? { series: 'true' } : {};
 }
 
 /** A 409 for a change carries Google's version of the event; one for a lost connection carries a problem. */
