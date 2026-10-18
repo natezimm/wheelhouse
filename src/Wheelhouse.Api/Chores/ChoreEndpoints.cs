@@ -96,7 +96,9 @@ public static class ChoreEndpoints
         if (chore.Archived) return Results.Conflict(ChoreResponse.From(chore));
         if ((chore.CompletedAt is not null) == request.Completed) return Results.Ok(ChoreResponse.From(chore));
         if (request.Version != chore.Version) return Results.Conflict(ChoreResponse.From(chore));
-        chore.CompletedAt = request.Completed ? time.GetUtcNow() : null;
+        // PostgreSQL stores microseconds. The write response must match later reads/retries.
+        var now = time.GetUtcNow();
+        chore.CompletedAt = request.Completed ? now.AddTicks(-(now.Ticks % TimeSpan.TicksPerMicrosecond)) : null;
         chore.Version = Guid.NewGuid();
         await db.SaveChangesAsync(ct);
         await tx.CommitAsync(ct);
