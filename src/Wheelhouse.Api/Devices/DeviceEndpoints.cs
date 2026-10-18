@@ -94,7 +94,7 @@ public static class DeviceEndpoints
                 // An already signed-in demo wall is leaving its old copy, or a wall is
                 // pairing again. Its existing socket must not stay in the old family group.
                 await calendar.DisconnectAsync(http.User);
-            await household.DisconnectAsync(http.User);
+                await household.DisconnectAsync(http.User);
                 await http.SignInAsync(
                     CookieAuthenticationDefaults.AuthenticationScheme,
                     WheelhousePrincipal.Device(device.FamilyId, device.Id),

@@ -24,7 +24,7 @@ Implementation design for the first chores increment of [the household roadmap](
 
 ## Contracts
 
-`Chore` stores family ID, immutable creation ID and normalized initial request, current title/notes/member/date, completion instant, archive state and concurrency version. A family has a separate durable `ChoresChangeNumber`. Deleting a member clears assignment through the database while preserving completion history; deleting a family cascades chores.
+`Chore` stores family ID, immutable creation ID and normalized initial request, current title/notes/member/date, completion instant, archive state and concurrency version. A family has a separate durable `ChoresChangeNumber`. The snapshot also returns `canManage` from the authenticated parent's role: a signed-in device does not gain management controls by visiting the phone route. Deleting a member clears assignment through the database while preserving completion history; deleting a family cascades chores.
 
 | Endpoint | Access | Purpose |
 | --- | --- | --- |

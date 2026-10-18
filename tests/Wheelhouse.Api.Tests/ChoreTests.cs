@@ -103,6 +103,8 @@ public sealed class ChoreTests(ApiFactory factory)
         (await parent.PostAsJsonAsync("/api/devices", new PairDisplayRequest(code.Code, "Kitchen"))).EnsureSuccessStatusCode();
         (await wall.PostAsync($"/api/pairing/{code.Id}/finish", null)).EnsureSuccessStatusCode();
         var chore = await Add(parent);
+        Assert.True((await Read(parent))!.CanManage);
+        Assert.False((await Read(wall))!.CanManage);
         Assert.Contains((await Read(wall))!.Chores, c => c.Id == chore.Id);
         (await wall.PutAsJsonAsync($"/api/chores/{chore.Id}/completion", new CompleteChore(chore.Version, true))).EnsureSuccessStatusCode();
         Assert.Equal(HttpStatusCode.Forbidden, (await wall.PostAsJsonAsync("/api/chores", new CreateChore(Guid.NewGuid(), "No", null, null, Day))).StatusCode);

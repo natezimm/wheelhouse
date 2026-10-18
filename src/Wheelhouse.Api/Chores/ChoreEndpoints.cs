@@ -1,4 +1,5 @@
 using System.Data;
+using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Wheelhouse.Api.Auth;
@@ -25,7 +26,7 @@ public static class ChoreEndpoints
         return app;
     }
 
-    private static async Task<IResult> Snapshot(DateOnly date, WheelhouseDbContext db, CancellationToken ct)
+    private static async Task<IResult> Snapshot(DateOnly date, ClaimsPrincipal user, WheelhouseDbContext db, CancellationToken ct)
     {
         await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
         var revision = await db.Families.Select(f => (long?)f.ChoresChangeNumber).SingleOrDefaultAsync(ct);
@@ -35,7 +36,8 @@ public static class ChoreEndpoints
             (c.DueDate == date || (c.DueDate < date && c.CompletedAt == null)))
             .OrderBy(c => c.DueDate).ThenBy(c => c.Title).ThenBy(c => c.Id).ToArrayAsync(ct);
         await tx.CommitAsync(ct);
-        return Results.Ok(new ChoresResponse(revision.Value, chores.Select(ChoreResponse.From).ToArray()));
+        return Results.Ok(new ChoresResponse(revision.Value, chores.Select(ChoreResponse.From).ToArray(),
+            user.HasClaim(WheelhouseClaims.Role, Roles.Parent)));
     }
 
     private static async Task<IResult> Create(CreateChore request, WheelhouseDbContext db, CancellationToken ct)

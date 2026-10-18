@@ -7,7 +7,6 @@ import { Clock } from '../core/clock';
 import { addDays, dayIn, formatDay, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { HouseholdLive } from '../core/household-live';
-import { SessionStore } from '../core/session';
 import { PhoneNav } from '../phone/phone-nav';
 import { SignIn } from '../phone/sign-in';
 import { DemoNotice } from './demo-notice';
@@ -24,7 +23,8 @@ import { DemoNotice } from './demo-notice';
     </header>
 
     @if (family.state().status === 'private') {
-      <app-sign-in />
+      @if (wall()) { <p>This display needs to be paired with your household.</p><a routerLink="/wall">Pair this display</a> }
+      @else { <app-sign-in /> }
     } @else if (family.family()) {
       <section class="toolbar" aria-label="Chore date">
         <button class="button" aria-label="Previous day" (click)="move(-1)">←</button>
@@ -38,7 +38,7 @@ import { DemoNotice } from './demo-notice';
 
       <div class="connection" role="status" aria-live="polite">
         <span class="dot" [class.online]="live.state() === 'connected' || live.state() === 'resyncing'"></span>
-        {{ connectionLabel() }}
+        <span class="connection-label">{{ connectionLabel() }}</span>
         <button class="button" [disabled]="store.refreshing()" [attr.aria-busy]="store.refreshing()" (click)="live.resync()">
           {{ store.refreshing() ? 'Resyncing…' : 'Resync now' }}
         </button>
@@ -167,12 +167,11 @@ export class ChoresPage {
   protected readonly store = inject(ChoresStore);
   protected readonly family = inject(FamilyStore);
   protected readonly live = inject(HouseholdLive);
-  private readonly session = inject(SessionStore);
   private readonly clock = inject(Clock);
   protected readonly focus = signal<string | null>(null);
   protected readonly selected = computed(() => this.focus() ?? dayIn(this.family.family()?.timeZone ?? 'UTC', this.clock.now()));
   protected readonly dateLabel = computed(() => formatDay(this.selected(), { weekday: 'long', month: 'short', day: 'numeric' }));
-  protected readonly canManage = computed(() => !this.wall() && this.family.state().status === 'ready' && (this.session.isDemo() || this.session.canSignOut()));
+  protected readonly canManage = computed(() => !this.wall() && this.family.state().status === 'ready' && this.store.canManage());
   protected readonly active = computed(() => this.store.items().filter(c => !c.completedAt));
   protected readonly overdue = computed(() => this.active().filter(c => c.dueDate < this.selected()));
   protected readonly completed = computed(() => this.store.items().filter(c => !!c.completedAt));
@@ -214,7 +213,7 @@ export class ChoresPage {
       : { title: '', notes: null, memberId: null, dueDate: this.selected() };
     this.editor.set(true);
   }
-  protected close(): void { this.editor.set(false); this.editorOperation.set(null); }
+  protected close(): void { this.dialog()?.nativeElement.close(); this.editor.set(false); this.editorOperation.set(null); }
   protected cancelEditor(event: Event): void { if (this.editorSaving()) event.preventDefault(); else this.close(); }
   protected reload(): void { const latest = this.store.items().find(c => c.id === this.original()?.id); if (latest) this.open(latest); }
   protected async save(): Promise<void> {

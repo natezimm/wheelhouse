@@ -117,6 +117,17 @@ public sealed class HouseholdHubTests(ApiFactory factory)
         await Add(parent);
         Assert.Equal(before + 1, (await phone.Next()).ChangeNumber);
     }
+    [Fact]
+    public async Task Sign_out_closes_existing_household_subscriptions_for_that_identity()
+    {
+        using var parent = await factory.DemoVisitorAsync();
+        var family = await FamilyOf(parent);
+        await using var phone = await Observer.Connect(factory.Demo, Cookie(factory.Demo, WheelhousePrincipal.Parent(family.Id)));
+        await phone.Next();
+        (await parent.PostAsync("/api/auth/sign-out", null)).EnsureSuccessStatusCode();
+        await phone.Closed.WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
     private sealed class Observer : IAsyncDisposable
     {
         private readonly Channel<HouseholdChanged> _changes = Channel.CreateUnbounded<HouseholdChanged>();

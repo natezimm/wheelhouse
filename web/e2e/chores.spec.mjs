@@ -18,7 +18,7 @@ const initial = [
 
 function server() {
   const state = { revision: 1, items: structuredClone(initial), sockets: [], hold: false, held: null, failRead: false,
-    failWrite: false, commitThenFail: false, posts: 0 };
+    failWrite: false, commitThenFail: false, posts: 0, canManage: true };
   state.notify = () => { for (const socket of state.sockets) {
     try { socket.send(JSON.stringify({ type: 1, target: 'HouseholdChanged', arguments: [{ domain: 'chores', changeNumber: state.revision }] }) + '\x1e'); } catch {}
   } };
@@ -29,7 +29,7 @@ function server() {
       if (path === '/api/chores' && req.method() === 'GET') {
         if (state.failRead) return route.fulfill({ status: 503 });
         const date = url.searchParams.get('date');
-        return route.fulfill({ json: { changeNumber: state.revision, chores: state.items.filter(c => !c.archived &&
+        return route.fulfill({ json: { changeNumber: state.revision, canManage: state.canManage, chores: state.items.filter(c => !c.archived &&
           (c.dueDate === date || c.dueDate < date && !c.completedAt)) } });
       }
       if (path.startsWith('/api/chores') && req.method() === 'GET') {
@@ -134,4 +134,13 @@ test('phone creation reaches another wall and preserves its draft during reconne
   await expect(editor).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'Walk the dog', exact: true })).toHaveCount(0);
   await wall.screenshot({ path: info.outputPath('chores-wall-synced.png'), fullPage: true });
+});
+
+test('a device session hides parent management even on the phone route', async ({ page }, info) => {
+  test.skip(info.project.name !== 'phone', 'Exercises the phone management boundary.');
+  const state = server(); state.canManage = false;
+  await state.connect(page); await page.goto('/chores');
+  await expect(page.getByRole('button', { name: 'Complete Set the table', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Add chore', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Edit Set the table', exact: true })).toHaveCount(0);
 });
