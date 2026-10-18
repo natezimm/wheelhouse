@@ -178,12 +178,15 @@ test('dated recurring completions stay independent while missed work remains on 
     repeat: { frequency: 'Daily', intervalWeeks: 1, weekdays: [], endsOn: null }, version: 'definition-1' });
   await state.connect(page); await page.goto(wall ? '/wall/chores' : '/chores');
   const complete = page.getByRole('button', { name: 'Complete Brush teeth', exact: true });
-  const showCompleted = async () => {
+  const showCompleted = async (heading) => {
+    await expect(page.locator('.day-heading h2')).toHaveText(heading);
+    await expect(page.getByRole('button', { name: 'Resync now', exact: true })).toBeEnabled();
     const section = page.locator('details.completed'); await expect(section).toBeVisible();
     if (await section.getAttribute('open') === null) await section.locator('summary').click();
+    await expect(section).toHaveAttribute('open', '');
   };
-  await complete.click(); await showCompleted();
-  await expect(page.getByRole('button', { name: 'Reopen Brush teeth', exact: true })).toBeVisible();
+  await complete.click(); await showCompleted('Sunday, Nov 1');
+  await expect(page.getByRole('button', { name: 'Reopen Brush teeth', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Next day', exact: true }).click();
   await expect(complete).toBeDisabled();
   await expect(page.getByText('Available to complete on its due date.', { exact: true })).toBeVisible();
@@ -193,14 +196,14 @@ test('dated recurring completions stay independent while missed work remains on 
   expect((await complete.boundingBox()).height).toBeGreaterThanOrEqual(wall ? 56 : 44);
   await page.screenshot({ path: info.outputPath('recurring-missed.png'), fullPage: true });
   await complete.click();
-  await showCompleted();
-  await expect(page.getByRole('button', { name: 'Reopen Brush teeth', exact: true })).toBeVisible();
+  await showCompleted('Saturday, Oct 31');
+  await expect(page.getByRole('button', { name: 'Reopen Brush teeth', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Next day', exact: true }).click();
-  await showCompleted();
+  await showCompleted('Sunday, Nov 1');
   await page.getByRole('button', { name: 'Reopen Brush teeth', exact: true }).click();
   await expect(complete).toBeEnabled();
   await page.getByRole('button', { name: 'Previous day', exact: true }).click();
-  await showCompleted();
+  await showCompleted('Saturday, Oct 31');
   await expect(page.getByRole('button', { name: 'Reopen Brush teeth', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
   await page.screenshot({ path: info.outputPath('recurring-independent.png'), fullPage: true });
