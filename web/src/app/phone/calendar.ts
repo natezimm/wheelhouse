@@ -1,3 +1,4 @@
+import { CalendarSaveStatus } from '../shared/calendar-save-status';
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { CalendarEvent, CalendarStore, FAMILY, FAMILY_COLOR, colorOf, daysOf, ownerOf, whenOn } from '../core/calendar';
 import { Clock } from '../core/clock';
@@ -11,7 +12,7 @@ import { SignIn } from './sign-in';
 /** The phone's month: a dot for each person busy on a day, and the chosen day's events below. */
 @Component({
   selector: 'app-phone-calendar',
-  imports: [CalendarFilter, EventSheet, PhoneNav, SignIn],
+  imports: [CalendarSaveStatus, CalendarFilter, EventSheet, PhoneNav, SignIn],
   template: `
     @if (family.state().status === 'private') {
       <app-sign-in />
@@ -65,7 +66,7 @@ import { SignIn } from './sign-in';
         <h2 id="agenda">{{ agenda().heading }}</h2>
         <ul>
           @for (event of agenda().events; track event.id) {
-            <li [style.--member]="event.color">
+            <li [style.--member]="event.color" [class.calendar-pending]="event.pending" [attr.aria-busy]="event.pending">
               <button type="button" [disabled]="!event.canEdit" (click)="edit(event.id)">
                 <span class="mark" role="img" [attr.aria-label]="event.who">{{ event.initial }}</span>
                 <span class="when">{{ event.when }}</span>
@@ -87,6 +88,7 @@ import { SignIn } from './sign-in';
       }
     }
 
+    <app-calendar-save-status />
     <app-phone-nav />
   `,
   styles: `
@@ -411,12 +413,13 @@ export class PhoneCalendar {
         const member = family.members.find((m) => m.id === event.memberId);
         return {
           id: event.id,
+          pending: !!event.pending,
           title: event.title,
           when: whenOn(event, day, family.timeZone),
           who: member?.displayName ?? 'Family',
           initial: member?.initial ?? 'F',
           color: colorOf(event, family.members),
-          canEdit: this.writable().has(event.calendarId),
+          canEdit: this.writable().has(event.calendarId) && !this.calendar.isPending(event.id),
         };
       });
     const count = events.length === 1 ? '1 event' : `${events.length === 0 ? 'No' : events.length} events`;
@@ -460,3 +463,4 @@ export class PhoneCalendar {
     }
   }
 }
+

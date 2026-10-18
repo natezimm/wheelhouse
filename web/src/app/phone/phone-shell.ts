@@ -1,3 +1,4 @@
+import { CalendarSaveStatus } from '../shared/calendar-save-status';
 import { DatePipe, LowerCasePipe } from '@angular/common';
 import { Component, effect, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
@@ -18,7 +19,7 @@ import { TodayEvents } from './today-events';
  */
 @Component({
   selector: 'app-phone-shell',
-  imports: [DatePipe, DemoNotice, LowerCasePipe, MemberAvatar, PhoneNav, RouterLink, SignIn, StatusLine, TodayEvents],
+  imports: [CalendarSaveStatus, DatePipe, DemoNotice, LowerCasePipe, MemberAvatar, PhoneNav, RouterLink, SignIn, StatusLine, TodayEvents],
   template: `
     <header>
       <div class="title">
@@ -53,6 +54,7 @@ import { TodayEvents } from './today-events';
       <app-status-line />
     </footer>
 
+    <app-calendar-save-status />
     <app-phone-nav />
   `,
   styles: `
@@ -150,3 +152,4 @@ export class PhoneShell {
     });
   }
 }
+

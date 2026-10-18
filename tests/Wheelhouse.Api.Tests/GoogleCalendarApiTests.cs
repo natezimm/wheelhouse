@@ -190,6 +190,27 @@ public sealed class GoogleCalendarApiTests
         await deleted.DeleteEventAsync("access", "cal", "swim", "\"1\"", CancellationToken.None);
     }
 
+    [Fact]
+    public async Task Retrying_an_insert_uses_its_stable_id_and_reads_an_already_stored_event()
+    {
+        var sent = new List<string>();
+        var methods = new List<HttpMethod>();
+        var id = EventIdentity.ForCreation(Guid.NewGuid(), Guid.NewGuid());
+        var api = ApiOver((request, _) =>
+        {
+            methods.Add(request.Method);
+            return request.Method == HttpMethod.Post
+                ? (HttpStatusCode.Conflict, "{}")
+                : (HttpStatusCode.OK, "{\"id\":\"" + id + "\",\"status\":\"confirmed\",\"summary\":\"Already saved\",\"start\":{\"date\":\"2026-10-20\"},\"end\":{\"date\":\"2026-10-21\"}}");
+        }, sent);
+        var draft = new GoogleEventDraft("New", null, null, null, new DateOnly(2026, 10, 20), new DateOnly(2026, 10, 21), "UTC", Id: id);
+        var stored = await api.InsertEventAsync("access", "cal", draft, CancellationToken.None);
+        Assert.Equal(id, stored.Id);
+        Assert.Equal("Already saved", stored.Title);
+        Assert.Equal(new[] { HttpMethod.Post, HttpMethod.Get }, methods);
+        Assert.Contains("\"id\":\"" + id + "\"", Assert.Single(sent));
+    }
+
     private sealed class StandIn(Func<HttpRequestMessage, string, (HttpStatusCode, string)> google, List<string> sent) : HttpMessageHandler
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)

@@ -222,7 +222,7 @@ describe('calendar snapshot recovery', () => {
       calendarId: 'c1', title: 'Edited', location: null, allDay: true,
       startDate: '2026-10-12', endDate: '2026-10-13', startTime: null, endTime: null, repeat: 'Never' as const,
     };
-    store.update('event', request).subscribe();
+    store.update(store.events()[0].id, request).subscribe();
     http.expectOne((r) => r.method === 'PUT').flush(snapshot(2, 'Edited').events[0]);
     old.flush(snapshot(1, 'Old'));
     expect(store.events().some((e) => e.title === 'Edited')).toBe(true);
