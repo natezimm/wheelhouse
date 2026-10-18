@@ -108,3 +108,125 @@ describe('CalendarStore', () => {
     expect(store.events()).toEqual([dentist, trash]);
   });
 });
+
+describe('calendar snapshot recovery', () => {
+  let store: CalendarStore;
+  let http: HttpTestingController;
+  const snapshot = (changeNumber: number, title = 'Current') => ({
+    changeNumber, needsReconnect: false, calendars: marloweCalendars,
+    events: [allDay(title, null, '2026-10-12', '2026-10-13')],
+  });
+  const read = () => http.expectOne((r) => r.url === '/api/calendar');
+  beforeEach(() => {
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
+    store = TestBed.inject(CalendarStore);
+    http = TestBed.inject(HttpTestingController);
+    store.show('2026-10-12', '2026-10-19');
+  });
+  afterEach(() => http.verify());
+
+  it('acknowledges snapshots, ignores duplicate/invalid notifications, and coalesces gaps', () => {
+    read().flush(snapshot(5));
+    store.changed(5);
+    store.changed(4);
+    store.changed(NaN);
+    http.expectNone((r) => r.url === '/api/calendar');
+    store.changed(8);
+    const pending = read();
+    store.changed(9);
+    store.changed(10);
+    expect(store.changeNumber()).toBe(5);
+    http.expectNone((r) => r.url === '/api/calendar');
+    pending.flush(snapshot(8));
+    read().flush(snapshot(10));
+    expect(store.changeNumber()).toBe(10);
+    expect(store.refreshing()).toBe(false);
+  });
+
+  it('does not refetch when an in-flight snapshot already contains the notification', () => {
+    store.changed(7);
+    read().flush(snapshot(7));
+    expect(store.changeNumber()).toBe(7);
+    http.expectNone((r) => r.url === '/api/calendar');
+  });
+
+  it('coalesces forced refreshes into one follow-up read', () => {
+    read().flush(snapshot(2));
+    store.refresh();
+    const pending = read();
+    store.refresh(); store.refresh(); store.refresh();
+    pending.flush(snapshot(3));
+    read().flush(snapshot(4));
+    http.expectNone((r) => r.url === '/api/calendar');
+  });
+
+  it('rejects an old request even after navigating away and back to the same days', () => {
+    const first = read();
+    store.show('2026-10-19', '2026-10-26');
+    const second = read();
+    store.show('2026-10-12', '2026-10-19');
+    read().flush(snapshot(9));
+    first.flush(snapshot(1, 'Stale'));
+    second.flush(null, { status: 500, statusText: 'Error' });
+    expect(store.changeNumber()).toBe(9);
+    expect(store.events()[0].title).toBe('Current');
+  });
+
+  it('keeps the latest revision when a delayed server snapshot is older', () => {
+    read().flush(snapshot(9));
+    store.refresh();
+    read().flush(snapshot(8, 'Stale'));
+    expect(store.changeNumber()).toBe(9);
+    expect(store.events()[0].title).toBe('Current');
+  });
+
+  it('recovers an unavailable first load and does not spin when recovery fails', () => {
+    read().flush(null, { status: 503, statusText: 'Offline' });
+    store.changed(10);
+    read().flush(null, { status: 503, statusText: 'Offline' });
+    http.expectNone((r) => r.url === '/api/calendar');
+    store.refresh();
+    read().flush(snapshot(10));
+    expect(store.state().status).toBe('ready');
+  });
+
+  it('releases a hung read so the next recovery check can retry', () => {
+    read().flush(snapshot(1));
+    vi.useFakeTimers();
+    store.refresh();
+    const hung = read();
+    vi.advanceTimersByTime(15_000);
+    expect(hung.cancelled).toBe(true);
+    expect(store.refreshing()).toBe(false);
+    store.refresh();
+    read().flush(snapshot(1));
+    expect(store.state().status).toBe('ready');
+    vi.useRealTimers();
+  });
+
+  it('invalidates outstanding reads and counters when changing family', () => {
+    const old = read();
+    store.reset();
+    store.show('2026-10-12', '2026-10-19');
+    read().flush(snapshot(1, 'Other family'));
+    old.flush(snapshot(100, 'Previous family'));
+    expect(store.changeNumber()).toBe(1);
+    expect(store.events()[0].title).toBe('Other family');
+  });
+
+  it('does not overwrite a confirmed edit with a read started before the write', () => {
+    read().flush(snapshot(1));
+    store.refresh();
+    const old = read();
+    const request = {
+      calendarId: 'c1', title: 'Edited', location: null, allDay: true,
+      startDate: '2026-10-12', endDate: '2026-10-13', startTime: null, endTime: null, repeat: 'Never' as const,
+    };
+    store.update('event', request).subscribe();
+    http.expectOne((r) => r.method === 'PUT').flush(snapshot(2, 'Edited').events[0]);
+    old.flush(snapshot(1, 'Old'));
+    expect(store.events().some((e) => e.title === 'Edited')).toBe(true);
+    read().flush(snapshot(2, 'Edited'));
+    expect(store.changeNumber()).toBe(2);
+  });
+});

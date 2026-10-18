@@ -5,7 +5,7 @@ import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from './app.routes';
 import { CalendarEvent } from './core/calendar';
-import { CALENDAR_EVERY_MS, RETURN_AFTER_MS } from './wall/wall-shell';
+import { RETURN_AFTER_MS } from './wall/wall-shell';
 import { allDay, marloweCalendars, timed } from './testing/calendar';
 import { marlowes } from './testing/marlowes';
 
@@ -163,21 +163,6 @@ describe('calendar screens', () => {
       expect(button(page, 'Day').getAttribute('aria-pressed')).toBe('true');
     });
 
-    it('reads the calendar again every half minute, so changes made in Google appear', async () => {
-      vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
-      vi.setSystemTime(new Date('2026-10-12T21:22:00Z'));
-      const { page, settle } = await open('/wall', { from: '2026-10-12', to: '2026-10-19' });
-
-      vi.advanceTimersByTime(CALENDAR_EVERY_MS);
-      http
-        .expectOne((r) => r.url === '/api/calendar')
-        .flush({ calendars: marloweCalendars, events: [...events, timed('Piano', 'm2', '2026-10-14T22:00:00Z', '2026-10-14T23:00:00Z')] });
-      await settle();
-
-      expect(texts(page.querySelectorAll('section[aria-label="Wednesday, October 14"] li .title'))).toEqual(['Piano']);
-      vi.useFakeTimers({ toFake: ['Date'] });
-    });
-
     it('asks a parent to connect Google again when it has stopped accepting the connection', async () => {
       const harness = await RouterTestingHarness.create('/wall');
       http.expectOne('/api/family').flush(marlowes);
@@ -247,3 +232,4 @@ describe('calendar screens', () => {
     });
   });
 });
+
