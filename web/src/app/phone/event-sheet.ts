@@ -17,6 +17,7 @@ import { SessionStore } from '../core/session';
           <span class="saves">{{ savesTo() }}</span>
         </header>
 
+        <fieldset [disabled]="busy() || uncertain()">
         <label class="field">
           Title
           <input type="text" maxlength="255" autocomplete="off" [value]="draft.title" (input)="set({ title: $any($event.target).value })" />
@@ -86,6 +87,7 @@ import { SessionStore } from '../core/session';
           <input type="text" maxlength="255" autocomplete="off" [value]="draft.location" (input)="set({ location: $any($event.target).value })" />
         </label>
 
+        </fieldset>
         @if (series()) {
           <p class="note">Every event in the series keeps its own day.</p>
         }
@@ -95,8 +97,8 @@ import { SessionStore } from '../core/session';
         }
 
         <div class="actions">
-          <button type="submit" class="button primary" [disabled]="busy()">Save</button>
-          <button type="button" class="button" (click)="closed.emit()">Cancel</button>
+          <button type="submit" class="button primary" [disabled]="busy()">{{ uncertain() ? 'Check save' : 'Save' }}</button>
+          <button type="button" class="button" [disabled]="busy()" (click)="closed.emit()">Cancel</button>
         </div>
 
         @if (event()) {
@@ -113,6 +115,7 @@ import { SessionStore } from '../core/session';
     }
   `,
   styles: `
+    fieldset { display: grid; gap: 16px; min-width: 0; padding: 0; margin: 0; border: 0; }
     :host {
       position: fixed;
       inset: 0;
@@ -235,11 +238,14 @@ export class EventSheet {
   private readonly wholeSeries = signal(false);
   protected readonly series = computed(() => !!this.event()?.recurring && this.wholeSeries());
 
+  private readonly operationId = crypto.randomUUID();
+  protected readonly uncertain = computed(() => this.calendar.isUncertain(this.operationId));
   protected readonly busy = signal(false);
   protected readonly confirmingDelete = signal(false);
   protected readonly message = signal<string | null>(null);
 
   protected set(change: Partial<EventDraft>): void {
+    if (this.busy() || this.uncertain()) return;
     const draft = this.draft();
     if (draft) {
       this.edits.set({ ...draft, ...change });
@@ -271,6 +277,11 @@ export class EventSheet {
   }
 
   protected save(): void {
+    if (this.uncertain() && !this.busy()) {
+      this.busy.set(true);
+      this.calendar.retry(this.operationId).subscribe({ next: () => this.closed.emit(), error: (error: HttpErrorResponse) => this.refused(error) });
+      return;
+    }
     const draft = this.draft();
     if (!draft || this.busy()) {
       return;
@@ -282,8 +293,9 @@ export class EventSheet {
     }
     const event = this.event();
     const request = requestOf(draft);
+    this.edits.set(draft);
     this.busy.set(true);
-    (event ? this.calendar.update(event.id, request, this.series()) : this.calendar.add(request)).subscribe({
+    (event ? this.calendar.update(event.id, request, this.series(), this.operationId) : this.calendar.add(request, this.operationId)).subscribe({
       next: () => this.closed.emit(),
       error: (error: HttpErrorResponse) => this.refused(error),
     });
@@ -295,7 +307,7 @@ export class EventSheet {
       return;
     }
     this.busy.set(true);
-    this.calendar.remove(event.id, this.series()).subscribe({
+    this.calendar.remove(event.id, this.series(), this.operationId).subscribe({
       next: () => this.closed.emit(),
       error: (error: HttpErrorResponse) => this.refused(error),
     });
@@ -312,3 +324,4 @@ export class EventSheet {
     this.message.set(refusal.message);
   }
 }
+

@@ -1,3 +1,4 @@
+import { CalendarSaveStatus } from '../shared/calendar-save-status';
 import { DatePipe } from '@angular/common';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { CalendarEvent, CalendarStore } from '../core/calendar';
@@ -29,7 +30,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
  */
 @Component({
   selector: 'app-wall-shell',
-  imports: [CalendarFilter, DatePipe, DayView, DemoNotice, EventDialog, MonthView, PairingScreen, StatusLine, WallWeather, WeekView],
+  imports: [CalendarSaveStatus, CalendarFilter, DatePipe, DayView, DemoNotice, EventDialog, MonthView, PairingScreen, StatusLine, WallWeather, WeekView],
   template: `
     @if (showPairing()) {
       <app-pairing-screen [cancellable]="pairingChosen()" (paired)="paired()" (cancelled)="pairingChosen.set(false)" />
@@ -60,6 +61,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
       <footer>
         <div class="status">
           <app-status-line />
+          <app-calendar-save-status />
           @if (calendar.needsReconnect()) {
             <p class="reconnect" role="alert">
               Google Calendar has stopped updating. A parent can connect it again in Settings on their phone.

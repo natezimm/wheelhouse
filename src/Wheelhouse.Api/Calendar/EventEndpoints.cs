@@ -62,7 +62,27 @@ public static class EventEndpoints
             return TypedResults.ValidationProblem(errors);
         }
 
-        draft = draft! with { Recurrence = EventSeries.RuleFor(request.Repeat) };
+        var creationId = request.CreationId is { } key ? EventIdentity.ForCreation(familyId, key) : null;
+        // Serialize retries across API processes. The transaction also keeps revision and cache
+        // changes atomic; Google enforces the same stable id if a cancellation rolled this back.
+        await using var creationTransaction = creationId is not null
+            ? await db.Database.BeginTransactionAsync(cancellationToken) : null;
+        if (creationId is not null)
+        {
+            var lockKey = BitConverter.ToInt64(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(creationId)));
+            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({lockKey})", cancellationToken);
+            var existing = await db.EventInstances
+                .Where(e => e.GoogleEventId == creationId || e.RecurringEventId == creationId)
+                .OrderBy(e => e.StartDate).ThenBy(e => e.StartsAt).FirstOrDefaultAsync(cancellationToken);
+            if (existing is not null)
+            {
+                var originalSource = await db.CalendarSources.SingleAsync(s => s.Id == existing.CalendarSourceId, cancellationToken);
+                await creationTransaction!.CommitAsync(cancellationToken);
+                return TypedResults.Created($"/api/calendar/events/{existing.Id}", EventResponse.From(existing, originalSource));
+            }
+        }
+
+        draft = draft! with { Recurrence = EventSeries.RuleFor(request.Repeat), Id = creationId };
         EventInstance RowFor(GoogleEvent stored)
         {
             var row = new EventInstance
@@ -80,7 +100,7 @@ public static class EventEndpoints
 
         if (IsDemo(instance))
         {
-            var id = Guid.NewGuid().ToString("N");
+            var id = creationId ?? Guid.NewGuid().ToString("N");
             var zone = Zone(draft);
             var first = draft.Recurrence is null
                 ? RowFor(new GoogleEvent(id, null, draft.Title, draft.Location, draft.StartsAt, draft.EndsAt, draft.StartDate, draft.EndDate))
@@ -88,12 +108,14 @@ public static class EventEndpoints
                     .Select(RowFor)
                     .ToList()[0];
             await db.SaveChangesAsync(cancellationToken);
+            if (creationTransaction is not null) await creationTransaction.CommitAsync(cancellationToken);
             return TypedResults.Created($"/api/calendar/events/{first.Id}", EventResponse.From(first, source!));
         }
 
         var write = await GoogleWrite.StartAsync(db, tokens, google, logger, cancellationToken);
         if (write.Problem is { } problem)
         {
+            if (creationTransaction is not null) await creationTransaction.CommitAsync(cancellationToken);
             return problem;
         }
 
@@ -104,13 +126,16 @@ public static class EventEndpoints
         }
         catch (Exception exception) when (GoogleWrite.IsProblem(exception))
         {
-            return await write.ProblemFor(exception, source!, cancellationToken);
+            var refusal = await write.ProblemFor(exception, source!, cancellationToken);
+            if (creationTransaction is not null) await creationTransaction.CommitAsync(cancellationToken);
+            return refusal;
         }
 
         if (draft.Recurrence is null)
         {
             var row = RowFor(stored);
             await db.SaveChangesAsync(cancellationToken);
+            if (creationTransaction is not null) await creationTransaction.CommitAsync(cancellationToken);
             return TypedResults.Created($"/api/calendar/events/{row.Id}", EventResponse.From(row, source));
         }
 
@@ -137,6 +162,7 @@ public static class EventEndpoints
             await db.SaveChangesAsync(cancellationToken);
         }
 
+        if (creationTransaction is not null) await creationTransaction.CommitAsync(cancellationToken);
         return TypedResults.Created($"/api/calendar/events/{firstOccurrence.Id}", EventResponse.From(firstOccurrence, source));
     }
 
