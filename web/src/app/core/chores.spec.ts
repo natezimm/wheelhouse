@@ -12,13 +12,20 @@ describe('ChoresStore', () => {
   let store: ChoresStore;
   let http: HttpTestingController;
   const read = () => http.expectOne(r => r.url === '/api/chores' && r.method === 'GET');
-  const snapshot = (revision = 1, items: Chore[] = [chore]) => read().flush({ changeNumber: revision, chores: items });
+  const snapshot = (revision = 1, items: Chore[] = [chore]) => read().flush({ changeNumber: revision, chores: items, canManage: true });
   beforeEach(() => {
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting()] });
     store = TestBed.inject(ChoresStore); http = TestBed.inject(HttpTestingController);
     store.select(day); snapshot();
   });
   afterEach(() => http.verify());
+
+  it('uses the server management capability and clears it with family state', () => {
+    expect(store.canManage()).toBe(true);
+    store.refresh(); read().flush({ changeNumber: 1, chores: [chore], canManage: false });
+    expect(store.canManage()).toBe(false);
+    store.reset(); expect(store.canManage()).toBe(false);
+  });
 
   it('shows completion immediately and rolls back only a definitely refused operation', async () => {
     const save = store.complete(chore, true);

@@ -9,7 +9,7 @@ export interface Chore {
   dueDate: Day; completedAt: string | null; archived: boolean; version: string;
 }
 export type ChoreDraft = Pick<Chore, 'title' | 'notes' | 'memberId' | 'dueDate'>;
-export interface ChoresSnapshot { changeNumber: number; chores: Chore[]; }
+export interface ChoresSnapshot { changeNumber: number; chores: Chore[]; canManage: boolean; }
 export interface ChoreOperation {
   key: string; id: string; kind: 'create' | 'edit' | 'complete' | 'archive';
   url: string; body: Record<string, unknown>; preview: Chore; uncertain: boolean;
@@ -26,6 +26,7 @@ export class ChoresStore {
   private readonly busy = signal(false);
   private readonly failed = signal(false);
   private readonly message = signal('');
+  private readonly parent = signal(false);
   private familyEpoch = 0;
   private writeSequence = 0;
   private reading = false;
@@ -38,6 +39,7 @@ export class ChoresStore {
   readonly refreshFailed = this.failed.asReadonly();
   readonly error = this.message.asReadonly();
   readonly pending = this.operations.asReadonly();
+  readonly canManage = this.parent.asReadonly();
   readonly items = computed(() => {
     const map = new Map(this.confirmed().map(c => [c.id, c]));
     for (const op of this.operations()) {
@@ -80,6 +82,7 @@ export class ChoresStore {
         }
         if (snapshot.changeNumber < this.revision) return;
         this.confirmed.set(snapshot.chores);
+        this.parent.set(snapshot.canManage === true);
         this.loaded.set(true);
         this.revision = snapshot.changeNumber;
         if (this.wanted > this.revision) this.queued = true;
@@ -138,6 +141,7 @@ export class ChoresStore {
     this.familyEpoch++;
     this.confirmed.set([]); this.operations.set([]); this.currentDay.set(null);
     this.loaded.set(false); this.busy.set(false); this.failed.set(false); this.message.set('');
+    this.parent.set(false);
     this.reading = false; this.queued = false; this.revision = -1; this.wanted = -1; this.writeSequence = 0;
   }
 

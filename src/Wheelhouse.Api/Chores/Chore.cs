@@ -24,7 +24,7 @@ public sealed record ChoreResponse(Guid Id, Guid CreationId, string Title, strin
         chore.Notes, chore.MemberId, chore.DueDate, chore.CompletedAt, chore.Archived, chore.Version);
 }
 
-public sealed record ChoresResponse(long ChangeNumber, ChoreResponse[] Chores);
+public sealed record ChoresResponse(long ChangeNumber, ChoreResponse[] Chores, bool CanManage);
 public sealed record ChoreDraft(string Title, string? Notes, Guid? MemberId, DateOnly DueDate);
 public sealed record CreateChore(Guid CreationId, string Title, string? Notes, Guid? MemberId, DateOnly DueDate);
 public sealed record EditChore(Guid Version, string Title, string? Notes, Guid? MemberId, DateOnly DueDate);
