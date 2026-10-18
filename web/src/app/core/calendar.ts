@@ -165,6 +165,7 @@ export class CalendarStore {
   private wanted = 0;
   private readonly accepted = signal<number | null>(null);
   private readonly fetching = signal(false);
+  private readonly readFailed = signal(false);
 
   readonly state = computed<CalendarState>(() => {
     const state = this.current();
@@ -173,6 +174,8 @@ export class CalendarStore {
   /** The revision actually represented by the last accepted snapshot, never a notification. */
   readonly changeNumber = this.accepted.asReadonly();
   readonly refreshing = this.fetching.asReadonly();
+  /** A failed background refresh retains the snapshot, but must still offer a visible retry. */
+  readonly refreshFailed = this.readFailed.asReadonly();
 
   /** Forget another family's data and invalidate every outstanding response. */
   reset(): void {
@@ -185,6 +188,7 @@ export class CalendarStore {
     this.wanted = 0;
     this.accepted.set(null);
     this.fetching.set(false);
+    this.readFailed.set(false);
     this.current.set({ status: 'idle' });
     this.hiddenOwners.set(new Set());
   }
@@ -402,12 +406,14 @@ export class CalendarStore {
     const serial = ++this.serial;
     this.active = serial;
     this.fetching.set(true);
+    this.readFailed.set(false);
     this.http.get<CalendarResponse>('/api/calendar', { params: { from, to } }).pipe(timeout(15_000)).subscribe({
       next: (response) => {
         if (serial !== this.serial) return;
         // Older servers/test fixtures may omit the counter; production responses always include it.
         const revision = response.changeNumber ?? 0;
         if (revision >= (this.accepted() ?? 0)) {
+          this.readFailed.set(false);
           this.accepted.set(revision);
           this.operations.update((ops) => ops.filter((op) => op.status !== 'settling' || serial < op.settleAfter!));
           this.current.set({ status: 'ready', from, to, ...response, changeNumber: revision });
@@ -416,6 +422,7 @@ export class CalendarStore {
       },
       error: () => {
         if (serial !== this.serial) return;
+        this.readFailed.set(true);
         if (!quietly) this.current.set({ status: 'unavailable', from, to });
         // Do not spin on an unavailable server. The connection or recovery timer will retry.
         this.finishRead(serial, false);
@@ -471,4 +478,5 @@ export function eventRefusal(error: HttpErrorResponse): { message: string; chang
   }
   return { message: "Can't save right now. Try again in a moment.", changed: null };
 }
+
 

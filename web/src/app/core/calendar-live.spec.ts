@@ -255,4 +255,49 @@ describe('CalendarLive', () => {
     expect(connections[0].stop).toHaveBeenCalledTimes(1);
     await vi.advanceTimersByTimeAsync(CALENDAR_EVERY_MS * 2);
   });
+
+  it('manually replaces a dropped socket without clearing the calendar or owner filters', async () => {
+    live.start();
+    await join();
+    calendar.show('2026-10-12', '2026-10-19');
+    read().flush(snapshot(4));
+    calendar.toggle('member');
+    const old = connections[0];
+    old.reconnecting();
+    http.expectOne('/api/family').flush(marlowes);
+
+    live.resync();
+    expect(old.stop).toHaveBeenCalled();
+    expect(connections).toHaveLength(2);
+    expect(calendar.changeNumber()).toBe(4);
+    expect(calendar.hidden().has('member')).toBe(true);
+    expect(live.recovering()).toBe(true);
+    await settle();
+    read().flush(snapshot(5));
+    // Connection establishment also asks for a snapshot, covering changes during negotiation.
+    read().flush(snapshot(5));
+    old.changed({ changeNumber: 100 });
+    old.closed();
+    expect(calendar.changeNumber()).toBe(5);
+    expect(live.state()).toBe('connected');
+    expect(live.recovering()).toBe(false);
+  });
+
+  it('refreshes a healthy connection without opening another socket', async () => {
+    live.start();
+    await join();
+    calendar.show('2026-10-12', '2026-10-19');
+    read().flush(snapshot());
+    live.resync();
+    read().flush(snapshot(2));
+    expect(connections).toHaveLength(1);
+    expect(calendar.changeNumber()).toBe(2);
+  });
+
+  it('ignores explicit resync when access is absent', () => {
+    live.resync();
+    http.expectNone((r) => r.url === '/api/calendar');
+    expect(connections).toHaveLength(0);
+  });
 });
+
