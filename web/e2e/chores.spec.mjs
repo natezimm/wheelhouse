@@ -178,7 +178,11 @@ test('dated recurring completions stay independent while missed work remains on 
     repeat: { frequency: 'Daily', intervalWeeks: 1, weekdays: [], endsOn: null }, version: 'definition-1' });
   await state.connect(page); await page.goto(wall ? '/wall/chores' : '/chores');
   const complete = page.getByRole('button', { name: 'Complete Brush teeth', exact: true });
-  await complete.click(); await page.locator('summary').click();
+  const showCompleted = async () => {
+    const section = page.locator('details.completed'); await expect(section).toBeVisible();
+    if (await section.getAttribute('open') === null) await section.locator('summary').click();
+  };
+  await complete.click(); await showCompleted();
   await expect(page.getByRole('button', { name: 'Reopen Brush teeth', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Next day', exact: true }).click();
   await expect(complete).toBeDisabled();
@@ -189,11 +193,14 @@ test('dated recurring completions stay independent while missed work remains on 
   expect((await complete.boundingBox()).height).toBeGreaterThanOrEqual(wall ? 56 : 44);
   await page.screenshot({ path: info.outputPath('recurring-missed.png'), fullPage: true });
   await complete.click();
+  await showCompleted();
   await expect(page.getByRole('button', { name: 'Reopen Brush teeth', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Next day', exact: true }).click();
+  await showCompleted();
   await page.getByRole('button', { name: 'Reopen Brush teeth', exact: true }).click();
   await expect(complete).toBeEnabled();
   await page.getByRole('button', { name: 'Previous day', exact: true }).click();
+  await showCompleted();
   await expect(page.getByRole('button', { name: 'Reopen Brush teeth', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
   await page.screenshot({ path: info.outputPath('recurring-independent.png'), fullPage: true });
@@ -231,7 +238,7 @@ test('phone repeats preserve today while a recovered editor changes the future s
   expect(state.lastBody.repeat).toEqual({ frequency: 'Weekly', intervalWeeks: 2, weekdays: [1, 3], endsOn: '2026-11-30' });
   await expect(page.getByRole('heading', { name: 'Brush teeth', exact: true })).toBeVisible();
   await expect(page.getByText('Schedule changes from Nov 2.', { exact: true })).toBeVisible();
-  await page.getByLabel('Chore date', { exact: true }).fill('2026-11-09');
+  await page.getByRole('textbox', { name: 'Chore date', exact: true }).fill('2026-11-09');
   await expect(page.getByRole('heading', { name: 'Brush before bed', exact: true })).toBeVisible();
   await expect(page.getByText('Every 2 weeks · Mon, Wed', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Complete Brush before bed', exact: true })).toBeDisabled();
