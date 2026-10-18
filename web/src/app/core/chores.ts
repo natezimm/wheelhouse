@@ -63,6 +63,7 @@ export class ChoresStore {
   select(day: Day): void {
     if (this.currentDay() === day) return;
     this.currentDay.set(day);
+    this.loaded.set(false);
     this.refresh();
   }
 
@@ -103,6 +104,7 @@ export class ChoresStore {
     return this.operations().some(o => (o.id === id || o.preview.id === id)
       && (o.kind !== 'complete' || !o.preview.repeat || o.preview.dueDate === day));
   }
+  definitionPending(id: string): boolean { return this.operations().some(o => o.id === id || o.preview.id === id); }
 
   create(draft: ChoreDraft): Promise<boolean> {
     const key = crypto.randomUUID();
@@ -164,7 +166,7 @@ export class ChoresStore {
 
   private begin(op: ChoreOperation): Promise<boolean> {
     if (this.isPending(op.id, op.preview.dueDate)
-      || op.kind !== 'complete' && this.operations().some(o => o.id === op.id)) return Promise.resolve(false);
+      || op.kind !== 'complete' && this.definitionPending(op.id)) return Promise.resolve(false);
     this.message.set('');
     this.latestConflict.set(null);
     this.operations.update(ops => [...ops, op]);

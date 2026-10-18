@@ -121,10 +121,11 @@ describe('ChoresStore', () => {
 
   it('loads the selected day after a queued range change without accepting the earlier day', () => {
     store.refresh(); const old = read(); store.select('2026-11-02');
+    expect(store.ready()).toBe(false);
     old.flush({ changeNumber: 2, chores: [{ ...chore, completedAt: '2026-11-01T15:00:00Z' }] });
     const next = read(); expect(next.request.params.get('date')).toBe('2026-11-02');
     next.flush({ changeNumber: 2, chores: [] });
-    expect(store.items()).toEqual([]);
+    expect(store.items()).toEqual([]); expect(store.ready()).toBe(true);
   });
 
   const repeat = { frequency: 'Daily' as const, intervalWeeks: 1, weekdays: [], endsOn: null };
@@ -137,6 +138,7 @@ describe('ChoresStore', () => {
     const write1 = http.expectOne('/api/chores/repeat/completion?date=2026-11-01');
     store.select('2026-11-02'); const next = { ...recurring, dueDate: '2026-11-02', version: 'next-occurrence' }; snapshot(1, [next]);
     expect(store.items()[0].completedAt).toBeNull(); expect(store.isPending('repeat')).toBe(false);
+    expect(store.definitionPending('repeat')).toBe(true);
     const second = store.complete(next, true);
     const write2 = http.expectOne('/api/chores/repeat/completion?date=2026-11-02');
     expect(store.pending()).toHaveLength(2);

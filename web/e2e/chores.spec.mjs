@@ -205,14 +205,14 @@ test('phone repeats preserve today while a recovered editor changes the future s
   await page.getByRole('button', { name: 'Add chore', exact: true }).click();
   const editor = page.getByRole('dialog');
   await editor.getByLabel('Title', { exact: true }).fill('Brush teeth');
-  await editor.getByLabel('Repeat', { exact: true }).selectOption('Daily');
+  await editor.getByRole('combobox', { name: 'Repeat', exact: true }).selectOption('Daily');
   state.commitThenFail = true; await editor.getByRole('button', { name: 'Save chore', exact: true }).click();
   await editor.getByRole('button', { name: 'Check save', exact: true }).click();
   await expect(editor).toHaveCount(0); expect(state.posts).toBe(1);
   await page.getByRole('button', { name: 'Edit Brush teeth', exact: true }).click();
   await expect(editor.getByText('Changes start tomorrow,', { exact: false })).toBeVisible();
   await editor.getByLabel('Title', { exact: true }).fill('Brush before bed');
-  await editor.getByLabel('Repeat', { exact: true }).selectOption('Weekly');
+  await editor.getByRole('combobox', { name: 'Repeat', exact: true }).selectOption('Weekly');
   await editor.getByLabel('Repeat every (weeks)', { exact: true }).fill('2');
   await editor.getByLabel('Sun', { exact: true }).uncheck();
   await editor.getByLabel('Mon', { exact: true }).check();

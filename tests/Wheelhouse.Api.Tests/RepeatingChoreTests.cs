@@ -79,6 +79,7 @@ public sealed class RepeatingChoreTests(ApiFactory factory)
     {
         await using var app = await Start(); var today = app.Today;
         var chore = await Add(app, member: app.Family.Members[0].Id);
+        var futureIdentity = (await Get(app, chore.Id, today.AddDays(1)))!.OccurrenceId;
         var past = await Complete(app, (await Get(app, chore.Id, today.AddDays(-1)))!, true);
         var edit = new EditChore(chore.DefinitionVersion!.Value, "Evening tidy", "New instructions", app.Family.Members[1].Id,
             today.AddDays(-14), new("Daily"));
@@ -89,6 +90,7 @@ public sealed class RepeatingChoreTests(ApiFactory factory)
         var yesterday = (await Get(app, chore.Id, today.AddDays(-1)))!;
         Assert.Equal(past.CompletedAt, yesterday.CompletedAt); Assert.Equal(past.Title, yesterday.Title); Assert.Equal(past.MemberId, yesterday.MemberId);
         var tomorrow = (await Get(app, chore.Id, today.AddDays(1)))!;
+        Assert.Equal(futureIdentity, tomorrow.OccurrenceId);
         Assert.Equal("Evening tidy", tomorrow.Title); Assert.Equal(app.Family.Members[1].Id, tomorrow.MemberId);
         // Another edit that day replaces only tomorrow's pending plan, never today's plan.
         (await app.Client.PutAsJsonAsync($"/api/chores/{chore.Id}", edit with { Version = response.DefinitionVersion!.Value, Title = "Final title" })).EnsureSuccessStatusCode();
