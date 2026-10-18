@@ -60,7 +60,7 @@ import { DemoNotice } from './demo-notice';
       @if (store.ready()) {
         @if (overdue().length) {
           <section class="overdue card"><h2>Overdue</h2>
-            @for (chore of overdue(); track chore.id) {
+            @for (chore of overdue(); track chore.occurrenceId ?? chore.id) {
               <ng-container [ngTemplateOutlet]="row" [ngTemplateOutletContext]="{ $implicit: chore }" />
             }
           </section>
@@ -69,14 +69,14 @@ import { DemoNotice } from './demo-notice';
           @for (group of groups(); track group.id) {
             <section class="member-card" [style.--member-color]="group.color">
               <h2><span class="avatar">{{ group.initial }}</span>{{ group.name }}<span class="count">{{ group.items.length }}</span></h2>
-              @for (chore of group.items; track chore.id) {
+              @for (chore of group.items; track chore.occurrenceId ?? chore.id) {
                 <ng-container [ngTemplateOutlet]="row" [ngTemplateOutletContext]="{ $implicit: chore }" />
               } @empty { <p class="empty">All clear for {{ dateLabel() }}.</p> }
             </section>
           }
         </div>
         <details class="card completed"><summary>Completed ({{ completed().length }})</summary>
-          @for (chore of completed(); track chore.id) {
+          @for (chore of completed(); track chore.occurrenceId ?? chore.id) {
             <ng-container [ngTemplateOutlet]="row" [ngTemplateOutletContext]="{ $implicit: chore }" />
           } @empty { <p>No completed chores for this date yet.</p> }
         </details>
@@ -100,7 +100,7 @@ import { DemoNotice } from './demo-notice';
           }
           @if (chore.completedAt) { <small>Completed at {{ completionTime(chore.completedAt) }}</small> }
         </div>
-        @if (canManage() && !chore.seriesArchived) { <button class="button edit" [disabled]="store.isPending(chore.id)" [attr.aria-label]="'Edit ' + chore.title" (click)="open(chore)">Edit</button> }
+        @if (canManage() && !chore.seriesArchived) { <button class="button edit" [disabled]="store.definitionPending(chore.id)" [attr.aria-label]="'Edit ' + chore.title" (click)="open(chore)">Edit</button> }
       </article>
     </ng-template>
 
