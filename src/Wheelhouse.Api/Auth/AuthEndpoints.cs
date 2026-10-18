@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Options;
 using Wheelhouse.Api.Instance;
 using Wheelhouse.Api.Calendar;
+using Wheelhouse.Api.Household;
 
 namespace Wheelhouse.Api.Auth;
 
@@ -16,10 +17,11 @@ public static class AuthEndpoints
         var auth = app.MapGroup("/api/auth");
 
         auth.MapGet("google", SignInWithGoogle).AllowAnonymous();
-        auth.MapPost("sign-out", async (HttpContext http, CalendarConnections calendar) =>
+        auth.MapPost("sign-out", async (HttpContext http, CalendarConnections calendar, HouseholdConnections household) =>
         {
             await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             await calendar.DisconnectAsync(http.User);
+            await household.DisconnectAsync(http.User);
             return TypedResults.NoContent();
         });
 
@@ -69,3 +71,4 @@ public static class GoogleSignIn
         GivenName: google.FindFirstValue(ClaimTypes.GivenName),
         Name: google.FindFirstValue(ClaimTypes.Name));
 }
+

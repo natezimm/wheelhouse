@@ -1,6 +1,8 @@
 # Chores, lists and meals roadmap
 
-Created October 18, 2026. Status: proposed implementation plan.
+Created October 18, 2026. Roadmap agreed through PR #25. Status: 4.1 in implementation; later increments remain planned.
+
+The 4.1 layout, states and API contract are documented in [chores-design.md](chores-design.md). Record its merged implementation PR here when complete; a branch or open PR does not mark it shipped.
 
 This is a new plan requested after calendar live updates shipped in PR #24. The milestone numbers below are proposed continuations, not a recovered historical roadmap. Calendar Milestone 3 part 2 is complete. Nothing in this document is implemented merely because it is described here.
 
