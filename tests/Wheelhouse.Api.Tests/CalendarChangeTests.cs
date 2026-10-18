@@ -60,20 +60,22 @@ public sealed class CalendarChangeTests(ApiFactory factory)
         using var other = await factory.DemoVisitorAsync();
         var before = await CalendarOf(visitor);
         var theirs = (await CalendarOf(other)).ChangeNumber;
-        var request = Draft(before.Calendars[0].Id, "Book club", EventRepeat.Weekly);
+        var request = Draft(before.Calendars[0].Id, "Revision test book club", EventRepeat.Weekly);
         var response = await visitor.PostAsJsonAsync("/api/calendar/events", request, ApiFactory.Json);
         response.EnsureSuccessStatusCode();
         var added = (await response.Content.ReadFromJsonAsync<EventResponse>(ApiFactory.Json))!;
         Assert.Equal(before.ChangeNumber + 1, (await CalendarOf(visitor)).ChangeNumber);
 
         (await visitor.PutAsJsonAsync($"/api/calendar/events/{added.Id}?series=true",
-            request with { Title = "Book club at the library" }, ApiFactory.Json)).EnsureSuccessStatusCode();
+            request with { Title = request.Title + " at the library" }, ApiFactory.Json)).EnsureSuccessStatusCode();
         Assert.Equal(before.ChangeNumber + 2, (await CalendarOf(visitor)).ChangeNumber);
 
         (await visitor.DeleteAsync($"/api/calendar/events/{added.Id}?series=true")).EnsureSuccessStatusCode();
         var after = await CalendarOf(visitor);
         Assert.Equal(before.ChangeNumber + 3, after.ChangeNumber);
-        Assert.DoesNotContain(after.Events, e => e.Title.StartsWith("Book club"));
+        // Demo seeds also contain a Book club; only the series created by this test is removed.
+        Assert.DoesNotContain(after.Events, e => e.Title.StartsWith(request.Title, StringComparison.Ordinal));
+        Assert.All(before.Events, original => Assert.Contains(after.Events, e => e.Id == original.Id));
         Assert.Equal(theirs, (await CalendarOf(other)).ChangeNumber);
 
         var refused = await visitor.PostAsJsonAsync("/api/calendar/events", request with { Title = " " }, ApiFactory.Json);
