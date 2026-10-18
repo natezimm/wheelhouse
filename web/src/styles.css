@@ -114,3 +114,7 @@ body {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+
+/* Optimistic events remain visible while their confirmed snapshot catches up. */
+.calendar-pending { opacity: 0.65; }

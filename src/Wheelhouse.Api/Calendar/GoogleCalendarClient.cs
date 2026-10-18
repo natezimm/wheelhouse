@@ -111,7 +111,8 @@ public sealed record GoogleEventDraft(
     DateOnly? StartDate,
     DateOnly? EndDate,
     string TimeZone,
-    string? Recurrence = null);
+    string? Recurrence = null,
+    string? Id = null);
 
 /// <summary>Google answered 412: the event changed since the version the screen was editing.</summary>
 public sealed class GoogleEventChangedException(string eventId) : Exception($"Event {eventId} changed in Google first.");
@@ -270,8 +271,20 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
 
     public async Task<GoogleEvent> InsertEventAsync(string accessToken, string calendarId, GoogleEventDraft draft, CancellationToken cancellationToken)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Post, EventsUrl(calendarId)) { Content = JsonContent.Create(Body(draft)) };
-        return await SendForEventAsync(request, accessToken, calendarId, eventId: null, cancellationToken);
+        var body = Body(draft);
+        if (draft.Id is { } id) body["id"] = id;
+        using var request = new HttpRequestMessage(HttpMethod.Post, EventsUrl(calendarId)) { Content = JsonContent.Create(body) };
+        try
+        {
+            return await SendForEventAsync(request, accessToken, calendarId, eventId: null, cancellationToken);
+        }
+        catch (HttpRequestException exception) when (draft.Id is not null && exception.StatusCode == HttpStatusCode.Conflict)
+        {
+            // A response may have been lost after Google stored the first insert. The same id
+            // always addresses that event, even if our cache never received it.
+            return await GetEventAsync(accessToken, calendarId, draft.Id, cancellationToken)
+                ?? throw new HttpRequestException("The original event is no longer available.", exception, HttpStatusCode.Conflict);
+        }
     }
 
     public async Task<GoogleEvent> PatchEventAsync(

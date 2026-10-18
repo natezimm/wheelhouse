@@ -1,8 +1,9 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, tap, timeout } from 'rxjs';
+import { Observable, catchError, defer, of, shareReplay, switchMap, tap, throwError, timeout } from 'rxjs';
 import { Day, addDays, dayIn, timeIn } from './days';
-import { Member, refusalMessage } from './family';
+import { FamilyStore, Member, refusalMessage } from './family';
+import { overlaps, previewEvent, previewOccurrences, previewSeries } from './calendar-preview';
 
 /** One of the family's Google calendars. A null member means it is the whole family's. */
 export interface CalendarSource {
@@ -30,6 +31,11 @@ export interface CalendarEvent {
   endDate: Day | null;
   /** One event of a repeating series. A change to it changes only this event, unless the whole series is asked for. */
   recurring: boolean;
+  /** Opaque, family-scoped correlation shared by the loaded occurrences of a series. */
+  seriesId?: string | null;
+  /** Correlates an optimistic create with snapshots received before its HTTP response. */
+  creationId?: string | null;
+  pending?: boolean;
 }
 
 /** How often a new event repeats. */
@@ -50,6 +56,20 @@ export interface EventRequest {
   endDate: Day;
   endTime: string | null;
   repeat: Repeat;
+}
+
+export interface PendingCalendarChange {
+  id: string;
+  kind: 'add' | 'update' | 'remove';
+  request?: EventRequest;
+  original?: CalendarEvent;
+  originals: CalendarEvent[];
+  series: boolean;
+  source: CalendarSource;
+  zone: string;
+  status: 'saving' | 'uncertain' | 'settling';
+  settleAfter?: number;
+  result?: CalendarEvent;
 }
 
 interface CalendarResponse {
@@ -120,6 +140,22 @@ export function timeRange(event: CalendarEvent, timeZone: string): string {
 @Injectable({ providedIn: 'root' })
 export class CalendarStore {
   private readonly http = inject(HttpClient);
+  private readonly family = inject(FamilyStore);
+  private familyEpoch = 0;
+  private readonly operations = signal<PendingCalendarChange[]>([]);
+  private readonly failure = signal<string | null>(null);
+  readonly pending = this.operations.asReadonly();
+  readonly saveFailure = this.failure.asReadonly();
+
+  dismissFailure(): void { this.failure.set(null); }
+  isUncertain(id: string): boolean { return this.operations().some((op) => op.id === id && op.status === 'uncertain'); }
+  isPending(id: string, wholeSeries = false): boolean {
+    const event = this.current().status === 'ready' ? this.allEvents().find((e) => e.id === id) : undefined;
+    return this.operations().some((op) => op.id === event?.creationId || op.original?.id === id
+      || op.originals.some((e) => e.id === id)
+      || (!!event?.seriesId && event.seriesId === op.original?.seriesId && (op.series || wholeSeries)));
+  }
+
   private readonly current = signal<CalendarState>({ status: 'idle' });
   private readonly hiddenOwners = signal<ReadonlySet<string>>(new Set());
 
@@ -130,13 +166,19 @@ export class CalendarStore {
   private readonly accepted = signal<number | null>(null);
   private readonly fetching = signal(false);
 
-  readonly state = this.current.asReadonly();
+  readonly state = computed<CalendarState>(() => {
+    const state = this.current();
+    return state.status === 'ready' ? { ...state, events: this.project(state) } : state;
+  });
   /** The revision actually represented by the last accepted snapshot, never a notification. */
   readonly changeNumber = this.accepted.asReadonly();
   readonly refreshing = this.fetching.asReadonly();
 
   /** Forget another family's data and invalidate every outstanding response. */
   reset(): void {
+    this.familyEpoch++;
+    this.operations.set([]);
+    this.failure.set(null);
     this.serial++;
     this.active = null;
     this.queued = false;
@@ -165,7 +207,7 @@ export class CalendarStore {
 
   /** Every event in range, filtered or not. */
   readonly allEvents = computed(() => {
-    const state = this.current();
+    const state = this.state();
     return state.status === 'ready' ? state.events : [];
   });
 
@@ -213,64 +255,137 @@ export class CalendarStore {
     this.queued = false;
   }
 
-  // Each change below reaches Google, through the server, first; the store takes the event as
-  // the server returns it, so a refused change never shows on screen.
-
-  /** Adds an event, or a series, which the server answers with its first event. */
-  add(request: EventRequest): Observable<CalendarEvent> {
-    return this.http.post<CalendarEvent>('/api/calendar/events', request).pipe(tap((added) => this.put(added)));
+  /** Each subscription starts one optimistic operation; multiple subscribers share the save. */
+  add(request: EventRequest, operationId: string = crypto.randomUUID()): Observable<CalendarEvent> {
+    return this.mutate('add', undefined, request, false, operationId) as Observable<CalendarEvent>;
   }
 
-  /**
-   * Changes an event, or with <code>series</code> every event of its series, each staying on its
-   * own day. When it changed in Google first, the server answers 409 with Google's version, which
-   * the store shows instead; 404 means it was deleted there.
-   */
-  update(id: string, request: EventRequest, series = false): Observable<CalendarEvent> {
-    return this.http.put<CalendarEvent>(`/api/calendar/events/${id}`, request, { params: seriesParams(series) }).pipe(
-      tap({
-        next: (changed) => this.put(changed),
-        error: (error: { status?: number; error?: unknown }) => this.afterRefusal(id, error),
-      }),
-    );
+  update(id: string, request: EventRequest, series = false, operationId: string = crypto.randomUUID()): Observable<CalendarEvent> {
+    return this.mutate('update', id, request, series, operationId) as Observable<CalendarEvent>;
   }
 
-  remove(id: string, series = false): Observable<void> {
-    return this.http.delete<void>(`/api/calendar/events/${id}`, { params: seriesParams(series) }).pipe(
-      tap({
-        next: () => {
-          this.drop(id);
+  remove(id: string, series = false, operationId: string = crypto.randomUUID()): Observable<void> {
+    return this.mutate('remove', id, undefined, series, operationId) as Observable<void>;
+  }
+
+  /** Check a lost response first; retry the frozen intent, with the same create id if needed. */
+  retry(id: string): Observable<CalendarEvent | void> {
+    const op = this.operations().find((op) => op.id === id);
+    return op ? this.mutate(op.kind, op.original?.id, op.request, op.series, id) : of(undefined);
+  }
+
+  private mutate(kind: PendingCalendarChange['kind'], eventId: string | undefined,
+    request: EventRequest | undefined, series: boolean, operationId: string): Observable<CalendarEvent | void> {
+    return defer(() => {
+      const epoch = this.familyEpoch;
+      const existing = this.operations().find((op) => op.id === operationId);
+      if (existing && (existing.status !== 'uncertain' || existing.kind !== kind)) return throwError(() => new HttpErrorResponse({ status: 409, error: { title: 'This change is still saving.' } }));
+      const original = existing?.original ?? this.allEvents().find((e) => e.id === eventId);
+      const source = existing?.source ?? this.calendars().find((c) => c.id === (request?.calendarId ?? original?.calendarId));
+      if (!source || !source.canWrite || (kind !== 'add' && !original)) {
+        return throwError(() => new HttpErrorResponse({ status: 400, error: { title: 'This event cannot be changed right now.' } }));
+      }
+      if (!existing && eventId && this.isPending(eventId, series)) {
+        return throwError(() => new HttpErrorResponse({ status: 409, error: { title: 'This event is still saving.' } }));
+      }
+      const op: PendingCalendarChange = existing ?? {
+        id: operationId, kind, request, original, series, source,
+        originals: original ? this.allEvents().filter((e) => e.id === original.id || (series && !!original.seriesId && e.seriesId === original.seriesId)) : [],
+        zone: this.family.family()?.timeZone ?? 'UTC', status: 'saving',
+      };
+      op.status = 'saving';
+      this.failure.set(null);
+      this.operations.update((ops) => [...ops.filter((p) => p.id !== op.id), op]);
+      const send = () => kind === 'add'
+        ? this.http.post<CalendarEvent>('/api/calendar/events', { ...op.request, creationId: op.id })
+        : kind === 'update'
+          ? this.http.put<CalendarEvent>(`/api/calendar/events/${op.original!.id}`, op.request, { params: seriesParams(op.series) })
+          : this.http.delete<void>(`/api/calendar/events/${op.original!.id}`, { params: seriesParams(op.series) });
+      const call = existing ? this.reconcile(op).pipe(switchMap((found) => found.resolved ? of(found.event) : send())) : send();
+      return call.pipe(timeout(20_000), tap((result) => {
+        if (epoch !== this.familyEpoch) return;
+        this.invalidateRead();
+        op.status = 'settling';
+        op.settleAfter = this.serial + 1;
+        op.result = result || undefined;
+        this.operations.update((ops) => ops.map((p) => p.id === op.id ? { ...op } : p));
+        if (result) this.current.update((state) => state.status === 'ready'
+          ? { ...state, events: [...state.events.filter((e) => e.id !== result.id && e.id !== op.original?.id), result] } : state);
+        this.refresh();
+      }), catchError((error: unknown) => {
+        if (epoch !== this.familyEpoch) return throwError(() => error);
+        const http = error as HttpErrorResponse;
+        const uncertain = !(error instanceof HttpErrorResponse) || http.status === 0 || http.status >= 500;
+        this.operations.update((ops) => uncertain
+          ? ops.map((p) => p.id === op.id ? { ...p, status: 'uncertain' } : p)
+          : ops.filter((p) => p.id !== op.id));
+        if (!uncertain && http.status === 409 && isEvent(http.error)) {
+          this.invalidateRead();
+          this.current.update((state) => state.status === 'ready'
+            ? { ...state, events: [...state.events.filter((e) => e.id !== eventId), http.error as CalendarEvent] } : state);
           this.refresh();
-        },
-        error: (error: { status?: number; error?: unknown }) => this.afterRefusal(id, error),
+        } else if (!uncertain && http.status === 404) {
+          this.invalidateRead();
+          this.current.update((state) => state.status === 'ready' ? { ...state, events: state.events.filter((e) => e.id !== eventId) } : state);
+          this.refresh();
+        }
+        this.failure.set(uncertain ? 'A save could not be confirmed. Check it before trying again.' : eventRefusal(http).message);
+        return throwError(() => error);
+      }));
+    }).pipe(shareReplay({ bufferSize: 1, refCount: false }));
+  }
+
+  private reconcile(op: PendingCalendarChange): Observable<{ resolved: boolean; event?: CalendarEvent }> {
+    const day = op.request?.startDate ?? op.original!.startDate ?? dayIn(op.zone, op.original!.startsAt!);
+    return this.http.get<CalendarResponse>('/api/calendar', { params: { from: day, to: addDays(day, 1) } }).pipe(
+      timeout(15_000), switchMap((snapshot) => {
+        const matching = snapshot.events.filter((e) => op.kind === 'add' ? e.creationId === op.id
+          : e.id === op.original?.id || (op.series && !!op.original?.seriesId && e.seriesId === op.original.seriesId));
+        if (op.kind === 'remove') {
+          if (!matching.length) return of({ resolved: true });
+          const current = matching.find((e) => e.id === op.original!.id) ?? matching[0];
+          if (!sameContent(current, op.original!)) return throwError(() => new HttpErrorResponse({ status: 409, error: current }));
+          return of({ resolved: false });
+        }
+        const expected = op.series && op.original
+          ? previewSeries(op.request!, op.source, op.original, op.zone)
+          : previewEvent(op.request!, op.source, '', op.zone);
+        const found = matching.find((e) => sameContent(e, expected));
+        if (op.kind === 'update' && !found && matching.length) {
+          const current = matching.find((e) => e.id === op.original!.id) ?? matching[0];
+          if (!sameContent(current, op.original!)) return throwError(() => new HttpErrorResponse({ status: 409, error: current }));
+        }
+        // A known create is never repeated, even if someone changed it after our lost response.
+        return of({ resolved: op.kind === 'add' ? matching.length > 0 : !!found, event: op.kind === 'add' ? matching[0] : found });
       }),
     );
   }
 
-  /** Shows what Google has now when a change was refused because the event changed or went away there. */
-  private afterRefusal(id: string, error: { status?: number; error?: unknown }): void {
-    if (error.status === 409 && isEvent(error.error)) {
-      this.put(error.error);
-    } else if (error.status === 404) {
-      this.drop(id);
-      this.refresh();
+  private project(state: Extract<CalendarState, { status: 'ready' }>): CalendarEvent[] {
+    if (this.operations().length === 0) return state.events;
+    let events = state.events;
+    for (const op of this.operations()) {
+      const matches = (e: CalendarEvent) => e.id === op.original?.id || op.originals.some((old) => old.id === e.id)
+        || (op.series && !!op.original?.seriesId && e.seriesId === op.original.seriesId);
+      if (op.kind === 'remove') { events = events.filter((e) => !matches(e)); continue; }
+      if (op.kind === 'add') {
+        const known = events.filter((e) => e.creationId === op.id || e.id === op.result?.id);
+        const previews = previewOccurrences(op.request!, op.source, op.id, op.zone, state.from, state.to);
+        const dayOf = (e: CalendarEvent) => e.startDate ?? dayIn(op.zone, e.startsAt!);
+        const shown = previews.map((preview) => ({ ...(known.find((e) => dayOf(e) === dayOf(preview)) ?? preview), pending: true }));
+        events = [...events.filter((e) => !known.includes(e)), ...shown,
+          ...known.filter((e) => !previews.some((p) => dayOf(e) === dayOf(p))).map((e) => ({ ...e, pending: true }))];
+      } else {
+        const loaded = events.filter(matches);
+        const originals = loaded.length ? loaded : op.originals;
+        events = [...events.filter((e) => !matches(e)), ...originals.map((e) => op.series
+          ? previewSeries(op.request!, op.source, e, op.zone)
+          : previewEvent(op.request!, op.source, e.id, op.zone, e))];
+      }
     }
-  }
-
-  /** Adds or replaces an event on screen, then reads the days again for the server's order. */
-  private put(event: CalendarEvent): void {
-    this.invalidateRead();
-    this.current.update((state) =>
-      state.status === 'ready' ? { ...state, events: [...state.events.filter((e) => e.id !== event.id), event] } : state,
-    );
-    this.refresh();
-  }
-
-  private drop(id: string): void {
-    this.invalidateRead();
-    this.current.update((state) =>
-      state.status === 'ready' ? { ...state, events: state.events.filter((e) => e.id !== id) } : state,
-    );
+    const zone = this.family.family()?.timeZone ?? 'UTC';
+    return events.filter((e) => overlaps(e, state.from, state.to, zone)).sort((a, b) =>
+      (a.startDate ?? a.startsAt!).localeCompare(b.startDate ?? b.startsAt!) || a.title.localeCompare(b.title));
   }
 
   toggle(owner: string): void {
@@ -294,6 +409,7 @@ export class CalendarStore {
         const revision = response.changeNumber ?? 0;
         if (revision >= (this.accepted() ?? 0)) {
           this.accepted.set(revision);
+          this.operations.update((ops) => ops.filter((op) => op.status !== 'settling' || serial < op.settleAfter!));
           this.current.set({ status: 'ready', from, to, ...response, changeNumber: revision });
         }
         this.finishRead(serial, revision < this.wanted);
@@ -315,6 +431,12 @@ export class CalendarStore {
     this.queued = false;
     if (again) this.refresh();
   }
+}
+
+function sameContent(a: CalendarEvent, b: CalendarEvent): boolean {
+  return a.title === b.title && a.location === b.location && a.calendarId === b.calendarId && a.allDay === b.allDay
+    && (a.allDay ? a.startDate === b.startDate && a.endDate === b.endDate
+      : Date.parse(a.startsAt!) === Date.parse(b.startsAt!) && Date.parse(a.endsAt!) === Date.parse(b.endsAt!));
 }
 
 function seriesParams(series: boolean): Record<string, string> {

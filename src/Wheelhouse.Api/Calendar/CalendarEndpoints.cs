@@ -62,13 +62,12 @@ public static class CalendarEndpoints
             .AsNoTracking()
             .Where(e => (e.StartDate != null && e.StartDate < to && e.EndDate > from)
                 || (e.StartsAt != null && e.StartsAt < toUtc && e.EndsAt > fromUtc))
-            .Join(db.CalendarSources, e => e.CalendarSourceId, source => source.Id, (e, source) => new EventResponse(
-                e.Id, source.Id, source.MemberId, e.Title, e.Location, e.StartDate != null, e.StartsAt, e.EndsAt, e.StartDate, e.EndDate,
-                e.RecurringEventId != null))
+            .Join(db.CalendarSources, e => e.CalendarSourceId, source => source.Id, (e, source) => new { Event = e, Source = source })
             .ToListAsync(cancellationToken);
+        var responses = events.Select(e => EventResponse.From(e.Event, e.Source));
 
         // All-day events first on each day, then by start time.
-        var ordered = events
+        var ordered = responses
             .OrderBy(e => e.AllDay ? StartOfDay(e.StartDate!.Value, zone) : e.StartsAt!.Value)
             .ThenBy(e => e.AllDay ? 0 : 1)
             .ThenBy(e => e.Title, StringComparer.Ordinal)

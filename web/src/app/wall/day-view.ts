@@ -35,7 +35,7 @@ const LAST_HOUR = 21;
                 {{ column.name }}
               </div>
               @for (event of column.allDay; track event.id) {
-                <button type="button" class="all-day" [disabled]="!canEdit(event)" (click)="edit.emit(event.id)">{{ event.title }}</button>
+                <button type="button" class="all-day" [class.calendar-pending]="event.pending" [disabled]="!canEdit(event)" (click)="edit.emit(event.id)">{{ event.title }}</button>
               }
             </div>
           }
@@ -62,6 +62,7 @@ const LAST_HOUR = 21;
                   <button
                     type="button"
                     class="open"
+                    [class.calendar-pending]="event.pending" [attr.aria-busy]="event.pending"
                     [attr.aria-label]="event.title + ', ' + event.when"
                     [disabled]="!event.canEdit"
                     (click)="edit.emit(event.id)"
@@ -291,7 +292,7 @@ export class DayView {
   private readonly writable = computed(() => new Set(this.calendar.calendars().filter((c) => c.canWrite).map((c) => c.id)));
 
   protected canEdit(event: CalendarEvent): boolean {
-    return this.writable().has(event.calendarId);
+    return this.writable().has(event.calendarId) && !this.calendar.isPending(event.id);
   }
 
   private readonly today = computed(() => {
@@ -332,6 +333,7 @@ export class DayView {
         allDay: events.filter((event) => event.allDay && ownerOf(event) === column.owner),
         timed: lanes(mine).map(({ event, start, end, lane, lanes }) => ({
           id: event.id,
+          pending: !!event.pending,
           title: event.title,
           when: timeRange(event, family.timeZone),
           canEdit: this.canEdit(event),
@@ -417,3 +419,4 @@ function hourLabel(hour: number): string {
   const h = hour % 24;
   return `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? 'AM' : 'PM'}`;
 }
+
