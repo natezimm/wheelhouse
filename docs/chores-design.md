@@ -4,7 +4,7 @@ Implementation design for the first chores increment of [the household roadmap](
 
 ## Screens and navigation
 
-- Phone `/chores`: Today/Calendar/Chores bottom navigation; header with a parent-only Add chore button; previous/date/next/Today controls; live connection and resync; overdue work; one card per member plus Household; a collapsed Completed section. Parent editing uses a native modal dialog with title, notes, assignment, due date and an explicit archive confirmation.
+- Phone `/chores`: Today/Calendar/Chores bottom navigation; header with a parent-only Add chore button; previous/date/next/Today controls; live connection and resync; overdue work; cards for members/Household with due work; a collapsed Completed section. Empty member cards are omitted on the phone so active chores appear before empty space. Parent editing uses a native modal dialog with title, notes, assignment, due date and an explicit archive confirmation.
 - Wall `/wall/chores`: a Chores link from the calendar footer and a Calendar return link; the same date controls and chore content in member columns, with 56 px targets. The wall completes/reopens work; definition management stays on the phone.
 - Phone controls are at least 44 px. Use existing design tokens, member colors and derived layout styles. Keyboard users can reach every action; native dialog behavior contains focus and Escape cannot dismiss an actively saving command.
 

@@ -178,7 +178,8 @@ export class ChoresPage {
   protected readonly groups = computed(() => [
     ...this.family.members().map(m => ({ id: m.id as string | null, name: m.displayName, initial: m.initial, color: m.color })),
     { id: null, name: 'Household', initial: 'H', color: '#5B6470' },
-  ].map(group => ({ ...group, items: this.active().filter(c => (c.memberId ?? null) === group.id && c.dueDate === this.selected()) })));
+  ].map(group => ({ ...group, items: this.active().filter(c => (c.memberId ?? null) === group.id && c.dueDate === this.selected()) }))
+    .filter(group => this.wall() || group.items.length > 0));
   protected readonly connectionLabel = computed(() => ({ connecting: 'Connecting', connected: 'Live updates', resyncing: 'Live updates', reconnecting: 'Reconnecting', stopped: 'Connecting' })[this.live.state()]);
   protected readonly editor = signal(false);
   protected readonly original = signal<Chore | null>(null);
