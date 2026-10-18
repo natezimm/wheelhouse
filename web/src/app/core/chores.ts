@@ -3,12 +3,16 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom, timeout } from 'rxjs';
 import { Day } from './days';
 import { refusalMessage } from './family';
+import { ChoreRepeat, repeatOn, sameRepeat } from './chore-repeat';
 
 export interface Chore {
   id: string; creationId: string; title: string; notes: string | null; memberId: string | null;
   dueDate: Day; completedAt: string | null; archived: boolean; version: string;
+  repeat?: ChoreRepeat | null; definitionVersion?: string | null; editDraft?: ChoreDraft | null;
+  visible?: boolean; missed?: boolean; seriesArchived?: boolean; nextChangeDate?: Day | null;
+  occurrenceId?: string | null; stopsOn?: Day | null;
 }
-export type ChoreDraft = Pick<Chore, 'title' | 'notes' | 'memberId' | 'dueDate'>;
+export type ChoreDraft = Pick<Chore, 'title' | 'notes' | 'memberId' | 'dueDate' | 'repeat'>;
 export interface ChoresSnapshot { changeNumber: number; chores: Chore[]; canManage: boolean; }
 export interface ChoreOperation {
   key: string; id: string; kind: 'create' | 'edit' | 'complete' | 'archive';
@@ -27,6 +31,7 @@ export class ChoresStore {
   private readonly failed = signal(false);
   private readonly message = signal('');
   private readonly parent = signal(false);
+  private readonly latestConflict = signal<Chore | null>(null);
   private familyEpoch = 0;
   private writeSequence = 0;
   private reading = false;
@@ -40,16 +45,18 @@ export class ChoresStore {
   readonly error = this.message.asReadonly();
   readonly pending = this.operations.asReadonly();
   readonly canManage = this.parent.asReadonly();
+  readonly conflict = this.latestConflict.asReadonly();
   readonly items = computed(() => {
-    const map = new Map(this.confirmed().map(c => [c.id, c]));
+    const map = new Map(this.confirmed().map(c => [this.identity(c), c]));
     for (const op of this.operations()) {
       // A live snapshot can already contain a create whose POST response is still in flight.
-      for (const [id, chore] of map) if (chore.creationId === op.preview.creationId) map.delete(id);
-      map.set(op.id, op.preview);
+      for (const [id, chore] of map) if (chore.creationId === op.preview.creationId
+        && (!chore.repeat || chore.dueDate === op.preview.dueDate)) map.delete(id);
+      map.set(this.identity(op.preview), op.preview);
     }
     const day = this.currentDay();
-    return [...map.values()].filter(c => !c.archived && day &&
-      (c.dueDate === day || (c.dueDate < day && !c.completedAt)))
+    return [...map.values()].filter(c => !c.archived && c.visible !== false && day &&
+      (c.dueDate === day || (!c.repeat && c.dueDate < day && !c.completedAt)))
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.title.localeCompare(b.title));
   });
 
@@ -92,27 +99,35 @@ export class ChoresStore {
     });
   }
 
-  isPending(id: string): boolean { return this.operations().some(o => o.id === id || o.preview.id === id); }
+  isPending(id: string, day = this.currentDay()): boolean {
+    return this.operations().some(o => (o.id === id || o.preview.id === id)
+      && (o.kind !== 'complete' || !o.preview.repeat || o.preview.dueDate === day));
+  }
 
   create(draft: ChoreDraft): Promise<boolean> {
     const key = crypto.randomUUID();
-    const preview: Chore = { ...draft, id: key, creationId: key, version: '', completedAt: null, archived: false };
-    return this.begin({ key, id: key, kind: 'create', url: '/api/chores', body: { ...draft, creationId: key }, preview, uncertain: false });
+    const day = this.currentDay() ?? draft.dueDate;
+    const preview: Chore = { ...draft, dueDate: draft.repeat ? day : draft.dueDate, id: key,
+      creationId: key, version: '', completedAt: null, archived: false,
+      visible: !draft.repeat || repeatOn(draft.repeat, draft.dueDate, day) };
+    return this.begin({ key, id: key, kind: 'create', url: '/api/chores' + (draft.repeat ? `?date=${day}` : ''), body: { ...draft, creationId: key }, preview, uncertain: false });
   }
 
   edit(chore: Chore, draft: ChoreDraft): Promise<boolean> {
-    return this.begin({ key: crypto.randomUUID(), id: chore.id, kind: 'edit', url: `/api/chores/${chore.id}`,
-      body: { ...draft, version: chore.version }, preview: { ...chore, ...draft }, uncertain: false });
+    return this.begin({ key: crypto.randomUUID(), id: chore.id, kind: 'edit', url: `/api/chores/${chore.id}` + this.dateQuery(chore),
+      body: { ...draft, version: chore.definitionVersion ?? chore.version },
+      preview: chore.repeat ? { ...chore, editDraft: draft } : { ...chore, ...draft }, uncertain: false });
   }
 
   complete(chore: Chore, completed: boolean): Promise<boolean> {
-    return this.begin({ key: crypto.randomUUID(), id: chore.id, kind: 'complete', url: `/api/chores/${chore.id}/completion`,
+    return this.begin({ key: crypto.randomUUID(), id: chore.id, kind: 'complete', url: `/api/chores/${chore.id}/completion` + this.dateQuery(chore),
       body: { version: chore.version, completed }, preview: { ...chore, completedAt: completed ? new Date().toISOString() : null }, uncertain: false });
   }
 
   archive(chore: Chore): Promise<boolean> {
-    return this.begin({ key: crypto.randomUUID(), id: chore.id, kind: 'archive', url: `/api/chores/${chore.id}/archive`,
-      body: { version: chore.version }, preview: { ...chore, archived: true }, uncertain: false });
+    return this.begin({ key: crypto.randomUUID(), id: chore.id, kind: 'archive', url: `/api/chores/${chore.id}/archive` + this.dateQuery(chore),
+      body: { version: chore.definitionVersion ?? chore.version },
+      preview: chore.repeat ? { ...chore, seriesArchived: true } : { ...chore, archived: true }, uncertain: false });
   }
 
   /** Read first; retry the frozen command with its original creation ID or expected version. */
@@ -123,7 +138,8 @@ export class ChoresStore {
     this.replace({ ...op, uncertain: false });
     try {
       const found = await firstValueFrom(this.http.get<Chore>(op.kind === 'create'
-        ? `/api/chores/creation/${op.preview.creationId}` : `/api/chores/${op.id}`).pipe(timeout(15_000)));
+        ? `/api/chores/creation/${op.preview.creationId}` + this.dateQuery(op.preview)
+        : `/api/chores/${op.id}` + this.dateQuery(op.preview)).pipe(timeout(15_000)));
       if (epoch !== this.familyEpoch) return false;
       if (this.matches(op, found)) { this.accept(op, found); return true; }
     } catch (error) {
@@ -142,12 +158,15 @@ export class ChoresStore {
     this.confirmed.set([]); this.operations.set([]); this.currentDay.set(null);
     this.loaded.set(false); this.busy.set(false); this.failed.set(false); this.message.set('');
     this.parent.set(false);
+    this.latestConflict.set(null);
     this.reading = false; this.queued = false; this.revision = -1; this.wanted = -1; this.writeSequence = 0;
   }
 
   private begin(op: ChoreOperation): Promise<boolean> {
-    if (this.isPending(op.id)) return Promise.resolve(false);
+    if (this.isPending(op.id, op.preview.dueDate)
+      || op.kind !== 'complete' && this.operations().some(o => o.id === op.id)) return Promise.resolve(false);
     this.message.set('');
+    this.latestConflict.set(null);
     this.operations.update(ops => [...ops, op]);
     return this.send(op, this.familyEpoch);
   }
@@ -166,6 +185,7 @@ export class ChoresStore {
         this.replace({ ...op, uncertain: true });
         this.message.set('The save could not be confirmed. Check save before trying again.');
       } else {
+        if (error.status === 409 && typeof error.error?.id === 'string') this.latestConflict.set(error.error);
         this.operations.update(ops => ops.filter(o => o.key !== op.key));
         this.message.set(error.status === 409 ? 'This chore changed on another device. Review its latest state before saving again.'
           : refusalMessage(error, 'This change was not saved. Your draft is still available.'));
@@ -177,7 +197,8 @@ export class ChoresStore {
 
   private accept(op: ChoreOperation, chore: Chore): void {
     this.writeSequence++;
-    this.confirmed.update(items => [...items.filter(c => c.id !== op.id && c.creationId !== chore.creationId), chore]);
+    this.confirmed.update(items => [...items.filter(c => this.identity(c) !== this.identity(op.preview)
+      && !(c.creationId === chore.creationId && (!c.repeat || c.dueDate === chore.dueDate))), chore]);
     this.operations.update(ops => ops.filter(o => o.key !== op.key));
     this.message.set('');
     this.refresh();
@@ -185,12 +206,17 @@ export class ChoresStore {
 
   private matches(op: ChoreOperation, c: Chore): boolean {
     if (op.kind === 'create') return c.creationId === op.preview.creationId;
-    if (op.kind === 'archive') return c.archived;
+    if (op.kind === 'archive') return c.archived || !!c.seriesArchived;
     if (c.archived) return false;
     if (op.kind === 'complete') return !!c.completedAt === !!op.body['completed'];
-    return c.title === String(op.body['title']).trim() && (c.notes ?? '') === String(op.body['notes'] ?? '').trim()
-      && c.memberId === op.body['memberId'] && c.dueDate === op.body['dueDate'];
+    const draft = c.editDraft ?? c;
+    return draft.title === String(op.body['title']).trim() && (draft.notes ?? '') === String(op.body['notes'] ?? '').trim()
+      && draft.memberId === op.body['memberId'] && draft.dueDate === op.body['dueDate']
+      && sameRepeat(draft.repeat, op.body['repeat'] as ChoreRepeat | null | undefined);
   }
+
+  private identity(chore: Chore): string { return chore.repeat ? `${chore.id}:${chore.dueDate}` : chore.id; }
+  private dateQuery(chore: Chore): string { return chore.repeat ? `?date=${chore.dueDate}` : ''; }
 
   private replace(op: ChoreOperation): void { this.operations.update(ops => ops.map(o => o.key === op.key ? op : o)); }
   private finishRead(): void {
