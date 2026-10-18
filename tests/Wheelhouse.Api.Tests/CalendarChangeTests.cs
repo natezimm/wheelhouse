@@ -60,7 +60,8 @@ public sealed class CalendarChangeTests(ApiFactory factory)
         using var other = await factory.DemoVisitorAsync();
         var before = await CalendarOf(visitor);
         var theirs = (await CalendarOf(other)).ChangeNumber;
-        var request = Draft(before.Calendars[0].Id, "Revision test book club", EventRepeat.Weekly);
+        const string seriesTitle = "Revision test book club";
+        var request = Draft(before.Calendars[0].Id, seriesTitle, EventRepeat.Weekly);
         var response = await visitor.PostAsJsonAsync("/api/calendar/events", request, ApiFactory.Json);
         response.EnsureSuccessStatusCode();
         var added = (await response.Content.ReadFromJsonAsync<EventResponse>(ApiFactory.Json))!;
@@ -74,7 +75,7 @@ public sealed class CalendarChangeTests(ApiFactory factory)
         var after = await CalendarOf(visitor);
         Assert.Equal(before.ChangeNumber + 3, after.ChangeNumber);
         // Demo seeds also contain a Book club; only the series created by this test is removed.
-        Assert.DoesNotContain(after.Events, e => e.Title.StartsWith(request.Title, StringComparison.Ordinal));
+        Assert.DoesNotContain(after.Events, e => e.Title.StartsWith(seriesTitle, StringComparison.Ordinal));
         Assert.All(before.Events, original => Assert.Contains(after.Events, e => e.Id == original.Id));
         Assert.Equal(theirs, (await CalendarOf(other)).ChangeNumber);
 
