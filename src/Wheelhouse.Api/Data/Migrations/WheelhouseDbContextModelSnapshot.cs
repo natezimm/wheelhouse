@@ -199,6 +199,59 @@ namespace Wheelhouse.Api.Data.Migrations
                     b.ToTable("GoogleConnections");
                 });
 
+            modelBuilder.Entity("Wheelhouse.Api.Chores.Chore", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Archived")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CreationRequest")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("FamilyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("MemberId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MemberId");
+
+                    b.HasIndex("FamilyId", "CreationId")
+                        .IsUnique();
+
+                    b.HasIndex("FamilyId", "DueDate");
+
+                    b.ToTable("Chores");
+                });
+
             modelBuilder.Entity("Wheelhouse.Api.Devices.Device", b =>
                 {
                     b.Property<Guid>("Id")
@@ -260,6 +313,11 @@ namespace Wheelhouse.Api.Data.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<long>("CalendarChangeNumber")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
+
+                    b.Property<long>("ChoresChangeNumber")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bigint")
                         .HasDefaultValue(0L);
@@ -392,6 +450,20 @@ namespace Wheelhouse.Api.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Wheelhouse.Api.Chores.Chore", b =>
+                {
+                    b.HasOne("Wheelhouse.Api.Families.Family", null)
+                        .WithMany("Chores")
+                        .HasForeignKey("FamilyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Wheelhouse.Api.Families.Member", null)
+                        .WithMany()
+                        .HasForeignKey("MemberId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
             modelBuilder.Entity("Wheelhouse.Api.Devices.Device", b =>
                 {
                     b.HasOne("Wheelhouse.Api.Families.Family", null)
@@ -426,6 +498,8 @@ namespace Wheelhouse.Api.Data.Migrations
             modelBuilder.Entity("Wheelhouse.Api.Families.Family", b =>
                 {
                     b.Navigation("Calendars");
+
+                    b.Navigation("Chores");
 
                     b.Navigation("Devices");
 

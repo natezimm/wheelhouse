@@ -5,6 +5,8 @@ import { Routes } from '@angular/router';
 export const routes: Routes = [
   { path: '', loadComponent: () => import('./phone/phone-shell').then((m) => m.PhoneShell) },
   { path: 'calendar', loadComponent: () => import('./phone/calendar').then((m) => m.PhoneCalendar) },
+  { path: 'chores', loadComponent: () => import('./shared/chores-page').then((m) => m.ChoresPage) },
+  { path: 'wall/chores', data: { wall: true }, loadComponent: () => import('./shared/chores-page').then((m) => m.ChoresPage) },
   { path: 'settings', loadComponent: () => import('./phone/settings').then((m) => m.Settings) },
   {
     path: 'settings/members/new',
@@ -26,3 +28,4 @@ export const routes: Routes = [
   { path: 'wall', loadComponent: () => import('./wall/wall-shell').then((m) => m.WallShell) },
   { path: '**', redirectTo: '' },
 ];
+

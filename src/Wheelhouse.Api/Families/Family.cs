@@ -1,4 +1,5 @@
 using Wheelhouse.Api.Calendar;
+using Wheelhouse.Api.Chores;
 using Wheelhouse.Api.Devices;
 
 namespace Wheelhouse.Api.Families;
@@ -17,6 +18,10 @@ public sealed class Family
     /// atomically with calendar changes; clients compare it with their last complete snapshot.
     /// </summary>
     public long CalendarChangeNumber { get; private set; }
+
+    public long ChoresChangeNumber { get; private set; }
+
+    public List<Chore> Chores { get; } = [];
 
     public DayOfWeek WeekStartsOn { get; set; } = DayOfWeek.Monday;
 
@@ -52,3 +57,4 @@ public enum Units
     Imperial,
     Metric,
 }
+

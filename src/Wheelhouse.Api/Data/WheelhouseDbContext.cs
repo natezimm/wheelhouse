@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Wheelhouse.Api.Auth;
 using Wheelhouse.Api.Calendar;
+using Wheelhouse.Api.Chores;
 using Wheelhouse.Api.Devices;
 using Wheelhouse.Api.Families;
 
@@ -27,6 +28,8 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
 
     public DbSet<GoogleConnection> GoogleConnections => Set<GoogleConnection>();
 
+    public DbSet<Chore> Chores => Set<Chore>();
+
     /// <summary>
     /// The family the query filters scope to. Null outside a signed-in request, and then
     /// filtered queries return nothing: code with no request, such as the demo seeder, has to
@@ -44,6 +47,9 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
             // Saving a tracked Family with an older value must never put the counter back.
             family.Property(f => f.CalendarChangeNumber).HasDefaultValue(0L)
                 .Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
+            family.Property(f => f.ChoresChangeNumber).HasDefaultValue(0L)
+                .Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
+            family.HasMany(f => f.Chores).WithOne().HasForeignKey(c => c.FamilyId).OnDelete(DeleteBehavior.Cascade);
             family.Property(f => f.WeekStartsOn).HasConversion<string>().HasMaxLength(16);
             family.Property(f => f.Units).HasConversion<string>().HasMaxLength(16);
             family.HasMany(f => f.Members).WithOne().HasForeignKey(m => m.FamilyId).OnDelete(DeleteBehavior.Cascade);
@@ -118,6 +124,16 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
             instance.HasIndex(e => new { e.FamilyId, e.StartDate });
         });
 
+        modelBuilder.Entity<Chore>(chore =>
+        {
+            chore.Property(c => c.Title).HasMaxLength(200);
+            chore.Property(c => c.Notes).HasMaxLength(2000);
+            chore.Property(c => c.Version).IsConcurrencyToken();
+            chore.HasIndex(c => new { c.FamilyId, c.CreationId }).IsUnique();
+            chore.HasIndex(c => new { c.FamilyId, c.DueDate });
+            chore.HasOne<Member>().WithMany().HasForeignKey(c => c.MemberId).OnDelete(DeleteBehavior.SetNull);
+        });
+
         // Every family-owned table gets the filter here, so a new one cannot be left unscoped.
         foreach (var entityType in modelBuilder.Model.GetEntityTypes().ToList())
         {
@@ -135,3 +151,4 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
         where TEntity : class, IFamilyOwned =>
         modelBuilder.Entity<TEntity>().HasQueryFilter(row => row.FamilyId == CurrentFamilyId);
 }
+

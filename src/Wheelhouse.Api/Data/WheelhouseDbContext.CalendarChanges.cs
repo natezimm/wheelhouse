@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Wheelhouse.Api.Calendar;
+using Wheelhouse.Api.Chores;
 using Wheelhouse.Api.Families;
 
 namespace Wheelhouse.Api.Data;
@@ -13,7 +14,8 @@ public sealed partial class WheelhouseDbContext
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         var families = CalendarChanges();
-        if (families.Count == 0)
+        var chores = ChoreChanges();
+        if (families.Count == 0 && chores.Count == 0)
         {
             return base.SaveChanges(acceptAllChangesOnSuccess);
         }
@@ -29,6 +31,12 @@ public sealed partial class WheelhouseDbContext
             {
                 Families.IgnoreQueryFilters().Where(f => f.Id == familyId)
                     .ExecuteUpdate(set => set.SetProperty(f => f.CalendarChangeNumber, f => f.CalendarChangeNumber + 1));
+            }
+
+            foreach (var familyId in chores)
+            {
+                Families.IgnoreQueryFilters().Where(f => f.Id == familyId)
+                    .ExecuteUpdate(set => set.SetProperty(f => f.ChoresChangeNumber, f => f.ChoresChangeNumber + 1));
             }
 
             transaction?.Commit();
@@ -50,7 +58,8 @@ public sealed partial class WheelhouseDbContext
     public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
         var families = CalendarChanges();
-        if (families.Count == 0)
+        var chores = ChoreChanges();
+        if (families.Count == 0 && chores.Count == 0)
         {
             return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
         }
@@ -73,6 +82,12 @@ public sealed partial class WheelhouseDbContext
                 // Background sync has no current family, so opt out and name the family explicitly.
                 await Families.IgnoreQueryFilters().Where(f => f.Id == familyId)
                     .ExecuteUpdateAsync(set => set.SetProperty(f => f.CalendarChangeNumber, f => f.CalendarChangeNumber + 1), cancellationToken);
+            }
+
+            foreach (var familyId in chores)
+            {
+                await Families.IgnoreQueryFilters().Where(f => f.Id == familyId)
+                    .ExecuteUpdateAsync(set => set.SetProperty(f => f.ChoresChangeNumber, f => f.ChoresChangeNumber + 1), cancellationToken);
             }
 
             if (transaction is not null)
@@ -117,6 +132,21 @@ public sealed partial class WheelhouseDbContext
             .Distinct().Order().ToList();
     }
 
+    private List<Guid> ChoreChanges()
+    {
+        var deleting = ChangeTracker.Entries<Family>().Where(e => e.State == EntityState.Deleted)
+            .Select(e => e.Entity.Id).ToHashSet();
+        return ChangeTracker.Entries().Where(entry => entry.Entity switch
+        {
+            Chore => AddedOrDeleted(entry) || Changed(entry, nameof(Chore.Title), nameof(Chore.Notes),
+                nameof(Chore.MemberId), nameof(Chore.DueDate), nameof(Chore.CompletedAt), nameof(Chore.Archived)),
+            Member => AddedOrDeleted(entry) || Changed(entry, nameof(Member.DisplayName), nameof(Member.Color)),
+            Family => Changed(entry, nameof(Family.TimeZone)),
+            _ => false,
+        }).Select(e => e.Entity is Family f ? f.Id : ((IFamilyOwned)e.Entity).FamilyId)
+            .Where(id => !deleting.Contains(id)).Distinct().Order().ToList();
+    }
+
     private static bool ChangesCalendar(EntityEntry entry) => entry.Entity switch
     {
         EventInstance => AddedOrDeleted(entry) || Changed(entry,
@@ -142,3 +172,4 @@ public sealed partial class WheelhouseDbContext
             return property.IsModified && !Equals(property.OriginalValue, property.CurrentValue);
         });
 }
+

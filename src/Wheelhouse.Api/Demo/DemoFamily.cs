@@ -42,6 +42,7 @@ public static class DemoFamily
         });
 
         DemoCalendar.AddTo(family, created);
+        DemoChores.AddTo(family, created);
 
         return family;
     }
@@ -57,3 +58,4 @@ public static class DemoFamily
         SortOrder = sortOrder,
     };
 }
+
