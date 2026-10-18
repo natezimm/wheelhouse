@@ -123,7 +123,8 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         // The sync tests run each sync themselves rather than wait on the worker.
         .UseSetting("CalendarSync:Enabled", false)
         // Live-update tests publish explicitly, except the test of the worker itself.
-        .UseSetting("CalendarLive:Enabled", false);
+        .UseSetting("CalendarLive:Enabled", false)
+        .UseSetting("HouseholdLive:Enabled", false);
 
     private sealed record FixedFamily(Guid? Id) : ICurrentFamily;
 }
@@ -145,3 +146,4 @@ public sealed class ApiCollection : ICollectionFixture<ApiFactory>
 {
     public const string Name = "api";
 }
+

@@ -1,6 +1,7 @@
 import { CalendarSaveStatus } from '../shared/calendar-save-status';
 import { CalendarConnection } from '../shared/calendar-connection';
 import { CalendarLive } from '../core/calendar-live';
+import { RouterLink } from '@angular/router';
 import { DatePipe } from '@angular/common';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { CalendarEvent, CalendarStore } from '../core/calendar';
@@ -32,7 +33,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
  */
 @Component({
   selector: 'app-wall-shell',
-  imports: [CalendarConnection, CalendarSaveStatus, CalendarFilter, DatePipe, DayView, DemoNotice, EventDialog, MonthView, PairingScreen, StatusLine, WallWeather, WeekView],
+  imports: [RouterLink, CalendarConnection, CalendarSaveStatus, CalendarFilter, DatePipe, DayView, DemoNotice, EventDialog, MonthView, PairingScreen, StatusLine, WallWeather, WeekView],
   template: `
     @if (showPairing()) {
       <app-pairing-screen [cancellable]="pairingChosen()" (paired)="paired()" (cancelled)="pairingChosen.set(false)" />
@@ -67,6 +68,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
           <app-calendar-save-status />
         </div>
         <div class="demo">
+          <a class="pair chores-link" routerLink="/wall/chores">Chores</a>
           @if (session.isDemo()) {
             <!-- On the demo the wall starts with a copy of its own; pairing joins the phone's copy. -->
             <button class="pair" type="button" (click)="pairingChosen.set(true)">Pair with a phone</button>
@@ -172,6 +174,8 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
       font: 700 18px var(--font-body);
       cursor: pointer;
     }
+
+    .chores-link { display: inline-flex; align-items: center; text-decoration: none; box-sizing: border-box; }
   `,
 })
 export class WallShell {

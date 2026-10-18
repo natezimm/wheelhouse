@@ -15,6 +15,10 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"></rect><path d="M3.5 10h17M8 3v4M16 3v4"></path></svg>
         Calendar
       </a>
+      <a routerLink="/chores" routerLinkActive="current" ariaCurrentWhenActive="page">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"></rect><path d="m7 10 2 2 5-5M7 16h10"></path></svg>
+        Chores
+      </a>
     </nav>
   `,
   styles: `
@@ -55,3 +59,4 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
   `,
 })
 export class PhoneNav {}
+

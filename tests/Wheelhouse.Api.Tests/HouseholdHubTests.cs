@@ -1,0 +1,158 @@
+using System.Net;
+using System.Net.Http.Json;
+using System.Security.Claims;
+using System.Threading.Channels;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Http.Connections;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Wheelhouse.Api.Auth;
+using Wheelhouse.Api.Chores;
+using Wheelhouse.Api.Devices;
+using Wheelhouse.Api.Families;
+using Wheelhouse.Api.Household;
+using Wheelhouse.Api.Instance;
+
+namespace Wheelhouse.Api.Tests;
+
+[Collection(ApiCollection.Name)]
+public sealed class HouseholdHubTests(ApiFactory factory)
+{
+    private static string Cookie(WebApplicationFactory<Program> host, ClaimsPrincipal user)
+    {
+        var options = host.Services.GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
+            .Get(CookieAuthenticationDefaults.AuthenticationScheme);
+        var ticket = new AuthenticationTicket(user, new AuthenticationProperties
+            { ExpiresUtc = DateTimeOffset.UtcNow.AddMinutes(10) }, CookieAuthenticationDefaults.AuthenticationScheme);
+        return $"wheelhouse={options.TicketDataFormat.Protect(ticket)}";
+    }
+    private static async Task<FamilyResponse> FamilyOf(HttpClient client) =>
+        (await client.GetFromJsonAsync<FamilyResponse>("/api/family", ApiFactory.Json))!;
+    private static Task Publish(WebApplicationFactory<Program> host) => host.Services.GetRequiredService<HouseholdConnections>().PublishAsync();
+    private static async Task Add(HttpClient client) => (await client.PostAsJsonAsync("/api/chores",
+        new CreateChore(Guid.NewGuid(), "Live chore", null, null, new DateOnly(2026, 11, 1)))).EnsureSuccessStatusCode();
+
+    [Fact]
+    public async Task A_phone_and_wall_receive_only_committed_chores_for_their_own_family()
+    {
+        using var parent = await factory.DemoVisitorAsync();
+        using var other = await factory.DemoVisitorAsync();
+        var family = await FamilyOf(parent);
+        var otherFamily = await FamilyOf(other);
+        await using var phone = await Observer.Connect(factory.Demo, Cookie(factory.Demo, WheelhousePrincipal.Parent(family.Id)), $"?familyId={otherFamily.Id}");
+        var device = (await parent.GetFromJsonAsync<DeviceResponse[]>("/api/devices"))!.First();
+        await using var wall = await Observer.Connect(factory.Demo, Cookie(factory.Demo, WheelhousePrincipal.Device(family.Id, device.Id)));
+        await using var outsider = await Observer.Connect(factory.Demo, Cookie(factory.Demo, WheelhousePrincipal.Parent(otherFamily.Id)));
+        var before = await phone.Next();
+        Assert.Equal("chores", before.Domain);
+        await wall.Next(); await outsider.Next();
+        await Assert.ThrowsAsync<HubException>(() => phone.Connection.InvokeAsync("JoinFamily", otherFamily.Id));
+        await Add(parent); await Publish(factory.Demo);
+        Assert.Equal(before.ChangeNumber + 1, (await phone.Next()).ChangeNumber);
+        Assert.Equal(before.ChangeNumber + 1, (await wall.Next()).ChangeNumber);
+        await outsider.Quiet();
+        await using var db = factory.DbContextFor(family.Id);
+        await using (var tx = await db.Database.BeginTransactionAsync())
+        {
+            var chore = await db.Chores.FirstAsync(); chore.Title = "Uncommitted";
+            await db.SaveChangesAsync(); await Publish(factory.Demo); await phone.Quiet();
+            await tx.RollbackAsync();
+        }
+        await Publish(factory.Demo); await phone.Quiet();
+    }
+
+    [Fact]
+    public async Task Household_negotiation_requires_authentication_and_a_same_site_browser_origin()
+    {
+        using var stranger = factory.Demo.CreateClient();
+        Assert.Equal(HttpStatusCode.Unauthorized, (await stranger.PostAsync("/hubs/household/negotiate?negotiateVersion=1", null)).StatusCode);
+        using var parent = await factory.DemoVisitorAsync();
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/hubs/household/negotiate?negotiateVersion=1");
+        request.Headers.Add("Origin", "https://unrelated.example");
+        Assert.Equal(HttpStatusCode.Forbidden, (await parent.SendAsync(request)).StatusCode);
+        using var same = new HttpRequestMessage(HttpMethod.Post, "/hubs/household/negotiate?negotiateVersion=1");
+        same.Headers.Add("Origin", "http://localhost");
+        Assert.Equal(HttpStatusCode.OK, (await parent.SendAsync(same)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Removing_a_wall_closes_its_household_socket_immediately()
+    {
+        using var parent = await factory.DemoVisitorAsync();
+        var family = await FamilyOf(parent);
+        var device = (await parent.GetFromJsonAsync<DeviceResponse[]>("/api/devices"))!.First();
+        await using var wall = await Observer.Connect(factory.Demo, Cookie(factory.Demo, WheelhousePrincipal.Device(family.Id, device.Id)));
+        await wall.Next();
+        (await parent.DeleteAsync($"/api/devices/{device.Id}")).EnsureSuccessStatusCode();
+        await wall.Closed.WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
+    [Fact]
+    public async Task Expired_demo_subscriptions_are_closed_before_cleanup()
+    {
+        using var parent = await factory.DemoVisitorAsync();
+        var family = await FamilyOf(parent);
+        await using var phone = await Observer.Connect(factory.Demo, Cookie(factory.Demo, WheelhousePrincipal.Parent(family.Id)));
+        await phone.Next();
+        await using var db = factory.DbContextFor(family.Id);
+        await db.Families.ExecuteUpdateAsync(set => set.SetProperty(f => f.ExpiresAt, DateTimeOffset.UtcNow.AddMinutes(-1)));
+        await Publish(factory.Demo);
+        await phone.Closed.WaitAsync(TimeSpan.FromSeconds(10));
+    }
+
+    [Fact]
+    public async Task Background_publishing_reaches_an_open_socket_without_an_explicit_send()
+    {
+        await using var host = factory.InMode(InstanceMode.Demo).WithWebHostBuilder(b => b.UseSetting("HouseholdLive:Enabled", true));
+        using var parent = host.CreateClient();
+        (await parent.PostAsync("/api/demo/visit", null)).EnsureSuccessStatusCode();
+        var family = await FamilyOf(parent);
+        await using var phone = await Observer.Connect(host, Cookie(host, WheelhousePrincipal.Parent(family.Id)));
+        var before = (await phone.Next()).ChangeNumber;
+        await Add(parent);
+        Assert.Equal(before + 1, (await phone.Next()).ChangeNumber);
+    }
+    private sealed class Observer : IAsyncDisposable
+    {
+        private readonly Channel<HouseholdChanged> _changes = Channel.CreateUnbounded<HouseholdChanged>();
+        private readonly TaskCompletionSource _closed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public required HubConnection Connection { get; init; }
+        public Task Closed => _closed.Task;
+
+        public static async Task<Observer> Connect(WebApplicationFactory<Program> host, string cookie, string query = "")
+        {
+            var connection = new HubConnectionBuilder().WithUrl($"http://localhost/hubs/household{query}", options =>
+            {
+                options.Transports = HttpTransportType.WebSockets;
+                options.SkipNegotiation = true;
+                options.WebSocketFactory = async (context, cancellationToken) =>
+                {
+                    var socket = host.Server.CreateWebSocketClient();
+                    socket.ConfigureRequest = request => request.Headers.Cookie = cookie;
+                    return await socket.ConnectAsync(context.Uri, cancellationToken);
+                };
+            }).Build();
+            var observer = new Observer { Connection = connection };
+            connection.On<HouseholdChanged>("HouseholdChanged", change => observer._changes.Writer.TryWrite(change));
+            connection.Closed += _ => { observer._closed.TrySetResult(); return Task.CompletedTask; };
+            await connection.StartAsync();
+            return observer;
+        }
+
+        public Task<HouseholdChanged> Next() => _changes.Reader.ReadAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10));
+
+        public async Task Quiet()
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(200));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _changes.Reader.ReadAsync(timeout.Token).AsTask());
+        }
+
+        public ValueTask DisposeAsync() => Connection.DisposeAsync();
+    }
+}
+

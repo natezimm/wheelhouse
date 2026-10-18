@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Wheelhouse.Api.Auth;
 using Wheelhouse.Api.Calendar;
+using Wheelhouse.Api.Chores;
+using Wheelhouse.Api.Household;
 using Wheelhouse.Api.Data;
 using Wheelhouse.Api.Demo;
 using Wheelhouse.Api.Devices;
@@ -41,6 +43,7 @@ builder.Services.AddPairing();
 builder.Services.AddWeather();
 builder.Services.AddGoogleCalendar();
 builder.Services.AddCalendarLive();
+builder.Services.AddHouseholdLive();
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<DemoCopies>();
@@ -56,6 +59,7 @@ await app.PrepareDatabaseAsync();
 
 app.UseForwardedHeaders();
 app.UseCalendarHubOrigin();
+app.UseHouseholdHubOrigin();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
@@ -68,6 +72,8 @@ app.MapFamily();
 app.MapDevices();
 app.MapCalendar();
 app.MapCalendarLive();
+app.MapHouseholdLive();
+app.MapChores();
 app.MapCalendarEvents();
 app.MapGoogleConnection();
 app.MapWeather();
@@ -76,3 +82,4 @@ app.Run();
 
 // Lets the integration tests host the API with WebApplicationFactory<Program>.
 public partial class Program;
+
