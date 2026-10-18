@@ -55,6 +55,9 @@ export class CalendarLive {
     return state === 'connected' && this.calendar.refreshing() ? 'resyncing' : state;
   });
 
+  readonly available = computed(() => this.state() !== 'stopped');
+  readonly recovering = this.calendar.refreshing;
+
   constructor() {
     effect(() => {
       const family = this.family.family();
@@ -80,14 +83,20 @@ export class CalendarLive {
     this.enabled.set(true);
   }
 
-  /** Recovery uses the current date range and leaves view, filters and open drafts alone. */
+  /** Explicit recovery also replaces a dropped subscription, without resetting the calendar. */
   resync(): void {
+    if (!this.familyId) return;
+    this.refreshSnapshot();
+    if (this.connectionState() !== 'connected') this.useFamily(this.familyId, true);
+  }
+
+  private refreshSnapshot(): void {
     if (!this.familyId) return;
     this.calendar.refresh();
   }
 
-  private useFamily(id: string | null): void {
-    if (id === this.familyId) return;
+  private useFamily(id: string | null, restart = false): void {
+    if (id === this.familyId && !restart) return;
     const previous = this.familyId;
     this.familyId = id;
     const generation = ++this.generation;
@@ -96,7 +105,7 @@ export class CalendarLive {
     const old = this.connection;
     this.connection = undefined;
     if (old) void old.stop().catch(() => {});
-    if (previous) this.calendar.reset();
+    if (previous && previous !== id) this.calendar.reset();
     if (!id) {
       this.connectionState.set('stopped');
       return;
@@ -115,7 +124,7 @@ export class CalendarLive {
     connection.onreconnected(() => {
       if (!current()) return;
       this.connectionState.set('connected');
-      this.resync();
+      this.refreshSnapshot();
     });
     connection.onclose(() => {
       if (!current()) return;
@@ -133,7 +142,7 @@ export class CalendarLive {
           return;
         }
         this.connectionState.set('connected');
-        this.resync();
+        this.refreshSnapshot();
       } catch {
         if (!current()) return;
         this.connectionState.set('reconnecting');
@@ -141,9 +150,9 @@ export class CalendarLive {
         this.later(generation, () => void connect());
       }
     };
-    this.connectionState.set('connecting');
+    this.connectionState.set(restart ? 'reconnecting' : 'connecting');
     this.check = setInterval(() => {
-      this.resync();
+      this.refreshSnapshot();
       // An offline revocation check may have failed; retry it even while SignalR keeps reconnecting.
       if (this.connectionState() === 'reconnecting') this.family.refresh();
     }, CALENDAR_EVERY_MS);
@@ -155,3 +164,4 @@ export class CalendarLive {
     this.retry = setTimeout(() => generation === this.generation && action(), LIVE_RETRY_MS);
   }
 }
+

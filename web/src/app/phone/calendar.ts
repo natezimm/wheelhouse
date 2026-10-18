@@ -1,4 +1,5 @@
 import { CalendarSaveStatus } from '../shared/calendar-save-status';
+import { CalendarConnection } from '../shared/calendar-connection';
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { CalendarEvent, CalendarStore, FAMILY, FAMILY_COLOR, colorOf, daysOf, ownerOf, whenOn } from '../core/calendar';
 import { Clock } from '../core/clock';
@@ -12,7 +13,7 @@ import { SignIn } from './sign-in';
 /** The phone's month: a dot for each person busy on a day, and the chosen day's events below. */
 @Component({
   selector: 'app-phone-calendar',
-  imports: [CalendarSaveStatus, CalendarFilter, EventSheet, PhoneNav, SignIn],
+  imports: [CalendarConnection, CalendarSaveStatus, CalendarFilter, EventSheet, PhoneNav, SignIn],
   template: `
     @if (family.state().status === 'private') {
       <app-sign-in />
@@ -29,6 +30,7 @@ import { SignIn } from './sign-in';
         </div>
       </header>
 
+      <app-calendar-connection />
       <app-calendar-filter class="compact" />
 
       <section class="month" [attr.aria-label]="month.title">
@@ -463,4 +465,5 @@ export class PhoneCalendar {
     }
   }
 }
+
 
