@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, tap } from 'rxjs';
+import { Observable, tap, timeout } from 'rxjs';
 import { Day, addDays, dayIn, timeIn } from './days';
 import { Member, refusalMessage } from './family';
 
@@ -53,6 +53,7 @@ export interface EventRequest {
 }
 
 interface CalendarResponse {
+  changeNumber: number;
   calendars: CalendarSource[];
   events: CalendarEvent[];
   /** Google stopped accepting the family's connection, so the events have stopped updating. */
@@ -122,7 +123,37 @@ export class CalendarStore {
   private readonly current = signal<CalendarState>({ status: 'idle' });
   private readonly hiddenOwners = signal<ReadonlySet<string>>(new Set());
 
+  private serial = 0;
+  private active: number | null = null;
+  private queued = false;
+  private wanted = 0;
+  private readonly accepted = signal<number | null>(null);
+  private readonly fetching = signal(false);
+
   readonly state = this.current.asReadonly();
+  /** The revision actually represented by the last accepted snapshot, never a notification. */
+  readonly changeNumber = this.accepted.asReadonly();
+  readonly refreshing = this.fetching.asReadonly();
+
+  /** Forget another family's data and invalidate every outstanding response. */
+  reset(): void {
+    this.serial++;
+    this.active = null;
+    this.queued = false;
+    this.wanted = 0;
+    this.accepted.set(null);
+    this.fetching.set(false);
+    this.current.set({ status: 'idle' });
+    this.hiddenOwners.set(new Set());
+  }
+
+  /** Notifications can skip revisions; only a fresh snapshot acknowledges them. */
+  changed(changeNumber: number): void {
+    if (!Number.isSafeInteger(changeNumber) || changeNumber < 0) return;
+    this.wanted = Math.max(this.wanted, changeNumber);
+    if (changeNumber <= (this.accepted() ?? -1) || this.active !== null) return;
+    this.refresh();
+  }
 
   /** Owners whose events are filtered out: member ids, or FAMILY. */
   readonly hidden = this.hiddenOwners.asReadonly();
@@ -159,6 +190,7 @@ export class CalendarStore {
     if (state.status !== 'idle' && state.status !== 'unavailable' && state.from === from && state.to === to) {
       return;
     }
+    this.invalidateRead();
     this.current.set({ status: 'loading', from, to });
     this.fetch(from, to);
   }
@@ -166,9 +198,19 @@ export class CalendarStore {
   /** Fetches the days on screen again. A failed attempt keeps what is shown. */
   refresh(): void {
     const state = this.current();
-    if (state.status === 'ready') {
-      this.fetch(state.from, state.to, true);
+    if (state.status === 'idle') return;
+    if (this.active !== null) {
+      this.queued = true;
+      return;
     }
+    this.fetch(state.from, state.to, state.status === 'ready');
+  }
+
+  /** A confirmed write must not be overwritten by a snapshot started before it. */
+  private invalidateRead(): void {
+    this.serial++;
+    this.active = null;
+    this.queued = false;
   }
 
   // Each change below reaches Google, through the server, first; the store takes the event as
@@ -198,9 +240,7 @@ export class CalendarStore {
       tap({
         next: () => {
           this.drop(id);
-          if (series) {
-            this.refresh();
-          }
+          this.refresh();
         },
         error: (error: { status?: number; error?: unknown }) => this.afterRefusal(id, error),
       }),
@@ -213,11 +253,13 @@ export class CalendarStore {
       this.put(error.error);
     } else if (error.status === 404) {
       this.drop(id);
+      this.refresh();
     }
   }
 
   /** Adds or replaces an event on screen, then reads the days again for the server's order. */
   private put(event: CalendarEvent): void {
+    this.invalidateRead();
     this.current.update((state) =>
       state.status === 'ready' ? { ...state, events: [...state.events.filter((e) => e.id !== event.id), event] } : state,
     );
@@ -225,6 +267,7 @@ export class CalendarStore {
   }
 
   private drop(id: string): void {
+    this.invalidateRead();
     this.current.update((state) =>
       state.status === 'ready' ? { ...state, events: state.events.filter((e) => e.id !== id) } : state,
     );
@@ -241,21 +284,36 @@ export class CalendarStore {
   }
 
   private fetch(from: Day, to: Day, quietly = false): void {
-    this.http.get<CalendarResponse>('/api/calendar', { params: { from, to } }).subscribe({
+    const serial = ++this.serial;
+    this.active = serial;
+    this.fetching.set(true);
+    this.http.get<CalendarResponse>('/api/calendar', { params: { from, to } }).pipe(timeout(15_000)).subscribe({
       next: (response) => {
-        // A slower answer for days no longer on screen is dropped.
-        const state = this.current();
-        if (state.status !== 'idle' && state.from === from && state.to === to) {
-          this.current.set({ status: 'ready', from, to, ...response });
+        if (serial !== this.serial) return;
+        // Older servers/test fixtures may omit the counter; production responses always include it.
+        const revision = response.changeNumber ?? 0;
+        if (revision >= (this.accepted() ?? 0)) {
+          this.accepted.set(revision);
+          this.current.set({ status: 'ready', from, to, ...response, changeNumber: revision });
         }
+        this.finishRead(serial, revision < this.wanted);
       },
       error: () => {
-        const state = this.current();
-        if (!quietly && state.status !== 'idle' && state.from === from && state.to === to) {
-          this.current.set({ status: 'unavailable', from, to });
-        }
+        if (serial !== this.serial) return;
+        if (!quietly) this.current.set({ status: 'unavailable', from, to });
+        // Do not spin on an unavailable server. The connection or recovery timer will retry.
+        this.finishRead(serial, false);
       },
     });
+  }
+
+  private finishRead(serial: number, behind: boolean): void {
+    if (serial !== this.serial) return;
+    this.active = null;
+    this.fetching.set(false);
+    const again = this.queued || behind;
+    this.queued = false;
+    if (again) this.refresh();
   }
 }
 
@@ -291,3 +349,4 @@ export function eventRefusal(error: HttpErrorResponse): { message: string; chang
   }
   return { message: "Can't save right now. Try again in a moment.", changed: null };
 }
+
