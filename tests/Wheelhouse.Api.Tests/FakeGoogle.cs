@@ -179,7 +179,8 @@ internal sealed class FakeGoogle : IGoogleCalendar
             throw new GoogleCalendarGoneException(calendarId);
         }
 
-        var id = $"new-{Guid.NewGuid():N}";
+        var id = draft.Id ?? $"new-{Guid.NewGuid():N}";
+        if (Find(calendarId, id) is { } existing) return Task.FromResult(existing);
         Writes.Add(("insert", calendarId, id, null));
         if (draft.Recurrence is { } rule)
         {

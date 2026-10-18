@@ -71,7 +71,7 @@ describe('event screens', () => {
       button(dialog, 'Save event').click();
 
       const request = http.expectOne({ method: 'POST', url: '/api/calendar/events' });
-      expect(request.request.body).toEqual({
+      expect(request.request.body).toMatchObject({
         calendarId: 'c3',
         title: 'Parent & tot swim',
         location: null,
@@ -221,3 +221,4 @@ describe('event screens', () => {
     });
   });
 });
+

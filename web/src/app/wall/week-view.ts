@@ -30,7 +30,7 @@ import { CalendarNav, WallView } from './calendar-nav';
             </div>
             <ul>
               @for (event of day.events; track event.id) {
-                <li [style.--member]="event.color">
+                <li [style.--member]="event.color" [class.calendar-pending]="event.pending" [attr.aria-busy]="event.pending">
                   <button type="button" [disabled]="!event.canEdit" (click)="edit.emit(event.id)">
                     <span class="when">{{ event.when }}</span>
                     <span class="title">{{ event.title }}</span>
@@ -201,11 +201,12 @@ export class WeekView {
     const byDay = new Map<Day, WeekEvent[]>(days.map((day) => [day, []]));
     const writable = new Set(this.calendar.calendars().filter((c) => c.canWrite).map((c) => c.id));
     for (const event of this.calendar.events()) {
-      const canEdit = writable.has(event.calendarId);
+      const pending = !!event.pending;
+      const canEdit = writable.has(event.calendarId) && !this.calendar.isPending(event.id);
       const color = colorOf(event, family.members);
       const who = family.members.find((member) => member.id === event.memberId)?.displayName ?? 'Family';
       for (const day of daysOf(event, family.timeZone)) {
-        byDay.get(day)?.push({ id: event.id, title: event.title, when: whenOn(event, day, family.timeZone), color, who, canEdit });
+        byDay.get(day)?.push({ id: event.id, title: event.title, when: whenOn(event, day, family.timeZone), color, who, canEdit, pending });
       }
     }
 
@@ -239,6 +240,7 @@ export class WeekView {
 }
 
 interface WeekEvent {
+  pending: boolean;
   id: string;
   title: string;
   when: string;
@@ -254,3 +256,4 @@ function rangeLabel(first: Day, last: Day): string {
   const to = formatDay(last, sameMonth ? { day: 'numeric' } : { month: 'short', day: 'numeric' });
   return `${from} – ${to}`;
 }
+

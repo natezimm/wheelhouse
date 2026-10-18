@@ -28,7 +28,7 @@ import { SessionStore } from '../core/session';
 @Component({
   selector: 'app-event-dialog',
   template: `
-    <div class="scrim" aria-hidden="true" (click)="closed.emit()"></div>
+    <div class="scrim" aria-hidden="true" (click)="!busy() && closed.emit()"></div>
     @if (draft(); as draft) {
       <form [attr.aria-label]="heading()" (submit)="$event.preventDefault(); save()">
         <div class="top">
@@ -37,7 +37,7 @@ import { SessionStore } from '../core/session';
         </div>
 
         <div class="fields">
-          <div class="field">
+          <fieldset class="field" [disabled]="busy() || uncertain()">
             <label for="event-title">TITLE</label>
             <input
               #title
@@ -49,9 +49,9 @@ import { SessionStore } from '../core/session';
               [value]="draft.title"
               (input)="set({ title: $any($event.target).value })"
             />
-          </div>
+          </fieldset>
 
-          <div class="field">
+          <fieldset class="field" [disabled]="busy() || uncertain()">
             <span id="event-when">WHEN</span>
             <div class="when" role="group" aria-labelledby="event-when">
               <div class="stepper date">
@@ -99,9 +99,9 @@ import { SessionStore } from '../core/session';
                 </div>
               }
             </div>
-          </div>
+          </fieldset>
 
-          <div class="field">
+          <fieldset class="field" [disabled]="busy() || uncertain()">
             <span id="event-calendar">CALENDAR</span>
             <div class="calendars" role="group" aria-labelledby="event-calendar">
               @for (choice of choices(); track choice.id) {
@@ -117,9 +117,9 @@ import { SessionStore } from '../core/session';
                 </button>
               }
             </div>
-          </div>
+          </fieldset>
 
-          <div class="field">
+          <fieldset class="field" [disabled]="busy() || uncertain()">
             @if (!event()) {
               <span id="event-repeat">REPEAT</span>
             } @else if (event()!.recurring) {
@@ -145,9 +145,9 @@ import { SessionStore } from '../core/session';
                 All day
               </label>
             </div>
-          </div>
+          </fieldset>
 
-          <div class="field">
+          <fieldset class="field" [disabled]="busy() || uncertain()">
             <label for="event-location">LOCATION</label>
             <input
               id="event-location"
@@ -157,7 +157,7 @@ import { SessionStore } from '../core/session';
               [value]="draft.location"
               (input)="set({ location: $any($event.target).value })"
             />
-          </div>
+          </fieldset>
 
           <div class="actions">
             @if (confirmingDelete()) {
@@ -168,8 +168,8 @@ import { SessionStore } from '../core/session';
               @if (event()) {
                 <button type="button" class="quiet-danger" [disabled]="busy()" (click)="confirmingDelete.set(true)">Delete</button>
               }
-              <button type="button" class="ghost" (click)="closed.emit()">Cancel</button>
-              <button type="submit" class="primary" [disabled]="busy()">{{ event() ? 'Save changes' : 'Save event' }}</button>
+              <button type="button" class="ghost" [disabled]="busy()" (click)="closed.emit()">Cancel</button>
+              <button type="submit" class="primary" [disabled]="busy()">{{ uncertain() ? 'Check save' : event() ? 'Save changes' : 'Save event' }}</button>
             }
           </div>
         </div>
@@ -181,6 +181,7 @@ import { SessionStore } from '../core/session';
     }
   `,
   styles: `
+    fieldset { min-width: 0; padding: 0; margin: 0; border: 0; }
     :host {
       position: fixed;
       inset: 0;
@@ -543,6 +544,8 @@ export class EventDialog {
   private readonly wholeSeries = signal(false);
   protected readonly series = computed(() => !!this.event()?.recurring && this.wholeSeries());
 
+  private readonly operationId = crypto.randomUUID();
+  protected readonly uncertain = computed(() => this.calendar.isUncertain(this.operationId));
   protected readonly busy = signal(false);
   protected readonly confirmingDelete = signal(false);
   protected readonly message = signal<string | null>(null);
@@ -585,6 +588,7 @@ export class EventDialog {
   }
 
   private change(draft: EventDraft): void {
+    if (this.busy() || this.uncertain()) return;
     this.edits.set(draft);
     this.message.set(null);
   }
@@ -598,6 +602,11 @@ export class EventDialog {
   }
 
   protected save(): void {
+    if (this.uncertain() && !this.busy()) {
+      this.busy.set(true);
+      this.calendar.retry(this.operationId).subscribe({ next: () => this.closed.emit(), error: (error: HttpErrorResponse) => this.refused(error) });
+      return;
+    }
     const draft = this.draft();
     if (!draft || this.busy()) {
       return;
@@ -609,8 +618,9 @@ export class EventDialog {
     }
     const event = this.event();
     const request = requestOf(draft);
+    this.edits.set(draft);
     this.busy.set(true);
-    (event ? this.calendar.update(event.id, request, this.series()) : this.calendar.add(request)).subscribe({
+    (event ? this.calendar.update(event.id, request, this.series(), this.operationId) : this.calendar.add(request, this.operationId)).subscribe({
       next: () => this.closed.emit(),
       error: (error: HttpErrorResponse) => this.refused(error),
     });
@@ -622,7 +632,7 @@ export class EventDialog {
       return;
     }
     this.busy.set(true);
-    this.calendar.remove(event.id, this.series()).subscribe({
+    this.calendar.remove(event.id, this.series(), this.operationId).subscribe({
       next: () => this.closed.emit(),
       error: (error: HttpErrorResponse) => this.refused(error),
     });
@@ -642,3 +652,4 @@ export class EventDialog {
     this.message.set(refusal.message);
   }
 }
+
