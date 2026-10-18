@@ -1,6 +1,6 @@
-# One-time chores (4.1)
+# Chores (4.1 and 4.2)
 
-Implementation design for the first chores increment of [the household roadmap](household-roadmap.md).
+Implementation design for the chores increments of [the household roadmap](household-roadmap.md). One-time chores shipped in PR #26; repeating chores extend the same screens and recovery contract.
 
 ## Screens and navigation
 
@@ -39,7 +39,23 @@ Implementation design for the first chores increment of [the household roadmap](
 
 Writes serialize within a family transaction. Data changes and the chores revision commit together through the shared save boundary, including outer transactions and member deletion. Snapshot reads use repeatable read. The household publisher reads committed revisions, revalidates access and retries failed sends; calendar subscription behavior remains intact.
 
-Dates are household-local calendar dates, not browser-zone instants. A completed overdue chore is available on its original due date, which the date control can reopen. Recurrence, history browsing and Today summaries belong to later increments.
+Dates are household-local calendar dates, not browser-zone instants. A completed overdue chore is available on its original due date, which the date control can reopen. A dedicated history browser and Today summaries belong to 4.3.
+
+## Repeating chores (4.2)
+
+The parent editor adds Repeat (Does not repeat / Every day / Selected weekdays and weeks), a schedule start, every-N-weeks interval (1–52), weekday checkboxes and an optional inclusive end date. A new schedule uses its chosen start. Existing repeating definitions change from tomorrow in the family's zone; the editor explains that today and earlier dates retain their saved schedule. One-time chores remain one-time after creation; a parent creates a separate definition to switch kinds.
+
+Both layouts show a readable repeat rule, future-change/stop dates and a Missed label on incomplete past occurrences. Only the chosen date's repeats appear; missed daily chores never accumulate in today's overdue section. Date navigation can complete/reopen a past occurrence independently. Future repeating occurrences are readable but cannot be completed early, so future schedule edits cannot invalidate completed future work. One-time chores retain their existing behavior.
+
+`ChorePlan` stores dated versions of title, notes, assignee, start/end and recurrence rule. The latest plan effective on the requested date wins. Weekly intervals anchor to the Monday of the start date's week; days before the start are excluded. The family's calendar display preference does not change that anchor. Re-editing on the same day replaces only tomorrow's pending plan and supersedes later future plans; earlier plans stay intact. Archiving stops repeats tomorrow, leaving earlier occurrences readable and reopenable. Removing an assignee moves work to Household while retaining completion timestamps.
+
+`ChoreCompletion` has the unique key `(ChoreId, DueDate)`, its own version and an optional completion instant. Reads project one bounded requested day, without creating rows or using a midnight job. An occurrence's identity is definition ID plus family-local due date. An untouched occurrence's version derives from its plan and date. Definition edits/archives use `definitionVersion`; completion never changes another day's version or the definition's edit version.
+
+Existing chore endpoints accept optional `?date=YYYY-MM-DD` to return the occurrence being viewed; repeating completion requires an explicit date. Create/edit add `repeat: { frequency: 'Daily' | 'Weekly', intervalWeeks, weekdays: [0..6], endsOn }`, with `dueDate` meaning schedule start. Responses add `repeat`, `occurrenceId`, `definitionVersion`, latest `editDraft`, `visible`, `missed`, `seriesArchived`, `nextChangeDate` and `stopsOn`. Recovery reads may return `visible: false` when the definition exists but is not due that day; snapshots omit it. Original one-time request bodies and creation fingerprints stay compatible.
+
+Pending completion locks and recovery identify the original date after navigation. Schedule operations lock the definition and preserve today's content. A stale edit retains the server conflict response so Reload chore can recover a definition even if the formerly viewed future occurrence disappeared. Plans and completions share the existing committed chores revision and household connection; there is no new hub or scheduler.
+
+Fictional seeds include daily brushing, selected-weekday lunch bags and fortnightly dog blankets. Tests cover both DST transitions and family midnight, independent completions, inclusive ends, weekly anchors, reads without writes, future edits/archives, retries, conflicts, removed members and family scoping. Browser fixtures stub projections; PostgreSQL integration tests separately verify server behavior.
 
 ## Verification
 

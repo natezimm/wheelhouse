@@ -4,7 +4,8 @@ import { NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 import { Chore, ChoreDraft, ChoresStore } from '../core/chores';
 import { Clock } from '../core/clock';
-import { addDays, dayIn, formatDay, timeIn } from '../core/days';
+import { addDays, dayIn, formatDay, timeIn, weekdayOf } from '../core/days';
+import { ChoreRepeat } from '../core/chore-repeat';
 import { FamilyStore } from '../core/family';
 import { HouseholdLive } from '../core/household-live';
 import { PhoneNav } from '../phone/phone-nav';
@@ -48,6 +49,7 @@ import { DemoNotice } from './demo-notice';
       @for (operation of store.pending(); track operation.key) {
         <div class="save-status" role="status">
           {{ operation.preview.title }}: {{ operation.uncertain ? 'save unconfirmed' : 'saving…' }}
+          @if (operation.preview.repeat) { <span>Due {{ dueLabel(operation.preview.dueDate) }}</span> }
           @if (operation.uncertain && editorOperation() !== operation.key) {
             <button class="button" (click)="store.retry(operation.key)">Check save</button>
           }
@@ -84,14 +86,21 @@ import { DemoNotice } from './demo-notice';
 
     <ng-template #row let-chore>
       <article class="chore" [class.pending]="store.isPending(chore.id)">
-        <button class="check" [disabled]="store.isPending(chore.id)" [attr.aria-label]="(chore.completedAt ? 'Reopen ' : 'Complete ') + chore.title"
+        <button class="check" [disabled]="store.isPending(chore.id) || (chore.repeat && chore.dueDate > today())" [attr.aria-label]="(chore.completedAt ? 'Reopen ' : 'Complete ') + chore.title"
           [attr.aria-pressed]="!!chore.completedAt" (click)="store.complete(chore, !chore.completedAt)">{{ chore.completedAt ? '✓' : '○' }}</button>
         <div class="chore-body"><h3 [class.done]="chore.completedAt">{{ chore.title }}</h3>
           @if (chore.notes) { <p>{{ chore.notes }}</p> }
           <small>{{ memberName(chore.memberId) }} · Due {{ dueLabel(chore.dueDate) }}</small>
+          @if (chore.repeat) {
+            <small>{{ repeatLabel(chore.repeat) }}</small>
+            @if (chore.missed) { <small class="missed">Missed</small> }
+            @if (chore.dueDate > today()) { <small>Available to complete on its due date.</small> }
+            @if (chore.nextChangeDate && chore.dueDate <= today()) { <small>Schedule changes from {{ dueLabel(chore.nextChangeDate) }}.</small> }
+            @if (chore.stopsOn) { <small>Repeats stop from {{ dueLabel(chore.stopsOn) }}.</small> }
+          }
           @if (chore.completedAt) { <small>Completed at {{ completionTime(chore.completedAt) }}</small> }
         </div>
-        @if (canManage()) { <button class="button edit" [disabled]="store.isPending(chore.id)" [attr.aria-label]="'Edit ' + chore.title" (click)="open(chore)">Edit</button> }
+        @if (canManage() && !chore.seriesArchived) { <button class="button edit" [disabled]="store.isPending(chore.id)" [attr.aria-label]="'Edit ' + chore.title" (click)="open(chore)">Edit</button> }
       </article>
     </ng-template>
 
@@ -111,8 +120,26 @@ import { DemoNotice } from './demo-notice';
               <option [ngValue]="null">Household</option>
               @for (member of family.members(); track member.id) { <option [ngValue]="member.id">{{ member.displayName }}</option> }
             </select></label>
-            <label class="field">Due date<input type="date" name="due" [(ngModel)]="draft.dueDate" required /></label>
+            <label class="field">Repeat<select name="repeat" [ngModel]="draft.repeat?.frequency ?? 'None'" (ngModelChange)="repeatChanged($event)" [disabled]="!!original() && !original()?.repeat">
+              @if (!original()?.repeat) { <option value="None">Does not repeat</option> }
+              <option value="Daily">Every day</option><option value="Weekly">Selected weekdays / weeks</option>
+            </select></label>
+            <label class="field">{{ draft.repeat ? 'Schedule start' : 'Due date' }}<input type="date" name="due" [(ngModel)]="draft.dueDate" required /></label>
+            @if (draft.repeat; as repeat) {
+              @if (repeat.frequency === 'Weekly') {
+                <label class="field">Repeat every (weeks)<input type="number" name="interval" [(ngModel)]="repeat.intervalWeeks" min="1" max="52" required /></label>
+                <div class="field"><span id="repeat-days-label">Repeat on</span><div class="weekdays" role="group" aria-labelledby="repeat-days-label">
+                  @for (name of weekdayNames; track $index) {
+                    <label><input type="checkbox" [name]="'weekday' + $index" [ngModel]="repeat.weekdays.includes($index)" (ngModelChange)="setWeekday($index, $event)" />{{ name }}</label>
+                  }
+                </div></div>
+              }
+              <label class="field">End date (optional)<input type="date" name="end" [(ngModel)]="repeat.endsOn" [min]="draft.dueDate" /></label>
+              @if (!validRepeat()) { <p class="error">Select at least one weekday, a whole interval from 1 to 52 weeks, and an end date on or after the start.</p> }
+            }
           </fieldset>
+          @if (original()?.repeat) { <p>Changes start tomorrow, {{ dueLabel(tomorrow()) }}, in your household's time zone. Today and earlier dates keep their saved schedule.</p> }
+          @if (original() && !original()?.repeat) { <p>This is a one-time chore. Create a new chore to set up a repeating schedule.</p> }
           @if (store.error()) { <p class="error" role="alert">{{ store.error() }}</p> }
           @if (editorUncertain()) {
             <p>The submitted draft is frozen until its result is checked.</p>
@@ -121,11 +148,11 @@ import { DemoNotice } from './demo-notice';
           <div class="actions">
             <button class="button" type="button" [disabled]="editorSaving()" (click)="close()">{{ editorUncertain() ? 'Close' : 'Cancel' }}</button>
             @if (original() && !editorLocked()) { <button class="button" type="button" (click)="reload()">Reload chore</button> }
-            <button class="button primary" type="submit" [disabled]="editorLocked() || !draft.title.trim() || !draft.dueDate">{{ editorSaving() ? 'Saving…' : 'Save chore' }}</button>
+            <button class="button primary" type="submit" [disabled]="editorLocked() || !draft.title.trim() || !draft.dueDate || !validRepeat()">{{ editorSaving() ? 'Saving…' : 'Save chore' }}</button>
           </div>
           @if (original() && !editorLocked()) {
             @if (!confirmArchive()) { <button class="button quiet-danger" type="button" (click)="confirmArchive.set(true)">Archive chore</button> }
-            @else { <p>Remove this chore from active work? Its saved history will remain.</p><button class="button danger" type="button" (click)="archive()">Confirm archive</button> }
+            @else { <p>{{ original()?.repeat ? 'Stop repeats from tomorrow? Today and earlier history will remain.' : 'Remove this chore from active work? Its saved history will remain.' }}</p><button class="button danger" type="button" (click)="archive()">Confirm archive</button> }
           }
         </form>
       </dialog>
@@ -157,6 +184,8 @@ import { DemoNotice } from './demo-notice';
     dialog::backdrop { background: #1f232866; } form { display: grid; gap: 18px; } fieldset { min-width: 0; margin: 0; padding: 0; border: 0; display: grid; gap: 16px; }
     textarea { width: 100%; box-sizing: border-box; resize: vertical; border: 1px solid var(--line); border-radius: 12px; padding: 12px; font: 16px var(--font-body); }
     .actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+    .weekdays { display: flex; flex-wrap: wrap; gap: 6px; } .weekdays label { min-height: 44px; min-width: 58px; display: flex; align-items: center; gap: 6px; }
+    .weekdays input { width: 20px; height: 20px; accent-color: var(--accent); } .missed { color: var(--warn); font-weight: 700; }
     :host.wall { padding: 28px 36px; font-size: 20px; } :host.wall h1 { font-size: 48px; } :host.wall h2 { font-size: 28px; } :host.wall h3 { font-size: 23px; }
     :host.wall .groups { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); } :host.wall .button, :host.wall a, :host.wall summary { min-height: 56px; font-size: 20px; }
     :host.wall .check { flex-basis: 56px; min-height: 56px; } :host.wall input { min-height: 56px; font-size: 20px; }
@@ -169,7 +198,10 @@ export class ChoresPage {
   protected readonly live = inject(HouseholdLive);
   private readonly clock = inject(Clock);
   protected readonly focus = signal<string | null>(null);
-  protected readonly selected = computed(() => this.focus() ?? dayIn(this.family.family()?.timeZone ?? 'UTC', this.clock.now()));
+  protected readonly today = computed(() => dayIn(this.family.family()?.timeZone ?? 'UTC', this.clock.now()));
+  protected readonly tomorrow = computed(() => addDays(this.today(), 1));
+  protected readonly selected = computed(() => this.focus() ?? this.today());
+  protected readonly weekdayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   protected readonly dateLabel = computed(() => formatDay(this.selected(), { weekday: 'long', month: 'short', day: 'numeric' }));
   protected readonly canManage = computed(() => !this.wall() && this.family.state().status === 'ready' && this.store.canManage());
   protected readonly active = computed(() => this.store.items().filter(c => !c.completedAt));
@@ -210,17 +242,23 @@ export class ChoresPage {
   protected open(chore: Chore | null): void {
     this.original.set(chore); this.editorOperation.set(null); this.confirmArchive.set(false);
     this.editorFamily = this.family.family()?.id ?? null;
-    this.draft = chore ? { title: chore.title, notes: chore.notes, memberId: chore.memberId, dueDate: chore.dueDate }
+    this.draft = chore ? structuredClone(chore.editDraft ?? { title: chore.title, notes: chore.notes, memberId: chore.memberId, dueDate: chore.dueDate, repeat: chore.repeat ?? null })
       : { title: '', notes: null, memberId: null, dueDate: this.selected() };
     this.editor.set(true);
   }
   protected close(): void { this.dialog()?.nativeElement.close(); this.editor.set(false); this.editorOperation.set(null); }
   protected cancelEditor(event: Event): void { if (this.editorSaving()) event.preventDefault(); else this.close(); }
-  protected reload(): void { const latest = this.store.items().find(c => c.id === this.original()?.id); if (latest) this.open(latest); }
+  protected reload(): void {
+    const conflict = this.store.conflict();
+    const latest = conflict?.id === this.original()?.id ? conflict : this.store.items().find(c => c.id === this.original()?.id);
+    if (latest) this.open(latest);
+  }
   protected async save(): Promise<void> {
-    if (this.editorLocked() || !this.canManage() || !this.draft.title.trim() || !this.draft.dueDate) return;
+    if (this.editorLocked() || !this.canManage() || !this.draft.title.trim() || !this.draft.dueDate || !this.validRepeat()) return;
+    const submitted = structuredClone(this.draft);
+    if (submitted.repeat) submitted.repeat.endsOn ||= null;
     const original = this.original();
-    const promise = original ? this.store.edit(original, { ...this.draft }) : this.store.create({ ...this.draft });
+    const promise = original ? this.store.edit(original, submitted) : this.store.create(submitted);
     this.editorOperation.set(this.store.pending().at(-1)?.key ?? null);
     if (await promise) this.close();
   }
@@ -230,5 +268,23 @@ export class ChoresPage {
     const promise = this.store.archive(chore);
     this.editorOperation.set(this.store.pending().at(-1)?.key ?? null);
     if (await promise) this.close();
+  }
+  protected repeatChanged(mode: string): void {
+    this.draft.repeat = mode === 'None' ? null : {
+      frequency: mode as 'Daily' | 'Weekly', intervalWeeks: 1,
+      weekdays: mode === 'Weekly' ? [weekdayOf(this.draft.dueDate)] : [], endsOn: this.draft.repeat?.endsOn ?? null,
+    };
+  }
+  protected setWeekday(day: number, checked: boolean): void {
+    const repeat = this.draft.repeat; if (!repeat) return;
+    repeat.weekdays = checked ? [...new Set([...repeat.weekdays, day])].sort() : repeat.weekdays.filter(d => d !== day);
+  }
+  protected validRepeat(): boolean {
+    const repeat = this.draft.repeat;
+    return !repeat || (!repeat.endsOn || repeat.endsOn >= this.draft.dueDate)
+      && (repeat.frequency === 'Daily' || Number.isInteger(repeat.intervalWeeks) && repeat.intervalWeeks >= 1 && repeat.intervalWeeks <= 52 && repeat.weekdays.length > 0);
+  }
+  protected repeatLabel(repeat: ChoreRepeat): string {
+    return repeat.frequency === 'Daily' ? 'Every day' : `${repeat.intervalWeeks === 1 ? 'Every week' : 'Every ' + repeat.intervalWeeks + ' weeks'} · ${repeat.weekdays.map(d => this.weekdayNames[d]).join(', ')}`;
   }
 }

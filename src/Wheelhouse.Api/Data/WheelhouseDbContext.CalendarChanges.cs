@@ -138,8 +138,9 @@ public sealed partial class WheelhouseDbContext
             .Select(e => e.Entity.Id).ToHashSet();
         return ChangeTracker.Entries().Where(entry => entry.Entity switch
         {
+            ChorePlan or ChoreCompletion => entry.State is EntityState.Added or EntityState.Modified or EntityState.Deleted,
             Chore => AddedOrDeleted(entry) || Changed(entry, nameof(Chore.Title), nameof(Chore.Notes),
-                nameof(Chore.MemberId), nameof(Chore.DueDate), nameof(Chore.CompletedAt), nameof(Chore.Archived)),
+                nameof(Chore.MemberId), nameof(Chore.DueDate), nameof(Chore.CompletedAt), nameof(Chore.Archived), nameof(Chore.ArchivedFrom)),
             Member => AddedOrDeleted(entry) || Changed(entry, nameof(Member.DisplayName), nameof(Member.Color)),
             Family => Changed(entry, nameof(Family.TimeZone)),
             _ => false,
