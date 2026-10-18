@@ -1,4 +1,6 @@
 import { CalendarSaveStatus } from '../shared/calendar-save-status';
+import { CalendarConnection } from '../shared/calendar-connection';
+import { CalendarLive } from '../core/calendar-live';
 import { DatePipe } from '@angular/common';
 import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { CalendarEvent, CalendarStore } from '../core/calendar';
@@ -30,7 +32,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
  */
 @Component({
   selector: 'app-wall-shell',
-  imports: [CalendarSaveStatus, CalendarFilter, DatePipe, DayView, DemoNotice, EventDialog, MonthView, PairingScreen, StatusLine, WallWeather, WeekView],
+  imports: [CalendarConnection, CalendarSaveStatus, CalendarFilter, DatePipe, DayView, DemoNotice, EventDialog, MonthView, PairingScreen, StatusLine, WallWeather, WeekView],
   template: `
     @if (showPairing()) {
       <app-pairing-screen [cancellable]="pairingChosen()" (paired)="paired()" (cancelled)="pairingChosen.set(false)" />
@@ -60,13 +62,9 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
 
       <footer>
         <div class="status">
-          <app-status-line />
+          @if (!calendarLive.available()) { <app-status-line /> }
+          <app-calendar-connection [wall]="true" />
           <app-calendar-save-status />
-          @if (calendar.needsReconnect()) {
-            <p class="reconnect" role="alert">
-              Google Calendar has stopped updating. A parent can connect it again in Settings on their phone.
-            </p>
-          }
         </div>
         <div class="demo">
           @if (session.isDemo()) {
@@ -140,16 +138,8 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
     .status {
       display: flex;
       align-items: center;
+      flex-wrap: wrap;
       gap: 20px;
-    }
-
-    .reconnect {
-      margin: 0;
-      padding: 10px 18px;
-      border-radius: 12px;
-      background: color-mix(in srgb, var(--warn) 16%, var(--surface));
-      color: var(--ink);
-      font: 600 17px var(--font-body);
     }
 
     .demo {
@@ -185,6 +175,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
   `,
 })
 export class WallShell {
+  protected readonly calendarLive = inject(CalendarLive);
   protected readonly clock = inject(Clock);
   protected readonly family = inject(FamilyStore);
   protected readonly calendar = inject(CalendarStore);
@@ -262,4 +253,5 @@ export class WallShell {
     this.family.load();
   }
 }
+
 

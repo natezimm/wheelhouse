@@ -106,6 +106,11 @@ describe('CalendarStore', () => {
 
     expect(store.state().status).toBe('ready');
     expect(store.events()).toEqual([dentist, trash]);
+    expect(store.refreshFailed()).toBe(true);
+    store.refresh();
+    expect(store.refreshFailed()).toBe(false);
+    respond();
+    expect(store.refreshFailed()).toBe(false);
   });
 });
 
@@ -230,3 +235,4 @@ describe('calendar snapshot recovery', () => {
     expect(store.changeNumber()).toBe(2);
   });
 });
+

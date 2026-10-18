@@ -1,4 +1,6 @@
 import { CalendarSaveStatus } from '../shared/calendar-save-status';
+import { CalendarConnection } from '../shared/calendar-connection';
+import { CalendarLive } from '../core/calendar-live';
 import { DatePipe, LowerCasePipe } from '@angular/common';
 import { Component, effect, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
@@ -19,7 +21,7 @@ import { TodayEvents } from './today-events';
  */
 @Component({
   selector: 'app-phone-shell',
-  imports: [CalendarSaveStatus, DatePipe, DemoNotice, LowerCasePipe, MemberAvatar, PhoneNav, RouterLink, SignIn, StatusLine, TodayEvents],
+  imports: [CalendarConnection, CalendarSaveStatus, DatePipe, DemoNotice, LowerCasePipe, MemberAvatar, PhoneNav, RouterLink, SignIn, StatusLine, TodayEvents],
   template: `
     <header>
       <div class="title">
@@ -43,6 +45,7 @@ import { TodayEvents } from './today-events';
       </a>
     </header>
 
+    <app-calendar-connection />
     @if (family.state().status === 'private' && !session.isDemoFull()) {
       <app-sign-in [outcome]="signin()" />
     } @else if (family.state().status === 'ready') {
@@ -51,7 +54,7 @@ import { TodayEvents } from './today-events';
 
     <footer>
       <app-demo-notice />
-      <app-status-line />
+      @if (!calendarLive.available()) { <app-status-line /> }
     </footer>
 
     <app-calendar-save-status />
@@ -133,6 +136,7 @@ import { TodayEvents } from './today-events';
   `,
 })
 export class PhoneShell {
+  protected readonly calendarLive = inject(CalendarLive);
   protected readonly clock = inject(Clock);
   protected readonly family = inject(FamilyStore);
 
@@ -152,4 +156,5 @@ export class PhoneShell {
     });
   }
 }
+
 
