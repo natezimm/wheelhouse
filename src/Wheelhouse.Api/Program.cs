@@ -40,6 +40,7 @@ builder.Services.AddWheelhouseAuth();
 builder.Services.AddPairing();
 builder.Services.AddWeather();
 builder.Services.AddGoogleCalendar();
+builder.Services.AddCalendarLive();
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<DemoCopies>();
@@ -54,6 +55,7 @@ var app = builder.Build();
 await app.PrepareDatabaseAsync();
 
 app.UseForwardedHeaders();
+app.UseCalendarHubOrigin();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();
@@ -65,6 +67,7 @@ app.MapDemo();
 app.MapFamily();
 app.MapDevices();
 app.MapCalendar();
+app.MapCalendarLive();
 app.MapCalendarEvents();
 app.MapGoogleConnection();
 app.MapWeather();

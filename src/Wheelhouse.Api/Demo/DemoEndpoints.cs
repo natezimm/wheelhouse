@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.Extensions.Options;
 using Wheelhouse.Api.Auth;
 using Wheelhouse.Api.Instance;
+using Wheelhouse.Api.Calendar;
 
 namespace Wheelhouse.Api.Demo;
 
@@ -27,6 +28,7 @@ public static class DemoEndpoints
         ICurrentFamily current,
         IOptions<InstanceOptions> instance,
         TimeProvider time,
+        CalendarConnections calendar,
         CancellationToken cancellationToken)
     {
         if (instance.Value.Mode != InstanceMode.Demo)
@@ -46,6 +48,7 @@ public static class DemoEndpoints
                 statusCode: StatusCodes.Status503ServiceUnavailable);
         }
 
+        await calendar.DisconnectAsync(http.User);
         await http.SignInAsync(
             CookieAuthenticationDefaults.AuthenticationScheme,
             WheelhousePrincipal.Parent(familyId),

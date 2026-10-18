@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Wheelhouse.Api.Auth;
 using Wheelhouse.Api.Data;
+using Wheelhouse.Api.Calendar;
 
 namespace Wheelhouse.Api.Families;
 
@@ -133,6 +134,7 @@ public static class FamilyEndpoints
         Guid id,
         MemberRequest request,
         WheelhouseDbContext db,
+        CalendarConnections calendar,
         CancellationToken cancellationToken)
     {
         var errors = request.Validate();
@@ -157,6 +159,7 @@ public static class FamilyEndpoints
         member.Initial = MemberRequest.InitialOf(request.DisplayName);
         member.Role = request.Role;
         await db.SaveChangesAsync(cancellationToken);
+        await calendar.PublishAsync();
 
         return TypedResults.Ok(MemberResponse.From(member));
     }
@@ -164,6 +167,7 @@ public static class FamilyEndpoints
     private static async Task<Results<NoContent, ValidationProblem, NotFound>> RemoveMember(
         Guid id,
         WheelhouseDbContext db,
+        CalendarConnections calendar,
         CancellationToken cancellationToken)
     {
         var member = await db.Members.SingleOrDefaultAsync(m => m.Id == id, cancellationToken);
@@ -179,6 +183,7 @@ public static class FamilyEndpoints
 
         db.Members.Remove(member);
         await db.SaveChangesAsync(cancellationToken);
+        await calendar.PublishAsync();
 
         return TypedResults.NoContent();
     }
