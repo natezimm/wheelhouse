@@ -4,6 +4,10 @@ Wheelhouse is a family command center: a wall-mounted touch display and a phone 
 
 This is early work. So far the wall shows the family's Google calendars by day, week or month in each person's color with today's weather, the phone shows today and the month, and both add, change and delete events, which are written to Google Calendar. The app runs either as a private family instance, where parents sign in with Google and connect the family's Google account, or as a public demo with a fictional family that never calls Google. Wall and phone receive live calendar updates and recover missed changes after reconnecting. Edits appear immediately while saving, and uncertain saves can be checked safely. Wall, Today and phone Calendar show live connection status and a Resync now action that refreshes their current days without losing filters or drafts. Google reauthorization is shown separately; resync does not force a new Google import. Chores, lists and meals arrive in later milestones.
 
+## Roadmap
+
+The proposed [chores, lists and meals roadmap](docs/household-roadmap.md) defines the next implementation increments, their completion criteria and deferred features. These are new proposed milestones following the completed calendar live-update work; the features are not implemented yet.
+
 ## Layout
 
 | Path | What it holds |
