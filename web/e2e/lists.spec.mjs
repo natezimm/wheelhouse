@@ -104,9 +104,12 @@ test('grocery groups, optional fields and category configuration survive recover
   await expect(page.locator('.item').filter({ has:page.getByRole('heading', { name:'Apples', exact:true }) })).toContainText('2 bags');
   await page.getByRole('button', { name:'Manage categories', exact:true }).click();
   await dialog.getByRole('button', { name:'Add category', exact:true }).click();
+  await expect(dialog.locator('.category-editor')).toHaveCount(4);
   await dialog.getByLabel('Category 3', { exact:true }).fill('Bakery');
   await dialog.getByRole('button', { name:'Move up category Bakery', exact:true }).click();
   await dialog.getByRole('button', { name:'Remove category Produce', exact:true }).click();
+  await expect(dialog.locator('.category-editor')).toHaveCount(3);
+  await page.screenshot({ path:info.outputPath('grocery-categories.png'), fullPage:true });
   await dialog.getByRole('button', { name:'Save', exact:true }).click();
   await expect(page.getByRole('region', { name:'Other', exact:true }).getByRole('heading', { name:'Apples', exact:true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
