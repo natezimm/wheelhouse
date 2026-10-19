@@ -1,8 +1,8 @@
 # Chores, lists and meals roadmap
 
-Created October 18, 2026. Roadmap agreed through PR #25. Status: 4.1 merged in [PR #26](https://github.com/natezimm/wheelhouse/pull/26); 4.2 merged in [PR #27](https://github.com/natezimm/wheelhouse/pull/27); 4.3 in implementation; later increments remain planned.
+Created October 18, 2026. Roadmap agreed through PR #25. Status: 4.1 merged in [PR #26](https://github.com/natezimm/wheelhouse/pull/26); 4.2 merged in [PR #27](https://github.com/natezimm/wheelhouse/pull/27); 4.3 merged in [PR #29](https://github.com/natezimm/wheelhouse/pull/29); 5.1 in implementation; later increments remain planned.
 
-The 4.1–4.3 layout, states and API contracts are documented in [chores-design.md](chores-design.md). Record 4.3's merged implementation PR here when complete; a branch or open PR does not mark it shipped.
+The 4.1–4.3 layout, states and API contracts are documented in [chores-design.md](chores-design.md). The 5.1 design is in [lists-design.md](lists-design.md). Record 5.1's merged implementation PR here when complete; a branch or open PR does not mark it shipped.
 
 This is a new plan requested after calendar live updates shipped in PR #24. The milestone numbers below are proposed continuations, not a recovered historical roadmap. Calendar Milestone 3 part 2 is complete. Nothing in this document is implemented merely because it is described here.
 
@@ -71,7 +71,7 @@ Missed recurring occurrences appear as missed history; the active view shows the
 
 Done when family-zone midnight and DST tests prove stable dates, repeated reads never duplicate occurrences, and completing or reopening a past date leaves other dates unchanged. Phone editing explains when schedule changes take effect.
 
-### 4.3 Daily overview and history — in implementation
+### 4.3 Daily overview and history — merged in PR #29
 
 Add a compact chores section to phone Today, showing due/completed counts and outstanding work. Add member/status filters and a bounded history view with completion dates. Wall Chores shows progress per member without rewards or leaderboards. Preserve chosen date and filters through recovery.
 
@@ -79,7 +79,7 @@ Done when the full daily loop works on both layouts: see due work, complete it, 
 
 ## Milestone 5: Lists
 
-### 5.1 Shared checklists
+### 5.1 Shared checklists — in implementation
 
 Add `HouseholdList` and `ListItem`: name, item text, optional notes, checked state, explicit sort order and versions. Support named lists such as Errands, Packing and Household to-dos. Lists are shared across the family; personal/private lists and assignment are deferred.
 
@@ -139,4 +139,5 @@ Rewards/points, allowances, chore rotation, child-specific sign-in, reminders, p
 
 ## Immediate next action
 
-Complete **4.3: Daily overview and history**, building on merged one-time and repeating chores. Scope this increment to Today summaries, member/status filters, progress and bounded due-date history; shared lists, rewards and rotation remain separate.
+Complete **5.1: Shared checklists**, building on merged chores and household live updates. Named lists, item editing/checking, ordering and archival ship on wall and phone with fictional seeds. Grocery quantities, categories, protected Grocery creation and bulk clearing remain 5.2.
+

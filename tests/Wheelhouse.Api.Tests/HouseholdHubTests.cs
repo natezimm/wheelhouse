@@ -81,6 +81,31 @@ public sealed class HouseholdHubTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Lists_publish_independently_to_phone_and_wall_without_cross_family_or_rollback_leaks()
+    {
+        using var parent = await factory.DemoVisitorAsync(); using var other = await factory.DemoVisitorAsync();
+        var family = await FamilyOf(parent); var outsiderFamily = await FamilyOf(other);
+        var device = (await parent.GetFromJsonAsync<DeviceResponse[]>("/api/devices"))!.First();
+        await using var phone = await Observer.Connect(factory.Demo, Cookie(factory.Demo, WheelhousePrincipal.Parent(family.Id)), domain: "lists");
+        await using var wall = await Observer.Connect(factory.Demo, Cookie(factory.Demo, WheelhousePrincipal.Device(family.Id, device.Id)), domain: "lists");
+        await using var outsider = await Observer.Connect(factory.Demo, Cookie(factory.Demo, WheelhousePrincipal.Parent(outsiderFamily.Id)), domain: "lists");
+        var before = await phone.Next(); await wall.Next(); await outsider.Next();
+        Assert.Equal("lists", before.Domain);
+        await Add(parent); await Publish(factory.Demo); await phone.Quiet();
+        (await parent.PostAsJsonAsync("/api/lists", new Wheelhouse.Api.Lists.CreateList(Guid.NewGuid(), "Live errands"))).EnsureSuccessStatusCode();
+        await Publish(factory.Demo);
+        Assert.Equal(before.ChangeNumber + 1, (await phone.Next()).ChangeNumber);
+        Assert.Equal(before.ChangeNumber + 1, (await wall.Next()).ChangeNumber); await outsider.Quiet();
+        await using var db = factory.DbContextFor(family.Id);
+        await using (var tx = await db.Database.BeginTransactionAsync())
+        {
+            (await db.HouseholdLists.FirstAsync()).Name = "Uncommitted"; await db.SaveChangesAsync();
+            await Publish(factory.Demo); await phone.Quiet(); await tx.RollbackAsync();
+        }
+        await Publish(factory.Demo); await phone.Quiet();
+    }
+
+    [Fact]
     public async Task Removing_a_wall_closes_its_household_socket_immediately()
     {
         using var parent = await factory.DemoVisitorAsync();
@@ -135,7 +160,7 @@ public sealed class HouseholdHubTests(ApiFactory factory)
         public required HubConnection Connection { get; init; }
         public Task Closed => _closed.Task;
 
-        public static async Task<Observer> Connect(WebApplicationFactory<Program> host, string cookie, string query = "")
+        public static async Task<Observer> Connect(WebApplicationFactory<Program> host, string cookie, string query = "", string domain = "chores")
         {
             var connection = new HubConnectionBuilder().WithUrl($"http://localhost/hubs/household{query}", options =>
             {
@@ -149,7 +174,7 @@ public sealed class HouseholdHubTests(ApiFactory factory)
                 };
             }).Build();
             var observer = new Observer { Connection = connection };
-            connection.On<HouseholdChanged>("HouseholdChanged", change => observer._changes.Writer.TryWrite(change));
+            connection.On<HouseholdChanged>("HouseholdChanged", change => { if (change.Domain == domain) observer._changes.Writer.TryWrite(change); });
             connection.Closed += _ => { observer._closed.TrySetResult(); return Task.CompletedTask; };
             await connection.StartAsync();
             return observer;

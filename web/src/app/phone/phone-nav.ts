@@ -19,6 +19,10 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"></rect><path d="m7 10 2 2 5-5M7 16h10"></path></svg>
         Chores
       </a>
+      <a routerLink="/lists" routerLinkActive="current" ariaCurrentWhenActive="page">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M9 6h12M9 12h12M9 18h12M3 6h2M3 12h2M3 18h2"></path></svg>
+        Lists
+      </a>
     </nav>
   `,
   styles: `

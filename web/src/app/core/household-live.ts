@@ -11,6 +11,7 @@ import {
 } from '@angular/core';
 import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 import { ChoresStore } from './chores';
+import { ListsStore } from './lists';
 import { FamilyStore } from './family';
 import { SessionStore } from './session';
 
@@ -38,6 +39,7 @@ export type HouseholdLiveState =
 @Injectable({ providedIn: 'root' })
 export class HouseholdLive {
   private readonly household = inject(ChoresStore);
+  private readonly lists = inject(ListsStore);
   private readonly family = inject(FamilyStore);
   private readonly session = inject(SessionStore);
   private readonly document = inject(DOCUMENT);
@@ -52,7 +54,7 @@ export class HouseholdLive {
 
   readonly state = computed<HouseholdLiveState>(() => {
     const state = this.connectionState();
-    return state === 'connected' && this.household.refreshing() ? 'resyncing' : state;
+    return state === 'connected' && (this.household.refreshing() || this.lists.refreshing()) ? 'resyncing' : state;
   });
 
   readonly available = computed(() => this.state() !== 'stopped');
@@ -93,6 +95,7 @@ export class HouseholdLive {
   private refreshSnapshot(): void {
     if (!this.familyId) return;
     this.household.refresh();
+    this.lists.refresh();
   }
 
   private useFamily(id: string | null, restart = false): void {
@@ -106,6 +109,7 @@ export class HouseholdLive {
     this.connection = undefined;
     if (old) void old.stop().catch(() => {});
     if (previous && previous !== id) this.household.reset();
+    if (previous && previous !== id) this.lists.reset();
     if (!id) {
       this.connectionState.set('stopped');
       return;
@@ -115,6 +119,7 @@ export class HouseholdLive {
     const current = () => generation === this.generation;
     connection.on('HouseholdChanged', (message: { domain: string; changeNumber: number }) => {
       if (current() && message?.domain === 'chores') { this.household.changed(message.changeNumber); this.family.refresh(); }
+      if (current() && message?.domain === 'lists') this.lists.changed(message.changeNumber);
     });
     connection.onreconnecting(() => {
       if (!current()) return;
