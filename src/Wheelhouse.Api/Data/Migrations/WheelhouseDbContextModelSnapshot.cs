@@ -489,6 +489,38 @@ namespace Wheelhouse.Api.Data.Migrations
                     b.ToTable("Members");
                 });
 
+            modelBuilder.Entity("Wheelhouse.Api.Lists.GroceryCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("FamilyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("HouseholdListId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsOther")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FamilyId");
+
+                    b.HasIndex("HouseholdListId", "SortOrder");
+
+                    b.ToTable("GroceryCategories");
+                });
+
             modelBuilder.Entity("Wheelhouse.Api.Lists.HouseholdList", b =>
                 {
                     b.Property<Guid>("Id")
@@ -508,6 +540,9 @@ namespace Wheelhouse.Api.Data.Migrations
                     b.Property<Guid>("FamilyId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("IsGrocery")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -519,6 +554,10 @@ namespace Wheelhouse.Api.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("FamilyId")
+                        .IsUnique()
+                        .HasFilter("\"IsGrocery\"");
+
                     b.HasIndex("FamilyId", "CreationId")
                         .IsUnique();
 
@@ -529,6 +568,9 @@ namespace Wheelhouse.Api.Data.Migrations
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CategoryId")
                         .HasColumnType("uuid");
 
                     b.Property<bool>("Checked")
@@ -554,6 +596,10 @@ namespace Wheelhouse.Api.Data.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<string>("Quantity")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<long>("SortOrder")
                         .HasColumnType("bigint");
 
@@ -562,11 +608,17 @@ namespace Wheelhouse.Api.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("Unit")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
                     b.Property<Guid>("Version")
                         .IsConcurrencyToken()
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CategoryId");
 
                     b.HasIndex("FamilyId", "CreationId")
                         .IsUnique();
@@ -688,6 +740,21 @@ namespace Wheelhouse.Api.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Wheelhouse.Api.Lists.GroceryCategory", b =>
+                {
+                    b.HasOne("Wheelhouse.Api.Families.Family", null)
+                        .WithMany()
+                        .HasForeignKey("FamilyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Wheelhouse.Api.Lists.HouseholdList", null)
+                        .WithMany("Categories")
+                        .HasForeignKey("HouseholdListId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Wheelhouse.Api.Lists.HouseholdList", b =>
                 {
                     b.HasOne("Wheelhouse.Api.Families.Family", null)
@@ -699,6 +766,11 @@ namespace Wheelhouse.Api.Data.Migrations
 
             modelBuilder.Entity("Wheelhouse.Api.Lists.ListItem", b =>
                 {
+                    b.HasOne("Wheelhouse.Api.Lists.GroceryCategory", null)
+                        .WithMany()
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("Wheelhouse.Api.Families.Family", null)
                         .WithMany()
                         .HasForeignKey("FamilyId")
@@ -739,6 +811,8 @@ namespace Wheelhouse.Api.Data.Migrations
 
             modelBuilder.Entity("Wheelhouse.Api.Lists.HouseholdList", b =>
                 {
+                    b.Navigation("Categories");
+
                     b.Navigation("Items");
                 });
 #pragma warning restore 612, 618

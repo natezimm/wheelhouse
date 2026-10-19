@@ -6,7 +6,7 @@ using Wheelhouse.Api.Data;
 
 namespace Wheelhouse.Api.Lists;
 
-public static class ListEndpoints
+public static partial class ListEndpoints
 {
     public static IEndpointRouteBuilder MapLists(this IEndpointRouteBuilder app)
     {
@@ -20,6 +20,8 @@ public static class ListEndpoints
         group.MapPut("/{id:guid}/items/{itemId:guid}/checked", CheckItem);
         group.MapPut("/{id:guid}/items/{itemId:guid}/move", MoveItem);
         group.MapPut("/{id:guid}/items/{itemId:guid}/delete", DeleteItem);
+        group.MapPut("/{id:guid}/categories", Categories);
+        group.MapPut("/{id:guid}/clear-checked", ClearChecked);
         return app;
     }
 
@@ -34,7 +36,8 @@ public static class ListEndpoints
     private static async Task<ListsResponse> Response(WheelhouseDbContext db, CancellationToken ct)
     {
         var revision = await db.Families.Select(f => f.ListsChangeNumber).SingleAsync(ct);
-        var lists = await db.HouseholdLists.AsNoTracking().Include(l => l.Items).OrderBy(l => l.Name).ThenBy(l => l.Id).ToArrayAsync(ct);
+        var lists = await db.HouseholdLists.AsNoTracking().Include(l => l.Items).Include(l => l.Categories).AsSplitQuery()
+            .OrderByDescending(l => l.IsGrocery).ThenBy(l => l.Name).ThenBy(l => l.Id).ToArrayAsync(ct);
         return new(revision, lists.Select(HouseholdListResponse.From).ToArray());
     }
 
@@ -61,7 +64,7 @@ public static class ListEndpoints
         {
             var name = request.Name?.Trim() ?? "";
             if (name.Length is < 1 or > 100) return Invalid();
-            if (list.Archived) return Conflict(list);
+            if (list.Archived || list.IsGrocery && list.Name != name) return Conflict(list);
             if (list.Name == name) return null;
             if (list.Version != request.Version) return Conflict(list);
             list.Name = name; list.Version = Guid.NewGuid(); return null;
@@ -70,6 +73,7 @@ public static class ListEndpoints
     private static Task<IResult> Archive(Guid id, ListVersion request, WheelhouseDbContext db, CancellationToken ct) =>
         Change(id, null, db, ct, list =>
         {
+            if (list.IsGrocery) return Conflict(list);
             if (list.Archived) return null;
             if (list.Version != request.Version) return Conflict(list);
             list.Archived = true; list.Version = Guid.NewGuid(); return null;
@@ -79,15 +83,20 @@ public static class ListEndpoints
     {
         var text = request.Text?.Trim() ?? "";
         var notes = Notes(request.Notes);
-        if (request.CreationId == Guid.Empty || !Valid(text, notes)) return Invalid();
+        var quantity = Notes(request.Quantity); var unit = Notes(request.Unit);
+        if (request.CreationId == Guid.Empty || !Valid(text, notes) || quantity?.Length > 50 || unit?.Length > 50) return Invalid();
         return await Change(id, null, db, ct, list =>
         {
-            var fingerprint = JsonSerializer.Serialize(new { id, text, notes });
+            var fingerprint = quantity is null && unit is null && request.CategoryId is null
+                ? JsonSerializer.Serialize(new { id, text, notes })
+                : JsonSerializer.Serialize(new { id, text, notes, quantity, unit, request.CategoryId });
             var existing = db.ListItems.SingleOrDefault(i => i.CreationId == request.CreationId);
             if (existing is not null) return existing.CreationRequest == fingerprint ? null : Conflict(list);
             if (list.Archived) return Conflict(list);
+            if (!GroceryFields(list, quantity, unit, request.CategoryId, out var category)) return InvalidGrocery();
             var item = new ListItem { Id = Guid.CreateVersion7(), FamilyId = list.FamilyId, HouseholdListId = id,
                 CreationId = request.CreationId, CreationRequest = fingerprint, Text = text, Notes = notes,
+                Quantity = quantity, Unit = unit, CategoryId = category,
                 SortOrder = list.Items.Count == 0 ? 0 : list.Items.Max(i => i.SortOrder) + 1 };
             list.Items.Add(item);
             // The client-generated nonempty key must be inserted, not inferred as an existing row.
@@ -100,9 +109,11 @@ public static class ListEndpoints
         ItemChange(id, itemId, request.Version, db, ct, (list, item) =>
         {
             var text = request.Text?.Trim() ?? ""; var notes = Notes(request.Notes);
-            if (!Valid(text, notes)) return Invalid();
-            if (item.Text == text && item.Notes == notes) return Results.Ok();
-            item.Text = text; item.Notes = notes; return null;
+            var quantity = Notes(request.Quantity); var unit = Notes(request.Unit);
+            if (!Valid(text, notes) || quantity?.Length > 50 || unit?.Length > 50) return Invalid();
+            if (!GroceryFields(list, quantity, unit, request.CategoryId, out var category)) return InvalidGrocery();
+            if (item.Text == text && item.Notes == notes && item.Quantity == quantity && item.Unit == unit && item.CategoryId == category) return Results.Ok();
+            item.Text = text; item.Notes = notes; item.Quantity = quantity; item.Unit = unit; item.CategoryId = category; return null;
         });
 
     private static Task<IResult> CheckItem(Guid id, Guid itemId, CheckListItem request, WheelhouseDbContext db, CancellationToken ct) =>
@@ -120,7 +131,8 @@ public static class ListEndpoints
         {
             if (request.Direction is not (-1 or 1)) return Invalid();
             if (list.Version != request.ListVersion) return Conflict(list);
-            var rows = list.Items.Where(i => !i.Deleted && i.Checked == item.Checked).OrderBy(i => i.SortOrder).ThenBy(i => i.Id).ToArray();
+            var rows = list.Items.Where(i => !i.Deleted && i.Checked == item.Checked && (!list.IsGrocery || i.CategoryId == item.CategoryId))
+                .OrderBy(i => i.SortOrder).ThenBy(i => i.Id).ToArray();
             var index = Array.IndexOf(rows, item) + request.Direction;
             if (index < 0 || index >= rows.Length) return Results.Ok();
             var neighbour = rows[index];
@@ -151,7 +163,7 @@ public static class ListEndpoints
     {
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         await Lock(db, ct);
-        var list = await db.HouseholdLists.Include(l => l.Items).SingleOrDefaultAsync(l => l.Id == id, ct);
+        var list = await db.HouseholdLists.Include(l => l.Items).Include(l => l.Categories).AsSplitQuery().SingleOrDefaultAsync(l => l.Id == id, ct);
         if (list is null || itemId is not null && !list.Items.Any(i => i.Id == itemId)) return Results.NotFound();
         var refusal = mutate(list);
         if (refusal is not null) return refusal;

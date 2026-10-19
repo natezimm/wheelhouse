@@ -34,6 +34,7 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
     public DbSet<ChoreCompletion> ChoreCompletions => Set<ChoreCompletion>();
     public DbSet<HouseholdList> HouseholdLists => Set<HouseholdList>();
     public DbSet<ListItem> ListItems => Set<ListItem>();
+    public DbSet<GroceryCategory> GroceryCategories => Set<GroceryCategory>();
 
     /// <summary>
     /// The family the query filters scope to. Null outside a signed-in request, and then
@@ -163,16 +164,28 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
             list.Property(l => l.Name).HasMaxLength(100);
             list.Property(l => l.Version).IsConcurrencyToken();
             list.HasIndex(l => new { l.FamilyId, l.CreationId }).IsUnique();
+            list.HasIndex(l => l.FamilyId).IsUnique().HasFilter("\"IsGrocery\"");
             list.HasMany(l => l.Items).WithOne().HasForeignKey(i => i.HouseholdListId).OnDelete(DeleteBehavior.Cascade);
+            list.HasMany(l => l.Categories).WithOne().HasForeignKey(c => c.HouseholdListId).OnDelete(DeleteBehavior.Cascade);
         });
         modelBuilder.Entity<ListItem>(item =>
         {
             item.Property(i => i.Text).HasMaxLength(200);
             item.Property(i => i.Notes).HasMaxLength(2000);
+            item.Property(i => i.Quantity).HasMaxLength(50);
+            item.Property(i => i.Unit).HasMaxLength(50);
+            item.HasOne<GroceryCategory>().WithMany().HasForeignKey(i => i.CategoryId).OnDelete(DeleteBehavior.SetNull);
             item.Property(i => i.Version).IsConcurrencyToken();
             item.HasIndex(i => new { i.FamilyId, i.CreationId }).IsUnique();
             item.HasIndex(i => new { i.HouseholdListId, i.SortOrder });
             item.HasOne<Family>().WithMany().HasForeignKey(i => i.FamilyId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<GroceryCategory>(category =>
+        {
+            category.Property(c => c.Name).HasMaxLength(40);
+            category.HasIndex(c => new { c.HouseholdListId, c.SortOrder });
+            category.HasOne<Family>().WithMany().HasForeignKey(c => c.FamilyId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // Every family-owned table gets the filter here, so a new one cannot be left unscoped.
