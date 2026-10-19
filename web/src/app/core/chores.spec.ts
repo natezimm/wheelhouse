@@ -121,9 +121,79 @@ describe('ChoresStore', () => {
 
   it('loads the selected day after a queued range change without accepting the earlier day', () => {
     store.refresh(); const old = read(); store.select('2026-11-02');
+    expect(store.ready()).toBe(false);
     old.flush({ changeNumber: 2, chores: [{ ...chore, completedAt: '2026-11-01T15:00:00Z' }] });
     const next = read(); expect(next.request.params.get('date')).toBe('2026-11-02');
     next.flush({ changeNumber: 2, chores: [] });
-    expect(store.items()).toEqual([]);
+    expect(store.items()).toEqual([]); expect(store.ready()).toBe(true);
+  });
+
+  const repeat = { frequency: 'Daily' as const, intervalWeeks: 1, weekdays: [], endsOn: null };
+  const recurring: Chore = { ...chore, id: 'repeat', creationId: 'repeat-key', repeat, definitionVersion: 'definition-v1',
+    editDraft: { ...draft, title: chore.title, dueDate: '2026-10-01', repeat } };
+
+  it('locks completion per date while protecting schedule edits across all dates', async () => {
+    store.refresh(); snapshot(1, [recurring]);
+    const first = store.complete(recurring, true);
+    const write1 = http.expectOne('/api/chores/repeat/completion?date=2026-11-01');
+    store.select('2026-11-02'); const next = { ...recurring, dueDate: '2026-11-02', version: 'next-occurrence' }; snapshot(1, [next]);
+    expect(store.items()[0].completedAt).toBeNull(); expect(store.isPending('repeat')).toBe(false);
+    expect(store.definitionPending('repeat')).toBe(true);
+    const second = store.complete(next, true);
+    const write2 = http.expectOne('/api/chores/repeat/completion?date=2026-11-02');
+    expect(store.pending()).toHaveLength(2);
+    expect(await store.edit(next, draft)).toBe(false);
+    write1.flush({}, { status: 403, statusText: 'Forbidden' }); await first;
+    write2.flush({}, { status: 403, statusText: 'Forbidden' }); await second;
+    snapshot(1, [next]); snapshot(1, [next]); expect(store.pending()).toHaveLength(0);
+  });
+
+  it('checks the original occurrence date after navigating away from an uncertain save', async () => {
+    store.refresh(); snapshot(1, [recurring]);
+    const save = store.complete(recurring, true);
+    http.expectOne('/api/chores/repeat/completion?date=2026-11-01').flush({}, { status: 503, statusText: 'Lost response' }); await save;
+    const key = store.pending()[0].key;
+    store.select('2026-11-02'); const next = { ...recurring, dueDate: '2026-11-02', version: 'next-occurrence' }; snapshot(2, [next]);
+    const retry = store.retry(key);
+    http.expectOne('/api/chores/repeat?date=2026-11-01').flush({ ...recurring, completedAt: '2026-11-01T15:00:00Z', version: 'done' });
+    expect(await retry).toBe(true); expect(store.items()[0].completedAt).toBeNull();
+    http.expectNone(r => r.method === 'PUT'); snapshot(2, [next]);
+  });
+
+  it('uses the definition version for future edits without changing the current occurrence', async () => {
+    store.refresh(); snapshot(1, [recurring]);
+    const edited = { ...recurring.editDraft!, title: 'Future title' };
+    const save = store.edit(recurring, edited);
+    expect(store.items()[0].title).toBe(chore.title); expect(store.items()[0].dueDate).toBe(day);
+    const write = http.expectOne('/api/chores/repeat?date=2026-11-01'); expect(write.request.body.version).toBe('definition-v1');
+    const response = { ...recurring, editDraft: edited, definitionVersion: 'definition-v2', nextChangeDate: '2026-11-02' };
+    write.flush(response); expect(await save).toBe(true); snapshot(2, [response]);
+    expect(store.items()[0].title).toBe(chore.title); expect(store.items()[0].editDraft?.title).toBe('Future title');
+  });
+
+  it('retains today when archiving a schedule and reconciles the series archive flag', async () => {
+    store.refresh(); snapshot(1, [recurring]);
+    const save = store.archive(recurring); expect(store.items()).toHaveLength(1);
+    const write = http.expectOne('/api/chores/repeat/archive?date=2026-11-01'); expect(write.request.body.version).toBe('definition-v1');
+    write.flush({}, { status: 503, statusText: 'Lost response' }); await save;
+    const retry = store.retry(store.pending()[0].key);
+    const archived = { ...recurring, seriesArchived: true, stopsOn: '2026-11-02' };
+    http.expectOne('/api/chores/repeat?date=2026-11-01').flush(archived);
+    expect(await retry).toBe(true); snapshot(2, [archived]); expect(store.items()).toHaveLength(1);
+  });
+
+  it('never rolls recurring misses into the next date while one-time overdue work remains', () => {
+    store.refresh(); snapshot(1, [recurring, { ...chore, dueDate: '2026-10-31' }]);
+    store.select('2026-11-02');
+    expect(store.items().map(c => c.id)).toEqual([chore.id]); snapshot(1, []);
+  });
+
+  it('does not preview a new schedule on an unselected weekday', async () => {
+    const weekly = { frequency: 'Weekly' as const, intervalWeeks: 1, weekdays: [1], endsOn: null };
+    const save = store.create({ ...draft, dueDate: '2026-10-19', repeat: weekly });
+    expect(store.items()).toHaveLength(1);
+    const write = http.expectOne('/api/chores?date=2026-11-01');
+    write.flush({ ...recurring, creationId: write.request.body.creationId, visible: false, repeat: weekly });
+    expect(await save).toBe(true); snapshot(2, [chore]); expect(store.items()).toHaveLength(1);
   });
 });

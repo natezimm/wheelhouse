@@ -29,6 +29,8 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
     public DbSet<GoogleConnection> GoogleConnections => Set<GoogleConnection>();
 
     public DbSet<Chore> Chores => Set<Chore>();
+    public DbSet<ChorePlan> ChorePlans => Set<ChorePlan>();
+    public DbSet<ChoreCompletion> ChoreCompletions => Set<ChoreCompletion>();
 
     /// <summary>
     /// The family the query filters scope to. Null outside a signed-in request, and then
@@ -132,6 +134,22 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
             chore.HasIndex(c => new { c.FamilyId, c.CreationId }).IsUnique();
             chore.HasIndex(c => new { c.FamilyId, c.DueDate });
             chore.HasOne<Member>().WithMany().HasForeignKey(c => c.MemberId).OnDelete(DeleteBehavior.SetNull);
+            chore.HasMany(c => c.Plans).WithOne().HasForeignKey(p => p.ChoreId).OnDelete(DeleteBehavior.Cascade);
+            chore.HasMany(c => c.Completions).WithOne().HasForeignKey(p => p.ChoreId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ChorePlan>(plan =>
+        {
+            plan.Property(p => p.Title).HasMaxLength(200);
+            plan.Property(p => p.Notes).HasMaxLength(2000);
+            plan.Property(p => p.Frequency).HasMaxLength(16);
+            plan.HasIndex(p => new { p.ChoreId, p.EffectiveFrom }).IsUnique();
+            plan.HasOne<Member>().WithMany().HasForeignKey(p => p.MemberId).OnDelete(DeleteBehavior.SetNull);
+        });
+        modelBuilder.Entity<ChoreCompletion>(completion =>
+        {
+            completion.HasKey(c => new { c.ChoreId, c.DueDate });
+            completion.Property(c => c.Version).IsConcurrencyToken();
         });
 
         // Every family-owned table gets the filter here, so a new one cannot be left unscoped.
