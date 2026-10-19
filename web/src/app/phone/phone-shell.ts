@@ -1,8 +1,10 @@
+import { dayIn, formatDay } from '../core/days';
+import { TodayChores } from './today-chores';
 import { CalendarSaveStatus } from '../shared/calendar-save-status';
 import { CalendarConnection } from '../shared/calendar-connection';
 import { CalendarLive } from '../core/calendar-live';
-import { DatePipe, LowerCasePipe } from '@angular/common';
-import { Component, effect, inject, input } from '@angular/core';
+import { LowerCasePipe } from '@angular/common';
+import { Component, computed, effect, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Clock } from '../core/clock';
 import { FamilyStore } from '../core/family';
@@ -21,12 +23,12 @@ import { TodayEvents } from './today-events';
  */
 @Component({
   selector: 'app-phone-shell',
-  imports: [CalendarConnection, CalendarSaveStatus, DatePipe, DemoNotice, LowerCasePipe, MemberAvatar, PhoneNav, RouterLink, SignIn, StatusLine, TodayEvents],
+  imports: [CalendarConnection, CalendarSaveStatus, DemoNotice, LowerCasePipe, MemberAvatar, PhoneNav, RouterLink, SignIn, StatusLine, TodayEvents, TodayChores],
   template: `
     <header>
       <div class="title">
         <span class="date"
-          >{{ clock.now() | date: 'EEE, MMM d' }}@if (weather.weather(); as today) {
+          >{{ todayLabel() }}@if (weather.weather(); as today) {
             · {{ today.temperature }}° {{ today.description | lowercase }}
           }</span
         >
@@ -50,6 +52,7 @@ import { TodayEvents } from './today-events';
       <app-sign-in [outcome]="signin()" />
     } @else if (family.state().status === 'ready') {
       <app-today-events />
+      <app-today-chores />
     }
 
     <footer>
@@ -139,6 +142,7 @@ export class PhoneShell {
   protected readonly calendarLive = inject(CalendarLive);
   protected readonly clock = inject(Clock);
   protected readonly family = inject(FamilyStore);
+  protected readonly todayLabel = computed(() => formatDay(dayIn(this.family.family()?.timeZone ?? 'UTC', this.clock.now()), { weekday: 'short', month: 'short', day: 'numeric' }));
 
   protected readonly session = inject(SessionStore);
   protected readonly weather = inject(WeatherStore);
