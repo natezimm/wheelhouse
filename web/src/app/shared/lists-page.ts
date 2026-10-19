@@ -43,7 +43,7 @@ type Editor = { kind: 'new' | 'rename' | 'item' | 'archive' | 'delete' | 'catego
             <div class="picker-heading"><h2>{{ archived() ? 'Archived lists' : 'Your lists' }}</h2><button class="button" (click)="archived.set(!archived())">{{ archived() ? 'Active lists' : 'Archived lists' }}</button></div>
             @for (list of visibleLists(); track list.creationId) {
               <button class="list-choice" [attr.aria-pressed]="selected()?.creationId === list.creationId" (click)="choice.set(list.creationId)">
-                <span>{{ list.name }} @if (list.isGrocery) { <small>Protected</small> }</span><small>{{ remaining(list) }} remaining</small>
+                <span>{{ list.name }}@if (list.isGrocery) { <small> · Protected</small> }</span><small>{{ remaining(list) }} remaining</small>
               </button>
             } @empty { <p>{{ archived() ? 'No archived lists.' : 'No lists yet. Make one for errands, packing, or anything you share.' }}</p> }
           </aside>

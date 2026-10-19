@@ -6,6 +6,7 @@ import { provideRouter } from '@angular/router';
 import { FamilyStore } from '../core/family';
 import { HouseholdLive } from '../core/household-live';
 import { HouseholdList } from '../core/lists';
+import { ListsStore } from '../core/lists';
 import { marlowes } from '../testing/marlowes';
 import { ListsPage } from './lists-page';
 
@@ -35,6 +36,39 @@ describe('shared lists screen', () => {
     fixture.detectChanges(); read(); fixture.detectChanges();
   });
   afterEach(() => { http.verify(); Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal'); });
+
+  async function loadGrocery() {
+    const grocery: HouseholdList = { ...structuredClone(initial[0]), name:'Grocery', isGrocery:true,
+      categories:[{ id:'produce', name:'Produce', isOther:false }, { id:'other', name:'Other', isOther:true }],
+      items:[{ ...initial[0].items[0], text:'Apples', quantity:'6', unit:null, categoryId:'produce', checked:true }] };
+    TestBed.inject(ListsStore).refresh(); read([grocery], 2); await fixture.whenStable(); return grocery;
+  }
+
+  it('preserves grocery edit fields through live reads and sends the reviewed category', async () => {
+    const grocery = await loadGrocery();
+    page.querySelector<HTMLDetailsElement>('details.checked')!.open=true;
+    button('Edit Apples').click(); await fixture.whenStable(); await type('input[name=quantity]', '2'); await type('input[name=unit]', 'bags');
+    TestBed.inject(ListsStore).refresh(); read([{ ...grocery, version:'latest' }], 3); await fixture.whenStable();
+    expect(page.querySelector<HTMLInputElement>('input[name=quantity]')!.value).toBe('2');
+    page.querySelector<HTMLFormElement>('dialog form')!.dispatchEvent(new Event('submit', { bubbles:true })); fixture.detectChanges();
+    const request = http.expectOne('/api/lists/errands/items/item');
+    expect(request.request.body).toMatchObject({ quantity:'2', unit:'bags', categoryId:'produce', version:'i-v1' });
+    request.flush({ changeNumber:4, lists:[grocery] }); await settle(); read([grocery], 4); await fixture.whenStable();
+  });
+
+  it('keeps clear confirmation fixed until explicit review of a conflict', async () => {
+    const grocery = await loadGrocery(); button('Clear checked (1)').click(); await fixture.whenStable();
+    const newer = structuredClone(grocery); newer.items.push({ ...grocery.items[0], id:'milk', creationId:'mc', text:'Milk', version:'mv' });
+    TestBed.inject(ListsStore).refresh(); read([newer], 3); await fixture.whenStable();
+    expect(page.querySelector('dialog')!.textContent).toContain('these 1 checked');
+    expect(page.querySelector('dialog')!.textContent).not.toContain('Milk');
+    page.querySelector<HTMLFormElement>('dialog form')!.dispatchEvent(new Event('submit', { bubbles:true })); fixture.detectChanges();
+    const request = http.expectOne('/api/lists/errands/clear-checked');
+    expect(request.request.body).toEqual({ items:[{ id:'item', version:'i-v1' }] });
+    request.flush({}, { status:409, statusText:'Conflict' }); await settle(); read([newer], 3); await fixture.whenStable();
+    button('Review latest').click(); await fixture.whenStable();
+    expect(page.querySelector('dialog')!.textContent).toContain('these 2 checked'); expect(page.querySelector('dialog')!.textContent).toContain('Milk');
+  });
 
   it('keeps separate quick-add drafts while switching lists', async () => {
     await type('input[name=quickItem]', 'Library bag'); button('Packing0 remaining').click(); await fixture.whenStable();
