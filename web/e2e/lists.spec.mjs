@@ -89,7 +89,10 @@ test('shared list actions, uncertain saves and recovery preserve drafts at both 
   state.blocked=true; for (const socket of state.sockets) socket.close();
   await expect(page.getByText('Reconnecting', { exact:true })).toBeVisible();
   await page.screenshot({ path:info.outputPath('lists-reconnecting-draft.png'), fullPage:true });
-  state.blocked=false; state.failRead=true;
+  state.blocked=false;
+  await expect(page.getByText('Live updates', { exact:true })).toBeVisible({ timeout:10_000 });
+  await expect(page.getByLabel('Notes', { exact:true })).toHaveValue('Keep this draft');
+  state.failRead=true;
   await page.getByRole('button', { name:'Cancel', exact:true }).click();
   await page.getByRole('button', { name:'Resync now', exact:true }).click();
   await expect(page.getByText('Could not refresh lists.', { exact:false })).toBeVisible();

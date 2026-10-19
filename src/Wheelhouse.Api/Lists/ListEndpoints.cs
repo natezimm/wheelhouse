@@ -86,9 +86,12 @@ public static class ListEndpoints
             var existing = db.ListItems.SingleOrDefault(i => i.CreationId == request.CreationId);
             if (existing is not null) return existing.CreationRequest == fingerprint ? null : Conflict(list);
             if (list.Archived) return Conflict(list);
-            list.Items.Add(new ListItem { Id = Guid.CreateVersion7(), FamilyId = list.FamilyId, HouseholdListId = id,
+            var item = new ListItem { Id = Guid.CreateVersion7(), FamilyId = list.FamilyId, HouseholdListId = id,
                 CreationId = request.CreationId, CreationRequest = fingerprint, Text = text, Notes = notes,
-                SortOrder = list.Items.Count == 0 ? 0 : list.Items.Max(i => i.SortOrder) + 1 });
+                SortOrder = list.Items.Count == 0 ? 0 : list.Items.Max(i => i.SortOrder) + 1 };
+            list.Items.Add(item);
+            // The client-generated nonempty key must be inserted, not inferred as an existing row.
+            db.ListItems.Add(item);
             list.Version = Guid.NewGuid(); return null;
         });
     }

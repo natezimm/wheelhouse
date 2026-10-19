@@ -94,7 +94,13 @@ type Editor = { kind: 'new' | 'rename' | 'item' | 'archive' | 'delete'; list?: H
           @if (edit.kind === 'item') { <label class="field">Notes<textarea name="notes" [ngModel]="notes()" (ngModelChange)="notes.set($event)" maxlength="2000" [disabled]="editorLocked()"></textarea></label> }
         }
         @if (store.error()) { <p class="error" role="alert">{{ store.error() }}</p> }
-        @if (conflicted()) { <p>Review the latest list before applying this draft.</p><button class="button" type="button" [disabled]="store.refreshing()" (click)="review()">Review latest</button> }
+        @if (conflicted()) {
+          <p>Review the latest list before applying this draft.</p>
+          @if (currentItem(); as item) { <p>Latest item: {{ item.text }}@if (item.notes) { · {{ item.notes }} }</p> }
+          @else if (currentList(); as list) { <p>Latest list: {{ list.name }}{{ list.archived ? ' (archived)' : '' }}</p> }
+          @if (store.refreshFailed()) { <p class="error">The latest contents could not be loaded. Close this editor and use Resync now to retry.</p> }
+          <button class="button" type="button" [disabled]="store.refreshing() || store.refreshFailed()" (click)="review()">Review latest</button>
+        }
         <div class="dialog-actions"><button class="button" type="button" (click)="close()">{{ editorLocked() ? 'Close' : 'Cancel' }}</button>
           <button class="button primary" [disabled]="editorLocked() || conflicted() || (!text().trim() && edit.kind !== 'archive' && edit.kind !== 'delete')">{{ saving() ? 'Saving…' : edit.kind === 'archive' ? 'Archive list' : edit.kind === 'delete' ? 'Delete item' : 'Save' }}</button></div>
       </form></dialog>
@@ -107,7 +113,7 @@ type Editor = { kind: 'new' | 'rename' | 'item' | 'archive' | 'delete'; list?: H
     h1 { font:600 40px var(--font-display); margin:10px 0 4px; } h2 { font:600 28px var(--font-display); margin:0; } h3 { font:600 18px var(--font-body); margin:0; overflow-wrap:anywhere; }
     p { margin:6px 0; } small, .eyebrow, header p, .list-heading p, .item-text p, .empty { color:var(--muted); }
     .eyebrow { text-transform:uppercase; letter-spacing:.08em; font-size:12px; } .page-header,.list-heading,.picker-heading { display:flex; justify-content:space-between; gap:12px; align-items:center; }
-    .page-header { align-items:flex-end; } a { color:var(--ink); } .connection { display:flex; align-items:center; gap:8px; flex-wrap:wrap; } .connection .button { margin-left:auto; }
+    .page-header { align-items:flex-end; } a { color:var(--ink); } header a, footer a { display:inline-flex; align-items:center; min-height:44px; } .connection { display:flex; align-items:center; gap:8px; flex-wrap:wrap; } .connection .button { margin-left:auto; }
     .dot { width:9px; height:9px; border-radius:50%; background:var(--warn); } .dot.online { background:var(--ok); } .workspace { display:grid; grid-template-columns:280px minmax(0,1fr); gap:20px; align-items:start; }
     .card { padding:20px; min-width:0; } .list-picker { display:flex; flex-direction:column; gap:10px; } .picker-heading { flex-wrap:wrap; margin-bottom:8px; } .picker-heading h2 { font-size:23px; }
     .list-choice { display:flex; flex-direction:column; align-items:flex-start; text-align:left; gap:5px; border:1px solid var(--line); border-radius:12px; padding:14px; min-height:64px; background:var(--surface); color:var(--ink); font:600 17px var(--font-body); overflow-wrap:anywhere; }
@@ -122,6 +128,7 @@ type Editor = { kind: 'new' | 'rename' | 'item' | 'archive' | 'delete'; list?: H
     dialog::backdrop { background:#0005; } dialog form { display:flex; flex-direction:column; gap:18px; } .dialog-actions { display:flex; justify-content:flex-end; gap:10px; }
     :host.wall { max-width:none; padding:28px 36px; font-size:20px; } :host.wall h1 { font-size:48px; } :host.wall h3 { font-size:23px; } :host.wall h2 { font-size:32px; }
     :host.wall .button,:host.wall input,:host.wall textarea,:host.wall .check,:host.wall summary,:host.wall a { min-height:56px; font-size:20px; } :host.wall .check { width:56px; } :host.wall .workspace { grid-template-columns:340px minmax(0,1fr); } :host.wall dialog { width:600px; }
+    :host.wall .item-actions .button { min-width:56px; }
     @media(max-width:700px) { .workspace { grid-template-columns:1fr; } .item-actions { width:100%; padding-left:56px; } .card { padding:16px; } .page-header .button { flex-shrink:0; } }
   `,
 })
@@ -145,6 +152,8 @@ export class ListsPage {
   private editorOperation: string | null = null;
   protected readonly editorLocked = computed(() => this.saving() || !!this.editorOperation && this.store.pending().some(o => o.key === this.editorOperation));
   protected readonly editorTitle = computed(() => ({ new:'New list', rename:'Rename list', item:'Edit item', archive:'Archive list', delete:'Delete item' })[this.editor()!.kind]);
+  protected readonly currentList = computed(() => this.store.lists().find(l => l.id === this.editor()?.list?.id));
+  protected readonly currentItem = computed(() => this.currentList()?.items.find(i => i.id === this.editor()?.item?.id));
 
   constructor() {
     this.family.load();
@@ -167,8 +176,8 @@ export class ListsPage {
   protected quickText(list: HouseholdList): string { return this.quick()[list.creationId] ?? ''; }
   protected setQuick(list: HouseholdList, text: string): void { this.quick.update(d => ({ ...d, [list.creationId]:text })); }
   protected async add(list: HouseholdList): Promise<void> {
-    const text = this.quickText(list), epoch = this.editorEpoch;
-    if (await this.store.add(list, text) && epoch === this.editorEpoch && this.quickText(list) === text) this.setQuick(list, '');
+    const text = this.quickText(list), familyId = this.family.family()?.id;
+    if (await this.store.add(list, text) && familyId === this.family.family()?.id && this.quickText(list) === text) this.setQuick(list, '');
   }
   protected open(editor: Editor): void {
     this.editorEpoch++; this.editorOperation = null; this.editor.set(editor); this.conflicted.set(false);
@@ -184,13 +193,17 @@ export class ListsPage {
   }
   protected async checkSave(key: string): Promise<void> {
     const epoch = this.editorEpoch;
+    const familyId = this.family.family()?.id;
     const op = this.store.pending().find(o => o.key === key);
-    if (await this.store.retry(key) && epoch === this.editorEpoch) {
+    if (await this.store.retry(key) && familyId === this.family.family()?.id) {
       if (op?.kind === 'add') {
         const list = op.preview;
         if (this.quickText(list) === (op.body as { text: string }).text) this.setQuick(list, '');
       }
-      if (this.editorOperation === key) this.close();
+      if (epoch === this.editorEpoch && this.editorOperation === key) {
+        if (op?.kind === 'create') { this.archived.set(false); this.choice.set(op.preview.creationId); }
+        this.close();
+      }
     }
   }
   protected async save(): Promise<void> {
