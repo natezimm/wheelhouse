@@ -55,7 +55,7 @@ describe('Meal plan screen', () => {
     button('Copy previous week…').click(); fixture.detectChanges();
     const source=http.expectOne(r => r.url === '/api/meals' && r.params.get('from') === '2026-10-26'); source.flush(snapshot('2026-10-26'));
     const destination=snapshot(); destination.meals[5].title=null; destination.meals[5].version='cleared-slot';
-    read().flush(destination); await fixture.whenStable();
+    read().flush(destination); await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); await fixture.whenStable();
     const boxes=page.querySelectorAll<HTMLInputElement>('dialog input[type=checkbox]');
     expect(boxes).toHaveLength(7); expect(boxes[0].checked).toBe(false); expect(boxes[1].checked).toBe(true);
     boxes[0].click(); await fixture.whenStable();
