@@ -7,6 +7,7 @@ using Wheelhouse.Api.Chores;
 using Wheelhouse.Api.Devices;
 using Wheelhouse.Api.Families;
 using Wheelhouse.Api.Lists;
+using Wheelhouse.Api.Meals;
 
 namespace Wheelhouse.Api.Data;
 
@@ -35,6 +36,8 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
     public DbSet<HouseholdList> HouseholdLists => Set<HouseholdList>();
     public DbSet<ListItem> ListItems => Set<ListItem>();
     public DbSet<GroceryCategory> GroceryCategories => Set<GroceryCategory>();
+    public DbSet<MealSlot> MealSlots => Set<MealSlot>();
+    public DbSet<MealCommand> MealCommands => Set<MealCommand>();
 
     /// <summary>
     /// The family the query filters scope to. Null outside a signed-in request, and then
@@ -186,6 +189,21 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
             category.Property(c => c.Name).HasMaxLength(40);
             category.HasIndex(c => new { c.HouseholdListId, c.SortOrder });
             category.HasOne<Family>().WithMany().HasForeignKey(c => c.FamilyId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MealSlot>(meal =>
+        {
+            meal.Property(m => m.Slot).HasMaxLength(16);
+            meal.Property(m => m.Title).HasMaxLength(200);
+            meal.Property(m => m.Notes).HasMaxLength(2000);
+            meal.Property(m => m.Version).IsConcurrencyToken();
+            meal.HasIndex(m => new { m.FamilyId, m.Date, m.Slot }).IsUnique();
+            meal.HasOne<Family>().WithMany(f => f.Meals).HasForeignKey(m => m.FamilyId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<MealCommand>(command =>
+        {
+            command.HasKey(c => new { c.FamilyId, c.Id });
+            command.HasOne<Family>().WithMany().HasForeignKey(c => c.FamilyId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // Every family-owned table gets the filter here, so a new one cannot be left unscoped.
