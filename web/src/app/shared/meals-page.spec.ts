@@ -42,6 +42,7 @@ describe('Meal plan screen', () => {
     expect(page.querySelector('dialog')!.textContent).toContain('Latest meal: Other device'); expect(button('Save meal').disabled).toBe(true);
     button('Review latest').click(); await fixture.whenStable(); expect(page.querySelector<HTMLInputElement>('[name=title]')!.value).toBe('My soup');
     expect(button('Save meal').disabled).toBe(false);
+    expect(page.querySelector('dialog')!.textContent).not.toContain('another device');
   });
   it('requires a separate clear confirmation and retains reviewed slot identity', async () => {
     button('Edit ' + week + ' Dinner').click(); await fixture.whenStable(); button('Clear this meal…').click(); await fixture.whenStable();
@@ -64,5 +65,10 @@ describe('Meal plan screen', () => {
     expect(write.request.body.items).toHaveLength(2); expect(write.request.body.items[1].targetVersion).toBe('cleared-slot');
     write.flush({}, { status:409, statusText:'Conflict' }); await Promise.resolve(); await Promise.resolve(); read().flush(snapshot(week, 3)); await fixture.whenStable();
     expect(button('Copy selected meals').disabled).toBe(true); expect(page.querySelector('dialog')!.textContent).toContain('resets overwrite selections');
+    button('Review latest').click(); fixture.detectChanges();
+    http.expectOne(r => r.url === '/api/meals' && r.params.get('from') === '2026-10-26').flush(snapshot('2026-10-26', 3));
+    read().flush(snapshot(week, 3)); await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); await fixture.whenStable();
+    expect(page.querySelector('dialog')!.textContent).not.toContain('another device');
+    expect([...page.querySelectorAll<HTMLInputElement>('dialog input[type=checkbox]')].every(b => !b.checked)).toBe(true);
   });
 });
