@@ -1,8 +1,8 @@
 # Chores, lists and meals roadmap
 
-Created October 18, 2026. Roadmap agreed through PR #25. Status: 4.1 in implementation; later increments remain planned.
+Created October 18, 2026. Roadmap agreed through PR #25. Status: 4.1 merged in [PR #26](https://github.com/natezimm/wheelhouse/pull/26); 4.2 in implementation; later increments remain planned.
 
-The 4.1 layout, states and API contract are documented in [chores-design.md](chores-design.md). Record its merged implementation PR here when complete; a branch or open PR does not mark it shipped.
+The 4.1 and 4.2 layout, states and API contracts are documented in [chores-design.md](chores-design.md). Record 4.2's merged implementation PR here when complete; a branch or open PR does not mark it shipped.
 
 This is a new plan requested after calendar live updates shipped in PR #24. The milestone numbers below are proposed continuations, not a recovered historical roadmap. Calendar Milestone 3 part 2 is complete. Nothing in this document is implemented merely because it is described here.
 
@@ -45,7 +45,7 @@ Each row is a target increment, not a promise that it fits one PR. If split, rec
 
 ## Milestone 4: Chores
 
-### 4.1 One-time chores — next implementation
+### 4.1 One-time chores — merged in PR #26
 
 Parents create, edit and archive a chore with a title, optional notes, an optional assigned member and a due date. An unassigned chore belongs to the household. The initial model is `Chore` plus versioned completion state; recurrence is introduced separately in 4.2.
 
@@ -139,4 +139,4 @@ Rewards/points, allowances, chore rotation, child-specific sign-in, reminders, p
 
 ## Immediate next action
 
-Implement **4.1: One-time chores** as the first usable slice, including household live recovery, wall/phone views, parent management, family completion, fictional seeds and tests. Split transport and UI work only if review size requires it, and keep the dependency explicit. Do not start recurring schedules or points in that increment.
+Complete **4.2: Repeating chores**, building on merged one-time chores and household live updates. Keep 4.3's Today summaries and history browser separate, along with rewards, rotation and monthly recurrence.

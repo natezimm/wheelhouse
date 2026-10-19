@@ -208,6 +208,9 @@ namespace Wheelhouse.Api.Data.Migrations
                     b.Property<bool>("Archived")
                         .HasColumnType("boolean");
 
+                    b.Property<DateOnly?>("ArchivedFrom")
+                        .HasColumnType("date");
+
                     b.Property<DateTimeOffset?>("CompletedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -250,6 +253,86 @@ namespace Wheelhouse.Api.Data.Migrations
                     b.HasIndex("FamilyId", "DueDate");
 
                     b.ToTable("Chores");
+                });
+
+            modelBuilder.Entity("Wheelhouse.Api.Chores.ChoreCompletion", b =>
+                {
+                    b.Property<Guid>("ChoreId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("DueDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("FamilyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("ChoreId", "DueDate");
+
+                    b.ToTable("ChoreCompletions");
+                });
+
+            modelBuilder.Entity("Wheelhouse.Api.Chores.ChorePlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ChoreId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("EffectiveFrom")
+                        .HasColumnType("date");
+
+                    b.Property<DateOnly?>("EndsOn")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("FamilyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Frequency")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<int>("IntervalWeeks")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("MemberId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateOnly>("StartsOn")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("Version")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("WeekdaysMask")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MemberId");
+
+                    b.HasIndex("ChoreId", "EffectiveFrom")
+                        .IsUnique();
+
+                    b.ToTable("ChorePlans");
                 });
 
             modelBuilder.Entity("Wheelhouse.Api.Devices.Device", b =>
@@ -464,6 +547,29 @@ namespace Wheelhouse.Api.Data.Migrations
                         .OnDelete(DeleteBehavior.SetNull);
                 });
 
+            modelBuilder.Entity("Wheelhouse.Api.Chores.ChoreCompletion", b =>
+                {
+                    b.HasOne("Wheelhouse.Api.Chores.Chore", null)
+                        .WithMany("Completions")
+                        .HasForeignKey("ChoreId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Wheelhouse.Api.Chores.ChorePlan", b =>
+                {
+                    b.HasOne("Wheelhouse.Api.Chores.Chore", null)
+                        .WithMany("Plans")
+                        .HasForeignKey("ChoreId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Wheelhouse.Api.Families.Member", null)
+                        .WithMany()
+                        .HasForeignKey("MemberId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
             modelBuilder.Entity("Wheelhouse.Api.Devices.Device", b =>
                 {
                     b.HasOne("Wheelhouse.Api.Families.Family", null)
@@ -493,6 +599,13 @@ namespace Wheelhouse.Api.Data.Migrations
             modelBuilder.Entity("Wheelhouse.Api.Calendar.CalendarSource", b =>
                 {
                     b.Navigation("Events");
+                });
+
+            modelBuilder.Entity("Wheelhouse.Api.Chores.Chore", b =>
+                {
+                    b.Navigation("Completions");
+
+                    b.Navigation("Plans");
                 });
 
             modelBuilder.Entity("Wheelhouse.Api.Families.Family", b =>
