@@ -6,6 +6,8 @@ export const routes: Routes = [
   { path: '', loadComponent: () => import('./phone/phone-shell').then((m) => m.PhoneShell) },
   { path: 'calendar', loadComponent: () => import('./phone/calendar').then((m) => m.PhoneCalendar) },
   { path: 'chores', loadComponent: () => import('./shared/chores-page').then((m) => m.ChoresPage) },
+  { path: 'lists', loadComponent: () => import('./shared/lists-page').then((m) => m.ListsPage) },
+  { path: 'wall/lists', data: { wall: true }, loadComponent: () => import('./shared/lists-page').then((m) => m.ListsPage) },
   { path: 'wall/chores', data: { wall: true }, loadComponent: () => import('./shared/chores-page').then((m) => m.ChoresPage) },
   { path: 'settings', loadComponent: () => import('./phone/settings').then((m) => m.Settings) },
   {

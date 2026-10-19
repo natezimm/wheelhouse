@@ -411,6 +411,11 @@ namespace Wheelhouse.Api.Data.Migrations
                     b.Property<double?>("Latitude")
                         .HasColumnType("double precision");
 
+                    b.Property<long>("ListsChangeNumber")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
+
                     b.Property<double?>("Longitude")
                         .HasColumnType("double precision");
 
@@ -482,6 +487,93 @@ namespace Wheelhouse.Api.Data.Migrations
                     b.HasIndex("FamilyId", "SortOrder");
 
                     b.ToTable("Members");
+                });
+
+            modelBuilder.Entity("Wheelhouse.Api.Lists.HouseholdList", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Archived")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("CreationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CreationRequest")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("FamilyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FamilyId", "CreationId")
+                        .IsUnique();
+
+                    b.ToTable("HouseholdLists");
+                });
+
+            modelBuilder.Entity("Wheelhouse.Api.Lists.ListItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Checked")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("CreationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CreationRequest")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("Deleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("FamilyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("HouseholdListId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<long>("SortOrder")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FamilyId", "CreationId")
+                        .IsUnique();
+
+                    b.HasIndex("HouseholdListId", "SortOrder");
+
+                    b.ToTable("ListItems");
                 });
 
             modelBuilder.Entity("Wheelhouse.Api.Auth.UserAccount", b =>
@@ -596,6 +688,30 @@ namespace Wheelhouse.Api.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Wheelhouse.Api.Lists.HouseholdList", b =>
+                {
+                    b.HasOne("Wheelhouse.Api.Families.Family", null)
+                        .WithMany("Lists")
+                        .HasForeignKey("FamilyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Wheelhouse.Api.Lists.ListItem", b =>
+                {
+                    b.HasOne("Wheelhouse.Api.Families.Family", null)
+                        .WithMany()
+                        .HasForeignKey("FamilyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Wheelhouse.Api.Lists.HouseholdList", null)
+                        .WithMany("Items")
+                        .HasForeignKey("HouseholdListId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Wheelhouse.Api.Calendar.CalendarSource", b =>
                 {
                     b.Navigation("Events");
@@ -616,7 +732,14 @@ namespace Wheelhouse.Api.Data.Migrations
 
                     b.Navigation("Devices");
 
+                    b.Navigation("Lists");
+
                     b.Navigation("Members");
+                });
+
+            modelBuilder.Entity("Wheelhouse.Api.Lists.HouseholdList", b =>
+                {
+                    b.Navigation("Items");
                 });
 #pragma warning restore 612, 618
         }
