@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, tap } from 'rxjs';
+import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
+import { Observable, tap, timeout } from 'rxjs';
 import { Day, addDays, dayIn, timeIn } from './days';
 import { Member, refusalMessage } from './family';
 
@@ -53,6 +53,7 @@ export interface EventRequest {
 }
 
 interface CalendarResponse {
+  changeNumber: number;
   calendars: CalendarSource[];
   events: CalendarEvent[];
   /** Google stopped accepting the family's connection, so the events have stopped updating. */
@@ -123,6 +124,47 @@ export class CalendarStore {
   private readonly hiddenOwners = signal<ReadonlySet<string>>(new Set());
 
   readonly state = this.current.asReadonly();
+  private readonly live = signal<'idle' | 'connecting' | 'live' | 'reconnecting'>('idle');
+  readonly connection = this.live.asReadonly();
+  private target = 0;
+  private identity = 0;
+  private request = 0;
+  private pending = false;
+  private again = false;
+  private retry?: ReturnType<typeof setTimeout>;
+
+  constructor() {
+    inject(DestroyRef).onDestroy(() => {
+      this.request++;
+      clearTimeout(this.retry);
+    });
+  }
+
+  setConnection(status: 'idle' | 'connecting' | 'live' | 'reconnecting'): void {
+    this.live.set(status);
+  }
+
+  /** A new subscription includes the current revision, recovering anything missed offline. */
+  changed(changeNumber: number): void {
+    if (!Number.isSafeInteger(changeNumber) || changeNumber < 0) return;
+    this.target = Math.max(this.target, changeNumber);
+    const state = this.current();
+    if (state.status !== 'idle' && (state.status !== 'ready' || state.changeNumber < this.target)) {
+      if (!this.pending) this.fetch(state.from, state.to, state.status === 'ready');
+    }
+  }
+
+  /** Forget data and in-flight responses when the signed-in family changes or access ends. */
+  reset(): void {
+    this.identity++;
+    this.request++;
+    this.pending = false;
+    this.again = false;
+    this.target = 0;
+    clearTimeout(this.retry);
+    this.current.set({ status: 'idle' });
+    this.hiddenOwners.set(new Set());
+  }
 
   /** Owners whose events are filtered out: member ids, or FAMILY. */
   readonly hidden = this.hiddenOwners.asReadonly();
@@ -159,6 +201,10 @@ export class CalendarStore {
     if (state.status !== 'idle' && state.status !== 'unavailable' && state.from === from && state.to === to) {
       return;
     }
+    this.request++;
+    this.pending = false;
+    this.again = false;
+    clearTimeout(this.retry);
     this.current.set({ status: 'loading', from, to });
     this.fetch(from, to);
   }
@@ -166,8 +212,12 @@ export class CalendarStore {
   /** Fetches the days on screen again. A failed attempt keeps what is shown. */
   refresh(): void {
     const state = this.current();
-    if (state.status === 'ready') {
-      this.fetch(state.from, state.to, true);
+    if (state.status !== 'idle') {
+      if (this.pending) {
+        this.again = true;
+      } else {
+        this.fetch(state.from, state.to, state.status === 'ready');
+      }
     }
   }
 
@@ -176,7 +226,12 @@ export class CalendarStore {
 
   /** Adds an event, or a series, which the server answers with its first event. */
   add(request: EventRequest): Observable<CalendarEvent> {
-    return this.http.post<CalendarEvent>('/api/calendar/events', request).pipe(tap((added) => this.put(added)));
+    const identity = this.identity;
+    return this.http.post<CalendarEvent>('/api/calendar/events', request).pipe(
+      tap((added) => {
+        if (identity === this.identity) this.put(added);
+      }),
+    );
   }
 
   /**
@@ -185,24 +240,31 @@ export class CalendarStore {
    * the store shows instead; 404 means it was deleted there.
    */
   update(id: string, request: EventRequest, series = false): Observable<CalendarEvent> {
+    const identity = this.identity;
     return this.http.put<CalendarEvent>(`/api/calendar/events/${id}`, request, { params: seriesParams(series) }).pipe(
       tap({
-        next: (changed) => this.put(changed),
-        error: (error: { status?: number; error?: unknown }) => this.afterRefusal(id, error),
+        next: (changed) => {
+          if (identity === this.identity) this.put(changed);
+        },
+        error: (error: { status?: number; error?: unknown }) => {
+          if (identity === this.identity) this.afterRefusal(id, error);
+        },
       }),
     );
   }
 
   remove(id: string, series = false): Observable<void> {
+    const identity = this.identity;
     return this.http.delete<void>(`/api/calendar/events/${id}`, { params: seriesParams(series) }).pipe(
       tap({
         next: () => {
+          if (identity !== this.identity) return;
           this.drop(id);
-          if (series) {
-            this.refresh();
-          }
+          this.refresh();
         },
-        error: (error: { status?: number; error?: unknown }) => this.afterRefusal(id, error),
+        error: (error: { status?: number; error?: unknown }) => {
+          if (identity === this.identity) this.afterRefusal(id, error);
+        },
       }),
     );
   }
@@ -213,11 +275,13 @@ export class CalendarStore {
       this.put(error.error);
     } else if (error.status === 404) {
       this.drop(id);
+      this.refresh();
     }
   }
 
   /** Adds or replaces an event on screen, then reads the days again for the server's order. */
   private put(event: CalendarEvent): void {
+    this.invalidateRead();
     this.current.update((state) =>
       state.status === 'ready' ? { ...state, events: [...state.events.filter((e) => e.id !== event.id), event] } : state,
     );
@@ -225,6 +289,7 @@ export class CalendarStore {
   }
 
   private drop(id: string): void {
+    this.invalidateRead();
     this.current.update((state) =>
       state.status === 'ready' ? { ...state, events: state.events.filter((e) => e.id !== id) } : state,
     );
@@ -240,22 +305,47 @@ export class CalendarStore {
     });
   }
 
+  private invalidateRead(): void {
+    this.request++;
+    this.pending = false;
+    this.again = false;
+    clearTimeout(this.retry);
+  }
+
   private fetch(from: Day, to: Day, quietly = false): void {
-    this.http.get<CalendarResponse>('/api/calendar', { params: { from, to } }).subscribe({
+    clearTimeout(this.retry);
+    const request = ++this.request;
+    this.pending = true;
+    this.again = false;
+    this.http.get<CalendarResponse>('/api/calendar', { params: { from, to } }).pipe(timeout(15_000)).subscribe({
       next: (response) => {
-        // A slower answer for days no longer on screen is dropped.
+        if (request !== this.request) return;
+        this.pending = false;
         const state = this.current();
-        if (state.status !== 'idle' && state.from === from && state.to === to) {
-          this.current.set({ status: 'ready', from, to, ...response });
+        // Never replace a newer snapshot, even when returning to the same date range.
+        if ((state.status === 'ready' && response.changeNumber < state.changeNumber) || response.changeNumber < this.target) {
+          this.fetch(from, to, state.status === 'ready');
+          return;
+        }
+        if (Number.isSafeInteger(response.changeNumber)) this.target = Math.max(this.target, response.changeNumber);
+        this.current.set({ status: 'ready', from, to, ...response });
+        if (this.again) {
+          this.fetch(from, to, true);
         }
       },
       error: () => {
-        const state = this.current();
-        if (!quietly && state.status !== 'idle' && state.from === from && state.to === to) {
-          this.current.set({ status: 'unavailable', from, to });
-        }
+        if (request !== this.request) return;
+        this.pending = false;
+        if (!quietly) this.current.set({ status: 'unavailable', from, to });
+        // A notification is not replayed after a failed GET. Keep trying its snapshot.
+        this.retryRead();
       },
     });
+  }
+
+  private retryRead(): void {
+    clearTimeout(this.retry);
+    this.retry = setTimeout(() => this.refresh(), 5_000);
   }
 }
 

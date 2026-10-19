@@ -1,3 +1,4 @@
+import { StatusLine } from '../shared/status-line';
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import { CalendarEvent, CalendarStore, FAMILY, FAMILY_COLOR, colorOf, daysOf, ownerOf, whenOn } from '../core/calendar';
 import { Clock } from '../core/clock';
@@ -11,7 +12,7 @@ import { SignIn } from './sign-in';
 /** The phone's month: a dot for each person busy on a day, and the chosen day's events below. */
 @Component({
   selector: 'app-phone-calendar',
-  imports: [CalendarFilter, EventSheet, PhoneNav, SignIn],
+  imports: [CalendarFilter, EventSheet, PhoneNav, SignIn, StatusLine],
   template: `
     @if (family.state().status === 'private') {
       <app-sign-in />
@@ -87,6 +88,7 @@ import { SignIn } from './sign-in';
       }
     }
 
+    <app-status-line />
     <app-phone-nav />
   `,
   styles: `

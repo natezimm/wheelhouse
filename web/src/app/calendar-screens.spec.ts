@@ -1,3 +1,5 @@
+import { CALENDAR_HUB, CalendarLive } from './core/calendar-live';
+import { CalendarHubFake } from './testing/calendar-hub';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
@@ -5,13 +7,14 @@ import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from './app.routes';
 import { CalendarEvent } from './core/calendar';
-import { CALENDAR_EVERY_MS, RETURN_AFTER_MS } from './wall/wall-shell';
+import { RETURN_AFTER_MS } from './wall/wall-shell';
 import { allDay, marloweCalendars, timed } from './testing/calendar';
 import { marlowes } from './testing/marlowes';
 
 /** The calendar on the wall and the phone, with the clock at 5:22 PM on Monday, October 12, 2026 in New York. */
 describe('calendar screens', () => {
   let http: HttpTestingController;
+  let hub: CalendarHubFake;
 
   const events: CalendarEvent[] = [
     allDay('Grandma in town', null, '2026-10-10', '2026-10-14'),
@@ -25,10 +28,13 @@ describe('calendar screens', () => {
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date'] });
     vi.setSystemTime(new Date('2026-10-12T21:22:00Z'));
+    hub = new CalendarHubFake();
     TestBed.configureTestingModule({
-      providers: [provideRouter(routes, withComponentInputBinding()), provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideRouter(routes, withComponentInputBinding()), provideHttpClient(), provideHttpClientTesting(),
+        { provide: CALENDAR_HUB, useValue: () => hub }],
     });
     http = TestBed.inject(HttpTestingController);
+    TestBed.inject(CalendarLive);
   });
 
   afterEach(() => vi.useRealTimers());
@@ -40,7 +46,7 @@ describe('calendar screens', () => {
     await harness.fixture.whenStable();
     const request = http.expectOne((r) => r.url === '/api/calendar');
     expect({ from: request.request.params.get('from'), to: request.request.params.get('to') }).toEqual(range);
-    request.flush({ calendars: marloweCalendars, events });
+    request.flush({ calendars: marloweCalendars, events, changeNumber: 1 });
     await harness.fixture.whenStable();
     return { page: harness.routeNativeElement as HTMLElement, settle: () => harness.fixture.whenStable() };
   }
@@ -163,15 +169,15 @@ describe('calendar screens', () => {
       expect(button(page, 'Day').getAttribute('aria-pressed')).toBe('true');
     });
 
-    it('reads the calendar again every half minute, so changes made in Google appear', async () => {
-      vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
-      vi.setSystemTime(new Date('2026-10-12T21:22:00Z'));
+    it('refreshes the visible week when a committed change arrives through the hub', async () => {
       const { page, settle } = await open('/wall', { from: '2026-10-12', to: '2026-10-19' });
 
-      vi.advanceTimersByTime(CALENDAR_EVERY_MS);
+      hub.notify(1);
+      hub.notify(2);
+      http.expectOne('/api/family').flush(marlowes);
       http
         .expectOne((r) => r.url === '/api/calendar')
-        .flush({ calendars: marloweCalendars, events: [...events, timed('Piano', 'm2', '2026-10-14T22:00:00Z', '2026-10-14T23:00:00Z')] });
+        .flush({ calendars: marloweCalendars, changeNumber: 2, events: [...events, timed('Piano', 'm2', '2026-10-14T22:00:00Z', '2026-10-14T23:00:00Z')] });
       await settle();
 
       expect(texts(page.querySelectorAll('section[aria-label="Wednesday, October 14"] li .title'))).toEqual(['Piano']);
@@ -215,6 +221,24 @@ describe('calendar screens', () => {
   });
 
   describe('on the phone', () => {
+    it('updates today from hub notifications and shows reconnect status', async () => {
+      const { page, settle } = await open('/', { from: '2026-10-12', to: '2026-10-13' });
+      expect(page.querySelector('app-status-line')?.textContent).toContain('Calendar connected');
+      hub.reconnecting?.();
+      http.expectOne('/api/family').flush(marlowes);
+      await settle();
+      expect(page.querySelector('app-status-line')?.textContent).toContain('Calendar reconnecting');
+      hub.reconnected?.();
+      hub.notify(3);
+      http.expectOne((r) => r.url === '/api/calendar').flush({
+        calendars: marloweCalendars, changeNumber: 3,
+        events: [timed('Piano', 'm2', '2026-10-12T22:00:00Z', '2026-10-12T23:00:00Z')],
+      });
+      await settle();
+      expect(page.textContent).toContain('Piano');
+      expect(page.textContent).not.toContain('Swim lesson');
+    });
+
     it("shows what is up next today, then the rest of the day", async () => {
       const { page } = await open('/', { from: '2026-10-12', to: '2026-10-13' });
 

@@ -60,6 +60,7 @@ export class FamilyStore {
   private readonly http = inject(HttpClient);
   private readonly current = signal<FamilyState>({ status: 'loading' });
 
+  private request = 0;
   readonly state = this.current.asReadonly();
 
   /** The family once loaded, or null. */
@@ -72,11 +73,21 @@ export class FamilyStore {
     return state.status === 'ready' ? state.family.members : [];
   });
 
+  /** Discard the previous identity before a new cookie is used. */
+  forget(): void {
+    this.request++;
+    this.current.set({ status: 'loading' });
+  }
+
   load(): void {
+    const request = ++this.request;
     this.http.get<Family>('/api/family').subscribe({
-      next: (family) => this.current.set({ status: 'ready', family }),
-      error: (error: HttpErrorResponse) =>
-        this.current.set({ status: error.status === 401 ? 'private' : 'unavailable' }),
+      next: (family) => {
+        if (request === this.request) this.current.set({ status: 'ready', family });
+      },
+      error: (error: HttpErrorResponse) => {
+        if (request === this.request) this.current.set({ status: error.status === 401 ? 'private' : 'unavailable' });
+      },
     });
   }
 
@@ -85,10 +96,13 @@ export class FamilyStore {
    * display has been removed, but a failed attempt keeps what is on screen.
    */
   refresh(): void {
+    const request = ++this.request;
     this.http.get<Family>('/api/family').subscribe({
-      next: (family) => this.current.set({ status: 'ready', family }),
+      next: (family) => {
+        if (request === this.request) this.current.set({ status: 'ready', family });
+      },
       error: (error: HttpErrorResponse) => {
-        if (error.status === 401) {
+        if (request === this.request && error.status === 401) {
           this.current.set({ status: 'private' });
         }
       },

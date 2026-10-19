@@ -1,3 +1,4 @@
+import { FamilyStore } from './family';
 import { HttpClient } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, firstValueFrom, tap } from 'rxjs';
@@ -22,6 +23,7 @@ type SessionState =
 @Injectable({ providedIn: 'root' })
 export class SessionStore {
   private readonly http = inject(HttpClient);
+  private readonly family = inject(FamilyStore);
   private readonly current = signal<SessionState>({ status: 'unknown' });
 
   readonly isDemo = computed(() => this.current().status === 'demo');
@@ -65,9 +67,10 @@ export class SessionStore {
   /** Ends a parent's sign-in. The session changes only once the server has signed them out. */
   signOut(): Observable<void> {
     return this.http.post<void>('/api/auth/sign-out', null).pipe(
-      tap(() =>
-        this.current.update((state) => (state.status === 'family' ? { ...state, signedIn: false } : state)),
-      ),
+      tap(() => {
+        this.family.forget();
+        this.current.update((state) => (state.status === 'family' ? { ...state, signedIn: false } : state));
+      }),
     );
   }
 }

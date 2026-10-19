@@ -24,12 +24,6 @@ export const RETURN_AFTER_MS = 2 * 60_000;
 export const CHECK_IN_EVERY_MS = 5 * 60_000;
 
 /**
- * How often the wall reads the calendar again. The server syncs with Google every two minutes,
- * so an event added in Google shows within about three.
- */
-export const CALENDAR_EVERY_MS = 30_000;
-
-/**
  * The wall display's frame: date, clock, a chip per person to filter the calendar, today's
  * weather, the calendar by day, week or month, and connection status. Sized for 1920 × 1080. A display that is not signed in to a family shows a pairing code instead.
  */
@@ -219,10 +213,8 @@ export class WallShell {
       this.family.refresh();
       this.weather.refresh();
     }, CHECK_IN_EVERY_MS);
-    const calendarTimer = setInterval(() => this.calendar.refresh(), CALENDAR_EVERY_MS);
     inject(DestroyRef).onDestroy(() => {
       clearInterval(timer);
-      clearInterval(calendarTimer);
       clearTimeout(this.idle);
     });
   }
@@ -264,6 +256,7 @@ export class WallShell {
 
   /** Signed in now: show the family the display was paired with. */
   protected paired(): void {
+    this.family.forget();
     this.pairingChosen.set(false);
     this.family.load();
   }

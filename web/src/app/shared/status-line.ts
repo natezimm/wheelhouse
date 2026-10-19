@@ -1,3 +1,4 @@
+import { CalendarStore } from '../core/calendar';
 import { Component, DestroyRef, computed, inject } from '@angular/core';
 import { ServerHealth, ServerStatus } from '../core/server-health';
 
@@ -13,7 +14,7 @@ const LABELS: Record<ServerStatus, string> = {
 @Component({
   selector: 'app-status-line',
   template: `
-    <span class="dot" [class]="health.status()" aria-hidden="true"></span>
+    <span class="dot" [class]="status()" aria-hidden="true"></span>
     <span role="status">{{ label() }}</span>
   `,
   styles: `
@@ -43,7 +44,16 @@ const LABELS: Record<ServerStatus, string> = {
 })
 export class StatusLine {
   protected readonly health = inject(ServerHealth);
-  protected readonly label = computed(() => LABELS[this.health.status()]);
+  private readonly calendar = inject(CalendarStore);
+  protected readonly status = computed(() => {
+    const live = this.calendar.connection();
+    return live === 'idle' ? this.health.status() : live === 'live' ? 'live' : live === 'connecting' ? 'checking' : 'offline';
+  });
+  protected readonly label = computed(() => {
+    const live = this.calendar.connection();
+    return live === 'idle' ? LABELS[this.health.status()] : live === 'live' ? 'Calendar connected' :
+      live === 'connecting' ? 'Connecting to the calendar…' : 'Calendar reconnecting…';
+  });
 
   constructor() {
     this.health.check();

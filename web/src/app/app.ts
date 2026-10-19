@@ -1,4 +1,5 @@
-import { Component } from '@angular/core';
+import { CalendarLive } from './core/calendar-live';
+import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 
 @Component({
@@ -6,4 +7,6 @@ import { RouterOutlet } from '@angular/router';
   selector: 'app-root',
   template: '<router-outlet />',
 })
-export class App {}
+export class App {
+  private readonly calendarLive = inject(CalendarLive);
+}

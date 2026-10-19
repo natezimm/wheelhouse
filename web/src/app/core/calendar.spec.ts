@@ -107,4 +107,91 @@ describe('CalendarStore', () => {
     expect(store.state().status).toBe('ready');
     expect(store.events()).toEqual([dentist, trash]);
   });
+  const snapshot = (changeNumber: number, events = [dentist]) => ({ changeNumber, calendars: marloweCalendars, events });
+  const read = () => http.expectOne((r) => r.url === '/api/calendar');
+
+  it('coalesces notifications during a read and recovers a revision committed after its snapshot', () => {
+    store.show('2026-10-12', '2026-10-19');
+    const first = read();
+    store.changed(2);
+    store.changed(3);
+    http.expectNone((r) => r.url === '/api/calendar');
+    first.flush(snapshot(1));
+    read().flush(snapshot(3, [trash]));
+    expect(store.events()).toEqual([trash]);
+    store.changed(3);
+    store.changed(2);
+    http.expectNone((r) => r.url === '/api/calendar');
+  });
+
+  it('retries a failed notification read while keeping the last snapshot visible', () => {
+    vi.useFakeTimers();
+    try {
+      store.show('2026-10-12', '2026-10-19');
+      read().flush(snapshot(1));
+      store.changed(2);
+      read().flush(null, { status: 503, statusText: 'Unavailable' });
+      expect(store.events()).toEqual([dentist]);
+      vi.advanceTimersByTime(5_000);
+      read().flush(snapshot(2, [trash]));
+      expect(store.events()).toEqual([trash]);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('drops an old response even after navigating away and back to the same days', () => {
+    store.show('2026-10-12', '2026-10-19');
+    const stale = read();
+    store.show('2026-10-19', '2026-10-26');
+    const middle = read();
+    store.show('2026-10-12', '2026-10-19');
+    read().flush(snapshot(4, [trash]));
+    stale.flush(snapshot(1));
+    middle.flush(snapshot(2));
+    expect(store.events()).toEqual([trash]);
+  });
+
+  it('does not let an in-flight snapshot undo an accepted edit', () => {
+    store.show('2026-10-12', '2026-10-19');
+    read().flush(snapshot(1));
+    store.refresh();
+    const stale = read();
+    store.update(dentist.id, {} as never).subscribe();
+    http.expectOne(`/api/calendar/events/${dentist.id}`).flush({ ...dentist, title: 'Changed' });
+    const latest = read();
+    stale.flush(snapshot(1));
+    expect(store.events()[0].title).toBe('Changed');
+    latest.flush(snapshot(2, [{ ...dentist, title: 'Changed' }]));
+    expect(store.events()[0].title).toBe('Changed');
+  });
+
+  it('ignores old reads and writes after the family changes', () => {
+    store.show('2026-10-12', '2026-10-19');
+    read().flush(snapshot(5));
+    store.update(dentist.id, {} as never).subscribe();
+    const edit = http.expectOne(`/api/calendar/events/${dentist.id}`);
+    store.refresh();
+    const stale = read();
+    store.reset();
+    store.show('2026-10-12', '2026-10-19');
+    read().flush(snapshot(1, [trash]));
+    edit.flush(dentist);
+    stale.flush(snapshot(6));
+    expect(store.events()).toEqual([trash]);
+    http.expectNone((r) => r.url === '/api/calendar');
+  });
+
+  it('times out a hung snapshot so later notifications can recover', () => {
+    vi.useFakeTimers();
+    try {
+      store.show('2026-10-12', '2026-10-19');
+      const hung = read();
+      vi.advanceTimersByTime(15_000);
+      expect(hung.cancelled).toBe(true);
+      expect(store.state().status).toBe('unavailable');
+      vi.advanceTimersByTime(5_000);
+      read().flush(snapshot(1));
+      expect(store.state().status).toBe('ready');
+    } finally { vi.useRealTimers(); }
+  });
+
 });

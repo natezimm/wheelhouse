@@ -101,6 +101,14 @@ describe('FamilyStore', () => {
       expect(names()).toEqual(['Ben', 'Tess', 'Milo']);
     });
   });
+  it('ignores a previous identity read after sign-out or pairing discards the family', () => {
+    store.load();
+    const previous = http.expectOne('/api/family');
+    store.forget();
+    previous.flush(marlowes);
+    expect(store.state().status).toBe('loading');
+  });
+
 });
 
 describe('refusalMessage', () => {
@@ -117,4 +125,6 @@ describe('refusalMessage', () => {
     expect(refusalMessage(new HttpErrorResponse({ status: 500 }), 'fallback')).toBe('fallback');
     expect(refusalMessage(new Error('offline'), 'fallback')).toBe('fallback');
   });
+
+
 });
