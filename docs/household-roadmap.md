@@ -1,8 +1,8 @@
 # Chores, lists and meals roadmap
 
-Created October 18, 2026. Roadmap agreed through PR #25. Status: 4.1 merged in [PR #26](https://github.com/natezimm/wheelhouse/pull/26); 4.2 in implementation; later increments remain planned.
+Created October 18, 2026. Roadmap agreed through PR #25. Status: 4.1 merged in [PR #26](https://github.com/natezimm/wheelhouse/pull/26); 4.2 merged in [PR #27](https://github.com/natezimm/wheelhouse/pull/27); 4.3 in implementation; later increments remain planned.
 
-The 4.1 and 4.2 layout, states and API contracts are documented in [chores-design.md](chores-design.md). Record 4.2's merged implementation PR here when complete; a branch or open PR does not mark it shipped.
+The 4.1–4.3 layout, states and API contracts are documented in [chores-design.md](chores-design.md). Record 4.3's merged implementation PR here when complete; a branch or open PR does not mark it shipped.
 
 This is a new plan requested after calendar live updates shipped in PR #24. The milestone numbers below are proposed continuations, not a recovered historical roadmap. Calendar Milestone 3 part 2 is complete. Nothing in this document is implemented merely because it is described here.
 
@@ -71,7 +71,7 @@ Missed recurring occurrences appear as missed history; the active view shows the
 
 Done when family-zone midnight and DST tests prove stable dates, repeated reads never duplicate occurrences, and completing or reopening a past date leaves other dates unchanged. Phone editing explains when schedule changes take effect.
 
-### 4.3 Daily overview and history
+### 4.3 Daily overview and history — in implementation
 
 Add a compact chores section to phone Today, showing due/completed counts and outstanding work. Add member/status filters and a bounded history view with completion dates. Wall Chores shows progress per member without rewards or leaderboards. Preserve chosen date and filters through recovery.
 
@@ -139,4 +139,4 @@ Rewards/points, allowances, chore rotation, child-specific sign-in, reminders, p
 
 ## Immediate next action
 
-Complete **4.2: Repeating chores**, building on merged one-time chores and household live updates. Keep 4.3's Today summaries and history browser separate, along with rewards, rotation and monthly recurrence.
+Complete **4.3: Daily overview and history**, building on merged one-time and repeating chores. Scope this increment to Today summaries, member/status filters, progress and bounded due-date history; shared lists, rewards and rotation remain separate.

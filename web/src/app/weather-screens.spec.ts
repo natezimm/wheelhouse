@@ -29,6 +29,7 @@ describe('weather', () => {
     vi.useRealTimers();
     // The status line checks the server's health; nothing here is about it.
     http.match('/health');
+    http.match(r => r.url === '/api/chores').forEach(r => r.flush({ changeNumber: 0, chores: [], canManage: true }));
     http.verify();
   });
 

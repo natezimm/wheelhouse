@@ -1,4 +1,4 @@
-# Chores (4.1 and 4.2)
+# Chores (4.1–4.3)
 
 Implementation design for the chores increments of [the household roadmap](household-roadmap.md). One-time chores shipped in PR #26; repeating chores extend the same screens and recovery contract.
 
@@ -60,3 +60,15 @@ Fictional seeds include daily brushing, selected-weekday lunch bags and fortnigh
 ## Verification
 
 API coverage exercises desired-state retries, concurrent creates, conflicting stale commands, authorization, cross-family IDs/assignment, removed members, demo dates/cleanup, transaction rollback, SignalR isolation, origin checks, revocation and the worker. Web coverage exercises projections, stale reads, range changes, uncertain saves, family reset and connection lifecycle. Browser checks use stubbed HTTP/WebSocket messages at both target sizes, including a two-page phone/wall workflow; these complement the real PostgreSQL/SignalR integration tests.
+
+## Daily overview and history (4.3)
+
+Phone Today adds a compact chores card: completed/total counts, the outstanding count, overdue count and up to three quick-complete rows, with a link to all chores. It selects the family's current day, including across midnight and DST, using the existing shared chores subscription and pending/recovery behavior. Calendar and household connection states remain independent.
+
+Both chores layouts add Day/History controls and member/status selects. Day keeps overdue one-time work separate from current work. Member cards on the wall show completed/total progress including overdue work, calculated before the status filter. A Completed filter opens the completed rows directly; filtered empty states offer a clear reset. Recovery preserves the date, range, filters and editor draft. A family change resets them; a removed selected assignee falls back to Household.
+
+History defaults to the last seven due dates ending on the selected day (capped at today). Parents and displays can choose any past range of 1–31 days. Results group occurrences by due date, latest first, with explicit family-zone completion dates/times, missed repeat labels and archived one-time entries. Open day returns to that date; Today returns to the live daily view. Archived one-time rows are readable but cannot be reopened; old recurring occurrences remain independently reopenable after the series stops. History shows current saved occurrence state, not an audit trail of every complete/reopen action.
+
+`GET /api/chores/history?from=&to=` returns the existing snapshot shape with an exclusive end date, one repeatable-read transaction, and the existing durable revision. It includes one-time rows due in range even when archived, plus scheduled recurring occurrences before their stop date. It loads only range completions and never materializes occurrences or writes on GET. Ranges longer than 31 days, empty/reversed ranges and future dates are rejected. No schema change or additional hub is needed.
+
+Normal/empty/loading/error/saving/reconnecting states follow the existing table: keep the last accepted range on a background failure, keep pending operations separate, lock only the affected occurrence, and offer Check save for an uncertain write. Loading a different date/range hides the previous result until its matching snapshot arrives.
