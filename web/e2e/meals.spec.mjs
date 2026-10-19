@@ -114,7 +114,7 @@ test('two devices review stale edits, receipted clears and occupied week-copy ch
   expect(state.rows.get(week+'/Dinner').title).toBe('Chicken');expect(state.rows.has('2026-11-04/Lunch')).toBe(false);
   await page.screenshot({path:info.outputPath('meals-copy-conflict.png'),fullPage:true});
   await dialog(page).getByRole('button',{name:'Review latest',exact:true}).click();
-  await expect(dialog(page).locator('.copy-row')).toHaveCount(3);
+  await expect(dialog(page).locator('.copy-row')).toHaveCount(4); // Includes the previous Sunday's roast.
   await dialog(page).locator('.copy-row').filter({hasText:'Replace: Chicken'}).locator('input').check();
   await page.screenshot({path:info.outputPath('meals-copy-preview.png'),fullPage:true});
   await dialog(page).getByRole('button',{name:'Copy selected meals',exact:true}).click();

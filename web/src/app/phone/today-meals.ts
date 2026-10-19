@@ -4,6 +4,7 @@ import { Clock } from '../core/clock';
 import { addDays, dayIn } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { MealsStore } from '../core/meals';
+import { HouseholdLive } from '../core/household-live';
 
 @Component({
   selector:'app-today-meals',
@@ -13,6 +14,7 @@ import { MealsStore } from '../core/meals';
       @if (!store.ready() && !store.refreshFailed()) { <p role="status">Loading meals…</p> }
       @if (store.refreshFailed()) { <p role="alert">Could not refresh meals.</p><button class="button" (click)="store.refresh()">Retry meals</button> }
       @if (store.error()) { <p role="alert">{{ store.error() }}</p> }
+      @if (live.state() === 'reconnecting') { <p role="status">Meals reconnecting…</p> }
       @if (store.ready()) {
         @for (meal of store.meals(); track meal.slot) { <div class="meal"><span>{{ meal.slot }}</span><strong>{{ meal.title || 'Not planned' }}</strong>@if (meal.notes) { <small>{{ meal.notes }}</small> }</div> }
       }
@@ -23,6 +25,7 @@ import { MealsStore } from '../core/meals';
 })
 export class TodayMeals {
   protected readonly store = inject(MealsStore);
+  protected readonly live = inject(HouseholdLive);
   private readonly family = inject(FamilyStore);
   private readonly clock = inject(Clock);
   private readonly day = computed(() => dayIn(this.family.family()?.timeZone ?? 'UTC', this.clock.now()));

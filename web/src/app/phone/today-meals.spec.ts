@@ -6,6 +6,7 @@ import { provideRouter } from '@angular/router';
 import { Clock } from '../core/clock';
 import { FamilyStore } from '../core/family';
 import { MEAL_SLOTS } from '../core/meals';
+import { HouseholdLive } from '../core/household-live';
 import { marlowes } from '../testing/marlowes';
 import { TodayMeals } from './today-meals';
 
@@ -14,7 +15,8 @@ describe('Today meals', () => {
   beforeEach(() => {
     now = signal(new Date('2026-11-02T04:59:59Z'));
     TestBed.configureTestingModule({ imports:[TodayMeals], providers:[provideRouter([]), provideHttpClient(), provideHttpClientTesting(),
-      { provide:Clock, useValue:{ now } }, { provide:FamilyStore, useValue:{ family:signal(marlowes) } }] });
+      { provide:Clock, useValue:{ now } }, { provide:FamilyStore, useValue:{ family:signal(marlowes) } },
+      { provide:HouseholdLive, useValue:{ state:signal('connected') } }] });
     http = TestBed.inject(HttpTestingController);
   });
   afterEach(() => http.verify());
