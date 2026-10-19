@@ -123,6 +123,15 @@ public sealed class ListTests(ApiFactory factory)
         var wallList = await Add(wall, await Create(wall, "Wall errands"));
         await Put(wall, $"/api/lists/{wallList.Id}/archive", new ListVersion(wallList.Version));
         Assert.Contains((await Read(parent)).Lists, l => l.Id == wallList.Id && l.Archived);
+        var grocery = (await Read(wall)).Lists.Single(l => l.IsGrocery);
+        var categories = grocery.Categories!.Select(c => new CategoryDraft(c.Id, c.Name)).ToList();
+        categories.Insert(0, new CategoryDraft(Guid.NewGuid(), "Bakery"));
+        await Put(wall, $"/api/lists/{grocery.Id}/categories", new EditCategories(grocery.Version, categories.ToArray()));
+        var checkedItems = grocery.Items.Where(i => i.Checked).Select(i => new ReviewedItem(i.Id, i.Version)).ToArray();
+        await Put(wall, $"/api/lists/{grocery.Id}/clear-checked", new ClearCheckedItems(checkedItems));
+        var current = (await Read(parent)).Lists.Single(l => l.IsGrocery);
+        Assert.Equal("Bakery", current.Categories![0].Name);
+        Assert.All(checkedItems, i => Assert.DoesNotContain(current.Items, row => row.Id == i.Id));
     }
 
     [Fact]
@@ -142,11 +151,12 @@ public sealed class ListTests(ApiFactory factory)
         await using var unscoped = factory.DbContextFor(null);
         Assert.Empty(await unscoped.HouseholdLists.ToArrayAsync()); Assert.Empty(await unscoped.ListItems.ToArrayAsync());
         var seed = DemoFamily.Create(Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(-1));
-        Assert.Equal(3, seed.Lists.Count); Assert.Contains(seed.Lists.SelectMany(l => l.Items), i => i.Checked);
+        Assert.Equal(4, seed.Lists.Count); Assert.Contains(seed.Lists.SelectMany(l => l.Items), i => i.Checked);
         unscoped.Families.Add(seed); await unscoped.SaveChangesAsync();
         await unscoped.Families.IgnoreQueryFilters().Where(f => f.Id == seed.Id).ExecuteDeleteAsync();
         Assert.Empty(await unscoped.HouseholdLists.IgnoreQueryFilters().Where(l => l.FamilyId == seed.Id).ToArrayAsync());
         Assert.Empty(await unscoped.ListItems.IgnoreQueryFilters().Where(i => i.FamilyId == seed.Id).ToArrayAsync());
+        Assert.Empty(await unscoped.GroceryCategories.IgnoreQueryFilters().Where(i => i.FamilyId == seed.Id).ToArrayAsync());
     }
 
     [Fact]
