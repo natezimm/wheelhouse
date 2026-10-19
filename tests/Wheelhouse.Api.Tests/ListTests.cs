@@ -147,6 +147,7 @@ public sealed class ListTests(ApiFactory factory)
         await unscoped.Families.IgnoreQueryFilters().Where(f => f.Id == seed.Id).ExecuteDeleteAsync();
         Assert.Empty(await unscoped.HouseholdLists.IgnoreQueryFilters().Where(l => l.FamilyId == seed.Id).ToArrayAsync());
         Assert.Empty(await unscoped.ListItems.IgnoreQueryFilters().Where(i => i.FamilyId == seed.Id).ToArrayAsync());
+        Assert.Empty(await unscoped.GroceryCategories.IgnoreQueryFilters().Where(i => i.FamilyId == seed.Id).ToArrayAsync());
     }
 
     [Fact]

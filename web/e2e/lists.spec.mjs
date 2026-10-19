@@ -10,9 +10,15 @@ const initial = [{ id:'l1', creationId:'lc1', name:'Errands', archived:false, ve
 ] }, { id:'l2', creationId:'lc2', name:'Weekend packing', archived:false, version:'lv2', items:[] }];
 
 // Real SignalR browser handshake and mocked HTTP/WebSocket transports, shared by two pages.
-function server() {
-  const state = { lists:structuredClone(initial), revision:1, sockets:[], blocked:false, failRead:false,
-    failWrite:false, commitThenFail:false, hold:false, held:null, posts:0 };
+function server(grocery = false) {
+  const lists = structuredClone(initial);
+  if (grocery) lists.unshift({ id:'g', creationId:'gc', name:'Grocery', isGrocery:true, archived:false, version:'gv1',
+    categories:[{ id:'produce', name:'Produce', isOther:false }, { id:'dairy', name:'Dairy', isOther:false }, { id:'other', name:'Other', isOther:true }],
+    items:[{ ...lists[0].items[0], id:'apples', creationId:'ac', text:'Apples', notes:null, quantity:'6', unit:null, categoryId:'produce' },
+      { ...lists[0].items[1], id:'milk', creationId:'mc', text:'Milk', quantity:'1', unit:'carton', categoryId:'dairy' },
+      { ...lists[0].items[2], id:'bread', creationId:'bc', text:'Bread', categoryId:'other' }] });
+  const state = { lists, revision:1, sockets:[], blocked:false, failRead:false,
+    failWrite:false, commitThenFail:false, hold:false, held:null, posts:0, clears:0 };
   const snapshot = () => ({ changeNumber:state.revision, lists:state.lists.map(l => ({ ...l, items:l.items.filter(i => !i.deleted).sort((a,b) => a.sortOrder-b.sortOrder) })) });
   state.notify = () => { for (const socket of state.sockets) { try {
     socket.send(JSON.stringify({ type:1, target:'HouseholdChanged', arguments:[{ domain:'lists', changeNumber:state.revision }] })+'\x1e');
@@ -31,7 +37,16 @@ function server() {
         } else if (req.method() === 'POST') {
           state.posts++;
           if (!list.items.some(i => i.creationId === body.creationId)) list.items.push({ id:'item-'+state.revision, creationId:body.creationId,
-            text:body.text.trim(), notes:body.notes, checked:false, deleted:false, sortOrder:list.items.length, version:'v'+state.revision });
+            text:body.text.trim(), notes:body.notes, quantity:body.quantity, unit:body.unit, categoryId:body.categoryId,
+            checked:false, deleted:false, sortOrder:list.items.length, version:'v'+state.revision });
+        } else if (path.endsWith('/clear-checked')) {
+          if (body.items.some(r => !list.items.some(i => i.id === r.id && (i.deleted || i.checked && i.version === r.version)))) return route.fulfill({ status:409, json:list });
+          state.clears++;
+          for (const reviewed of body.items) list.items.find(i => i.id === reviewed.id).deleted = true;
+        } else if (path.endsWith('/categories')) {
+          if (body.version !== list.version) return route.fulfill({ status:409, json:list });
+          list.categories = body.categories.map(c => ({ ...c, isOther:c.id === 'other' }));
+          for (const item of list.items) if (!list.categories.some(c => c.id === item.categoryId)) { item.categoryId='other'; item.version='v'+(state.revision+1); }
         } else if (path.endsWith('/archive')) list.archived=true;
         else if (ids.length === 4) list.name=body.name.trim();
         else {
@@ -39,10 +54,10 @@ function server() {
           if (path.endsWith('/checked')) item.checked=body.checked;
           else if (path.endsWith('/delete')) item.deleted=true;
           else if (path.endsWith('/move')) {
-            const rows = list.items.filter(i => !i.deleted && i.checked===item.checked).sort((a,b) => a.sortOrder-b.sortOrder);
+            const rows = list.items.filter(i => !i.deleted && i.checked===item.checked && (!list.isGrocery || i.categoryId===item.categoryId)).sort((a,b) => a.sortOrder-b.sortOrder);
             const other = rows[rows.indexOf(item)+body.direction];
             if (other) [item.sortOrder, other.sortOrder]=[other.sortOrder,item.sortOrder];
-          } else { item.text=body.text.trim(); item.notes=body.notes; }
+          } else { item.text=body.text.trim(); item.notes=body.notes; item.quantity=body.quantity; item.unit=body.unit; item.categoryId=body.categoryId; }
           item.version='v'+(state.revision+1);
         }
         state.revision++; if (list) list.version='lv'+state.revision; state.notify();
@@ -64,6 +79,71 @@ function server() {
   };
   return state;
 }
+
+test('grocery groups, optional fields and category configuration survive recovery at both sizes', async ({ page }, info) => {
+  const wall = info.project.name === 'wall', state = server(true), errors=[];
+  page.on('pageerror', error => errors.push(error.message));
+  await state.connect(page); await page.goto(wall ? '/wall/lists' : '/lists');
+  await expect(page.getByRole('heading', { name:'Grocery', exact:true })).toBeVisible();
+  await expect(page.getByRole('region', { name:'Produce', exact:true }).getByRole('heading', { name:'Apples', exact:true })).toBeVisible();
+  await expect(page.getByRole('button', { name:'Archive list', exact:true })).toHaveCount(0);
+  const check = page.getByRole('button', { name:'Check Apples', exact:true });
+  expect((await check.boundingBox()).height).toBeGreaterThanOrEqual(wall ? 56 : 44);
+  await page.getByLabel('Add an item', { exact:true }).fill('Something for lunch');
+  await page.getByRole('button', { name:'Add item', exact:true }).click();
+  await expect(page.getByRole('region', { name:'Other', exact:true }).getByRole('heading', { name:'Something for lunch', exact:true })).toBeVisible();
+  await page.getByRole('button', { name:'Edit Apples', exact:true }).click();
+  const dialog = page.getByRole('dialog');
+  await dialog.getByLabel('Quantity', { exact:true }).fill('2'); await dialog.getByLabel('Unit', { exact:true }).fill('bags');
+  state.blocked=true; for (const socket of state.sockets) socket.close();
+  await expect(page.getByText('Reconnecting', { exact:true })).toBeVisible(); state.blocked=false;
+  await expect(page.getByText('Live updates', { exact:true })).toBeVisible({ timeout:10_000 });
+  await expect(dialog.getByLabel('Quantity', { exact:true })).toHaveValue('2');
+  await page.screenshot({ path:info.outputPath('grocery-edit.png'), fullPage:true });
+  await dialog.getByRole('button', { name:'Save', exact:true }).click();
+  await expect(page.locator('.item').filter({ has:page.getByRole('heading', { name:'Apples', exact:true }) })).toContainText('2 bags');
+  await page.getByRole('button', { name:'Manage categories', exact:true }).click();
+  await dialog.getByRole('button', { name:'Add category', exact:true }).click();
+  await dialog.getByLabel('Category 3', { exact:true }).fill('Bakery');
+  await dialog.getByRole('button', { name:'Move up category Bakery', exact:true }).click();
+  await dialog.getByRole('button', { name:'Remove category Produce', exact:true }).click();
+  await dialog.getByRole('button', { name:'Save', exact:true }).click();
+  await expect(page.getByRole('region', { name:'Other', exact:true }).getByRole('heading', { name:'Apples', exact:true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+  expect(errors).toEqual([]); await page.screenshot({ path:info.outputPath('grocery-ready.png'), fullPage:true });
+});
+
+test('reviewed grocery clear refuses reopened items and reconciles a lost response across devices', async ({ page, context }, info) => {
+  test.skip(info.project.name !== 'phone', 'One two-device scenario is enough.');
+  const state=server(true); await state.connect(page); await page.goto('/lists');
+  const wall=await context.newPage(); await wall.setViewportSize({ width:1920, height:1080 }); await state.connect(wall); await wall.goto('/wall/lists');
+  await page.getByRole('button', { name:'Clear checked (1)', exact:true }).click();
+  await wall.locator('details.checked summary').click();
+  await wall.getByRole('button', { name:'Reopen Bread', exact:true }).click();
+  const dialog=page.getByRole('dialog'); await expect(dialog).toContainText('Bread');
+  await dialog.getByRole('button', { name:'Clear checked items', exact:true }).click();
+  await expect(dialog.getByRole('button', { name:'Review latest', exact:true })).toBeVisible();
+  expect(state.lists[0].items.filter(i => i.deleted)).toHaveLength(0);
+  await page.screenshot({ path:info.outputPath('grocery-clear-conflict.png'), fullPage:true });
+  await dialog.getByRole('button', { name:'Cancel', exact:true }).click();
+  await page.getByRole('button', { name:'Check Apples', exact:true }).click();
+  await page.getByRole('button', { name:'Clear checked (1)', exact:true }).click();
+  await wall.getByRole('button', { name:'Check Milk', exact:true }).click();
+  await expect(dialog).toContainText('Apples'); await expect(dialog).not.toContainText('Milk');
+  state.commitThenFail=true;
+  await dialog.getByRole('button', { name:'Clear checked items', exact:true }).click();
+  await expect(page.getByRole('button', { name:'Check save', exact:true })).toBeVisible();
+  await dialog.getByRole('button', { name:'Close', exact:true }).click();
+  await page.getByRole('button', { name:'Check save', exact:true }).click();
+  await expect(page.locator('.save-status')).toHaveCount(0); expect(state.clears).toBe(1);
+  await page.locator('details.checked summary').click();
+  await expect(page.getByRole('button', { name:'Reopen Milk', exact:true })).toBeVisible();
+  await expect(wall.getByRole('button', { name:'Reopen Milk', exact:true })).toBeVisible();
+  await expect(page.getByRole('heading', { name:'Apples', exact:true })).toHaveCount(0);
+  await expect(wall.getByRole('heading', { name:'Apples', exact:true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name:'Check Bread', exact:true })).toBeVisible();
+  await page.screenshot({ path:info.outputPath('grocery-cleared.png'), fullPage:true });
+});
 
 test('shared list actions, uncertain saves and recovery preserve drafts at both sizes', async ({ page }, info) => {
   const wall = info.project.name === 'wall', state = server(), errors=[];

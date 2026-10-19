@@ -19,6 +19,47 @@ describe('ListsStore', () => {
   function load() { store.activate(); http.expectOne('/api/lists').flush(snapshot()); }
   function refresh(revision = 2, lists = [structuredClone(list)]) { http.expectOne('/api/lists').flush(snapshot(revision, lists)); }
 
+  const grocery = (): HouseholdList => ({ ...structuredClone(list), isGrocery:true, name:'Grocery',
+    categories:[{ id:'produce', name:'Produce', isOther:false }, { id:'other', name:'Other', isOther:true }],
+    items:list.items.map((i, index) => ({ ...i, categoryId:index ? 'other' : 'produce', quantity:'2', unit:'bags' })) });
+
+  it('freezes grocery fields in creates and does not move across categories', async () => {
+    const g = grocery(); store.activate(); refresh(1, [g]);
+    expect(await store.move(g, g.items[1], -1)).toBe(false); http.expectNone(r => r.method === 'PUT');
+    const task = store.add(g, 'Rice', null, { quantity:'3', unit:'bags', categoryId:'other' });
+    const request = http.expectOne('/api/lists/l1/items');
+    expect(request.request.body).toMatchObject({ text:'Rice', quantity:'3', unit:'bags', categoryId:'other' });
+    request.error(new ProgressEvent('error')); await task;
+    const frozen = request.request.body;
+    const retry = store.retry(store.pending()[0].key); refresh(1, [g]); await Promise.resolve();
+    const repeated = http.expectOne('/api/lists/l1/items'); expect(repeated.request.body).toEqual(frozen);
+    repeated.flush(snapshot(2, [g])); await retry; refresh(2, [g]);
+  });
+
+  it('clears only the frozen reviewed set and reconciles a lost response without deleting new checks', async () => {
+    const g = grocery(); g.items[0].checked = true;
+    store.activate(); refresh(1, [g]);
+    const task = store.clear(g, [g.items[0]]); const request = http.expectOne('/api/lists/l1/clear-checked');
+    expect(request.request.body).toEqual({ items:[{ id:'i1', version:'iv1' }] });
+    expect(store.lists()[0].items.map(i => i.id)).toEqual(['i2']);
+    request.flush({}, { status:503, statusText:'Lost reply' }); await task;
+    const committed = structuredClone(g); committed.items = [ { ...g.items[1], checked:true } ];
+    const retry = store.retry(store.pending()[0].key); refresh(3, [committed]);
+    expect(await retry).toBe(true); refresh(3, [committed]);
+    expect(store.lists()[0].items[0].checked).toBe(true); http.expectNone(r => r.method === 'PUT');
+  });
+
+  it('previews removed categories in Other and retries the exact category configuration', async () => {
+    const g = grocery(); store.activate(); refresh(1, [g]);
+    const desired = [g.categories![1]];
+    const task = store.categories(g, desired); const request = http.expectOne('/api/lists/l1/categories');
+    expect(store.lists()[0].items.every(i => i.categoryId === 'other')).toBe(true);
+    request.error(new ProgressEvent('error')); await task;
+    const retry = store.retry(store.pending()[0].key); refresh(1, [g]); await Promise.resolve();
+    const repeated = http.expectOne('/api/lists/l1/categories'); expect(repeated.request.body).toEqual(request.request.body);
+    repeated.flush(snapshot(2, [{ ...g, categories:desired }])); await retry; refresh(2, [{ ...g, categories:desired }]);
+  });
+
   it('does no background reads until activated, coalesces gaps and ignores duplicate notifications', () => {
     store.changed(1); http.expectNone('/api/lists'); load();
     store.changed(4); store.changed(5); refresh(4); refresh(5);
