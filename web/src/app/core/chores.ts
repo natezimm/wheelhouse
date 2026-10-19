@@ -26,6 +26,7 @@ export class ChoresStore {
   private readonly confirmed = signal<Chore[]>([]);
   private readonly operations = signal<ChoreOperation[]>([]);
   private readonly currentDay = signal<Day | null>(null);
+  private readonly history = signal<{ from: Day; to: Day } | null>(null);
   private readonly loaded = signal(false);
   private readonly busy = signal(false);
   private readonly failed = signal(false);
@@ -55,14 +56,27 @@ export class ChoresStore {
       map.set(this.identity(op.preview), op.preview);
     }
     const day = this.currentDay();
-    return [...map.values()].filter(c => !c.archived && c.visible !== false && day &&
-      (c.dueDate === day || (!c.repeat && c.dueDate < day && !c.completedAt)))
+    const history = this.history();
+    return [...map.values()].filter(c => c.visible !== false && (history
+      ? c.dueDate >= history.from && c.dueDate < history.to
+      : !c.archived && day && (c.dueDate === day || (!c.repeat && c.dueDate < day && !c.completedAt))))
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.title.localeCompare(b.title));
   });
 
   select(day: Day): void {
-    if (this.currentDay() === day) return;
+    if (this.currentDay() === day && !this.history()) return;
+    this.history.set(null);
     this.currentDay.set(day);
+    this.loaded.set(false);
+    this.refresh();
+  }
+
+  /** A bounded view of due-date occurrences, including archived one-time work. */
+  selectHistory(from: Day, to: Day): void {
+    const current = this.history();
+    if (current?.from === from && current.to === to) return;
+    this.history.set({ from, to });
+    this.currentDay.set(null);
     this.loaded.set(false);
     this.refresh();
   }
@@ -75,16 +89,19 @@ export class ChoresStore {
 
   refresh(): void {
     const day = this.currentDay();
-    if (!day) return;
+    const history = this.history();
+    if (!day && !history) return;
     if (this.reading) { this.queued = true; return; }
     const epoch = this.familyEpoch;
     const sequence = this.writeSequence;
     this.reading = true;
     this.busy.set(true);
     this.failed.set(false);
-    this.http.get<ChoresSnapshot>('/api/chores', { params: { date: day } }).pipe(timeout(15_000)).subscribe({
+    const url = history ? '/api/chores/history' : '/api/chores';
+    const params: Record<string, string> = history ? { from: history.from, to: history.to } : { date: day! };
+    this.http.get<ChoresSnapshot>(url, { params }).pipe(timeout(15_000)).subscribe({
       next: snapshot => {
-        if (epoch !== this.familyEpoch || this.currentDay() !== day || sequence !== this.writeSequence) return;
+        if (epoch !== this.familyEpoch || this.currentDay() !== day || this.history() !== history || sequence !== this.writeSequence) return;
         if (!Array.isArray(snapshot.chores) || !Number.isSafeInteger(snapshot.changeNumber)) {
           this.failed.set(true); return;
         }
@@ -157,7 +174,7 @@ export class ChoresStore {
 
   reset(): void {
     this.familyEpoch++;
-    this.confirmed.set([]); this.operations.set([]); this.currentDay.set(null);
+    this.confirmed.set([]); this.operations.set([]); this.currentDay.set(null); this.history.set(null);
     this.loaded.set(false); this.busy.set(false); this.failed.set(false); this.message.set('');
     this.parent.set(false);
     this.latestConflict.set(null);

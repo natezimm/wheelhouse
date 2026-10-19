@@ -44,6 +44,19 @@ function server() {
     await page.clock.install({ time: new Date('2026-11-01T15:00:00Z') });
     await page.route('**/api/**', async route => {
       const req = route.request(); const url = new URL(req.url()); const path = url.pathname;
+      if (path === '/api/chores/history' && req.method() === 'GET') {
+        if (state.failRead) return route.fulfill({ status: 503 });
+        const from = url.searchParams.get('from'); const to = url.searchParams.get('to');
+        const chores = state.items.flatMap(item => {
+          if (!item.repeat) return item.dueDate >= from && item.dueDate < to ? [item] : [];
+          const rows = [];
+          for (let date = from; date < to; date = new Date(Date.parse(date + 'T12:00:00Z') + 86_400_000).toISOString().slice(0, 10)) {
+            const row = project(item, date); if (row.visible) rows.push(row);
+          }
+          return rows;
+        });
+        return route.fulfill({ json: { changeNumber: state.revision, canManage: state.canManage, chores } });
+      }
       if (path === '/api/chores' && req.method() === 'GET') {
         if (state.failRead) return route.fulfill({ status: 503 });
         const date = url.searchParams.get('date');
@@ -254,4 +267,82 @@ test('phone repeats preserve today while a recovered editor changes the future s
   await page.getByRole('button', { name: 'Today', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Brush teeth', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Edit Brush teeth', exact: true })).toHaveCount(0);
+});
+
+
+test('history filters, dated reopening and reconnect recovery preserve the chosen view', async ({ page }, info) => {
+  const wall = info.project.name === 'wall'; const state = server();
+  state.items.push({ id: 'repeat-history', creationId: 'daily-history', title: 'Brush teeth', notes: null,
+    memberId: 'm3', dueDate: '2026-10-28', repeat: { frequency: 'Daily', intervalWeeks: 1, weekdays: [], endsOn: null }, version: 'definition' });
+  state.items.push({ ...initial[0], id: 'archived', creationId: 'archived-key', title: 'Sort the coat cupboard',
+    memberId: null, dueDate: '2026-10-29', archived: true, completedAt: '2026-10-30T01:00:00Z' });
+  state.completions.set('repeat-history:2026-10-31', { completedAt: '2026-10-31T15:00:00Z', version: 'done-yesterday' });
+  await state.connect(page); await page.goto(wall ? '/wall/chores' : '/chores');
+  await page.getByRole('button', { name: 'History', exact: true }).press('Enter');
+  const member = page.getByRole('combobox', { name: 'Member', exact: true });
+  const status = page.getByRole('combobox', { name: 'Status', exact: true });
+  await member.selectOption('m3'); await status.selectOption('completed');
+  const reopen = page.getByRole('button', { name: 'Reopen Brush teeth', exact: true });
+  await expect(reopen).toBeVisible();
+  await expect(page.getByText('Completed Sat, Oct 31, 2026 at 11:00 AM', { exact: true })).toBeVisible();
+  expect((await reopen.boundingBox()).height).toBeGreaterThanOrEqual(wall ? 56 : 44);
+  expect((await member.boundingBox()).height).toBeGreaterThanOrEqual(wall ? 56 : 44);
+  await page.screenshot({ path: info.outputPath('chore-history-completed.png'), fullPage: true });
+  state.sockets[0].close({ code: 1011, reason: 'History recovery check' });
+  await expect(page.getByText('Reconnecting', { exact: true })).toBeVisible();
+  state.failRead = true;
+  await page.getByRole('button', { name: 'Resync now', exact: true }).click();
+  await expect(page.getByText('Chores could not be refreshed.', { exact: false })).toBeVisible();
+  await expect(reopen).toBeVisible();
+  state.failRead = false;
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect(page.getByText('Live updates', { exact: true })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'History from', exact: true })).toHaveValue('2026-10-26');
+  await expect(member).toHaveValue('m3'); await expect(status).toHaveValue('completed');
+  await reopen.click();
+  await expect(page.getByText('No chores match these filters.', { exact: true })).toBeVisible();
+  await status.selectOption('missed');
+  await expect(page.getByRole('heading', { name: 'Sat, Oct 31, 2026', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Open Sat, Oct 31, 2026', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Chore date', exact: true })).toHaveValue('2026-10-31');
+  await expect(page.getByRole('button', { name: 'Complete Brush teeth', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Today', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Chore date', exact: true })).toHaveValue(day);
+  await page.getByRole('button', { name: 'Clear filters', exact: true }).click();
+  if (wall) await expect(page.getByRole('progressbar', { name: 'Milo chore progress', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'History', exact: true }).click();
+  await status.selectOption('archived');
+  await expect(page.getByRole('heading', { name: 'Sort the coat cupboard', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Reopen Sort the coat cupboard', exact: true })).toBeDisabled();
+  await expect(page.getByText('Completed Thu, Oct 29, 2026 at 9:00 PM', { exact: true })).toBeVisible();
+  await page.getByRole('textbox', { name: 'History from', exact: true }).fill('');
+  await expect(page.getByText('Choose 1 to 31 days ending today or earlier.', { exact: true })).toBeVisible();
+  await page.getByRole('textbox', { name: 'History from', exact: true }).fill('2026-09-01');
+  await expect(page.getByText('Choose 1 to 31 days ending today or earlier.', { exact: true })).toBeVisible();
+  await page.getByRole('textbox', { name: 'History from', exact: true }).fill('2026-10-26');
+  await status.press('Tab');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+  await page.screenshot({ path: info.outputPath('chore-history-archived.png'), fullPage: true });
+});
+
+test('Today summarizes chores and rolls over at household midnight', async ({ page }, info) => {
+  test.skip(info.project.name !== 'phone', 'Phone Today summary.');
+  const state = server(); await state.connect(page);
+  await page.clock.setFixedTime(new Date('2026-11-02T04:59:59Z'));
+  await page.goto('/');
+  const card = page.locator('app-today-chores');
+  await expect(page.locator('.date')).toContainText('Sun, Nov 1');
+  await expect(card).toContainText('1 of 3 done · 2 remaining');
+  await expect(card).toContainText('1 overdue');
+  const complete = card.getByRole('button', { name: 'Complete Set the table', exact: true });
+  expect((await complete.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  await complete.click(); await expect(card).toContainText('2 of 3 done');
+  await page.screenshot({ path: info.outputPath('today-chores.png'), fullPage: true });
+  await page.clock.setFixedTime(new Date('2026-11-02T05:00:00Z'));
+  await page.clock.runFor(1_000);
+  await expect(card).toContainText('0 of 1 done · 1 remaining');
+  await expect(page.locator('.date')).toContainText('Mon, Nov 2');
+  await card.getByRole('link', { name: 'All chores →', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Chore date', exact: true })).toHaveValue('2026-11-02');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
 });

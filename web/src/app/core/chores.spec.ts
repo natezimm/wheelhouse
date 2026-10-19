@@ -196,4 +196,33 @@ describe('ChoresStore', () => {
     write.flush({ ...recurring, creationId: write.request.body.creationId, visible: false, repeat: weekly });
     expect(await save).toBe(true); snapshot(2, [chore]); expect(store.items()).toHaveLength(1);
   });
+  it('reads bounded history with archived one-time rows and independent dated overlays', async () => {
+    const previous = { ...recurring, dueDate: '2026-10-31', missed: true };
+    const archived = { ...chore, id: 'archived', archived: true, dueDate: '2026-10-30' };
+    store.selectHistory('2026-10-26', '2026-11-02');
+    const history = http.expectOne(r => r.url === '/api/chores/history');
+    expect(history.request.params.get('from')).toBe('2026-10-26');
+    expect(history.request.params.get('to')).toBe('2026-11-02');
+    history.flush({ changeNumber: 2, chores: [previous, recurring, archived], canManage: true });
+    expect(store.items()).toHaveLength(3);
+    const save = store.complete(previous, true);
+    expect(store.items().find(c => c.id === recurring.id && c.dueDate === day)?.completedAt).toBeNull();
+    const write = http.expectOne('/api/chores/repeat/completion?date=2026-10-31');
+    write.flush({ ...previous, completedAt: '2026-11-01T15:00:00Z', missed: false }); await save;
+    http.expectOne(r => r.url === '/api/chores/history').flush({ changeNumber: 3, chores: [recurring, archived], canManage: true });
+    store.select(day); snapshot(3, [recurring]);
+    expect(store.items()).toHaveLength(1);
+  });
+
+  it('does not accept a stale day read when history is selected and retains history on failed recovery', () => {
+    store.refresh(); const stale = read();
+    store.selectHistory('2026-10-26', '2026-11-02');
+    stale.flush({ changeNumber: 2, chores: [chore], canManage: true });
+    expect(store.ready()).toBe(false);
+    http.expectOne(r => r.url === '/api/chores/history').flush({ changeNumber: 2, chores: [chore], canManage: true });
+    store.refresh();
+    http.expectOne(r => r.url === '/api/chores/history').flush(null, { status: 503, statusText: 'Offline' });
+    expect(store.ready()).toBe(true); expect(store.items()).toEqual([chore]); expect(store.refreshFailed()).toBe(true);
+  });
+
 });

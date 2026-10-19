@@ -14,6 +14,10 @@ public static class DemoChores
         Add("Put laundry away", null, family.Members[1].Id, today, created.AddHours(-1));
         Add("Pack the library books", null, family.Members[2].Id, today.AddDays(1));
 
+        Add("Sort the coat cupboard", "Finished last weekend.", null, today.AddDays(-4), created.AddDays(-3));
+        family.Chores.Last().Archived = true;
+        Add("Return the board game", null, family.Members[0].Id, today.AddDays(-2), created.AddDays(-1));
+
         Repeat("Brush teeth", family.Members[2].Id, new ChoreRepeat("Daily"));
         Repeat("Check the lunch bags", family.Members[0].Id, new ChoreRepeat("Weekly", 1, [1, 2, 3, 4, 5]));
         Repeat("Wash the dog blankets", null, new ChoreRepeat("Weekly", 2, [(int)today.DayOfWeek]));
@@ -28,6 +32,12 @@ public static class DemoChores
             };
             var plan = new ChorePlan { FamilyId = family.Id, ChoreId = chore.Id, EffectiveFrom = draft.DueDate, Title = title, Frequency = repeat.Frequency };
             plan.Apply(draft); chore.Plans.Add(plan);
+            // Yesterday's completed occurrence sits beside other missed dates in history.
+            if (repeat.Frequency == "Daily") chore.Completions.Add(new ChoreCompletion
+            {
+                FamilyId = family.Id, ChoreId = chore.Id, DueDate = today.AddDays(-1),
+                CompletedAt = created.AddDays(-1),
+            });
             family.Chores.Add(chore);
         }
 

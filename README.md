@@ -6,7 +6,7 @@ This is early work. So far the wall shows the family's Google calendars by day, 
 
 ## Roadmap
 
-Chores are available on the phone at `/chores` and on the wall at `/wall/chores`. Parents add, assign, edit and archive chores on their phone; either layout completes and reopens them. Repeats support daily or selected weekdays every 1–52 weeks, with an optional end date. Each dated occurrence completes independently. Schedule edits and stops take effect tomorrow, preserving today and earlier history; missed repeats stay on their own date. Chores update live and retain pending saves during recovery. Today summaries, shared lists and meals follow in the roadmap below.
+Chores are available on the phone at `/chores` and on the wall at `/wall/chores`. Parents add, assign, edit and archive chores on their phone; either layout completes and reopens them. Repeats support daily or selected weekdays every 1–52 weeks, with an optional end date. Each dated occurrence completes independently. Schedule edits and stops take effect tomorrow, preserving today and earlier history; missed repeats stay on their own date. Chores update live and retain pending saves during recovery. Phone Today summarizes due and overdue chores with quick completion controls. Both chores layouts have member/status filters, daily progress and a history view for up to 31 due dates, including archived work and household-zone completion timestamps. Shared lists and meals follow in the roadmap below.
 
 The [chores, lists and meals roadmap](docs/household-roadmap.md) records merged increments, current work, completion criteria and deferred features.
 

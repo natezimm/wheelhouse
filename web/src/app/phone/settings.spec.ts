@@ -197,6 +197,7 @@ describe('Settings', () => {
     (harness.routeNativeElement as HTMLElement).querySelector<HTMLButtonElement>('button.sign-out')!.click();
     http.expectOne({ method: 'POST', url: '/api/auth/sign-out' }).flush(null, { status: 204, statusText: 'No Content' });
     await harness.fixture.whenStable();
+    http.match(r => r.url === '/api/chores').forEach(r => r.flush(null, { status: 401, statusText: 'Unauthorized' }));
     // Today still holds the family for a moment, so it asks for the day's events once.
     http.expectOne((request) => request.url === '/api/calendar').flush(null, { status: 401, statusText: 'Unauthorized' });
     http.expectOne('/api/family').flush(null, { status: 401, statusText: 'Unauthorized' });

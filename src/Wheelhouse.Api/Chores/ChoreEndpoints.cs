@@ -12,6 +12,7 @@ public static class ChoreEndpoints
     {
         var group = app.MapGroup("/api/chores").RequireAuthorization(Policies.Family);
         group.MapGet("", Snapshot);
+        group.MapGet("/history", History);
         group.MapGet("/{id:guid}", async (Guid id, DateOnly? date, WheelhouseDbContext db, TimeProvider time, CancellationToken ct) =>
             await Read(id, false, date, db, time, ct));
         group.MapGet("/creation/{id:guid}", async (Guid id, DateOnly? date, WheelhouseDbContext db, TimeProvider time, CancellationToken ct) =>
@@ -36,6 +37,43 @@ public static class ChoreEndpoints
         var response = chores.Select(c => ChoreOccurrences.Response(c, date, today)).Where(c => c.Visible && !c.Archived).ToArray();
         await tx.CommitAsync(ct);
         return Results.Ok(new ChoresResponse(revision.Value, response,
+            user.HasClaim(WheelhouseClaims.Role, Roles.Parent)));
+    }
+
+    // Dates are due dates in the household zone; the end is exclusive, as with calendar ranges.
+    // Keep reads bounded and project occurrences without materializing rows or changing revisions.
+    private static async Task<IResult> History(DateOnly from, DateOnly to, ClaimsPrincipal user,
+        WheelhouseDbContext db, TimeProvider time, CancellationToken ct)
+    {
+        if (to <= from || to.DayNumber - from.DayNumber > 31)
+            return Invalid("Choose a history range of 1 to 31 days.");
+        await using var tx = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, ct);
+        var family = await db.Families.Select(f => new { f.TimeZone, f.ChoresChangeNumber }).SingleOrDefaultAsync(ct);
+        if (family is null) return Results.NotFound();
+        var today = ChoreOccurrences.Today(family.TimeZone, time.GetUtcNow());
+        if (to > today.AddDays(1)) return Invalid("History ends on today or an earlier household date.");
+        var chores = await db.Chores.AsNoTracking()
+            .Include(c => c.Plans)
+            .Include(c => c.Completions.Where(done => done.DueDate >= from && done.DueDate < to))
+            .AsSplitQuery()
+            .Where(c => c.Plans.Any()
+                ? c.Plans.Any(p => p.EffectiveFrom < to && p.StartsOn < to && (p.EndsOn == null || p.EndsOn >= from))
+                    && (c.ArchivedFrom == null || c.ArchivedFrom > from)
+                : c.DueDate >= from && c.DueDate < to)
+            .ToArrayAsync(ct);
+        var rows = new List<ChoreResponse>();
+        foreach (var chore in chores)
+        {
+            if (chore.Plans.Count == 0) { rows.Add(ChoreResponse.From(chore)); continue; }
+            for (var day = from; day < to; day = day.AddDays(1))
+            {
+                var occurrence = ChoreOccurrences.Response(chore, day, today);
+                if (occurrence.Visible) rows.Add(occurrence);
+            }
+        }
+        await tx.CommitAsync(ct);
+        return Results.Ok(new ChoresResponse(family.ChoresChangeNumber,
+            rows.OrderByDescending(c => c.DueDate).ThenBy(c => c.Title).ThenBy(c => c.Id).ToArray(),
             user.HasClaim(WheelhouseClaims.Role, Roles.Parent)));
     }
 
