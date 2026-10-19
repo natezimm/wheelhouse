@@ -81,6 +81,7 @@ type Editor = { kind: 'new' | 'rename' | 'item' | 'archive' | 'delete' | 'catego
                 @if (!remaining(list)) { <p class="empty">{{ list.items.length ? 'All caught up. Checked items are below.' : 'Start with one thing. Add an item above.' }}</p> }
               </div>
               @if (list.isGrocery && sectionItems(list, true).length) { <button class="button" [disabled]="store.isPending(list.id)" (click)="open({ kind: 'clear', list, reviewed: sectionItems(list, true).slice(0, 500) })">Clear checked ({{ sectionItems(list, true).length > 500 ? 500 : sectionItems(list, true).length }})</button> }
+              @if (list.isGrocery && sectionItems(list, true).length > 500) { <p>Clear up to 500 reviewed items at a time. The rest stay on the list.</p> }
               <details class="checked"><summary>Checked ({{ list.items.length - remaining(list) }})</summary>
                 @for (item of sectionItems(list, true); track item.id) { <ng-container [ngTemplateOutlet]="row" [ngTemplateOutletContext]="{ list, item }" /> }
                 @empty { <p>No checked items yet.</p> }
@@ -116,7 +117,7 @@ type Editor = { kind: 'new' | 'rename' | 'item' | 'archive' | 'delete' | 'catego
         @else if (edit.kind === 'categories') {
           <p>Removing a category moves its items to Other. Other always stays last.</p>
           @for (category of categoryDraft(); track category.id; let index = $index) {
-            <div class="category-editor"><label class="field">Category {{ index + 1 }}<input [name]="'category' + index" maxlength="40" [ngModel]="category.name" (ngModelChange)="renameCategory(category.id, $event)" [disabled]="editorLocked() || category.isOther" /></label>
+            <div class="category-editor"><label class="field">Category {{ index + 1 }}<input [name]="'category-' + category.id" maxlength="40" [ngModel]="category.name" (ngModelChange)="renameCategory(category.id, $event)" [disabled]="editorLocked() || category.isOther" /></label>
               @if (!category.isOther) {
                 <button class="button" type="button" [attr.aria-label]="'Move up category ' + category.name" [disabled]="editorLocked() || index === 0" (click)="moveCategory(index, -1)">↑</button>
                 <button class="button" type="button" [attr.aria-label]="'Move down category ' + category.name" [disabled]="editorLocked() || index >= categoryDraft().length - 2" (click)="moveCategory(index, 1)">↓</button>
@@ -141,7 +142,7 @@ type Editor = { kind: 'new' | 'rename' | 'item' | 'archive' | 'delete' | 'catego
         @if (store.error()) { <p class="error" role="alert">{{ store.error() }}</p> }
         @if (conflicted()) {
           <p>Review the latest list before applying this draft.</p>
-          @if (currentItem(); as item) { <p>Latest item: {{ item.text }}@if (item.notes) { · {{ item.notes }} }</p> }
+          @if (currentItem(); as item) { <p>Latest item: {{ item.text }}@if (item.quantity || item.unit) { · {{ item.quantity }} {{ item.unit }} }@if (item.notes) { · {{ item.notes }} }</p> }
           @else if (currentList(); as list) { <p>Latest list: {{ list.name }}{{ list.archived ? ' (archived)' : '' }}</p> }
           @if (store.refreshFailed()) { <p class="error">The latest contents could not be loaded. Close this editor and use Resync now to retry.</p> }
           <button class="button" type="button" [disabled]="store.refreshing() || store.refreshFailed()" (click)="review()">Review latest</button>

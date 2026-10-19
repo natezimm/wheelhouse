@@ -90,7 +90,7 @@ test('grocery groups, optional fields and category configuration survive recover
   const check = page.getByRole('button', { name:'Check Apples', exact:true });
   expect((await check.boundingBox()).height).toBeGreaterThanOrEqual(wall ? 56 : 44);
   await page.getByLabel('Add an item', { exact:true }).fill('Something for lunch');
-  await page.getByRole('button', { name:'Add item', exact:true }).click();
+  await page.getByLabel('Add an item', { exact:true }).press('Enter');
   await expect(page.getByRole('region', { name:'Other', exact:true }).getByRole('heading', { name:'Something for lunch', exact:true })).toBeVisible();
   await page.getByRole('button', { name:'Edit Apples', exact:true }).click();
   const dialog = page.getByRole('dialog');

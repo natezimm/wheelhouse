@@ -84,7 +84,8 @@ public static partial class ListEndpoints
         var text = request.Text?.Trim() ?? "";
         var notes = Notes(request.Notes);
         var quantity = Notes(request.Quantity); var unit = Notes(request.Unit);
-        if (request.CreationId == Guid.Empty || !Valid(text, notes) || quantity?.Length > 50 || unit?.Length > 50) return Invalid();
+        if (request.CreationId == Guid.Empty || !Valid(text, notes)) return Invalid();
+        if (quantity?.Length > 50 || unit?.Length > 50) return InvalidGrocery();
         return await Change(id, null, db, ct, list =>
         {
             var fingerprint = quantity is null && unit is null && request.CategoryId is null
@@ -110,7 +111,8 @@ public static partial class ListEndpoints
         {
             var text = request.Text?.Trim() ?? ""; var notes = Notes(request.Notes);
             var quantity = Notes(request.Quantity); var unit = Notes(request.Unit);
-            if (!Valid(text, notes) || quantity?.Length > 50 || unit?.Length > 50) return Invalid();
+            if (!Valid(text, notes)) return Invalid();
+            if (quantity?.Length > 50 || unit?.Length > 50) return InvalidGrocery();
             if (!GroceryFields(list, quantity, unit, request.CategoryId, out var category)) return InvalidGrocery();
             if (item.Text == text && item.Notes == notes && item.Quantity == quantity && item.Unit == unit && item.CategoryId == category) return Results.Ok();
             item.Text = text; item.Notes = notes; item.Quantity = quantity; item.Unit = unit; item.CategoryId = category; return null;

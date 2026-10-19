@@ -70,6 +70,22 @@ describe('shared lists screen', () => {
     expect(page.querySelector('dialog')!.textContent).toContain('these 2 checked'); expect(page.querySelector('dialog')!.textContent).toContain('Milk');
   });
 
+  it('keeps category controls attached to stable IDs while inserting, ordering and removing rows', async () => {
+    const grocery = await loadGrocery(); button('Manage categories').click(); await fixture.whenStable();
+    button('Add category').click(); await fixture.whenStable();
+    const inputs = page.querySelectorAll<HTMLInputElement>('.category-editor input');
+    expect(inputs[1].value).toBe(''); expect(inputs[2].value).toBe('Other'); expect(inputs[2].disabled).toBe(true);
+    await type('input[name="' + inputs[1].name + '"]', 'Bakery');
+    button('Move up category Bakery').click(); await fixture.whenStable();
+    button('Remove category Produce').click(); await fixture.whenStable();
+    const other = page.querySelector<HTMLInputElement>('input[name=category-other]')!;
+    expect(other.value).toBe('Other'); expect(other.disabled).toBe(true);
+    page.querySelector<HTMLFormElement>('dialog form')!.dispatchEvent(new Event('submit', { bubbles:true })); fixture.detectChanges();
+    const request = http.expectOne('/api/lists/errands/categories');
+    expect(request.request.body.categories.map((c: { name: string }) => c.name)).toEqual(['Bakery', 'Other']);
+    request.flush({ changeNumber:3, lists:[grocery] }); await settle(); read([grocery], 3); await fixture.whenStable();
+  });
+
   it('keeps separate quick-add drafts while switching lists', async () => {
     await type('input[name=quickItem]', 'Library bag'); button('Packing0 remaining').click(); await fixture.whenStable();
     await type('input[name=quickItem]', 'Raincoat'); button('Errands1 remaining').click(); await fixture.whenStable();

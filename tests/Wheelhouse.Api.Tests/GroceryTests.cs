@@ -104,13 +104,15 @@ public sealed class GroceryTests(ApiFactory factory)
         first = list.Items.Single(i => i.Id == first.Id);
         list = await Put(client, list, $"/items/{first.Id}/checked", new CheckListItem(first.Version, false));
         Assert.Equal(HttpStatusCode.Conflict, (await client.PutAsJsonAsync($"/api/lists/{list.Id}/clear-checked", new ClearCheckedItems(reviewed))).StatusCode);
-        Assert.All(reviewed, r => Assert.Contains((list.Items), i => i.Id == r.Id));
+        list = await Grocery(client);
+        Assert.All(reviewed, r => Assert.Contains(list.Items, i => i.Id == r.Id));
         first = list.Items.Single(i => i.Id == first.Id);
         list = await Put(client, list, $"/items/{first.Id}/checked", new CheckListItem(first.Version, true));
         reviewed = list.Items.Where(i => i.Checked).Select(i => new ReviewedItem(i.Id, i.Version)).ToArray();
         first = list.Items.Single(i => i.Id == first.Id);
         list = await Put(client, list, $"/items/{first.Id}", new EditListItem(first.Version, "Changed while checked", null, "5", null, first.CategoryId));
         Assert.Equal(HttpStatusCode.Conflict, (await client.PutAsJsonAsync($"/api/lists/{list.Id}/clear-checked", new ClearCheckedItems(reviewed))).StatusCode);
+        list = await Grocery(client); Assert.All(reviewed, r => Assert.Contains(list.Items, i => i.Id == r.Id));
         reviewed = list.Items.Where(i => i.Checked).Select(i => new ReviewedItem(i.Id, i.Version)).ToArray();
         second = list.Items.Single(i => i.Id == second.Id);
         list = await Put(client, list, $"/items/{second.Id}/checked", new CheckListItem(second.Version, true));
@@ -156,5 +158,25 @@ public sealed class GroceryTests(ApiFactory factory)
         var item = foreign.Items.First(i => i.Checked);
         Assert.Equal(HttpStatusCode.NotFound, (await client.PutAsJsonAsync($"/api/lists/{list.Id}/clear-checked", new ClearCheckedItems([new(item.Id, item.Version)]))).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await other.PutAsJsonAsync($"/api/lists/{list.Id}/clear-checked", new ClearCheckedItems([new(item.Id, item.Version)]))).StatusCode);
+    }
+
+    [Fact]
+    public async Task Category_revision_rolls_back_with_the_category_and_moves_stay_in_their_group()
+    {
+        using var client = await factory.DemoVisitorAsync(); var list = await Grocery(client);
+        var before = (await Read(client)).ChangeNumber;
+        var family = (await client.GetFromJsonAsync<FamilyResponse>("/api/family", ApiFactory.Json))!;
+        await using (var db = factory.DbContextFor(family.Id))
+        {
+            await using var tx = await db.Database.BeginTransactionAsync();
+            (await db.GroceryCategories.FirstAsync()).Name = "Rollback category"; await db.SaveChangesAsync();
+            Assert.Equal(before + 1, await db.Families.Select(f => f.ListsChangeNumber).SingleAsync());
+            await tx.RollbackAsync();
+        }
+        Assert.Equal(before, (await Read(client)).ChangeNumber);
+        Assert.DoesNotContain((await Grocery(client)).Categories!, c => c.Name == "Rollback category");
+        var apple = list.Items.Single(i => i.Text == "Apples");
+        await Put(client, list, $"/items/{apple.Id}/move", new MoveListItem(apple.Version, list.Version, 1));
+        Assert.Equal(before, (await Read(client)).ChangeNumber);
     }
 }
