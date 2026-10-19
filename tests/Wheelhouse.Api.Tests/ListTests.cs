@@ -26,7 +26,7 @@ public sealed class ListTests(ApiFactory factory)
     private static async Task<HouseholdListResponse> Add(HttpClient client, HouseholdListResponse list, string text = "Rain jackets")
     {
         var response = await client.PostAsJsonAsync($"/api/lists/{list.Id}/items", new CreateListItem(Guid.NewGuid(), text, "For everyone"));
-        response.EnsureSuccessStatusCode();
+        Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
         return (await response.Content.ReadFromJsonAsync<ListsResponse>())!.Lists.Single(l => l.Id == list.Id);
     }
 
