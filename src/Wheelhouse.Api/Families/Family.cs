@@ -21,6 +21,9 @@ public sealed class Family
 
     public long ChoresChangeNumber { get; private set; }
 
+    public long ListsChangeNumber { get; private set; }
+    public List<Wheelhouse.Api.Lists.HouseholdList> Lists { get; } = [];
+
     public List<Chore> Chores { get; } = [];
 
     public DayOfWeek WeekStartsOn { get; set; } = DayOfWeek.Monday;

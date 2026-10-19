@@ -6,6 +6,7 @@ using Wheelhouse.Api.Calendar;
 using Wheelhouse.Api.Chores;
 using Wheelhouse.Api.Devices;
 using Wheelhouse.Api.Families;
+using Wheelhouse.Api.Lists;
 
 namespace Wheelhouse.Api.Data;
 
@@ -31,6 +32,8 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
     public DbSet<Chore> Chores => Set<Chore>();
     public DbSet<ChorePlan> ChorePlans => Set<ChorePlan>();
     public DbSet<ChoreCompletion> ChoreCompletions => Set<ChoreCompletion>();
+    public DbSet<HouseholdList> HouseholdLists => Set<HouseholdList>();
+    public DbSet<ListItem> ListItems => Set<ListItem>();
 
     /// <summary>
     /// The family the query filters scope to. Null outside a signed-in request, and then
@@ -52,6 +55,9 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
             family.Property(f => f.ChoresChangeNumber).HasDefaultValue(0L)
                 .Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
             family.HasMany(f => f.Chores).WithOne().HasForeignKey(c => c.FamilyId).OnDelete(DeleteBehavior.Cascade);
+            family.Property(f => f.ListsChangeNumber).HasDefaultValue(0L)
+                .Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
+            family.HasMany(f => f.Lists).WithOne().HasForeignKey(l => l.FamilyId).OnDelete(DeleteBehavior.Cascade);
             family.Property(f => f.WeekStartsOn).HasConversion<string>().HasMaxLength(16);
             family.Property(f => f.Units).HasConversion<string>().HasMaxLength(16);
             family.HasMany(f => f.Members).WithOne().HasForeignKey(m => m.FamilyId).OnDelete(DeleteBehavior.Cascade);
@@ -150,6 +156,23 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
         {
             completion.HasKey(c => new { c.ChoreId, c.DueDate });
             completion.Property(c => c.Version).IsConcurrencyToken();
+        });
+
+        modelBuilder.Entity<HouseholdList>(list =>
+        {
+            list.Property(l => l.Name).HasMaxLength(100);
+            list.Property(l => l.Version).IsConcurrencyToken();
+            list.HasIndex(l => new { l.FamilyId, l.CreationId }).IsUnique();
+            list.HasMany(l => l.Items).WithOne().HasForeignKey(i => i.HouseholdListId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<ListItem>(item =>
+        {
+            item.Property(i => i.Text).HasMaxLength(200);
+            item.Property(i => i.Notes).HasMaxLength(2000);
+            item.Property(i => i.Version).IsConcurrencyToken();
+            item.HasIndex(i => new { i.FamilyId, i.CreationId }).IsUnique();
+            item.HasIndex(i => new { i.HouseholdListId, i.SortOrder });
+            item.HasOne<Family>().WithMany().HasForeignKey(i => i.FamilyId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // Every family-owned table gets the filter here, so a new one cannot be left unscoped.
