@@ -19,7 +19,7 @@ public static class MealEndpoints
         return app;
     }
 
-    private static bool Range(DateOnly from, DateOnly to) => from.Year >= 1900 && to.Year <= 2200 && to.DayNumber - from.DayNumber is > 0 and <= 14;
+    private static bool Range(DateOnly from, DateOnly to) => from.Year is >= 1900 and < 2200 && to <= new DateOnly(2200, 1, 1) && to.DayNumber - from.DayNumber is > 0 and <= 14;
     private static IResult Invalid() => Results.ValidationProblem(new Dictionary<string, string[]> {
         ["meal"] = ["Choose a valid date (1900–2199), Breakfast/Lunch/Dinner, a title up to 200 characters and notes up to 2000. Copy 1–21 unique populated slots between non-overlapping weeks with reviewed versions."] });
     private static string? Text(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();

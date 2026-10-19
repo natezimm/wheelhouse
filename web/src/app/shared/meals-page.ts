@@ -146,10 +146,11 @@ export class MealsPage {
   protected dayLabel(day: string): string { return formatDay(day, { weekday:'short', month:'short', day:'numeric' }); }
   protected meal(date: string, slot: string): Meal | undefined { return this.store.meals().find(m => m.date === date && m.slot === slot); }
   protected navigate(offset: number): void { this.focus.set(addDays(this.week(), offset)); }
-  protected open(meal: Meal): void { this.close(); this.editor.set({ kind:'edit', meal:{ ...meal } }); this.title.set(meal.title ?? ''); this.notes.set(meal.notes ?? ''); }
+  protected open(meal: Meal): void { this.focus.set(this.week()); this.close(); this.editor.set({ kind:'edit', meal:{ ...meal } }); this.title.set(meal.title ?? ''); this.notes.set(meal.notes ?? ''); }
   protected confirmClear(): void { const edit = this.editor(); if (edit?.kind === 'edit') this.editor.set({ kind:'clear', meal:edit.meal }); }
   protected close(): void { this.editorEpoch++; this.editor.set(null); this.operation = null; this.saving.set(false); this.conflicted.set(false); this.copyLoading.set(false); this.copyError.set(''); }
   protected async openCopy(from = this.week()): Promise<void> {
+    this.focus.set(from);
     this.close(); const epoch = this.editorEpoch, sourceFrom = addDays(from, -7);
     this.editor.set({ kind:'copy', from, sourceFrom }); this.copyRows.set([]); this.copyLoading.set(true);
     try {
