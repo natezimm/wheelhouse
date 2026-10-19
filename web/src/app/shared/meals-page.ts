@@ -29,7 +29,7 @@ type CopyRow = MealCopy & { selected: boolean };
         <div><h2>Week of {{ label(week()) }}</h2><button class="button" (click)="focus.set(null)">This week</button></div>
         <button class="button" (click)="navigate(7)" [disabled]="week() >= '2199-12-17'">Next week</button>
       </nav>
-      @if (!wall) { <button class="button copy" (click)="openCopy()" [disabled]="!store.ready()">Copy previous week…</button> }
+      @if (!wall) { <button class="button copy" (click)="openCopy()" [disabled]="!store.ready() || !!store.pending().length">Copy previous week…</button> }
       @if (store.refreshFailed()) { <p class="error" role="alert">Could not refresh meals. Saved contents remain available. Use Resync now to retry.</p> }
       @if (store.error()) { <p class="error" role="alert">{{ store.error() }}</p> }
       @for (op of store.pending(); track op.key) {
@@ -161,6 +161,7 @@ export class MealsPage {
         const destination = target.meals.find(t => t.date === date && t.slot === m.slot)!;
         return { source:m, target:destination, selected:!destination.title };
       }));
+      this.store.dismissError();
     } catch { if (epoch === this.editorEpoch) this.copyError.set('Could not load the copy preview. No meals were changed.'); }
     finally { if (epoch === this.editorEpoch) this.copyLoading.set(false); }
   }
@@ -169,15 +170,16 @@ export class MealsPage {
     const edit = this.editor(); if (!edit) return;
     if (edit.kind === 'copy') { void this.openCopy(edit.from); return; }
     const meal = this.currentMeal(); if (!meal) return;
-    this.editor.set({ ...edit, meal:{ ...meal } }); this.conflicted.set(false);
+    this.editor.set({ ...edit, meal:{ ...meal } }); this.conflicted.set(false); this.store.dismissError();
   }
   protected async save(): Promise<void> {
     const edit = this.editor(); if (!edit || this.locked() || this.conflicted()) return;
     if (edit.kind === 'edit' && !this.title().trim() || edit.kind === 'copy' && (!this.chosenCount() || this.copyLoading() || this.copyError())) return;
     const epoch = this.editorEpoch; this.saving.set(true);
+    const previous = new Set(this.store.pending().map(o => o.key));
     const task = edit.kind === 'copy' ? this.store.copy(edit.sourceFrom, edit.from, this.copyRows().filter(r => r.selected))
       : this.store.save(edit.meal, edit.kind === 'clear' ? null : this.title(), edit.kind === 'clear' ? null : this.notes());
-    this.operation = this.store.pending().at(-1)?.key ?? null;
+    this.operation = this.store.pending().find(o => !previous.has(o.key))?.key ?? null;
     const ok = await task; if (epoch !== this.editorEpoch) return;
     this.saving.set(false); if (ok) this.close(); else if (!this.locked()) this.conflicted.set(this.store.error().includes('another device'));
   }

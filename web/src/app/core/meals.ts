@@ -96,6 +96,7 @@ export class MealsStore {
     // The receipt, not a content guess, decides whether the exact command already committed.
     return this.send(op, epoch);
   }
+  dismissError(): void { this.message.set(''); }
   reset(): void {
     this.epoch++; this.sequence++; this.from = ''; this.to = ''; this.reading = false; this.queued = false;
     this.revision = -1; this.wanted = -1; this.confirmed.set([]); this.operations.set([]);
