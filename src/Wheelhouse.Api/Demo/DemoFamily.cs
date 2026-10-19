@@ -44,6 +44,7 @@ public static class DemoFamily
         DemoCalendar.AddTo(family, created);
         DemoChores.AddTo(family, created);
         DemoLists.AddTo(family);
+        DemoMeals.AddTo(family, created);
 
         return family;
     }

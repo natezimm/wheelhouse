@@ -43,13 +43,14 @@ public sealed class HouseholdConnections(
                 return false;
             }
 
-            var subscription = new Subscription(context.ConnectionId, identity, context.Abort, family!.ChangeNumber, family.ListsChangeNumber);
+            var subscription = new Subscription(context.ConnectionId, identity, context.Abort, family!.ChangeNumber, family.ListsChangeNumber, family.MealsChangeNumber);
             await hub.Groups.AddToGroupAsync(subscription.Id, Group(identity.FamilyId), cancellationToken);
             _subscriptions.Add(subscription.Id, subscription);
             try
             {
                 await hub.Clients.Client(subscription.Id).HouseholdChanged(new HouseholdChanged("chores", family.ChangeNumber));
                 await hub.Clients.Client(subscription.Id).HouseholdChanged(new HouseholdChanged("lists", family.ListsChangeNumber));
+                await hub.Clients.Client(subscription.Id).HouseholdChanged(new HouseholdChanged("meals", family.MealsChangeNumber));
             }
             catch
             {
@@ -124,6 +125,11 @@ public sealed class HouseholdConnections(
                         await hub.Clients.Group(Group(group.Key)).HouseholdChanged(new HouseholdChanged("lists", family.ListsChangeNumber));
                         foreach (var subscription in allowed) subscription.ListsLastSent = family.ListsChangeNumber;
                     }
+                    if (family is not null && allowed.Any(s => s.MealsLastSent < family.MealsChangeNumber))
+                    {
+                        await hub.Clients.Group(Group(group.Key)).HouseholdChanged(new HouseholdChanged("meals", family.MealsChangeNumber));
+                        foreach (var subscription in allowed) subscription.MealsLastSent = family.MealsChangeNumber;
+                    }
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
                 {
@@ -175,7 +181,7 @@ public sealed class HouseholdConnections(
 
     private static Task<FamilyVersion?> FamilyAsync(WheelhouseDbContext db, Guid familyId, CancellationToken cancellationToken) =>
         db.Families.IgnoreQueryFilters().AsNoTracking().Where(f => f.Id == familyId)
-            .Select(f => new FamilyVersion(f.ChoresChangeNumber, f.ListsChangeNumber, f.ExpiresAt)).SingleOrDefaultAsync(cancellationToken);
+            .Select(f => new FamilyVersion(f.ChoresChangeNumber, f.ListsChangeNumber, f.MealsChangeNumber, f.ExpiresAt)).SingleOrDefaultAsync(cancellationToken);
 
     private async Task<bool> AllowedAsync(WheelhouseDbContext db, Identity identity, FamilyVersion? family, CancellationToken cancellationToken)
     {
@@ -231,14 +237,15 @@ public sealed class HouseholdConnections(
     private static string Group(Guid familyId) => $"household:{familyId:N}";
 
     private sealed record Identity(Guid FamilyId, Guid? AccountId, Guid? DeviceId);
-    private sealed record FamilyVersion(long ChangeNumber, long ListsChangeNumber, DateTimeOffset? ExpiresAt);
-    private sealed class Subscription(string id, Identity identity, Action abort, long lastSent, long listsLastSent)
+    private sealed record FamilyVersion(long ChangeNumber, long ListsChangeNumber, long MealsChangeNumber, DateTimeOffset? ExpiresAt);
+    private sealed class Subscription(string id, Identity identity, Action abort, long lastSent, long listsLastSent, long mealsLastSent)
     {
         public string Id { get; } = id;
         public Identity Identity { get; } = identity;
         public Action Abort { get; } = abort;
         public long LastSent { get; set; } = lastSent;
         public long ListsLastSent { get; set; } = listsLastSent;
+        public long MealsLastSent { get; set; } = mealsLastSent;
     }
 }
 
