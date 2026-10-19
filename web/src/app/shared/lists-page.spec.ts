@@ -75,10 +75,10 @@ describe('shared lists screen', () => {
     button('Add category').click(); await fixture.whenStable();
     const inputs = page.querySelectorAll<HTMLInputElement>('.category-editor input');
     expect(inputs[1].value).toBe(''); expect(inputs[2].value).toBe('Other'); expect(inputs[2].disabled).toBe(true);
-    await type('input[name="' + inputs[1].name + '"]', 'Bakery');
+    inputs[1].value = 'Bakery'; inputs[1].dispatchEvent(new Event('input')); await fixture.whenStable();
     button('Move up category Bakery').click(); await fixture.whenStable();
     button('Remove category Produce').click(); await fixture.whenStable();
-    const other = page.querySelector<HTMLInputElement>('input[name=category-other]')!;
+    const other = [...page.querySelectorAll<HTMLInputElement>('.category-editor input')].at(-1)!;
     expect(other.value).toBe('Other'); expect(other.disabled).toBe(true);
     page.querySelector<HTMLFormElement>('dialog form')!.dispatchEvent(new Event('submit', { bubbles:true })); fixture.detectChanges();
     const request = http.expectOne('/api/lists/errands/categories');
