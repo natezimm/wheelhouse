@@ -155,7 +155,7 @@ type Editor = { kind: 'new' | 'rename' | 'item' | 'archive' | 'delete' | 'catego
     @if (!wall) { <app-phone-nav /> }
   `,
   styles: `
-    .quick-add { flex-wrap:wrap; } .quick-options { width:100%; } .grocery-fields { display:grid; grid-template-columns:1fr 1fr; gap:12px; } .category { grid-column:1 / -1; } select { width:100%; min-height:44px; font:inherit; color:inherit; background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:10px; } .grocery-group { margin:24px 0; } .category-editor { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; } .category-editor .field { flex:1; min-width:180px; } textarea { min-height:96px; } :host.wall select { min-height:56px; }
+    .quick-add { flex-wrap:wrap; } .quick-options { width:100%; } .grocery-fields { display:grid; grid-template-columns:1fr 1fr; gap:12px; } .category { grid-column:1 / -1; } .grocery-group { margin:24px 0; } .category-editor { display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; } .category-editor .field { flex:1; min-width:180px; } textarea { min-height:96px; }
     :host { display:flex; flex-direction:column; gap:18px; max-width:1200px; margin:auto; padding:24px 18px 12px; min-height:100vh; box-sizing:border-box; }
     h1 { font:600 40px var(--font-display); margin:10px 0 4px; } h2 { font:600 28px var(--font-display); margin:0; } h3 { font:600 18px var(--font-body); margin:0; overflow-wrap:anywhere; }
     p { margin:6px 0; } small, .eyebrow, header p, .list-heading p, .item-text p, .empty { color:var(--muted); }
@@ -174,7 +174,7 @@ type Editor = { kind: 'new' | 'rename' | 'item' | 'archive' | 'delete' | 'catego
     footer { margin-top:auto; display:flex; align-items:center; gap:16px; } dialog { border:1px solid var(--line); border-radius:20px; padding:24px; width:min(480px,calc(100vw - 48px)); box-sizing:border-box; background:var(--surface); color:var(--ink); }
     dialog::backdrop { background:#0005; } dialog form { display:flex; flex-direction:column; gap:18px; } .dialog-actions { display:flex; justify-content:flex-end; gap:10px; }
     :host.wall { max-width:none; padding:28px 36px; font-size:20px; } :host.wall h1 { font-size:48px; } :host.wall h3 { font-size:23px; } :host.wall h2 { font-size:32px; }
-    :host.wall .button,:host.wall input,:host.wall textarea,:host.wall .check,:host.wall summary,:host.wall a { min-height:56px; font-size:20px; } :host.wall .check { width:56px; } :host.wall .workspace { grid-template-columns:340px minmax(0,1fr); } :host.wall dialog { width:600px; }
+    :host.wall .button,:host.wall input,:host.wall select,:host.wall textarea,:host.wall .check,:host.wall summary,:host.wall a { min-height:56px; font-size:20px; } :host.wall .check { width:56px; } :host.wall .workspace { grid-template-columns:340px minmax(0,1fr); } :host.wall dialog { width:600px; }
     :host.wall .item-actions .button { min-width:56px; }
     @media(max-width:700px) { .workspace { grid-template-columns:1fr; } .item-actions { width:100%; padding-left:56px; } .card { padding:16px; } .page-header .button { flex-shrink:0; } }
   `,
