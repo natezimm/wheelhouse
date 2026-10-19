@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { ChoresStore } from './chores';
+import { ListsStore } from './lists';
 import { FamilyStore } from './family';
 import { SessionStore } from './session';
 import { HOUSEHOLD_CONNECTION, HOUSEHOLD_EVERY_MS, HOUSEHOLD_RETRY_MS, HouseholdLive } from './household-live';
@@ -21,13 +22,15 @@ class Connection {
 describe('HouseholdLive', () => {
   let live: HouseholdLive; let family: FamilyStore; let http: HttpTestingController; let connections: Connection[];
   let chores: { refreshing: ReturnType<typeof signal<boolean>>; refresh: ReturnType<typeof vi.fn>; reset: ReturnType<typeof vi.fn>; changed: ReturnType<typeof vi.fn> };
+  let lists: typeof chores;
   async function settle() { TestBed.tick(); await Promise.resolve(); }
   async function join(id = marlowes.id) { family.load(); http.expectOne('/api/family').flush({ ...marlowes, id }); await settle(); }
   beforeEach(() => {
     vi.useFakeTimers(); connections = [];
     chores = { refreshing: signal(false), refresh: vi.fn(), reset: vi.fn(), changed: vi.fn() };
+    lists = { refreshing: signal(false), refresh: vi.fn(), reset: vi.fn(), changed: vi.fn() };
     TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(),
-      { provide: ChoresStore, useValue: chores }, { provide: HOUSEHOLD_CONNECTION, useValue: () => {
+      { provide: ChoresStore, useValue: chores }, { provide: ListsStore, useValue: lists }, { provide: HOUSEHOLD_CONNECTION, useValue: () => {
         const connection = new Connection(); connections.push(connection); return connection;
       } },
     ] });
@@ -41,6 +44,7 @@ describe('HouseholdLive', () => {
     connections[0].changed({ domain: 'meals', changeNumber: 1 }); expect(chores.changed).not.toHaveBeenCalled();
     connections[0].changed({ domain: 'chores', changeNumber: 2 });
     expect(chores.changed).toHaveBeenCalledWith(2); http.expectOne('/api/family').flush(marlowes);
+    connections[0].changed({ domain:'lists', changeNumber:7 }); expect(lists.changed).toHaveBeenCalledWith(7);
   });
 
   it('refreshes after reconnect, every thirty seconds and on visible online recovery', async () => {
@@ -63,6 +67,7 @@ describe('HouseholdLive', () => {
   it('clears a former family and ignores its late notifications', async () => {
     live.start(); await join(); const old = connections[0]; await join('other-family');
     expect(chores.reset).toHaveBeenCalledTimes(1); expect(old.stop).toHaveBeenCalled();
+    expect(lists.reset).toHaveBeenCalledTimes(1);
     old.changed({ domain: 'chores', changeNumber: 100 }); expect(chores.changed).not.toHaveBeenCalled();
   });
 
