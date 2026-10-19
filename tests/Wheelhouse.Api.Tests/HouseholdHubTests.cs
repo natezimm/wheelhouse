@@ -118,6 +118,30 @@ public sealed class HouseholdHubTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Meals_publish_only_committed_independent_family_revisions_to_phone_and_wall()
+    {
+        using var parent = await factory.DemoVisitorAsync(); using var other = await factory.DemoVisitorAsync();
+        var family = await FamilyOf(parent); var otherFamily = await FamilyOf(other);
+        var device = (await parent.GetFromJsonAsync<DeviceResponse[]>("/api/devices"))!.First();
+        await using var phone = await Observer.Connect(factory.Demo, Cookie(factory.Demo, WheelhousePrincipal.Parent(family.Id)), domain:"meals");
+        await using var wall = await Observer.Connect(factory.Demo, Cookie(factory.Demo, WheelhousePrincipal.Device(family.Id, device.Id)), domain:"meals");
+        await using var outsider = await Observer.Connect(factory.Demo, Cookie(factory.Demo, WheelhousePrincipal.Parent(otherFamily.Id)), domain:"meals");
+        var before = await phone.Next(); await wall.Next(); await outsider.Next();
+        await Add(parent); await Publish(factory.Demo); await phone.Quiet();
+        (await parent.PutAsJsonAsync("/api/meals/2030-01-07/Dinner", new Wheelhouse.Api.Meals.SaveMeal(Guid.NewGuid(), null, "Live dinner", null))).EnsureSuccessStatusCode();
+        await Publish(factory.Demo);
+        Assert.Equal(before.ChangeNumber + 1, (await phone.Next()).ChangeNumber);
+        Assert.Equal(before.ChangeNumber + 1, (await wall.Next()).ChangeNumber); await outsider.Quiet();
+        await using var db = factory.DbContextFor(family.Id);
+        await using (var tx = await db.Database.BeginTransactionAsync())
+        {
+            (await db.MealSlots.FirstAsync()).Title = "Uncommitted meal"; await db.SaveChangesAsync();
+            await Publish(factory.Demo); await phone.Quiet(); await tx.RollbackAsync();
+        }
+        await Publish(factory.Demo); await phone.Quiet();
+    }
+
+    [Fact]
     public async Task Expired_demo_subscriptions_are_closed_before_cleanup()
     {
         using var parent = await factory.DemoVisitorAsync();
