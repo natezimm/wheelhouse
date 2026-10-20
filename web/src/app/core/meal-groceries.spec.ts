@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController,provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { GroceryChoice,MealGroceriesStore,compatibleIngredient,numericQuantity } from './meal-groceries';
+import { GroceryChoice,MealGroceriesStore,compatibleIngredient,numericQuantity,sumQuantities } from './meal-groceries';
 import { groceryPreview } from '../testing/meal-groceries';
 const choice=():GroceryChoice=>({date:'2026-11-02',slot:'Dinner',mealVersion:'meal1',snapshotKey:'a'.repeat(64),ingredientId:'i1',quantity:600,
   quantityText:null,previousCount:0,allowAdditional:false,targetItemId:'pasta',targetVersion:'p1'});
@@ -20,6 +20,8 @@ describe('MealGroceriesStore',()=>{
     expect(compatibleIngredient({...line,quantity:null,quantityText:'2'},item)).toBe(false);
     for(const text of ['1,000','1e3','to taste','-1','0.12345'])expect(numericQuantity(text)).toBeNull();
     expect(numericQuantity('0')).toBe(0);
+    expect(sumQuantities(['999999999999.9999',0.0001])).toBe('1000000000000');
+    expect(sumQuantities([0.1,0.2])).toBe('0.3');
   });
   it('coalesces both revision domains and ignores old range responses while preserving submitted intent',async()=>{
     load();const item=choice(),task=store.add(groceryPreview(),[item],false),write=http.expectOne(r=>r.method==='POST');
