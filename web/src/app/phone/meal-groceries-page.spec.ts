@@ -1,10 +1,10 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController,provideHttpClientTesting } from '@angular/common/http/testing';
-import { signal } from '@angular/core';
+import { WritableSignal,signal } from '@angular/core';
 import { ComponentFixture,TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { Clock } from '../core/clock';
-import { FamilyStore } from '../core/family';
+import { FamilyState,FamilyStore } from '../core/family';
 import { HouseholdLive } from '../core/household-live';
 import { MealGroceriesStore } from '../core/meal-groceries';
 import { groceryPreview } from '../testing/meal-groceries';
@@ -46,5 +46,12 @@ describe('Meal groceries review',()=>{
     checkbox.click();await fixture.whenStable();expect(button('Review addition…').disabled).toBe(true);
     const again=[...page.querySelectorAll('label')].find(l=>l.textContent?.includes('Buy this ingredient again'))!.querySelector<HTMLInputElement>('input')!;
     again.click();await fixture.whenStable();expect(button('Review addition…').disabled).toBe(false);
+  });
+  it('clears the review on sign-out and reactivates the same family and week after signing in again',async()=>{
+    const state=TestBed.inject(FamilyStore).state as WritableSignal<FamilyState>;
+    state.set({status:'private'});TestBed.inject(MealGroceriesStore).reset();await fixture.whenStable();
+    expect(page.textContent).not.toContain('Tomato pasta');
+    family.set({...marlowes});state.set({status:'ready',family:marlowes});fixture.detectChanges();
+    read().flush(groceryPreview(2));await fixture.whenStable();expect(page.textContent).toContain('Tomato pasta');
   });
 });

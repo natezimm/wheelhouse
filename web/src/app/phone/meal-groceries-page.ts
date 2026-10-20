@@ -122,7 +122,7 @@ export class MealGroceriesPage {
   constructor(){
     this.family.load();let identity:string|null=null;let selectedWeek='';let selectedFamily='';
     effect(()=>{const f=this.family.family(),denied=this.family.state().status==='private';
-      if(denied||f&&identity&&f.id!==identity)untracked(()=>{this.epoch++;this.draft.set(null);this.rows.set([]);this.confirming.set(false);this.submitted.set(false);this.focus.set(null);});
+      if(denied||f&&identity&&f.id!==identity)untracked(()=>{selectedWeek='';selectedFamily='';this.epoch++;this.draft.set(null);this.rows.set([]);this.confirming.set(false);this.submitted.set(false);this.focus.set(null);});
       if(f)identity=f.id;
     });
     effect(()=>{const f=this.family.family(),week=this.week();if(f&&(week!==selectedWeek||f.id!==selectedFamily))untracked(()=>{selectedWeek=week;selectedFamily=f.id;this.draft.set(null);this.rows.set([]);this.confirming.set(false);this.submitted.set(false);this.conflicted.set(false);this.store.select(week,addDays(week,7));});});
