@@ -115,7 +115,9 @@ test('two devices review stale edits, receipted clears and occupied week-copy ch
   await page.screenshot({path:info.outputPath('meals-copy-conflict.png'),fullPage:true});
   await dialog(page).getByRole('button',{name:'Review latest',exact:true}).click();
   await expect(dialog(page).locator('.copy-row')).toHaveCount(4); // Includes the previous Sunday's roast.
-  await dialog(page).locator('.copy-row').filter({hasText:'Replace: Chicken'}).locator('input').check();
+  const reviewedOccupied=dialog(page).locator('.copy-row').filter({hasText:'Replace: Chicken'}).locator('input');
+  // The old preview also has four rows. Wait for the reviewed overwrite choices to reset before checking.
+  await expect(reviewedOccupied).not.toBeChecked();await reviewedOccupied.check();await expect(reviewedOccupied).toBeChecked();
   await page.screenshot({path:info.outputPath('meals-copy-preview.png'),fullPage:true});
   await dialog(page).getByRole('button',{name:'Copy selected meals',exact:true}).click();
   await expect(slot(page,week,'Dinner')).toContainText('Soup');await expect(slot(wall,week,'Dinner')).toContainText('Soup');
