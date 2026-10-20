@@ -4,6 +4,12 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'New release version, for example v0.2.0'
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -16,8 +22,62 @@ jobs:
   test:
     uses: ./.github/workflows/ci.yml
 
-  images:
+  prepare:
     needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.release.outputs.version }}
+      sha: ${{ steps.release.outputs.sha }}
+    steps:
+      - name: Validate and pin the release
+        id: release
+        uses: actions/github-script@v8
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        with:
+          script: |
+            const manual = context.eventName === 'workflow_dispatch';
+            if (manual && context.ref !== 'refs/heads/main') {
+              throw new Error('Manual releases must run from main.');
+            }
+            const version = manual
+              ? process.env.REQUESTED_VERSION
+              : context.ref.replace('refs/tags/', '');
+            if (!/^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$/.test(version)) {
+              throw new Error('Use a release version such as v0.2.0.');
+            }
+            if (manual) {
+              let existing;
+              try {
+                existing = await github.rest.git.getRef({
+                  ...context.repo, ref: 'tags/' + version
+                });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+              if (existing) {
+                if (existing.data.object.type !== 'commit' ||
+                    existing.data.object.sha !== context.sha) {
+                  throw new Error('That tag already identifies another commit. Choose a new version.');
+                }
+              } else {
+                await github.rest.git.createRef({
+                  ...context.repo, ref: 'refs/tags/' + version, sha: context.sha
+                });
+              }
+            }
+            core.setOutput('version', version);
+            core.setOutput('sha', context.sha);
+            await core.summary
+              .addHeading('Wheelhouse release')
+              .addTable([['Version', 'Commit'], [version, context.sha]])
+              .addRaw('Deploys every configured Wheelhouse instance after tests and image builds pass.')
+              .write();
+
+  images:
+    needs: prepare
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -31,6 +91,8 @@ jobs:
             dockerfile: web/Dockerfile
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -42,20 +104,22 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           push: true
-          tags: ghcr.io/${{ github.repository_owner }}/wheelhouse-${{ matrix.name }}:${{ github.ref_name }}
+          tags: ghcr.io/${{ github.repository_owner }}/wheelhouse-${{ matrix.name }}:${{ needs.prepare.outputs.version }}
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
 
   deploy:
-    needs: images
+    needs: [prepare, images]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read
     env:
-      VERSION: ${{ github.ref_name }}
+      VERSION: ${{ needs.prepare.outputs.version }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
 
       - name: Set up SSH
         env:
@@ -83,10 +147,21 @@ jobs:
             StrictHostKeyChecking yes
           EOF
 
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - run: npx playwright install --with-deps chromium
+        working-directory: web
+
       - name: Copy the stack definition
         run: |
           ssh server 'mkdir -p ~/wheelhouse'
-          scp deploy/compose.yaml deploy/deploy.sh server:wheelhouse/
+          scp deploy/compose.yaml server:wheelhouse/compose.candidate.yaml
+          scp deploy/deploy.sh deploy/restore.sh server:wheelhouse/
 
       # The images are private, so the server signs in to the registry with this job's
       # short-lived token for the length of the deploy and signs out again afterwards.
@@ -96,4 +171,30 @@ jobs:
           REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           printf '%s' "$REGISTRY_TOKEN" | ssh server "docker login ghcr.io --username '$REGISTRY_USER' --password-stdin"
-          ssh server "bash ~/wheelhouse/deploy.sh '$VERSION'; status=\$?; docker logout ghcr.io; exit \$status"
+          ssh server "WHEELHOUSE_COMPOSE=\$HOME/wheelhouse/compose.candidate.yaml bash ~/wheelhouse/deploy.sh '$VERSION'; status=\$?; docker logout ghcr.io; exit \$status"
+
+      - name: Check deployed browsers through SSH
+        run: |
+          set -euo pipefail
+          ssh server 'cat ~/wheelhouse/release-smoke.tsv' > "$RUNNER_TEMP/instances.tsv"
+          index=0
+          while IFS=$'\t' read -r name port mode; do
+            [[ "$port" =~ ^[0-9]+$ && ( "$mode" == Demo || "$mode" == Family ) ]]
+            index=$((index + 1))
+            control="$RUNNER_TEMP/wheelhouse-smoke-$index"
+            ssh -M -S "$control" -fNT -o ExitOnForwardFailure=yes -L "127.0.0.1:18080:127.0.0.1:$port" server
+            trap 'ssh -S "$control" -O exit server 2>/dev/null || true' EXIT
+            SMOKE_URL=http://127.0.0.1:18080 SMOKE_MODE="$mode" SMOKE_INDEX="$index" node deploy/smoke.mjs
+            ssh -S "$control" -O exit server
+            trap - EXIT
+          done < "$RUNNER_TEMP/instances.tsv"
+          [[ "$index" -gt 0 ]]
+          echo "All deployed instances passed browser smoke checks." >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-demo-smoke
+          path: smoke-results
+          if-no-files-found: ignore
+          retention-days: 7
