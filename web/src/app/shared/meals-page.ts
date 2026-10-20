@@ -34,6 +34,7 @@ type CopyRow = MealCopy & { selected: boolean };
       </nav>
       @if (!wall) { <button class="button copy" (click)="openCopy()" [disabled]="!store.ready() || !!store.pending().length">Copy previous week…</button> }
       <a class="button" [routerLink]="wall ? '/wall/recipes' : '/recipes'">Recipe library</a>
+      @if (!wall) { <a class="button" routerLink="/meals/groceries" [queryParams]="{from:week()}">Groceries from meals</a> }
       @if (store.refreshFailed()) { <p class="error" role="alert">Could not refresh meals. Saved contents remain available. Use Resync now to retry.</p> }
       @if (store.error()) { <p class="error" role="alert">{{ store.error() }}</p> }
       @for (op of store.pending(); track op.key) {

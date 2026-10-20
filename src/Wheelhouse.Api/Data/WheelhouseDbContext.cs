@@ -39,6 +39,8 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
     public DbSet<MealSlot> MealSlots => Set<MealSlot>();
     public DbSet<MealCommand> MealCommands => Set<MealCommand>();
     public DbSet<Recipe> Recipes => Set<Recipe>();
+    public DbSet<GroceryBatch> GroceryBatches => Set<GroceryBatch>();
+    public DbSet<GroceryContribution> GroceryContributions => Set<GroceryContribution>();
 
     /// <summary>
     /// The family the query filters scope to. Null outside a signed-in request, and then
@@ -176,7 +178,7 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
         {
             item.Property(i => i.Text).HasMaxLength(200);
             item.Property(i => i.Notes).HasMaxLength(2000);
-            item.Property(i => i.Quantity).HasMaxLength(50);
+            item.Property(i => i.Quantity).HasMaxLength(100);
             item.Property(i => i.Unit).HasMaxLength(50);
             item.HasOne<GroceryCategory>().WithMany().HasForeignKey(i => i.CategoryId).OnDelete(DeleteBehavior.SetNull);
             item.Property(i => i.Version).IsConcurrencyToken();
@@ -212,6 +214,19 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
             recipe.HasKey(r => new { r.FamilyId, r.Id });
             recipe.Property(r => r.Version).IsConcurrencyToken();
             recipe.HasOne<Family>().WithMany(f => f.Recipes).HasForeignKey(r => r.FamilyId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<GroceryBatch>(batch =>
+        {
+            batch.HasKey(b=>new {b.FamilyId,b.Id});
+            batch.HasOne<Family>().WithMany(f=>f.GroceryBatches).HasForeignKey(b=>b.FamilyId).OnDelete(DeleteBehavior.Cascade);
+        });
+        modelBuilder.Entity<GroceryContribution>(source =>
+        {
+            source.Property(c=>c.Slot).HasMaxLength(16);
+            source.Property(c=>c.SnapshotKey).HasMaxLength(64);
+            source.HasIndex(c=>new {c.FamilyId,c.Date,c.Slot,c.SnapshotKey,c.IngredientId});
+            source.HasOne<ListItem>().WithMany(i=>i.Contributions).HasForeignKey(c=>c.ListItemId).OnDelete(DeleteBehavior.Cascade);
+            source.HasOne<Family>().WithMany().HasForeignKey(c=>c.FamilyId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // Every family-owned table gets the filter here, so a new one cannot be left unscoped.

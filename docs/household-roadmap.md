@@ -105,7 +105,7 @@ Phone: navigate weeks, edit/clear slots and copy a previous week after reviewing
 
 Done when both layouts agree on dates across time zones, concurrent edits to the same slot cannot overwrite silently, clearing is explicit, and copying a week preserves the original while handling occupied destination slots deliberately.
 
-### 6.2 Saved recipes — in implementation in [PR #34](https://github.com/natezimm/wheelhouse/pull/34)
+### 6.2 Saved recipes — merged in [PR #34](https://github.com/natezimm/wheelhouse/pull/34)
 
 Add a household recipe library with title, default servings, ingredient lines, preparation steps, optional source URL and notes. Ingredients have a name, optional decimal quantity and optional unit; free-text quantities such as “to taste” are supported without pretending they can be scaled numerically. No scraper or external recipe API is required.
 
@@ -113,7 +113,7 @@ Parents create/edit/archive recipes on the phone. Everyone in the family may rea
 
 Done when recipes can be reused and scaled without changing the original, free-text ingredients survive intact, archived recipes remain understandable on past plans, and all recipe references are scoped to the family.
 
-### 6.3 Generate groceries from meals
+### 6.3 Generate groceries from meals — in implementation in [PR #35](https://github.com/natezimm/wheelhouse/pull/35)
 
 From the phone, select days/meals and preview their ingredient snapshots at each slot's servings. Let the user deselect pantry items, edit quantities and choose whether to combine an ingredient with an existing unchecked grocery item. Free-text meals explain that ingredients must be entered manually. Wall continues to show the resulting shared grocery list.
 
@@ -139,5 +139,5 @@ Rewards/points, allowances, chore rotation, child-specific sign-in, reminders, p
 
 ## Immediate next action
 
-Complete **6.2: Saved recipes**. Layout, snapshot contracts and recovery states are in [recipes-design.md](recipes-design.md). After it merges, the next planned increment is **6.3: Generate groceries from meals**.
+Complete **6.3: Generate groceries from meals**. Preview, batching, source tracking and screen states are in [meal-groceries-design.md](meal-groceries-design.md). This completes the currently agreed chores/lists/meals sequence; further features need a new scoped plan.
 

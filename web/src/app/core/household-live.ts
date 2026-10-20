@@ -13,6 +13,7 @@ import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signal
 import { ChoresStore } from './chores';
 import { ListsStore } from './lists';
 import { MealsStore } from './meals';
+import { MealGroceriesStore } from './meal-groceries';
 import { FamilyStore } from './family';
 import { SessionStore } from './session';
 
@@ -42,6 +43,7 @@ export class HouseholdLive {
   private readonly household = inject(ChoresStore);
   private readonly lists = inject(ListsStore);
   private readonly meals = inject(MealsStore);
+  private readonly groceries = inject(MealGroceriesStore);
   private readonly family = inject(FamilyStore);
   private readonly session = inject(SessionStore);
   private readonly document = inject(DOCUMENT);
@@ -56,7 +58,7 @@ export class HouseholdLive {
 
   readonly state = computed<HouseholdLiveState>(() => {
     const state = this.connectionState();
-    return state === 'connected' && (this.household.refreshing() || this.lists.refreshing() || this.meals.refreshing()) ? 'resyncing' : state;
+    return state === 'connected' && (this.household.refreshing() || this.lists.refreshing() || this.meals.refreshing() || this.groceries.refreshing()) ? 'resyncing' : state;
   });
 
   readonly available = computed(() => this.state() !== 'stopped');
@@ -99,6 +101,7 @@ export class HouseholdLive {
     this.household.refresh();
     this.lists.refresh();
     this.meals.refresh();
+    this.groceries.refresh();
   }
 
   private useFamily(id: string | null, restart = false): void {
@@ -114,6 +117,7 @@ export class HouseholdLive {
     if (previous && previous !== id) this.household.reset();
     if (previous && previous !== id) this.lists.reset();
     if (previous && previous !== id) this.meals.reset();
+    if (previous && previous !== id) this.groceries.reset();
     if (!id) {
       this.connectionState.set('stopped');
       return;
@@ -125,6 +129,7 @@ export class HouseholdLive {
       if (current() && message?.domain === 'chores') { this.household.changed(message.changeNumber); this.family.refresh(); }
       if (current() && message?.domain === 'lists') this.lists.changed(message.changeNumber);
       if (current() && message?.domain === 'meals') this.meals.changed(message.changeNumber);
+      if (current() && (message?.domain === 'meals' || message?.domain === 'lists')) this.groceries.changed(message.domain,message.changeNumber);
     });
     connection.onreconnecting(() => {
       if (!current()) return;
