@@ -70,6 +70,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
         <div class="demo">
           <a class="pair chores-link" routerLink="/wall/chores">Chores</a>
           <a class="pair chores-link" routerLink="/wall/lists">Lists</a>
+          <a class="pair chores-link" routerLink="/wall/meals">Meals</a>
           @if (session.isDemo()) {
             <!-- On the demo the wall starts with a copy of its own; pairing joins the phone's copy. -->
             <button class="pair" type="button" (click)="pairingChosen.set(true)">Pair with a phone</button>
