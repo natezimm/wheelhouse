@@ -9,13 +9,16 @@ import { MEAL_SLOTS, Meal, MealCopy, MealsStore, mealKey } from '../core/meals';
 import { PhoneNav } from '../phone/phone-nav';
 import { SignIn } from '../phone/sign-in';
 import { DemoNotice } from './demo-notice';
+import { Recipe, RecipeSnapshot, RecipesStore } from '../core/recipes';
+import { RecipeLibrary } from './recipe-library';
+import { RecipeDetail } from './recipe-detail';
 
 type Editor = { kind: 'edit' | 'clear'; meal: Meal } | { kind:'copy'; from: string; sourceFrom: string };
 type CopyRow = MealCopy & { selected: boolean };
 
 @Component({
   selector:'app-meals-page',
-  imports:[FormsModule, RouterLink, PhoneNav, SignIn, DemoNotice],
+  imports:[FormsModule, RouterLink, PhoneNav, SignIn, DemoNotice, RecipeLibrary, RecipeDetail],
   host:{ '[class.wall]':'wall' },
   template:`
     <header><div><a [routerLink]="wall ? '/wall' : '/'">← {{ wall ? 'Calendar' : 'Today' }}</a><h1>Meals</h1><p>A little planning. One less daily decision.</p></div></header>
@@ -30,6 +33,7 @@ type CopyRow = MealCopy & { selected: boolean };
         <button class="button" (click)="navigate(7)" [disabled]="week() >= '2199-12-17'">Next week</button>
       </nav>
       @if (!wall) { <button class="button copy" (click)="openCopy()" [disabled]="!store.ready() || !!store.pending().length">Copy previous week…</button> }
+      <a class="button" [routerLink]="wall ? '/wall/recipes' : '/recipes'">Recipe library</a>
       @if (store.refreshFailed()) { <p class="error" role="alert">Could not refresh meals. Saved contents remain available. Use Resync now to retry.</p> }
       @if (store.error()) { <p class="error" role="alert">{{ store.error() }}</p> }
       @for (op of store.pending(); track op.key) {
@@ -48,6 +52,7 @@ type CopyRow = MealCopy & { selected: boolean };
                   <button class="meal" [class.dinner]="slot === 'Dinner'" [class.pending]="store.isPending(item)" [disabled]="store.isPending(item)"
                     [attr.aria-label]="'Edit ' + day + ' ' + slot" (click)="open(item)">
                     <span class="kind">{{ slot }}</span><strong>{{ item.title || 'Not planned' }}</strong>
+                    @if (item.recipe) { <small>Recipe · {{ item.servings }} servings</small> }
                     @if (item.notes) { <span class="notes">{{ item.notes }}</span> }
                     @if (store.isPending(item)) { <small>Saving / check save</small> }
                   </button>
@@ -76,9 +81,20 @@ type CopyRow = MealCopy & { selected: boolean };
           <p>{{ dayLabel(edit.meal.date) }} · {{ edit.meal.slot }}</p>
           @if (edit.kind === 'clear') { <p>Clear “{{ edit.meal.title }}”? Other meals are kept.</p> }
           @else {
-            <label class="field">Meal title<input name="title" maxlength="200" required [ngModel]="title()" (ngModelChange)="title.set($event)" [disabled]="locked()" /></label>
+            @if (choosing()) {
+              <h3>Choose a recipe</h3><app-recipe-library [wall]="wall" [selecting]="true" (chosen)="choose($event)" />
+              <button class="button" type="button" (click)="choosing.set(false)">Back to meal</button>
+            } @else {
+            <label class="field">Meal title<input name="title" maxlength="200" required [ngModel]="title()" (ngModelChange)="title.set($event)" [disabled]="locked()" [readOnly]="!!recipe()" /></label>
+            <button class="button" type="button" [disabled]="locked()" (click)="choosing.set(true)">{{ recipe() ? 'Choose / refresh recipe…' : 'Choose recipe…' }}</button>
+            @if (recipe(); as saved) {
+              <p>Saved recipe contents. Library changes do not change this meal. Choose the recipe again to review and use its latest contents.</p>
+              <app-recipe-detail [recipe]="saved" [servings]="servings()" (servingsChange)="servings.set($event)" [wall]="wall" [locked]="locked()" />
+              <button class="button" type="button" [disabled]="locked()" (click)="detach()">Change to free-text meal</button>
+            }
             <label class="field">Notes<textarea name="notes" maxlength="2000" [ngModel]="notes()" (ngModelChange)="notes.set($event)" [disabled]="locked()"></textarea></label>
             @if (edit.meal.title) { <button class="button danger" type="button" [disabled]="locked() || conflicted()" (click)="confirmClear()">Clear this meal…</button> }
+            }
           }
         }
         @if (store.error()) { <p class="error" role="alert">{{ store.error() }}</p> }
@@ -88,7 +104,7 @@ type CopyRow = MealCopy & { selected: boolean };
           <button class="button" type="button" [disabled]="store.refreshing() || store.refreshFailed()" (click)="review()">Review latest</button>
         }
         <div class="actions"><button class="button" type="button" (click)="close()">{{ locked() ? 'Close' : 'Cancel' }}</button>
-          <button class="button primary" [disabled]="locked() || conflicted() || (edit.kind === 'edit' && !title().trim()) || (edit.kind === 'copy' && (!chosenCount() || copyLoading() || !!copyError()))">{{ saving() ? 'Saving…' : edit.kind === 'clear' ? 'Clear meal' : edit.kind === 'copy' ? 'Copy selected meals' : 'Save meal' }}</button></div>
+          <button class="button primary" [disabled]="locked() || conflicted() || choosing() || (edit.kind === 'edit' && (!title().trim() || !validServings())) || (edit.kind === 'copy' && (!chosenCount() || copyLoading() || !!copyError()))">{{ saving() ? 'Saving…' : edit.kind === 'clear' ? 'Clear meal' : edit.kind === 'copy' ? 'Copy selected meals' : 'Save meal' }}</button></div>
       </form></dialog>
     }
     <footer><app-demo-notice />@if (wall) { <a class="button" routerLink="/wall/lists">Lists</a><a class="button" routerLink="/wall/chores">Chores</a> }</footer>
@@ -116,6 +132,7 @@ export class MealsPage {
   protected readonly store = inject(MealsStore);
   protected readonly family = inject(FamilyStore);
   protected readonly live = inject(HouseholdLive);
+  protected readonly recipes = inject(RecipesStore);
   protected readonly wall = inject(ActivatedRoute).snapshot.data['wall'] === true;
   private readonly clock = inject(Clock);
   protected readonly slots = MEAL_SLOTS;
@@ -125,6 +142,8 @@ export class MealsPage {
   protected readonly days = computed(() => daysBetween(this.week(), addDays(this.week(), 7)));
   protected readonly editor = signal<Editor | null>(null);
   protected readonly title = signal(''); protected readonly notes = signal('');
+  protected readonly recipe = signal<RecipeSnapshot | null>(null); protected readonly servings = signal(4); protected readonly choosing = signal(false);
+  private selection: RecipeSnapshot | null = null; private removeRecipe = false;
   protected readonly saving = signal(false); protected readonly conflicted = signal(false);
   protected readonly copyRows = signal<CopyRow[]>([]); protected readonly copyLoading = signal(false); protected readonly copyError = signal('');
   protected readonly chosenCount = computed(() => this.copyRows().filter(r => r.selected).length);
@@ -146,9 +165,15 @@ export class MealsPage {
   protected dayLabel(day: string): string { return formatDay(day, { weekday:'short', month:'short', day:'numeric' }); }
   protected meal(date: string, slot: string): Meal | undefined { return this.store.meals().find(m => m.date === date && m.slot === slot); }
   protected navigate(offset: number): void { this.focus.set(addDays(this.week(), offset)); }
-  protected open(meal: Meal): void { this.focus.set(this.week()); this.close(); this.editor.set({ kind:'edit', meal:{ ...meal } }); this.title.set(meal.title ?? ''); this.notes.set(meal.notes ?? ''); }
+  protected open(meal: Meal): void { this.focus.set(this.week()); this.close(); this.editor.set({ kind:'edit', meal:structuredClone(meal) }); this.title.set(meal.title ?? ''); this.notes.set(meal.notes ?? ''); this.recipe.set(meal.recipe ? structuredClone(meal.recipe) : null); this.servings.set(meal.servings ?? 4); }
+  protected choose(choice: {recipe:Recipe;servings:number}): void {
+    this.selection = structuredClone(choice.recipe); this.recipe.set(this.selection); this.title.set(choice.recipe.content.title);
+    this.servings.set(choice.servings); this.removeRecipe = false; this.choosing.set(false); this.conflicted.set(false);
+  }
+  protected detach(): void { this.recipe.set(null); this.selection = null; this.removeRecipe = true; }
+  protected validServings(): boolean { return !this.recipe() || Number.isInteger(this.servings()) && this.servings() >= 1 && this.servings() <= 100; }
   protected confirmClear(): void { const edit = this.editor(); if (edit?.kind === 'edit') this.editor.set({ kind:'clear', meal:edit.meal }); }
-  protected close(): void { this.editorEpoch++; this.editor.set(null); this.operation = null; this.saving.set(false); this.conflicted.set(false); this.copyLoading.set(false); this.copyError.set(''); }
+  protected close(): void { this.editorEpoch++; this.editor.set(null); this.operation = null; this.selection = null; this.removeRecipe = false; this.recipe.set(null); this.choosing.set(false); this.saving.set(false); this.conflicted.set(false); this.copyLoading.set(false); this.copyError.set(''); }
   protected async openCopy(from = this.week()): Promise<void> {
     this.focus.set(from);
     this.close(); const epoch = this.editorEpoch, sourceFrom = addDays(from, -7);
@@ -171,14 +196,16 @@ export class MealsPage {
     if (edit.kind === 'copy') { void this.openCopy(edit.from); return; }
     const meal = this.currentMeal(); if (!meal) return;
     this.editor.set({ ...edit, meal:{ ...meal } }); this.conflicted.set(false); this.store.dismissError();
+    if (this.selection) this.choosing.set(true);
   }
   protected async save(): Promise<void> {
     const edit = this.editor(); if (!edit || this.locked() || this.conflicted()) return;
-    if (edit.kind === 'edit' && !this.title().trim() || edit.kind === 'copy' && (!this.chosenCount() || this.copyLoading() || this.copyError())) return;
+    if (this.choosing() || edit.kind === 'edit' && (!this.title().trim() || !this.validServings()) || edit.kind === 'copy' && (!this.chosenCount() || this.copyLoading() || this.copyError())) return;
     const epoch = this.editorEpoch; this.saving.set(true);
     const previous = new Set(this.store.pending().map(o => o.key));
     const task = edit.kind === 'copy' ? this.store.copy(edit.sourceFrom, edit.from, this.copyRows().filter(r => r.selected))
-      : this.store.save(edit.meal, edit.kind === 'clear' ? null : this.title(), edit.kind === 'clear' ? null : this.notes());
+      : this.store.save(edit.meal, edit.kind === 'clear' ? null : this.title(), edit.kind === 'clear' ? null : this.notes(),
+        edit.kind === 'clear' ? null : this.selection, edit.kind === 'clear' || !this.recipe() ? null : this.servings(), this.removeRecipe);
     this.operation = this.store.pending().find(o => !previous.has(o.key))?.key ?? null;
     const ok = await task; if (epoch !== this.editorEpoch) return;
     this.saving.set(false); if (ok) this.close(); else if (!this.locked()) this.conflicted.set(this.store.error().includes('another device'));

@@ -3,10 +3,11 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom, timeout } from 'rxjs';
 import { addDays } from './days';
 import { refusalMessage } from './family';
+import { RecipesStore, RecipeSnapshot } from './recipes';
 
 export const MEAL_SLOTS = ['Breakfast', 'Lunch', 'Dinner'] as const;
 export type MealKind = typeof MEAL_SLOTS[number];
-export interface Meal { date: string; slot: MealKind; title: string | null; notes: string | null; version: string | null; }
+export interface Meal { date: string; slot: MealKind; title: string | null; notes: string | null; version: string | null; recipe?: RecipeSnapshot | null; servings?: number | null; }
 export interface MealsSnapshot { from: string; to: string; changeNumber: number; meals: Meal[]; }
 export interface MealCopy { source: Meal; target: Meal; }
 export interface MealOperation {
@@ -17,6 +18,7 @@ export const mealKey = (m: Pick<Meal, 'date' | 'slot'>) => m.date + '/' + m.slot
 @Injectable({ providedIn: 'root' })
 export class MealsStore {
   private readonly http = inject(HttpClient);
+  private readonly recipes = inject(RecipesStore);
   private readonly confirmed = signal<Meal[]>([]);
   private readonly operations = signal<MealOperation[]>([]);
   private readonly loaded = signal(false);
@@ -43,10 +45,12 @@ export class MealsStore {
     this.revision = -1; this.confirmed.set([]); this.loaded.set(false); this.refresh();
   }
   changed(number: number): void {
+    this.recipes.changed(number);
     if (!Number.isSafeInteger(number) || number < 0 || number <= this.wanted) return;
     this.wanted = number; if (number > this.revision) this.refresh();
   }
   refresh(): void {
+    this.recipes.refresh();
     if (!this.from) return;
     if (this.reading) { this.queued = true; return; }
     const epoch = this.epoch, sequence = this.sequence, from = this.from, to = this.to;
@@ -72,18 +76,20 @@ export class MealsStore {
   isPending(meal: Pick<Meal, 'date' | 'slot'>): boolean {
     return this.operations().some(op => op.preview.some(m => mealKey(m) === mealKey(meal)));
   }
-  save(meal: Meal, title: string | null, notes: string | null): Promise<boolean> {
+  save(meal: Meal, title: string | null, notes: string | null, recipe?: RecipeSnapshot | null, servings?: number | null, removeRecipe = false): Promise<boolean> {
     const key = crypto.randomUUID(); title = title?.trim() || null; notes = notes?.trim() || null;
     return this.begin({ key, from:meal.date, to:addDays(meal.date, 1), method:'put',
       url:'/api/meals/' + meal.date + '/' + meal.slot,
-      body:{ commandId:key, version:meal.version, title, notes }, preview:[{ ...meal, title, notes }], uncertain:false });
+      body:{ commandId:key, version:meal.version, title, notes, ...(recipe ? {recipe:{id:recipe.id,version:recipe.version}} : {}),
+        ...(servings != null ? {servings} : {}), ...(removeRecipe ? {removeRecipe:true} : {}) },
+      preview:[{ ...meal, title, notes, recipe:title ? (removeRecipe ? null : recipe ?? meal.recipe) : null, servings:title && !removeRecipe ? servings ?? meal.servings : null }], uncertain:false });
   }
   copy(sourceFrom: string, targetFrom: string, choices: MealCopy[]): Promise<boolean> {
     const key = crypto.randomUUID();
     return this.begin({ key, from:targetFrom, to:addDays(targetFrom, 7), method:'post', url:'/api/meals/copy',
       body:{ commandId:key, sourceFrom, targetFrom, items:choices.map(c => ({ date:c.source.date, slot:c.source.slot,
         sourceVersion:c.source.version, targetVersion:c.target.version })) },
-      preview:choices.map(c => ({ ...c.target, title:c.source.title, notes:c.source.notes })), uncertain:false });
+      preview:choices.map(c => ({ ...c.target, title:c.source.title, notes:c.source.notes, recipe:c.source.recipe, servings:c.source.servings })), uncertain:false });
   }
   async retry(key: string): Promise<boolean> {
     const op = this.operations().find(o => o.key === key && o.uncertain); if (!op) return false;
@@ -98,6 +104,7 @@ export class MealsStore {
   }
   dismissError(): void { this.message.set(''); }
   reset(): void {
+    this.recipes.reset();
     this.epoch++; this.sequence++; this.from = ''; this.to = ''; this.reading = false; this.queued = false;
     this.revision = -1; this.wanted = -1; this.confirmed.set([]); this.operations.set([]);
     this.loaded.set(false); this.busy.set(false); this.failed.set(false); this.message.set('');

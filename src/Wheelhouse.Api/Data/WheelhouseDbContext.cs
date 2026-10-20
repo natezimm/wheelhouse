@@ -38,6 +38,7 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
     public DbSet<GroceryCategory> GroceryCategories => Set<GroceryCategory>();
     public DbSet<MealSlot> MealSlots => Set<MealSlot>();
     public DbSet<MealCommand> MealCommands => Set<MealCommand>();
+    public DbSet<Recipe> Recipes => Set<Recipe>();
 
     /// <summary>
     /// The family the query filters scope to. Null outside a signed-in request, and then
@@ -204,6 +205,13 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
         {
             command.HasKey(c => new { c.FamilyId, c.Id });
             command.HasOne<Family>().WithMany().HasForeignKey(c => c.FamilyId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Recipe>(recipe =>
+        {
+            recipe.HasKey(r => new { r.FamilyId, r.Id });
+            recipe.Property(r => r.Version).IsConcurrencyToken();
+            recipe.HasOne<Family>().WithMany(f => f.Recipes).HasForeignKey(r => r.FamilyId).OnDelete(DeleteBehavior.Cascade);
         });
 
         // Every family-owned table gets the filter here, so a new one cannot be left unscoped.

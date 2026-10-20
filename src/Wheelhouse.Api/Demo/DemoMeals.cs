@@ -17,6 +17,18 @@ public static class DemoMeals
         Add(today, "Breakfast", "Oatmeal and berries", null);
         Add(today, "Lunch", "Sandwiches and fruit", null);
         if (!family.Meals.Any(m => m.Date == today && m.Slot == "Dinner")) Add(today, "Dinner", "Chicken and rice", null);
+        var content = new RecipeContent("Roasted tomato pasta", 4,
+            [new(Guid.NewGuid(), "Pasta", 400m, null, "g"), new(Guid.NewGuid(), "Tomatoes", 600m, null, "g"),
+             new(Guid.NewGuid(), "Olive oil", 2m, null, "tbsp"), new(Guid.NewGuid(), "Salt", null, "to taste", null)],
+            ["Roast the tomatoes with olive oil for 25 minutes at 200°C / 400°F.",
+             "Cook the pasta, toss with the tomatoes and season to taste."], null, "A Marlowe family weeknight favorite.");
+        var recipe = new Recipe { Id = Guid.NewGuid(), FamilyId = family.Id, Content = RecipeJson.Write(content) };
+        family.Recipes.Add(recipe);
+        family.Recipes.Add(new Recipe { Id = Guid.NewGuid(), FamilyId = family.Id, Archived = true,
+            Content = RecipeJson.Write(content with { Title = "Summer tomato pasta" }) });
+        var planned = family.Meals.Single(m => m.Date == today && m.Slot == "Dinner");
+        planned.Title = content.Title; planned.Servings = 6;
+        planned.RecipeData = RecipeJson.Write(new RecipeSnapshot(recipe.Id, recipe.Version, content));
 
         void Add(DateOnly date, string slot, string title, string? notes) => family.Meals.Add(new MealSlot
         { Id = Guid.CreateVersion7(), FamilyId = family.Id, Date = date, Slot = slot, Title = title, Notes = notes });

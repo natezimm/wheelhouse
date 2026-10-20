@@ -8,6 +8,8 @@ export const routes: Routes = [
   { path: 'chores', loadComponent: () => import('./shared/chores-page').then((m) => m.ChoresPage) },
   { path: 'lists', loadComponent: () => import('./shared/lists-page').then((m) => m.ListsPage) },
   { path: 'meals', loadComponent: () => import('./shared/meals-page').then((m) => m.MealsPage) },
+  { path: 'recipes', loadComponent: () => import('./shared/recipes-page').then((m) => m.RecipesPage) },
+  { path: 'wall/recipes', data: { wall: true }, loadComponent: () => import('./shared/recipes-page').then((m) => m.RecipesPage) },
   { path: 'wall/meals', data: { wall: true }, loadComponent: () => import('./shared/meals-page').then((m) => m.MealsPage) },
   { path: 'wall/lists', data: { wall: true }, loadComponent: () => import('./shared/lists-page').then((m) => m.ListsPage) },
   { path: 'wall/chores', data: { wall: true }, loadComponent: () => import('./shared/chores-page').then((m) => m.ChoresPage) },
