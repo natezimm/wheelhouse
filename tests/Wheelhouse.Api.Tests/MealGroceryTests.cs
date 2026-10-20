@@ -145,6 +145,23 @@ public sealed class MealGroceryTests(ApiFactory factory)
         Assert.Empty(await unscoped.GroceryContributions.IgnoreQueryFilters().Where(b=>b.FamilyId==seed.Id).ToArrayAsync());
     }
     [Fact]
+    public async Task Numeric_looking_recipe_text_stays_text_and_unsupported_manual_precision_never_loses_digits_in_a_merge()
+    {
+        using var c=await factory.DemoVisitorAsync();
+        var recipe=await Recipe(c,Numeric("Beans",0,"cups"),new(Guid.NewGuid(),"Beans",null,"2","cups"));await Plan(c,recipe,servings:4);
+        var p=(await Preview(c))!;var meal=p.Meals.Single();var batch=await Add(c,Command(p,Choice(meal,1)));
+        var text=(await Grocery(c)).Items.Single(i=>i.Id==batch.ItemIds.Single());
+        Assert.True(text.QuantityIsText);Assert.Equal("2",text.Quantity);Assert.Null(text.Sources!.Single().Quantity);
+        var merge=Choice(meal) with {TargetItemId=text.Id,TargetVersion=text.Version};
+        Assert.Equal(HttpStatusCode.BadRequest,(await c.PostAsJsonAsync("/api/meals/groceries",Command(p,merge))).StatusCode);
+        var creationId=Guid.NewGuid();
+        (await c.PostAsJsonAsync($"/api/lists/{p.Grocery.Id}/items",new CreateListItem(creationId,"Beans",null,"0.12345","cups"))).EnsureSuccessStatusCode();
+        var precise=(await Grocery(c)).Items.Single(i=>i.CreationId==creationId);
+        merge=Choice(meal) with {TargetItemId=precise.Id,TargetVersion=precise.Version};
+        Assert.Equal(HttpStatusCode.BadRequest,(await c.PostAsJsonAsync("/api/meals/groceries",Command(p,merge))).StatusCode);
+        Assert.Equal("0.12345",(await Grocery(c)).Items.Single(i=>i.Id==precise.Id).Quantity);
+    }
+    [Fact]
     public async Task Batch_revisions_commit_atomically_in_both_domains_and_validation_rejects_unreviewed_or_invalid_values()
     {
         using var c=await factory.DemoVisitorAsync();var recipe=await Recipe(c,Numeric());await Plan(c,recipe);var p=(await Preview(c))!;

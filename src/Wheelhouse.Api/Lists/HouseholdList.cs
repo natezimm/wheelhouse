@@ -28,6 +28,7 @@ public sealed class ListItem : IFamilyOwned
     public required string Text { get; set; }
     public string? Notes { get; set; }
     public string? Quantity { get; set; }
+    public bool QuantityIsText { get; set; }
     public string? Unit { get; set; }
     public Guid? CategoryId { get; set; }
     public bool Checked { get; set; }
@@ -45,10 +46,10 @@ public sealed record HouseholdListResponse(Guid Id, Guid CreationId, string Name
         list.IsGrocery, list.Categories.OrderBy(c => c.SortOrder).ThenBy(c => c.Id).Select(c => new GroceryCategoryResponse(c.Id, c.Name, c.IsOther)).ToArray());
 }
 public sealed record ListItemResponse(Guid Id, Guid CreationId, string Text, string? Notes, bool Checked, bool Deleted, long SortOrder, Guid Version,
-    string? Quantity = null, string? Unit = null, Guid? CategoryId = null, GroceryOrigin[]? Sources = null)
+    string? Quantity = null, string? Unit = null, Guid? CategoryId = null, GroceryOrigin[]? Sources = null, bool QuantityIsText = false)
 {
     public static ListItemResponse From(ListItem i) => new(i.Id, i.CreationId, i.Text, i.Notes, i.Checked, i.Deleted, i.SortOrder, i.Version, i.Quantity, i.Unit, i.CategoryId,
-        i.Contributions.OrderBy(c=>c.Id).Select(c=>RecipeJson.Read<GroceryOrigin>(c.SourceData)).ToArray());
+        i.Contributions.OrderBy(c=>c.Id).Select(c=>RecipeJson.Read<GroceryOrigin>(c.SourceData)).ToArray(), i.QuantityIsText);
 }
 public sealed record CreateList(Guid CreationId, string Name);
 public sealed record RenameList(Guid Version, string Name);

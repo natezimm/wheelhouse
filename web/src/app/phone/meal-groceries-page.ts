@@ -45,6 +45,7 @@ const key=(r:DraftLine)=>r.meal.date+'/'+r.meal.slot+'/'+r.id;
         <fieldset [disabled]="locked() || confirming()">
           <div class="actions"><button class="button" type="button" (click)="selectAll()">Select unpurchased ingredients</button><button class="button" type="button" (click)="clear()">Clear selection</button></div>
           @for (meal of preview.meals; track meal.date + meal.slot) {
+            @if (firstMealOnDay(meal)) { <button class="button" type="button" (click)="selectDay(meal.date)">Select {{ label(meal.date) }} unpurchased ingredients</button> }
             <section class="card meal" [attr.aria-label]="meal.date + ' ' + meal.slot">
               <h2>{{ label(meal.date) }} · {{ meal.slot }}</h2><h3>{{ meal.title }}</h3>
               @if (!meal.snapshotKey) { <p>This is a free-text meal. Add ingredients manually in <a routerLink="/lists">Grocery</a>, or choose a saved recipe in Meals.</p> }
@@ -138,6 +139,8 @@ export class MealGroceriesPage {
   protected selectAll():void {this.rows.update(rows=>rows.map(r=>({...r,selected:r.previousCount===0})));}
   protected clear():void {this.rows.update(rows=>rows.map(r=>({...r,selected:false})));}
   protected selectMeal(meal:GroceryMeal):void {this.rows.update(rows=>rows.map(r=>r.meal.date===meal.date&&r.meal.slot===meal.slot?{...r,selected:r.previousCount===0}:r));}
+  protected firstMealOnDay(meal:GroceryMeal):boolean {return this.draft()?.meals.find(m=>m.date===meal.date)?.slot===meal.slot;}
+  protected selectDay(date:string):void {this.rows.update(rows=>rows.map(r=>r.meal.date===date?{...r,selected:r.previousCount===0}:r));}
   protected candidates(row:DraftLine){return this.draft()?.grocery.items.filter(i=>compatibleIngredient(row,i))??[];}
   protected valid():boolean {
     const rows=this.rows().filter(r=>r.selected);

@@ -106,7 +106,9 @@ test('phone reviews merges, preserves reconnect drafts, checks a lost batch and 
 });
 test('phone retries unavailable previews and explains an empty week',async({page},info)=>{
   test.skip(info.project.name!=='phone','Phone generation only.');const state=server();state.fail=true;await state.connect(page);await page.goto('/meals/groceries?from=2026-11-02');
-  await expect(page.getByText('Could not refresh the preview. Your review is kept.')).toBeVisible();state.fail=false;state.empty=true;
-  await page.getByRole('button',{name:'Retry preview',exact:true}).click();await expect(page.getByText(/No meals planned this week/)).toBeVisible();
+  await expect(page.getByText('Could not refresh the preview. Your review is kept.')).toBeVisible();
+  await expect(page.getByRole('button',{name:'Retry preview',exact:true})).toBeVisible();state.fail=false;state.empty=true;
+  // Initial socket recovery can also finish the retry; the persistent recovery control remains available.
+  await page.getByRole('button',{name:'Resync now',exact:true}).click();await expect(page.getByText(/No meals planned this week/)).toBeVisible();
   expect(state.receipts.size).toBe(0);await page.screenshot({path:info.outputPath('groceries-empty.png'),fullPage:true});
 });

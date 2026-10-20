@@ -113,7 +113,7 @@ Parents create/edit/archive recipes on the phone. Everyone in the family may rea
 
 Done when recipes can be reused and scaled without changing the original, free-text ingredients survive intact, archived recipes remain understandable on past plans, and all recipe references are scoped to the family.
 
-### 6.3 Generate groceries from meals — in implementation
+### 6.3 Generate groceries from meals — in implementation in [PR #35](https://github.com/natezimm/wheelhouse/pull/35)
 
 From the phone, select days/meals and preview their ingredient snapshots at each slot's servings. Let the user deselect pantry items, edit quantities and choose whether to combine an ingredient with an existing unchecked grocery item. Free-text meals explain that ingredients must be entered manually. Wall continues to show the resulting shared grocery list.
 

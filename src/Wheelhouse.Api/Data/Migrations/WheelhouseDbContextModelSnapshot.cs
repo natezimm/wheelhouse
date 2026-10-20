@@ -603,6 +603,9 @@ namespace Wheelhouse.Api.Data.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<bool>("QuantityIsText")
+                        .HasColumnType("boolean");
+
                     b.Property<long>("SortOrder")
                         .HasColumnType("bigint");
 

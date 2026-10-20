@@ -41,6 +41,6 @@ public static class GrocerySources
         meal.RecipeData + "\n" + meal.Servings?.ToString(CultureInfo.InvariantCulture))));
     public static string Normalize(string? value) => string.Join(" ", (value ?? "").Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToUpperInvariant();
     public static bool Number(string? value, out decimal quantity) => decimal.TryParse(value?.Trim(), NumberStyles.AllowDecimalPoint,
-        CultureInfo.InvariantCulture, out quantity) && quantity is >= 0 and <= 1000000000000m;
+        CultureInfo.InvariantCulture, out quantity) && quantity is >= 0 and <= 1000000000000m && decimal.Round(quantity,4)==quantity;
     public static string Format(decimal value) => value.ToString("0.####", CultureInfo.InvariantCulture);
 }
