@@ -151,7 +151,7 @@ public sealed class ListTests(ApiFactory factory)
         await using var unscoped = factory.DbContextFor(null);
         Assert.Empty(await unscoped.HouseholdLists.ToArrayAsync()); Assert.Empty(await unscoped.ListItems.ToArrayAsync());
         var seed = DemoFamily.Create(Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(-1));
-        Assert.Equal(4, seed.Lists.Count); Assert.Contains(seed.Lists.SelectMany(l => l.Items), i => i.Checked);
+        Assert.Equal(3, seed.Lists.Count); Assert.Contains(seed.Lists.SelectMany(l => l.Items), i => i.Checked);
         unscoped.Families.Add(seed); await unscoped.SaveChangesAsync();
         await unscoped.Families.IgnoreQueryFilters().Where(f => f.Id == seed.Id).ExecuteDeleteAsync();
         Assert.Empty(await unscoped.HouseholdLists.IgnoreQueryFilters().Where(l => l.FamilyId == seed.Id).ToArrayAsync());

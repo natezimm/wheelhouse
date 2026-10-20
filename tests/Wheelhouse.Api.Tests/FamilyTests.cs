@@ -16,9 +16,9 @@ public sealed class FamilyTests(ApiFactory factory)
         var family = await visitor.GetFromJsonAsync<FamilyResponse>("/api/family", ApiFactory.Json);
 
         Assert.NotNull(family);
-        Assert.Equal("The Marlowes", family.Name);
-        Assert.Equal(["Ben", "Tess", "Milo"], family.Members.Select(member => member.DisplayName));
-        Assert.Equal(new MemberResponse(family.Members[0].Id, "Ben", "#2F5FC4", "B", MemberRole.Parent), family.Members[0]);
+        Assert.Equal("The Marlowe Family", family.Name);
+        Assert.Equal(["Clara", "Julian", "Milo", "Nora"], family.Members.Select(member => member.DisplayName));
+        Assert.Equal(new MemberResponse(family.Members[0].Id, "Clara", "#2563eb", "C", MemberRole.Parent), family.Members[0]);
         Assert.Equal(MemberRole.Kid, family.Members[2].Role);
     }
 
@@ -55,7 +55,7 @@ public sealed class FamilyTests(ApiFactory factory)
         Assert.DoesNotContain("Zed", mine.Members.Select(member => member.DisplayName));
         Assert.Equal(["Zed"], await asOther.Members.Select(member => member.DisplayName).ToListAsync());
         Assert.Equal(["The Others"], await asOther.Families.Select(family => family.Name).ToListAsync());
-        Assert.Equal(["Ben", "Tess", "Milo"], await asMe.Members.OrderBy(member => member.SortOrder).Select(member => member.DisplayName).ToListAsync());
+        Assert.Equal(["Clara", "Julian", "Milo", "Nora"], await asMe.Members.OrderBy(member => member.SortOrder).Select(member => member.DisplayName).ToListAsync());
         Assert.Empty(await asNobody.Members.ToListAsync());
         Assert.Empty(await asNobody.Families.ToListAsync());
     }

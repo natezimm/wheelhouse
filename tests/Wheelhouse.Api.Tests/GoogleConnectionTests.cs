@@ -242,19 +242,19 @@ public sealed class GoogleConnectionTests(ApiFactory factory)
     {
         using var visitor = await factory.DemoVisitorAsync();
         var members = (await visitor.GetFromJsonAsync<FamilyResponse>("/api/family", ApiFactory.Json))!.Members;
-        var ben = members.Single(m => m.DisplayName == "Ben").Id;
+        var clara = members.Single(m => m.DisplayName == "Clara").Id;
 
         var connection = await ConnectionOf(visitor);
         var choices = await ChoicesOf(visitor);
-        var keep = choices.Select(c => new CalendarChoiceRequest(c.GoogleCalendarId, c.Name == "Milo" ? ben : c.MemberId)).ToArray();
+        var keep = choices.Select(c => new CalendarChoiceRequest(c.GoogleCalendarId, c.Name == "Milo — School & Sports" ? clara : c.MemberId)).ToArray();
         var saved = await ChooseAsync(visitor, keep);
 
         Assert.Equal(new GoogleConnectionResponse(false, null, null), connection);
         Assert.Equal(HttpStatusCode.NotFound, (await visitor.GetAsync("/api/calendar/google/connect")).StatusCode);
-        Assert.Equal(["Ben", "Family", "Milo", "Tess"], choices.Select(c => c.Name));
+        Assert.Equal(["Clara", "Julian", "Maplewood School District", "Marlowe Household", "Milo — School & Sports", "Nora — Activities"], choices.Select(c => c.Name));
         Assert.All(choices, c => Assert.True(c.Shown));
         saved.EnsureSuccessStatusCode();
-        Assert.Equal(ben, (await ChoicesOf(visitor)).Single(c => c.Name == "Milo").MemberId);
+        Assert.Equal(clara, (await ChoicesOf(visitor)).Single(c => c.Name == "Milo — School & Sports").MemberId);
     }
 
     [Fact]

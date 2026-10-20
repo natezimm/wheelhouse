@@ -33,7 +33,7 @@ public sealed class DemoTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.OK, ownChange.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, reachAcross.StatusCode);
         Assert.Equal("Changed by the first visitor", (await FamilyOf(first)).Members[0].DisplayName);
-        Assert.Equal(["Ben", "Tess", "Milo"], (await FamilyOf(second)).Members.Select(member => member.DisplayName));
+        Assert.Equal(["Clara", "Julian", "Milo", "Nora"], (await FamilyOf(second)).Members.Select(member => member.DisplayName));
     }
 
     [Fact]
@@ -98,7 +98,7 @@ public sealed class DemoTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.NoContent, again.StatusCode);
         var fresh = await FamilyOf(visitor);
         Assert.NotEqual(old.Id, fresh.Id);
-        Assert.Equal(["Ben", "Tess", "Milo"], fresh.Members.Select(member => member.DisplayName));
+        Assert.Equal(["Clara", "Julian", "Milo", "Nora"], fresh.Members.Select(member => member.DisplayName));
     }
 
     [Fact]
