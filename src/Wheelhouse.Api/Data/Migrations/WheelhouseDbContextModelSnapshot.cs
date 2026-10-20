@@ -419,6 +419,9 @@ namespace Wheelhouse.Api.Data.Migrations
                     b.Property<double?>("Longitude")
                         .HasColumnType("double precision");
 
+                    b.Property<long>("MealsChangeNumber")
+                        .HasColumnType("bigint");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -628,6 +631,60 @@ namespace Wheelhouse.Api.Data.Migrations
                     b.ToTable("ListItems");
                 });
 
+            modelBuilder.Entity("Wheelhouse.Api.Meals.MealCommand", b =>
+                {
+                    b.Property<Guid>("FamilyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Request")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("FamilyId", "Id");
+
+                    b.ToTable("MealCommands");
+                });
+
+            modelBuilder.Entity("Wheelhouse.Api.Meals.MealSlot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("FamilyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("Slot")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("Title")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FamilyId", "Date", "Slot")
+                        .IsUnique();
+
+                    b.ToTable("MealSlots");
+                });
+
             modelBuilder.Entity("Wheelhouse.Api.Auth.UserAccount", b =>
                 {
                     b.HasOne("Wheelhouse.Api.Families.Family", null)
@@ -784,6 +841,24 @@ namespace Wheelhouse.Api.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Wheelhouse.Api.Meals.MealCommand", b =>
+                {
+                    b.HasOne("Wheelhouse.Api.Families.Family", null)
+                        .WithMany()
+                        .HasForeignKey("FamilyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Wheelhouse.Api.Meals.MealSlot", b =>
+                {
+                    b.HasOne("Wheelhouse.Api.Families.Family", null)
+                        .WithMany("Meals")
+                        .HasForeignKey("FamilyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Wheelhouse.Api.Calendar.CalendarSource", b =>
                 {
                     b.Navigation("Events");
@@ -805,6 +880,8 @@ namespace Wheelhouse.Api.Data.Migrations
                     b.Navigation("Devices");
 
                     b.Navigation("Lists");
+
+                    b.Navigation("Meals");
 
                     b.Navigation("Members");
                 });

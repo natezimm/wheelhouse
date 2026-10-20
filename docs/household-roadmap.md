@@ -1,8 +1,8 @@
 # Chores, lists and meals roadmap
 
-Created October 18, 2026. Roadmap agreed through PR #25. Status: 4.1 merged in [PR #26](https://github.com/natezimm/wheelhouse/pull/26); 4.2 merged in [PR #27](https://github.com/natezimm/wheelhouse/pull/27); 4.3 merged in [PR #29](https://github.com/natezimm/wheelhouse/pull/29); 5.1 merged in [PR #30](https://github.com/natezimm/wheelhouse/pull/30); 5.2 in implementation in [PR #31](https://github.com/natezimm/wheelhouse/pull/31); meals remain planned.
+Created October 18, 2026. Roadmap agreed through PR #25. Status: 4.1 merged in [PR #26](https://github.com/natezimm/wheelhouse/pull/26); 4.2 merged in [PR #27](https://github.com/natezimm/wheelhouse/pull/27); 4.3 merged in [PR #29](https://github.com/natezimm/wheelhouse/pull/29); 5.1 merged in [PR #30](https://github.com/natezimm/wheelhouse/pull/30); 5.2 merged in [PR #31](https://github.com/natezimm/wheelhouse/pull/31); 6.1 in implementation in [PR #32](https://github.com/natezimm/wheelhouse/pull/32).
 
-The 4.1–4.3 layout, states and API contracts are documented in [chores-design.md](chores-design.md). The 5.1 design is in [lists-design.md](lists-design.md), and 5.2 in [grocery-design.md](grocery-design.md). An open PR does not mark an increment shipped.
+The 4.1–4.3 layout, states and API contracts are documented in [chores-design.md](chores-design.md). The 5.1 design is in [lists-design.md](lists-design.md), 5.2 in [grocery-design.md](grocery-design.md), and 6.1 in [meals-design.md](meals-design.md). An open PR does not mark an increment shipped.
 
 This is a new plan requested after calendar live updates shipped in PR #24. The milestone numbers below are proposed continuations, not a recovered historical roadmap. Calendar Milestone 3 part 2 is complete. Nothing in this document is implemented merely because it is described here.
 
@@ -87,7 +87,7 @@ Phone: choose a list, quick-add an item, edit, check/reopen, reorder and archive
 
 Done when two devices can add different items concurrently without losing either, stale edits are handled, checking is idempotent, ordering remains deterministic, and reconnecting restores the accepted list without clearing a draft. Include isolation and demo-copy cleanup tests.
 
-### 5.2 Grocery workflow — in implementation in PR #31
+### 5.2 Grocery workflow — merged in PR #31
 
 Seed one protected Grocery list per family and enforce its uniqueness; it cannot be archived. Add optional quantity and unit text and a small configurable category set, initially Produce, Dairy, Meat & fish, Pantry, Frozen and Other. Manual entry remains fast: item text alone is valid.
 
@@ -97,7 +97,7 @@ Done when list ordering, category editing and clearing are safe under concurrent
 
 ## Milestone 6: Meals
 
-### 6.1 Weekly meal plan
+### 6.1 Weekly meal plan — in implementation in PR #32
 
 Add a week view with breakfast, lunch and dinner slots for each family-local date. Each slot may hold one free-text meal with optional notes. Empty slots are normal; defaults can emphasize dinner without hiding other slots. Snacks are a later extension.
 
@@ -139,5 +139,5 @@ Rewards/points, allowances, chore rotation, child-specific sign-in, reminders, p
 
 ## Immediate next action
 
-Complete **5.2: Grocery workflow**: protected Grocery creation/backfill, optional quantities/units, configurable categories and reviewed bulk clearing on wall and phone. After it merges, the next planned increment is **6.1: Weekly meal plan**.
+Complete **6.1: Weekly meal plan**: free-text breakfast/lunch/dinner slots, explicit clears, reviewed previous-week copying, live wall/phone editing and today's planned meals. After it merges, the next planned increment is **6.2: Saved recipes**. Grocery generation remains 6.3.
 
