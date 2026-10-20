@@ -664,6 +664,12 @@ namespace Wheelhouse.Api.Data.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<string>("RecipeData")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("Servings")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Slot")
                         .IsRequired()
                         .HasMaxLength(16)
@@ -683,6 +689,30 @@ namespace Wheelhouse.Api.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("MealSlots");
+                });
+
+            modelBuilder.Entity("Wheelhouse.Api.Meals.Recipe", b =>
+                {
+                    b.Property<Guid>("FamilyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Archived")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("FamilyId", "Id");
+
+                    b.ToTable("Recipes");
                 });
 
             modelBuilder.Entity("Wheelhouse.Api.Auth.UserAccount", b =>
@@ -859,6 +889,15 @@ namespace Wheelhouse.Api.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Wheelhouse.Api.Meals.Recipe", b =>
+                {
+                    b.HasOne("Wheelhouse.Api.Families.Family", null)
+                        .WithMany("Recipes")
+                        .HasForeignKey("FamilyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Wheelhouse.Api.Calendar.CalendarSource", b =>
                 {
                     b.Navigation("Events");
@@ -884,6 +923,8 @@ namespace Wheelhouse.Api.Data.Migrations
                     b.Navigation("Meals");
 
                     b.Navigation("Members");
+
+                    b.Navigation("Recipes");
                 });
 
             modelBuilder.Entity("Wheelhouse.Api.Lists.HouseholdList", b =>

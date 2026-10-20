@@ -43,7 +43,8 @@ public static class MealEndpoints
             foreach (var slot in Slots)
             {
                 byKey.TryGetValue((date, slot), out var row);
-                meals.Add(new(date, slot, row?.Title, row?.Notes, row?.Version));
+                meals.Add(new(date, slot, row?.Title, row?.Notes, row?.Version,
+                    row?.RecipeData is { } json ? RecipeJson.Read<RecipeSnapshot>(json) : null, row?.Servings));
             }
         return new(from, to, revision, meals.ToArray());
     }
@@ -53,7 +54,9 @@ public static class MealEndpoints
         if (date.Year is < 1900 or >= 2200 || !Slots.Contains(slot) || request.CommandId == Guid.Empty) return Invalid();
         var title = Text(request.Title); var notes = Text(request.Notes);
         if (title?.Length > 200 || notes?.Length > 2000 || title is null && notes is not null) return Invalid();
-        var fingerprint = JsonSerializer.Serialize(new { kind = "save", date, slot, title, notes, request.Version });
+        if (request.Servings is < 1 or > 100 || request.RemoveRecipe && request.Recipe is not null
+            || request.Recipe is { } choice && (choice.Id == Guid.Empty || choice.Version == Guid.Empty)) return Invalid();
+        var fingerprint = JsonSerializer.Serialize(new { kind = "save", date, slot, title, notes, request.Version, request.Recipe, request.Servings, request.RemoveRecipe });
         await using var tx = await db.Database.BeginTransactionAsync(ct); await Lock(db, ct);
         var receipt = await db.MealCommands.SingleOrDefaultAsync(c => c.Id == request.CommandId, ct);
         if (receipt is not null && receipt.Request != fingerprint) return Results.Conflict(new { message = "This save ID belongs to another request." });
@@ -61,10 +64,23 @@ public static class MealEndpoints
         {
             var row = await db.MealSlots.SingleOrDefaultAsync(m => m.Date == date && m.Slot == slot, ct);
             if (row?.Version != request.Version) return Results.Conflict(await Response(date, date.AddDays(1), db, ct));
-            if (row?.Title != title || row?.Notes != notes)
+            var recipeData = title is null || request.RemoveRecipe ? null : row?.RecipeData;
+            var servings = recipeData is null ? (int?)null : request.Servings ?? row?.Servings;
+            if (request.Recipe is { } selected)
+            {
+                var recipe = await db.Recipes.SingleOrDefaultAsync(r => r.Id == selected.Id, ct);
+                if (recipe is null) return Results.NotFound();
+                if (recipe.Archived || recipe.Version != selected.Version) return Results.Conflict(new { message = "Recipe changed. Review the library before choosing again." });
+                var content = RecipeJson.Read<RecipeContent>(recipe.Content);
+                title = content.Title; recipeData = RecipeJson.Write(new RecipeSnapshot(recipe.Id, recipe.Version, content));
+                servings = request.Servings ?? content.DefaultServings;
+            }
+            else if (recipeData is not null && title != row?.Title) return Invalid();
+            if (recipeData is null && request.Servings is not null) return Invalid();
+            if (row?.Title != title || row?.Notes != notes || row?.RecipeData != recipeData || row?.Servings != servings)
             {
                 row ??= New(db, date, slot);
-                row.Title = title; row.Notes = notes; row.Version = Guid.NewGuid();
+                row.Title = title; row.Notes = notes; row.RecipeData = recipeData; row.Servings = servings; row.Version = Guid.NewGuid();
             }
             db.MealCommands.Add(new MealCommand { Id = request.CommandId, FamilyId = db.CurrentFamilyId!.Value, Request = fingerprint });
             await db.SaveChangesAsync(ct);
@@ -102,9 +118,9 @@ public static class MealEndpoints
                 var source = sources.Single(m => m.Date == choice.Date && m.Slot == choice.Slot);
                 var date = request.TargetFrom.AddDays(choice.Date.DayNumber - request.SourceFrom.DayNumber);
                 var target = targets.SingleOrDefault(m => m.Date == date && m.Slot == choice.Slot);
-                if (target?.Title == source.Title && target?.Notes == source.Notes) continue;
+                if (target?.Title == source.Title && target?.Notes == source.Notes && target?.RecipeData == source.RecipeData && target?.Servings == source.Servings) continue;
                 target ??= New(db, date, choice.Slot);
-                target.Title = source.Title; target.Notes = source.Notes; target.Version = Guid.NewGuid();
+                target.Title = source.Title; target.Notes = source.Notes; target.RecipeData = source.RecipeData; target.Servings = source.Servings; target.Version = Guid.NewGuid();
             }
             db.MealCommands.Add(new MealCommand { Id = request.CommandId, FamilyId = db.CurrentFamilyId!.Value, Request = fingerprint });
             await db.SaveChangesAsync(ct);

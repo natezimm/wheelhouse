@@ -78,6 +78,7 @@ app.MapHouseholdLive();
 app.MapChores();
 app.MapLists();
 app.MapMeals();
+app.MapRecipes();
 app.MapCalendarEvents();
 app.MapGoogleConnection();
 app.MapWeather();

@@ -10,6 +10,8 @@ public sealed class MealSlot : IFamilyOwned
     public required string Slot { get; set; }
     public string? Title { get; set; }
     public string? Notes { get; set; }
+    public string? RecipeData { get; set; }
+    public int? Servings { get; set; }
     public Guid Version { get; set; } = Guid.NewGuid();
 }
 
@@ -21,8 +23,8 @@ public sealed class MealCommand : IFamilyOwned
     public required string Request { get; set; }
 }
 
-public sealed record MealResponse(DateOnly Date, string Slot, string? Title, string? Notes, Guid? Version);
+public sealed record MealResponse(DateOnly Date, string Slot, string? Title, string? Notes, Guid? Version, RecipeSnapshot? Recipe = null, int? Servings = null);
 public sealed record MealsResponse(DateOnly From, DateOnly To, long ChangeNumber, MealResponse[] Meals);
-public sealed record SaveMeal(Guid CommandId, Guid? Version, string? Title, string? Notes);
+public sealed record SaveMeal(Guid CommandId, Guid? Version, string? Title, string? Notes, RecipeChoice? Recipe = null, int? Servings = null, bool RemoveRecipe = false);
 public sealed record CopyChoice(DateOnly Date, string Slot, Guid SourceVersion, Guid? TargetVersion);
 public sealed record CopyMeals(Guid CommandId, DateOnly SourceFrom, DateOnly TargetFrom, CopyChoice[] Items);
