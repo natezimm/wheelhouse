@@ -5,6 +5,7 @@ import { refusalMessage } from './family';
 
 export interface ListItem {
   sources?: GroceryOrigin[];
+  quantityIsText?: boolean;
   quantity?: string | null; unit?: string | null; categoryId?: string | null;
   id: string; creationId: string; text: string; notes: string | null;
   checked: boolean; deleted: boolean; sortOrder: number; version: string;

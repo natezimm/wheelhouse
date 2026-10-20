@@ -13,11 +13,11 @@ export interface GroceryBatch { id:string; addedAt:string; ingredientCount:numbe
 interface Operation { key:string; from:string; to:string; body:{commandId:string;groceryListId:string;combineNew:boolean;items:GroceryChoice[]}; uncertain:boolean; }
 export const normalizeIngredient = (value:string|null|undefined) => (value ?? '').trim().replace(/\s+/g,' ').toUpperCase();
 export function numericQuantity(value:string|null|undefined):number|null {
-  if (!value || !/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(value.trim())) return null;
+  if (!value || !/^(?:\d+(?:\.\d{0,4}0*)?|\.\d{1,4}0*)$/.test(value.trim())) return null;
   const n=Number(value); return Number.isFinite(n) && n>=0 && n<=1e12 ? n : null;
 }
 export function compatibleIngredient(line:GroceryIngredient, item:ListItem):boolean {
-  return line.quantity!==null && !item.checked && !item.deleted && numericQuantity(item.quantity)!==null
+  return line.quantity!==null && !item.quantityIsText && !item.checked && !item.deleted && numericQuantity(item.quantity)!==null
     && normalizeIngredient(line.name)===normalizeIngredient(item.text) && normalizeIngredient(line.unit)===normalizeIngredient(item.unit);
 }
 

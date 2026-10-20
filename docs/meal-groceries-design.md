@@ -17,6 +17,9 @@ ingredients” option combines numeric lines only when names and units match aft
 trimming/collapsing whitespace and ignoring case. Optional existing-item merges
 use the same rule, strict invariant decimal quantities and reviewed item versions.
 No unit conversion, synonyms, fuzzy matching or automatic manual-item merging.
+Supported numeric merge quantities have at most four decimal places; higher
+precision manual quantities stay separate. Numeric-looking recipe text retains
+its text marker in Grocery and is never offered as a numeric merge target.
 All new rows go into Grocery's Other category; merged rows retain their category.
 
 Normal: meal groups, selection count, quantities, merge choices and final Add

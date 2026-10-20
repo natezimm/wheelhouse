@@ -16,8 +16,9 @@ describe('MealGroceriesStore',()=>{
     expect(compatibleIngredient({...line,name:' pasta ',unit:' G '},item)).toBe(true);
     expect(compatibleIngredient({...line,unit:'kg'},item)).toBe(false);
     expect(compatibleIngredient(line,{...item,checked:true})).toBe(false);
+    expect(compatibleIngredient(line,{...item,quantityIsText:true})).toBe(false);
     expect(compatibleIngredient({...line,quantity:null,quantityText:'2'},item)).toBe(false);
-    for(const text of ['1,000','1e3','to taste','-1'])expect(numericQuantity(text)).toBeNull();
+    for(const text of ['1,000','1e3','to taste','-1','0.12345'])expect(numericQuantity(text)).toBeNull();
     expect(numericQuantity('0')).toBe(0);
   });
   it('coalesces both revision domains and ignores old range responses while preserving submitted intent',async()=>{

@@ -23,7 +23,8 @@ public static class MealGroceryEndpoints
         var family = await db.Families.Select(f => new {f.MealsChangeNumber,f.ListsChangeNumber}).SingleAsync(ct);
         var grocery = await db.HouseholdLists.AsNoTracking().Include(l=>l.Items).ThenInclude(i=>i.Contributions)
             .Include(l=>l.Categories).AsSplitQuery().SingleAsync(l=>l.IsGrocery,ct);
-        var slots = await db.MealSlots.AsNoTracking().Where(m=>m.Date>=from && m.Date<to && m.Title!=null).OrderBy(m=>m.Date).ThenBy(m=>m.Slot).ToArrayAsync(ct);
+        var slots = await db.MealSlots.AsNoTracking().Where(m=>m.Date>=from && m.Date<to && m.Title!=null)
+            .OrderBy(m=>m.Date).ThenBy(m=>m.Slot=="Breakfast"?0:m.Slot=="Lunch"?1:2).ToArrayAsync(ct);
         var counts = await db.GroceryContributions.AsNoTracking().Where(c=>c.Date>=from && c.Date<to)
             .GroupBy(c=>new {c.Date,c.Slot,c.SnapshotKey,c.IngredientId}).Select(g=>new {g.Key,Count=g.Count()}).ToArrayAsync(ct);
         var bySource = counts.ToDictionary(c=>(c.Key.Date,c.Key.Slot,c.Key.SnapshotKey,c.Key.IngredientId),c=>c.Count);
@@ -83,7 +84,7 @@ public static class MealGroceryEndpoints
                 target=grocery.Items.SingleOrDefault(i=>i.Id==targetId);
                 if(target is null) return Results.NotFound();
                 if(target.Checked || target.Deleted || target.Version!=choice.TargetVersion) return Conflict();
-                if(choice.Quantity is null || !GrocerySources.Number(target.Quantity,out _)
+                if(choice.Quantity is null || target.QuantityIsText || !GrocerySources.Number(target.Quantity,out _)
                     || GrocerySources.Normalize(target.Text)!=GrocerySources.Normalize(ingredient.Name)
                     || GrocerySources.Normalize(target.Unit)!=GrocerySources.Normalize(ingredient.Unit)) return Invalid();
             }
@@ -99,7 +100,7 @@ public static class MealGroceryEndpoints
             {
                 item=existing ?? new ListItem {Id=Guid.CreateVersion7(),FamilyId=grocery.FamilyId,HouseholdListId=grocery.Id,
                     CreationId=Guid.NewGuid(),CreationRequest="meal-batch:"+request.CommandId,Text=ingredient.Name,Unit=ingredient.Unit,
-                    Quantity=choice.Quantity is null ? choice.QuantityText : "0",
+                    Quantity=choice.Quantity is null ? choice.QuantityText : "0",QuantityIsText=choice.Quantity is null && choice.QuantityText is not null,
                     CategoryId=grocery.Categories.Single(c=>c.IsOther).Id,SortOrder=grocery.Items.Count==0?0:grocery.Items.Max(i=>i.SortOrder)+1};
                 if(existing is null){grocery.Items.Add(item);db.ListItems.Add(item);}
                 targets.Add(key,item);
