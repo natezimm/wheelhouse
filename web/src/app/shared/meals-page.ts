@@ -197,6 +197,9 @@ export class MealsPage {
     const meal = this.currentMeal(); if (!meal) return;
     this.editor.set({ ...edit, meal:{ ...meal } }); this.conflicted.set(false); this.store.dismissError();
     if (this.selection) this.choosing.set(true);
+    else if (this.recipe()) {
+      this.recipe.set(meal.recipe ? structuredClone(meal.recipe) : null); this.title.set(meal.title ?? '');
+    } else if (meal.recipe) this.removeRecipe = true;
   }
   protected async save(): Promise<void> {
     const edit = this.editor(); if (!edit || this.locked() || this.conflicted()) return;

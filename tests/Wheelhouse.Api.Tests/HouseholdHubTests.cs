@@ -96,11 +96,6 @@ public sealed class HouseholdHubTests(ApiFactory factory)
         await Publish(factory.Demo);
         Assert.Equal(before.ChangeNumber + 1, (await phone.Next()).ChangeNumber);
         Assert.Equal(before.ChangeNumber + 1, (await wall.Next()).ChangeNumber); await outsider.Quiet();
-        var recipe = (await parent.GetFromJsonAsync<Wheelhouse.Api.Meals.RecipesResponse>("/api/recipes"))!.Recipes.First(r => !r.Archived);
-        (await parent.PutAsJsonAsync($"/api/recipes/{recipe.Id}", new Wheelhouse.Api.Meals.SaveRecipe(Guid.NewGuid(), recipe.Version, true, recipe.Content))).EnsureSuccessStatusCode();
-        await Publish(factory.Demo);
-        Assert.Equal(before.ChangeNumber + 2, (await phone.Next()).ChangeNumber);
-        Assert.Equal(before.ChangeNumber + 2, (await wall.Next()).ChangeNumber); await outsider.Quiet();
         await using var db = factory.DbContextFor(family.Id);
         await using (var tx = await db.Database.BeginTransactionAsync())
         {
@@ -137,6 +132,11 @@ public sealed class HouseholdHubTests(ApiFactory factory)
         await Publish(factory.Demo);
         Assert.Equal(before.ChangeNumber + 1, (await phone.Next()).ChangeNumber);
         Assert.Equal(before.ChangeNumber + 1, (await wall.Next()).ChangeNumber); await outsider.Quiet();
+        var recipe = (await parent.GetFromJsonAsync<Wheelhouse.Api.Meals.RecipesResponse>("/api/recipes"))!.Recipes.First(r => !r.Archived);
+        (await parent.PutAsJsonAsync($"/api/recipes/{recipe.Id}", new Wheelhouse.Api.Meals.SaveRecipe(Guid.NewGuid(), recipe.Version, true, recipe.Content))).EnsureSuccessStatusCode();
+        await Publish(factory.Demo);
+        Assert.Equal(before.ChangeNumber + 2, (await phone.Next()).ChangeNumber);
+        Assert.Equal(before.ChangeNumber + 2, (await wall.Next()).ChangeNumber); await outsider.Quiet();
         await using var db = factory.DbContextFor(family.Id);
         await using (var tx = await db.Database.BeginTransactionAsync())
         {
