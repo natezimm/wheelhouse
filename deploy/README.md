@@ -90,6 +90,28 @@ Nothing in the instance's `.env` names its domain, so no release is needed.
 
 ## Release
 
+### From GitHub (recommended)
+
+After merging the release controls into `main`, open **Actions → Release → Run workflow**.
+Choose branch **main** and enter a new version such as **v0.2.0**. The run tests that exact
+commit, creates its tag, builds both images and deploys every configured instance.
+The version must match `vMAJOR.MINOR.PATCH`, optionally with a prerelease suffix.
+Existing tags are never moved; choose a new version if a tag belongs to another commit.
+
+The first catch-up release is `v0.2.0`; it includes the calendar, live updates, chores,
+lists, grocery and weekly meal plan features merged since `v0.1.1`.
+Merging a PR alone still does not deploy. Use another version for each later release.
+A tag created by the workflow token does not start a second tag-triggered run: the
+manual run performs the complete release itself. Re-run a failed run to retry its
+original commit; starting a new run on a changed main needs a new version.
+
+Watch the test, prepare, images and deploy jobs. The deploy job must finish successfully
+before the release is live. Reload each site afterwards, and verify Today, Calendar,
+Chores, Lists and Meals; open `/wall` for the wall layout. A private family instance
+still requires Google sign-in and a calendar connection for real events.
+
+### From a local checkout
+
 ```bash
 git tag v0.1.0
 ```
