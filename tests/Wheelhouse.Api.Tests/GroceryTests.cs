@@ -175,7 +175,7 @@ public sealed class GroceryTests(ApiFactory factory)
         }
         Assert.Equal(before, (await Read(client)).ChangeNumber);
         Assert.DoesNotContain((await Grocery(client)).Categories!, c => c.Name == "Rollback category");
-        var apple = list.Items.Single(i => i.Text == "Apples");
+        var apple = list.Items.Single(i => i.Text == "Honeycrisp apples");
         await Put(client, list, $"/items/{apple.Id}/move", new MoveListItem(apple.Version, list.Version, 1));
         Assert.Equal(before, (await Read(client)).ChangeNumber);
     }

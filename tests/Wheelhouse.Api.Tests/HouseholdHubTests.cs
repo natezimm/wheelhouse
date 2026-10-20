@@ -157,9 +157,9 @@ public sealed class HouseholdHubTests(ApiFactory factory)
         var beforeMeals=await meals.Next();var beforeLists=await lists.Next();await outsider.Next();
         // Use the current demo's saved recipe meal, including its seeded prior purchase.
         await using var db=factory.DbContextFor(family.Id);
-        var day=await db.MealSlots.Where(m=>m.RecipeData!=null).Select(m=>m.Date).SingleAsync();
+        var day=await db.MealSlots.Where(m=>m.RecipeData!=null).OrderByDescending(m=>m.Date).Select(m=>m.Date).FirstAsync();
         var p=(await parent.GetFromJsonAsync<Wheelhouse.Api.Meals.GroceryPreview>($"/api/meals/groceries?from={day:yyyy-MM-dd}&to={day.AddDays(1):yyyy-MM-dd}"))!;
-        var meal=p.Meals.Single(m=>m.SnapshotKey!=null);var ingredient=meal.Ingredients.First(i=>i.PreviousCount==0);
+        var meal=p.Meals.First(m=>m.SnapshotKey!=null);var ingredient=meal.Ingredients.First(i=>i.PreviousCount==0);
         var choice=new Wheelhouse.Api.Meals.GroceryChoice(meal.Date,meal.Slot,meal.Version,meal.SnapshotKey!,ingredient.Id,ingredient.Quantity,ingredient.QuantityText,0,false);
         (await parent.PostAsJsonAsync("/api/meals/groceries",new Wheelhouse.Api.Meals.AddMealGroceries(Guid.NewGuid(),p.Grocery.Id,false,[choice]))).EnsureSuccessStatusCode();
         await Publish(factory.Demo);
