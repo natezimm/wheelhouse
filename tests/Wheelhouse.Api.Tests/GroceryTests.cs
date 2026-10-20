@@ -91,7 +91,7 @@ public sealed class GroceryTests(ApiFactory factory)
         Assert.Null(plain.Quantity); Assert.Null(plain.Unit); Assert.Equal(list.Categories!.Single(c => c.IsOther).Id, plain.CategoryId);
         list = await Put(client, list, $"/items/{item.Id}", new EditListItem(item.Version, "Rice", null, "3", "bags", item.CategoryId));
         Assert.Equal(HttpStatusCode.Conflict, (await client.PutAsJsonAsync($"/api/lists/{list.Id}/items/{item.Id}", new EditListItem(item.Version, "Stale", null))).StatusCode);
-        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync($"/api/lists/{list.Id}/items", request with { CreationId = Guid.NewGuid(), Quantity = new string('x', 51) })).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await client.PostAsJsonAsync($"/api/lists/{list.Id}/items", request with { CreationId = Guid.NewGuid(), Quantity = new string('x', 101) })).StatusCode);
     }
 
     [Fact]

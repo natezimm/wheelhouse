@@ -8,12 +8,13 @@ import { GroceryCategory, GroceryFields, HouseholdList, ListItem, ListsStore } f
 import { PhoneNav } from '../phone/phone-nav';
 import { SignIn } from '../phone/sign-in';
 import { DemoNotice } from './demo-notice';
+import { GroceryOrigins } from './grocery-origins';
 
 type Editor = { kind: 'new' | 'rename' | 'item' | 'archive' | 'delete' | 'categories' | 'clear'; list?: HouseholdList; item?: ListItem; reviewed?: ListItem[] };
 
 @Component({
   selector: 'app-lists-page',
-  imports: [FormsModule, NgTemplateOutlet, RouterLink, PhoneNav, SignIn, DemoNotice],
+  imports: [FormsModule, NgTemplateOutlet, RouterLink, PhoneNav, SignIn, DemoNotice, GroceryOrigins],
   host: { '[class.wall]': 'wall' },
   template: `
     <header class="page-header">
@@ -61,7 +62,7 @@ type Editor = { kind: 'new' | 'rename' | 'item' | 'archive' | 'delete' | 'catego
                   <button class="button primary" [disabled]="store.isPending(list.id) || !quickText(list).trim()">Add item</button>
                   @if (list.isGrocery) {
                     <details class="quick-options"><summary>Quantity, unit & category (optional)</summary><div class="grocery-fields">
-                      <label class="field">Quantity<input name="quickQuantity" maxlength="50" [ngModel]="quickGrocery(list).quantity" (ngModelChange)="setQuickField(list, 'quantity', $event)" [disabled]="store.isPending(list.id)" /></label>
+                      <label class="field">Quantity<input name="quickQuantity" maxlength="100" [ngModel]="quickGrocery(list).quantity" (ngModelChange)="setQuickField(list, 'quantity', $event)" [disabled]="store.isPending(list.id)" /></label>
                       <label class="field">Unit<input name="quickUnit" maxlength="50" [ngModel]="quickGrocery(list).unit" (ngModelChange)="setQuickField(list, 'unit', $event)" [disabled]="store.isPending(list.id)" /></label>
                       <label class="field category">Category<select name="quickCategory" [ngModel]="quickGrocery(list).categoryId" (ngModelChange)="setQuickField(list, 'categoryId', $event)" [disabled]="store.isPending(list.id)">@for (category of list.categories; track category.id) { <option [value]="category.id">{{ category.name }}</option> }</select></label>
                     </div></details>
@@ -95,7 +96,9 @@ type Editor = { kind: 'new' | 'rename' | 'item' | 'archive' | 'delete' | 'catego
     <ng-template #row let-list="list" let-item="item">
       <article class="item" [class.pending]="store.isPending(list.id)">
         <button class="check" [disabled]="list.archived || store.isPending(list.id)" [attr.aria-pressed]="item.checked" [attr.aria-label]="(item.checked ? 'Reopen ' : 'Check ') + item.text" (click)="store.check(list, item, !item.checked)">{{ item.checked ? '✓' : '○' }}</button>
-        <div class="item-text"><h3 [class.done]="item.checked">{{ item.text }}</h3>@if (item.quantity || item.unit) { <p>{{ item.quantity }} {{ item.unit }}</p> }@if (item.notes) { <p>{{ item.notes }}</p> }</div>
+        <div class="item-text"><h3 [class.done]="item.checked">{{ item.text }}</h3>@if (item.quantity || item.unit) { <p>{{ item.quantity }} {{ item.unit }}</p> }@if (item.notes) { <p>{{ item.notes }}</p> }
+          @if (item.sources?.length) { <app-grocery-origins [sources]="item.sources" [wall]="wall" /> }
+        </div>
         @if (!list.archived) {
           <div class="item-actions"><button class="button" [disabled]="store.isPending(list.id) || !canMove(list, item, -1)" [attr.aria-label]="'Move up ' + item.text" (click)="store.move(list, item, -1)">↑</button>
             <button class="button" [disabled]="store.isPending(list.id) || !canMove(list, item, 1)" [attr.aria-label]="'Move down ' + item.text" (click)="store.move(list, item, 1)">↓</button>
@@ -133,7 +136,7 @@ type Editor = { kind: 'new' | 'rename' | 'item' | 'archive' | 'delete' | 'catego
           @if (edit.kind === 'item') { <label class="field">Notes<textarea name="notes" [ngModel]="notes()" (ngModelChange)="notes.set($event)" maxlength="2000" [disabled]="editorLocked()"></textarea></label> }
           @if (edit.kind === 'item' && edit.list?.isGrocery) {
             <div class="grocery-fields">
-              <label class="field">Quantity<input name="quantity" maxlength="50" [ngModel]="quantity()" (ngModelChange)="quantity.set($event)" [disabled]="editorLocked()" /></label>
+              <label class="field">Quantity<input name="quantity" maxlength="100" [ngModel]="quantity()" (ngModelChange)="quantity.set($event)" [disabled]="editorLocked()" /></label>
               <label class="field">Unit<input name="unit" maxlength="50" [ngModel]="unit()" (ngModelChange)="unit.set($event)" [disabled]="editorLocked()" /></label>
               <label class="field category">Category<select name="category" [ngModel]="categoryId()" (ngModelChange)="categoryId.set($event)" [disabled]="editorLocked()">@for (category of edit.list?.categories; track category.id) { <option [value]="category.id">{{ category.name }}</option> }</select></label>
             </div>

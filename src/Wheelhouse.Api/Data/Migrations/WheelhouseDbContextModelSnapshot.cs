@@ -600,8 +600,8 @@ namespace Wheelhouse.Api.Data.Migrations
                         .HasColumnType("character varying(2000)");
 
                     b.Property<string>("Quantity")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)");
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<long>("SortOrder")
                         .HasColumnType("bigint");
@@ -629,6 +629,68 @@ namespace Wheelhouse.Api.Data.Migrations
                     b.HasIndex("HouseholdListId", "SortOrder");
 
                     b.ToTable("ListItems");
+                });
+
+            modelBuilder.Entity("Wheelhouse.Api.Meals.GroceryBatch", b =>
+                {
+                    b.Property<Guid>("FamilyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Request")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Result")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("FamilyId", "Id");
+
+                    b.ToTable("GroceryBatches");
+                });
+
+            modelBuilder.Entity("Wheelhouse.Api.Meals.GroceryContribution", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("FamilyId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("IngredientId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ListItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Slot")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
+                    b.Property<string>("SnapshotKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("SourceData")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ListItemId");
+
+                    b.HasIndex("FamilyId", "Date", "Slot", "SnapshotKey", "IngredientId");
+
+                    b.ToTable("GroceryContributions");
                 });
 
             modelBuilder.Entity("Wheelhouse.Api.Meals.MealCommand", b =>
@@ -871,6 +933,30 @@ namespace Wheelhouse.Api.Data.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Wheelhouse.Api.Meals.GroceryBatch", b =>
+                {
+                    b.HasOne("Wheelhouse.Api.Families.Family", null)
+                        .WithMany("GroceryBatches")
+                        .HasForeignKey("FamilyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Wheelhouse.Api.Meals.GroceryContribution", b =>
+                {
+                    b.HasOne("Wheelhouse.Api.Families.Family", null)
+                        .WithMany()
+                        .HasForeignKey("FamilyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Wheelhouse.Api.Lists.ListItem", null)
+                        .WithMany("Contributions")
+                        .HasForeignKey("ListItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Wheelhouse.Api.Meals.MealCommand", b =>
                 {
                     b.HasOne("Wheelhouse.Api.Families.Family", null)
@@ -918,6 +1004,8 @@ namespace Wheelhouse.Api.Data.Migrations
 
                     b.Navigation("Devices");
 
+                    b.Navigation("GroceryBatches");
+
                     b.Navigation("Lists");
 
                     b.Navigation("Meals");
@@ -932,6 +1020,11 @@ namespace Wheelhouse.Api.Data.Migrations
                     b.Navigation("Categories");
 
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("Wheelhouse.Api.Lists.ListItem", b =>
+                {
+                    b.Navigation("Contributions");
                 });
 #pragma warning restore 612, 618
         }

@@ -79,6 +79,7 @@ app.MapChores();
 app.MapLists();
 app.MapMeals();
 app.MapRecipes();
+app.MapMealGroceries();
 app.MapCalendarEvents();
 app.MapGoogleConnection();
 app.MapWeather();

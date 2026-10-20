@@ -1,4 +1,5 @@
 using Wheelhouse.Api.Data;
+using Wheelhouse.Api.Meals;
 
 namespace Wheelhouse.Api.Lists;
 
@@ -18,6 +19,7 @@ public sealed class HouseholdList : IFamilyOwned
 
 public sealed class ListItem : IFamilyOwned
 {
+    public List<GroceryContribution> Contributions { get; } = [];
     public Guid Id { get; set; }
     public Guid FamilyId { get; set; }
     public Guid HouseholdListId { get; set; }
@@ -43,9 +45,10 @@ public sealed record HouseholdListResponse(Guid Id, Guid CreationId, string Name
         list.IsGrocery, list.Categories.OrderBy(c => c.SortOrder).ThenBy(c => c.Id).Select(c => new GroceryCategoryResponse(c.Id, c.Name, c.IsOther)).ToArray());
 }
 public sealed record ListItemResponse(Guid Id, Guid CreationId, string Text, string? Notes, bool Checked, bool Deleted, long SortOrder, Guid Version,
-    string? Quantity = null, string? Unit = null, Guid? CategoryId = null)
+    string? Quantity = null, string? Unit = null, Guid? CategoryId = null, GroceryOrigin[]? Sources = null)
 {
-    public static ListItemResponse From(ListItem i) => new(i.Id, i.CreationId, i.Text, i.Notes, i.Checked, i.Deleted, i.SortOrder, i.Version, i.Quantity, i.Unit, i.CategoryId);
+    public static ListItemResponse From(ListItem i) => new(i.Id, i.CreationId, i.Text, i.Notes, i.Checked, i.Deleted, i.SortOrder, i.Version, i.Quantity, i.Unit, i.CategoryId,
+        i.Contributions.OrderBy(c=>c.Id).Select(c=>RecipeJson.Read<GroceryOrigin>(c.SourceData)).ToArray());
 }
 public sealed record CreateList(Guid CreationId, string Name);
 public sealed record RenameList(Guid Version, string Name);
