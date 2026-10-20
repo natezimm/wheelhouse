@@ -72,7 +72,7 @@ public sealed class EventTests(ApiFactory factory)
     public async Task An_all_day_event_ends_the_day_after_its_last()
     {
         using var visitor = await factory.DemoVisitorAsync();
-        var everyone = await CalendarIdAsync(visitor, "Family");
+        var everyone = await CalendarIdAsync(visitor, "Marlowe Household");
 
         var added = await AddAsync(visitor, AllDay(everyone, "Camping", Day, days: 2));
 
@@ -164,7 +164,7 @@ public sealed class EventTests(ApiFactory factory)
         await parent.PostAsJsonAsync("/api/devices", new PairDisplayRequest(pairing.Code, "Kitchen"), ApiFactory.Json);
         await wall.PostAsync($"/api/pairing/{pairing.Id}/finish", null);
         using var stranger = factory.Demo.CreateClient();
-        var request = Timed(await CalendarIdAsync(parent, "Family"), "Added on the wall", new(12, 0), new(13, 0));
+        var request = Timed(await CalendarIdAsync(parent, "Marlowe Household"), "Added on the wall", new(12, 0), new(13, 0));
 
         var added = await AddAsync(wall, request);
         var refused = await stranger.PostAsJsonAsync("/api/calendar/events", request, ApiFactory.Json);
