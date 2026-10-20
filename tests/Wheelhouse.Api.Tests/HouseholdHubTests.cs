@@ -147,6 +147,26 @@ public sealed class HouseholdHubTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task A_grocery_batch_publishes_both_committed_domains_without_leaking_source_counts_to_another_family()
+    {
+        using var parent=await factory.DemoVisitorAsync();using var other=await factory.DemoVisitorAsync();
+        var family=await FamilyOf(parent);var otherFamily=await FamilyOf(other);
+        await using var meals=await Observer.Connect(factory.Demo,Cookie(factory.Demo,WheelhousePrincipal.Parent(family.Id)),domain:"meals");
+        await using var lists=await Observer.Connect(factory.Demo,Cookie(factory.Demo,WheelhousePrincipal.Parent(family.Id)),domain:"lists");
+        await using var outsider=await Observer.Connect(factory.Demo,Cookie(factory.Demo,WheelhousePrincipal.Parent(otherFamily.Id)),domain:"lists");
+        var beforeMeals=await meals.Next();var beforeLists=await lists.Next();await outsider.Next();
+        // Use the current demo's saved recipe meal, including its seeded prior purchase.
+        await using var db=factory.DbContextFor(family.Id);
+        var day=await db.MealSlots.Where(m=>m.RecipeData!=null).Select(m=>m.Date).SingleAsync();
+        var p=(await parent.GetFromJsonAsync<Wheelhouse.Api.Meals.GroceryPreview>($"/api/meals/groceries?from={day:yyyy-MM-dd}&to={day.AddDays(1):yyyy-MM-dd}"))!;
+        var meal=p.Meals.Single(m=>m.SnapshotKey!=null);var ingredient=meal.Ingredients.First(i=>i.PreviousCount==0);
+        var choice=new Wheelhouse.Api.Meals.GroceryChoice(meal.Date,meal.Slot,meal.Version,meal.SnapshotKey!,ingredient.Id,ingredient.Quantity,ingredient.QuantityText,0,false);
+        (await parent.PostAsJsonAsync("/api/meals/groceries",new Wheelhouse.Api.Meals.AddMealGroceries(Guid.NewGuid(),p.Grocery.Id,false,[choice]))).EnsureSuccessStatusCode();
+        await Publish(factory.Demo);
+        Assert.Equal(beforeMeals.ChangeNumber+1,(await meals.Next()).ChangeNumber);
+        Assert.Equal(beforeLists.ChangeNumber+1,(await lists.Next()).ChangeNumber);await outsider.Quiet();
+    }
+    [Fact]
     public async Task Expired_demo_subscriptions_are_closed_before_cleanup()
     {
         using var parent = await factory.DemoVisitorAsync();

@@ -9,6 +9,7 @@ export const routes: Routes = [
   { path: 'lists', loadComponent: () => import('./shared/lists-page').then((m) => m.ListsPage) },
   { path: 'meals', loadComponent: () => import('./shared/meals-page').then((m) => m.MealsPage) },
   { path: 'recipes', loadComponent: () => import('./shared/recipes-page').then((m) => m.RecipesPage) },
+  { path: 'meals/groceries', loadComponent: () => import('./phone/meal-groceries-page').then((m) => m.MealGroceriesPage) },
   { path: 'wall/recipes', data: { wall: true }, loadComponent: () => import('./shared/recipes-page').then((m) => m.RecipesPage) },
   { path: 'wall/meals', data: { wall: true }, loadComponent: () => import('./shared/meals-page').then((m) => m.MealsPage) },
   { path: 'wall/lists', data: { wall: true }, loadComponent: () => import('./shared/lists-page').then((m) => m.ListsPage) },

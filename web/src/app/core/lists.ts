@@ -4,10 +4,14 @@ import { firstValueFrom, timeout } from 'rxjs';
 import { refusalMessage } from './family';
 
 export interface ListItem {
+  sources?: GroceryOrigin[];
+  quantityIsText?: boolean;
   quantity?: string | null; unit?: string | null; categoryId?: string | null;
   id: string; creationId: string; text: string; notes: string | null;
   checked: boolean; deleted: boolean; sortOrder: number; version: string;
 }
+export interface GroceryOrigin { batchId:string; date:string; slot:string; mealTitle:string; ingredientName:string; recipeId:string;
+  recipeVersion:string; servings:number; quantity:number|null; quantityText:string|null; unit:string|null; }
 export interface HouseholdList {
   isGrocery?: boolean; categories?: GroceryCategory[];
   id: string; creationId: string; name: string; archived: boolean; version: string; items: ListItem[];
