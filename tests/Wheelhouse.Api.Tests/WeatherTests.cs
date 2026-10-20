@@ -34,8 +34,8 @@ public sealed class WeatherTests(ApiFactory factory)
 
         Assert.Equal(new WeatherResponse(61, "Partly cloudy", WeatherIcon.PartlyCloudy, 66, 48, "F"), weather);
         var asked = Assert.Single(openMeteo.Requests);
-        Assert.Contains("latitude=40.71", asked.Query);
-        Assert.Contains("longitude=-74.01", asked.Query);
+        Assert.Contains("latitude=40.73", asked.Query);
+        Assert.Contains("longitude=-74.27", asked.Query);
         Assert.Contains("temperature_unit=fahrenheit", asked.Query);
         Assert.Contains("timezone=America%2FNew_York", asked.Query);
     }

@@ -22,9 +22,10 @@ public sealed class CalendarTests(ApiFactory factory)
         var calendar = await GetCalendarAsync(visitor, today, today.AddDays(1));
 
         var owners = calendar.Calendars.ToDictionary(source => source.Name, source => source.MemberId);
-        Assert.Equal(["Ben", "Family", "Milo", "Tess"], owners.Keys);
-        Assert.Equal(family!.Members.Single(member => member.DisplayName == "Milo").Id, owners["Milo"]);
-        Assert.Null(owners["Family"]);
+        Assert.Equal(["Clara", "Julian", "Maplewood School District", "Marlowe Household", "Milo — School & Sports", "Nora — Activities"], owners.Keys);
+        Assert.Equal(family!.Members.Single(member => member.DisplayName == "Milo").Id, owners["Milo — School & Sports"]);
+        Assert.Null(owners["Marlowe Household"]);
+        Assert.False(calendar.Calendars.Single(c => c.Name == "Maplewood School District").CanWrite);
     }
 
     [Fact]
@@ -36,12 +37,13 @@ public sealed class CalendarTests(ApiFactory factory)
         var todays = await GetCalendarAsync(visitor, today, today.AddDays(1));
         var month = await GetCalendarAsync(visitor, today, today.AddDays(28));
 
-        Assert.Contains(todays.Events, e => e.Title == "Pediatrician checkup" && !e.AllDay);
-        var grandma = Assert.Single(todays.Events, e => e.Title == "Grandma in town");
-        Assert.True(grandma.AllDay);
-        Assert.Equal(today.AddDays(-2), grandma.StartDate);
-        // Four weeks hold exactly four Fridays.
-        Assert.Equal(4, month.Events.Count(e => e.Title == "Pizza & movie night"));
+        Assert.Contains(todays.Events, e => e.Title == "Product architecture sync" && !e.AllDay);
+        var trip = Assert.Single(month.Events, e => e.Title == "Catskills Cabin Weekend");
+        Assert.True(trip.AllDay);
+        Assert.Equal(trip.StartDate!.Value.AddDays(2), trip.EndDate);
+        // Four weeks hold eight Tue/Thu practices and four Wednesday trash nights.
+        Assert.Equal(8, month.Events.Count(e => e.Title == "Soccer practice"));
+        Assert.Equal(4, month.Events.Count(e => e.Title == "Roll trash & recycling barrels to curb"));
         Assert.All(todays.Events.Where(e => !e.AllDay), e => Assert.True(e.EndsAt > e.StartsAt));
     }
 
