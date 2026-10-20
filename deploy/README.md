@@ -148,8 +148,8 @@ has a subfolder with checksums and a `COMPLETE` marker. A first deployment witho
 existing database has `FIRST_DEPLOY` instead and is not restorable.
 These files contain credentials and family data: permissions are private, they stay on
 the server, and they are never uploaded as Actions artifacts. Backups and old images
-are retained; review disk space and remove old copies deliberately after confirming
-a good release. These local snapshots do not replace off-server disaster-recovery backups.
+are subject to the retention policy below. These local snapshots do not replace
+off-server disaster-recovery backups.
 
 A startup or health failure stops the affected API/web so migration retries cannot
 continue. Instances that have not yet attempted migration resume their old versions.
@@ -222,3 +222,56 @@ The operations tests exercise the real Bash scripts against disposable command
 doubles, including failure ordering, integrity checks and restore sequencing.
 The browser harness runs the real smoke script against small HTTP fixtures to verify
 both success and rejection of missing content; the release itself uses the live API.
+
+## Storage limits and backup expiration
+
+The next release installs `wheelhouse-storage.timer` on the VM using the deploy user's
+existing passwordless sudo access. It runs daily (with up to 15 minutes of jitter),
+including after reboot, as that user rather than root. Cleanup also runs after a
+successful release's browser checks. No cron installation or cloud storage bucket is
+needed. If timer installation fails, the release stops before interrupting services.
+
+Defaults:
+
+- Backups become eligible for permanent removal **14 days after the UTC creation time
+  in their directory name**, and are removed by the next cleanup. This applies to
+  successful, failed and incomplete release snapshots, even the newest/last snapshot.
+  Recovery beyond that window requires a separately retained/off-server backup.
+- Before pulling images and again before stopping any writer, deployment requires
+  **2 GiB free plus twice the current database sizes and 64 MiB per instance**.
+  It refuses deployment if that reserve is unavailable. It never expands the disk or
+  buys storage automatically; image-pull failure also aborts before stopping services.
+- Image cleanup removes only versioned `wheelhouse-api`/`wheelhouse-web` image tags
+  unused by all containers (including stopped containers), current instance versions
+  and every retained backup. It never force-removes images, prunes volumes or touches
+  another application's images.
+
+Cleanup shares deployment/recovery's lock and defers while either is running. Unknown
+backup-directory names and symlinked directories are left untouched. Daily cleanup
+does not create backups: backups are still made only before a release.
+
+To change the limits, create/edit `~/wheelhouse/storage-policy.json` on the VM:
+
+```json
+{
+  "retention_days": 14,
+  "minimum_free_gib": 2
+}
+```
+
+Both values must be positive integers. A shorter retention window reduces recovery
+history. Changes take effect on the next cleanup/preflight without a new release.
+
+Inspect the timer or run cleanup immediately:
+
+```bash
+systemctl status wheelhouse-storage.timer
+sudo journalctl -u wheelhouse-storage.service --no-pager -n 30
+python3 ~/wheelhouse/storage.py cleanup
+```
+
+If the free-space guard blocks a release, run cleanup, inspect `df -h` and
+`docker system df`, then retry. If stopped containers protect obsolete images,
+review and remove those specific obsolete containers yourself; cleanup deliberately
+keeps their images. Backups created within the retention window are not deleted just
+to force a release through.
