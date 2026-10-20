@@ -1,6 +1,6 @@
 # Chores, lists and meals roadmap
 
-Created October 18, 2026. Roadmap agreed through PR #25. Status: 4.1 merged in [PR #26](https://github.com/natezimm/wheelhouse/pull/26); 4.2 merged in [PR #27](https://github.com/natezimm/wheelhouse/pull/27); 4.3 merged in [PR #29](https://github.com/natezimm/wheelhouse/pull/29); 5.1 merged in [PR #30](https://github.com/natezimm/wheelhouse/pull/30); 5.2 merged in [PR #31](https://github.com/natezimm/wheelhouse/pull/31); 6.1 in implementation in [PR #32](https://github.com/natezimm/wheelhouse/pull/32).
+Created October 18, 2026. Roadmap agreed through PR #25. Status: 4.1 merged in [PR #26](https://github.com/natezimm/wheelhouse/pull/26); 4.2 merged in [PR #27](https://github.com/natezimm/wheelhouse/pull/27); 4.3 merged in [PR #29](https://github.com/natezimm/wheelhouse/pull/29); 5.1 merged in [PR #30](https://github.com/natezimm/wheelhouse/pull/30); 5.2 merged in [PR #31](https://github.com/natezimm/wheelhouse/pull/31); 6.1 merged in [PR #32](https://github.com/natezimm/wheelhouse/pull/32).
 
 The 4.1–4.3 layout, states and API contracts are documented in [chores-design.md](chores-design.md). The 5.1 design is in [lists-design.md](lists-design.md), 5.2 in [grocery-design.md](grocery-design.md), and 6.1 in [meals-design.md](meals-design.md). An open PR does not mark an increment shipped.
 
@@ -97,7 +97,7 @@ Done when list ordering, category editing and clearing are safe under concurrent
 
 ## Milestone 6: Meals
 
-### 6.1 Weekly meal plan — in implementation in PR #32
+### 6.1 Weekly meal plan — merged in PR #32
 
 Add a week view with breakfast, lunch and dinner slots for each family-local date. Each slot may hold one free-text meal with optional notes. Empty slots are normal; defaults can emphasize dinner without hiding other slots. Snacks are a later extension.
 
@@ -105,7 +105,7 @@ Phone: navigate weeks, edit/clear slots and copy a previous week after reviewing
 
 Done when both layouts agree on dates across time zones, concurrent edits to the same slot cannot overwrite silently, clearing is explicit, and copying a week preserves the original while handling occupied destination slots deliberately.
 
-### 6.2 Saved recipes
+### 6.2 Saved recipes — in implementation in [PR #34](https://github.com/natezimm/wheelhouse/pull/34)
 
 Add a household recipe library with title, default servings, ingredient lines, preparation steps, optional source URL and notes. Ingredients have a name, optional decimal quantity and optional unit; free-text quantities such as “to taste” are supported without pretending they can be scaled numerically. No scraper or external recipe API is required.
 
@@ -139,5 +139,5 @@ Rewards/points, allowances, chore rotation, child-specific sign-in, reminders, p
 
 ## Immediate next action
 
-Complete **6.1: Weekly meal plan**: free-text breakfast/lunch/dinner slots, explicit clears, reviewed previous-week copying, live wall/phone editing and today's planned meals. After it merges, the next planned increment is **6.2: Saved recipes**. Grocery generation remains 6.3.
+Complete **6.2: Saved recipes**. Layout, snapshot contracts and recovery states are in [recipes-design.md](recipes-design.md). After it merges, the next planned increment is **6.3: Generate groceries from meals**.
 
