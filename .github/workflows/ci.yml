@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - run: bash -n deploy/deploy.sh deploy/restore.sh
+      - run: for script in deploy/*.sh; do bash -n "$script"; done
       - run: python3 -m unittest discover -s deploy -p 'test_*.py' -v
       - run: node --check deploy/smoke.mjs
 

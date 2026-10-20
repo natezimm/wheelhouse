@@ -25,7 +25,8 @@ with open(os.environ['COMMAND_LOG'],'a') as f:f.write(json.dumps({'project':proj
 if cmd[0]=='ps':
  if os.environ.get('FRESH')!='1':print('api-container' if cmd[-1]=='api' else 'db-container')
 elif cmd[0]=='exec':
- if 'pg_dump' in cmd:
+ if 'psql' in cmd:print('1048576')
+ elif 'pg_dump' in cmd:
   if os.environ.get('FAIL_DUMP')==project:sys.exit(1)
   sys.stdout.write('database-snapshot')
  elif 'pg_restore' in cmd:
@@ -139,6 +140,13 @@ class OperationsTests(unittest.TestCase):
     def test_invalid_version_never_calls_docker(self):
         self.assertNotEqual(self.run_script('deploy.sh','bad-version').returncode,0)
         self.assertFalse(self.commands())
+
+    def test_low_space_never_pulls_images_or_stops_writers(self):
+        (self.root/'storage-policy.json').write_text('{"minimum_free_gib":10000}')
+        result = self.run_script('deploy.sh','v0.2.0')
+        self.assertNotEqual(result.returncode,0)
+        self.assertIn('Insufficient disk space',result.stderr)
+        self.assertFalse(any(c['cmd'][0] in ['pull','stop','up'] for c in self.commands()))
 
 if __name__ == '__main__':
     unittest.main()
