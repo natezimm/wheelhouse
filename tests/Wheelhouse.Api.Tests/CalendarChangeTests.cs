@@ -93,7 +93,7 @@ public sealed class CalendarChangeTests(ApiFactory factory)
         var choices = (await visitor.GetFromJsonAsync<CalendarChoicesResponse>("/api/calendar/sources", ApiFactory.Json))!.Calendars;
         var child = family.Members.Single(m => m.DisplayName == "Milo");
         var requests = choices.Select(c => new CalendarChoiceRequest(c.GoogleCalendarId,
-            c.Name == "Ben" ? child.Id : c.MemberId)).ToArray();
+            c.Name == "Clara" ? child.Id : c.MemberId)).ToArray();
         (await visitor.PutAsJsonAsync("/api/calendar/sources", new CalendarChoicesRequest(requests), ApiFactory.Json)).EnsureSuccessStatusCode();
         Assert.Equal(before.ChangeNumber + 1, (await CalendarOf(visitor)).ChangeNumber);
 
@@ -104,7 +104,7 @@ public sealed class CalendarChangeTests(ApiFactory factory)
         (await visitor.DeleteAsync($"/api/family/members/{child.Id}")).EnsureSuccessStatusCode();
         var after = await CalendarOf(visitor);
         Assert.Equal(before.ChangeNumber + 2, after.ChangeNumber);
-        Assert.All(after.Calendars.Where(c => c.Name is "Ben" or "Milo"), c => Assert.Null(c.MemberId));
+        Assert.All(after.Calendars.Where(c => c.Name is "Clara" or "Milo — School & Sports"), c => Assert.Null(c.MemberId));
 
         (await visitor.PutAsJsonAsync("/api/calendar/sources", new CalendarChoicesRequest([]), ApiFactory.Json)).EnsureSuccessStatusCode();
         var empty = await CalendarOf(visitor);

@@ -55,7 +55,7 @@ public sealed class EventTests(ApiFactory factory)
     {
         using var visitor = await factory.DemoVisitorAsync();
         var family = await FamilyOf(visitor);
-        var milos = await CalendarIdAsync(visitor, "Milo");
+        var milos = await CalendarIdAsync(visitor, "Milo — School & Sports");
         var zone = TimeZoneInfo.FindSystemTimeZoneById(family.TimeZone);
 
         var added = await AddAsync(visitor, Timed(milos, "  Parent & tot swim ", new(17, 30), new(18, 15), "Riverside Rec Center"));
@@ -72,7 +72,7 @@ public sealed class EventTests(ApiFactory factory)
     public async Task An_all_day_event_ends_the_day_after_its_last()
     {
         using var visitor = await factory.DemoVisitorAsync();
-        var everyone = await CalendarIdAsync(visitor, "Family");
+        var everyone = await CalendarIdAsync(visitor, "Marlowe Household");
 
         var added = await AddAsync(visitor, AllDay(everyone, "Camping", Day, days: 2));
 
@@ -86,15 +86,15 @@ public sealed class EventTests(ApiFactory factory)
     public async Task Changing_an_event_can_give_it_to_someone_else_and_deleting_removes_it()
     {
         using var visitor = await factory.DemoVisitorAsync();
-        var bens = await CalendarIdAsync(visitor, "Ben");
-        var tesss = await CalendarIdAsync(visitor, "Tess");
-        var added = await AddAsync(visitor, Timed(bens, "Haircut", new(9, 0), new(9, 30)));
+        var claras = await CalendarIdAsync(visitor, "Clara");
+        var julians = await CalendarIdAsync(visitor, "Julian");
+        var added = await AddAsync(visitor, Timed(claras, "Haircut", new(9, 0), new(9, 30)));
 
-        var changed = await ChangeAsync(visitor, added.Id, AllDay(tesss, "Haircut day", Day, days: 1));
+        var changed = await ChangeAsync(visitor, added.Id, AllDay(julians, "Haircut day", Day, days: 1));
 
         Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
         var shown = Assert.Single((await CalendarOf(visitor, Day, 1)).Events, e => e.Id == added.Id);
-        Assert.Equal(("Haircut day", tesss, true, (DateTimeOffset?)null), (shown.Title, shown.CalendarId, shown.AllDay, shown.StartsAt));
+        Assert.Equal(("Haircut day", julians, true, (DateTimeOffset?)null), (shown.Title, shown.CalendarId, shown.AllDay, shown.StartsAt));
 
         Assert.Equal(HttpStatusCode.NoContent, (await visitor.DeleteAsync($"/api/calendar/events/{added.Id}")).StatusCode);
         Assert.DoesNotContain((await CalendarOf(visitor, Day, 1)).Events, e => e.Id == added.Id);
@@ -105,21 +105,21 @@ public sealed class EventTests(ApiFactory factory)
     public async Task One_occurrence_of_a_repeating_event_changes_on_its_own_and_stays_in_its_calendar()
     {
         using var visitor = await factory.DemoVisitorAsync();
-        var lessons = (await CalendarOf(visitor, Day, 21)).Events.Where(e => e.Title == "Swim lesson").ToList();
+        var lessons = (await CalendarOf(visitor, Day, 21)).Events.Where(e => e.Title == "Soccer practice").ToList();
         var first = lessons[0];
         Assert.True(first.Recurring);
         var family = await FamilyOf(visitor);
         var zone = TimeZoneInfo.FindSystemTimeZoneById(family.TimeZone);
         var date = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(first.StartsAt!.Value, zone).DateTime);
-        var request = new EventRequest(first.CalendarId, "Swim lesson (pool closed)", null, false, date, new(16, 0), date, new(16, 45));
+        var request = new EventRequest(first.CalendarId, "Soccer practice (field closed)", null, false, date, new(16, 0), date, new(16, 45));
 
         Assert.Equal(HttpStatusCode.OK, (await ChangeAsync(visitor, first.Id, request)).StatusCode);
-        var moved = await ChangeAsync(visitor, first.Id, request with { CalendarId = await CalendarIdAsync(visitor, "Ben") });
+        var moved = await ChangeAsync(visitor, first.Id, request with { CalendarId = await CalendarIdAsync(visitor, "Clara") });
 
         Assert.Equal(HttpStatusCode.BadRequest, moved.StatusCode);
         var after = (await CalendarOf(visitor, Day, 21)).Events;
-        Assert.Equal("Swim lesson (pool closed)", after.Single(e => e.Id == first.Id).Title);
-        Assert.All(lessons.Skip(1), lesson => Assert.Equal("Swim lesson", after.Single(e => e.Id == lesson.Id).Title));
+        Assert.Equal("Soccer practice (field closed)", after.Single(e => e.Id == first.Id).Title);
+        Assert.All(lessons.Skip(1), lesson => Assert.Equal("Soccer practice", after.Single(e => e.Id == lesson.Id).Title));
     }
 
     [Theory]
@@ -130,10 +130,10 @@ public sealed class EventTests(ApiFactory factory)
     public async Task An_event_needs_a_title_and_to_end_after_it_starts(string title, int startHour, int endHour, bool allDay)
     {
         using var visitor = await factory.DemoVisitorAsync();
-        var bens = await CalendarIdAsync(visitor, "Ben");
+        var claras = await CalendarIdAsync(visitor, "Clara");
         var request = allDay
-            ? new EventRequest(bens, title, null, true, Day, null, Day, null)
-            : Timed(bens, title, new(startHour, 0), new(endHour, 0));
+            ? new EventRequest(claras, title, null, true, Day, null, Day, null)
+            : Timed(claras, title, new(startHour, 0), new(endHour, 0));
 
         var response = await visitor.PostAsJsonAsync("/api/calendar/events", request, ApiFactory.Json);
 
@@ -145,10 +145,10 @@ public sealed class EventTests(ApiFactory factory)
     {
         using var visitor = await factory.DemoVisitorAsync();
         using var other = await factory.DemoVisitorAsync();
-        var theirs = await AddAsync(other, Timed(await CalendarIdAsync(other, "Ben"), "Private", new(9, 0), new(10, 0)));
+        var theirs = await AddAsync(other, Timed(await CalendarIdAsync(other, "Clara"), "Private", new(9, 0), new(10, 0)));
 
         var added = await visitor.PostAsJsonAsync("/api/calendar/events", Timed(theirs.CalendarId, "Sneaky", new(9, 0), new(10, 0)), ApiFactory.Json);
-        var changed = await ChangeAsync(visitor, theirs.Id, Timed(await CalendarIdAsync(visitor, "Ben"), "Sneaky", new(9, 0), new(10, 0)));
+        var changed = await ChangeAsync(visitor, theirs.Id, Timed(await CalendarIdAsync(visitor, "Clara"), "Sneaky", new(9, 0), new(10, 0)));
         var deleted = await visitor.DeleteAsync($"/api/calendar/events/{theirs.Id}");
 
         Assert.Equal((HttpStatusCode.BadRequest, HttpStatusCode.NotFound, HttpStatusCode.NotFound), (added.StatusCode, changed.StatusCode, deleted.StatusCode));
@@ -164,7 +164,7 @@ public sealed class EventTests(ApiFactory factory)
         await parent.PostAsJsonAsync("/api/devices", new PairDisplayRequest(pairing.Code, "Kitchen"), ApiFactory.Json);
         await wall.PostAsync($"/api/pairing/{pairing.Id}/finish", null);
         using var stranger = factory.Demo.CreateClient();
-        var request = Timed(await CalendarIdAsync(parent, "Family"), "Added on the wall", new(12, 0), new(13, 0));
+        var request = Timed(await CalendarIdAsync(parent, "Marlowe Household"), "Added on the wall", new(12, 0), new(13, 0));
 
         var added = await AddAsync(wall, request);
         var refused = await stranger.PostAsJsonAsync("/api/calendar/events", request, ApiFactory.Json);
@@ -303,8 +303,8 @@ public sealed class EventTests(ApiFactory factory)
     {
         using var visitor = await factory.DemoVisitorAsync();
         var zone = TimeZoneInfo.FindSystemTimeZoneById((await FamilyOf(visitor)).TimeZone);
-        var milos = await CalendarIdAsync(visitor, "Milo");
-        var tesss = await CalendarIdAsync(visitor, "Tess");
+        var milos = await CalendarIdAsync(visitor, "Milo — School & Sports");
+        var julians = await CalendarIdAsync(visitor, "Julian");
 
         var first = await AddAsync(visitor, Timed(milos, "Art class", new(17, 30), new(18, 15)) with { Repeat = EventRepeat.Weekly });
 
@@ -316,20 +316,20 @@ public sealed class EventTests(ApiFactory factory)
         var second = classes[1];
         var day = Local(second, zone).Day;
         var changed = await ChangeAsync(visitor, second.Id,
-            new EventRequest(tesss, "Art class with Tess", "Studio B", false, day, new(18, 0), day, new(19, 30)), series: true);
+            new EventRequest(julians, "Art class with Julian", "Studio B", false, day, new(18, 0), day, new(19, 30)), series: true);
 
         Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
         Assert.Equal(second.Id, (await changed.Content.ReadFromJsonAsync<EventResponse>(ApiFactory.Json))!.Id);
-        var after = (await CalendarOf(visitor, Day, 21)).Events.Where(e => e.Title == "Art class with Tess").ToList();
+        var after = (await CalendarOf(visitor, Day, 21)).Events.Where(e => e.Title == "Art class with Julian").ToList();
         Assert.Equal([Day, Day.AddDays(7), Day.AddDays(14)], after.Select(e => Local(e, zone).Day));
         Assert.All(after, e =>
         {
-            Assert.Equal((new TimeOnly(18, 0), TimeSpan.FromMinutes(90), tesss, "Studio B"), (Local(e, zone).Time, e.EndsAt - e.StartsAt, e.CalendarId, e.Location));
+            Assert.Equal((new TimeOnly(18, 0), TimeSpan.FromMinutes(90), julians, "Studio B"), (Local(e, zone).Time, e.EndsAt - e.StartsAt, e.CalendarId, e.Location));
         });
 
         // A series keeps its days; one event of it can still move on its own.
         var moved = await ChangeAsync(visitor, second.Id,
-            new EventRequest(tesss, "Art class", null, false, day.AddDays(1), new(18, 0), day.AddDays(1), new(19, 0)), series: true);
+            new EventRequest(julians, "Art class", null, false, day.AddDays(1), new(18, 0), day.AddDays(1), new(19, 0)), series: true);
         Assert.Equal(HttpStatusCode.BadRequest, moved.StatusCode);
 
         Assert.Equal(HttpStatusCode.NoContent, (await visitor.DeleteAsync($"/api/calendar/events/{second.Id}?series=true")).StatusCode);
@@ -340,11 +340,11 @@ public sealed class EventTests(ApiFactory factory)
     public async Task Deleting_one_event_of_a_series_leaves_the_rest()
     {
         using var visitor = await factory.DemoVisitorAsync();
-        var lessons = (await CalendarOf(visitor, Day, 21)).Events.Where(e => e.Title == "Swim lesson").ToList();
+        var lessons = (await CalendarOf(visitor, Day, 21)).Events.Where(e => e.Title == "Soccer practice").ToList();
 
         Assert.Equal(HttpStatusCode.NoContent, (await visitor.DeleteAsync($"/api/calendar/events/{lessons[0].Id}")).StatusCode);
 
-        Assert.Equal(lessons.Skip(1).Select(e => e.Id), (await CalendarOf(visitor, Day, 21)).Events.Where(e => e.Title == "Swim lesson").Select(e => e.Id));
+        Assert.Equal(lessons.Skip(1).Select(e => e.Id), (await CalendarOf(visitor, Day, 21)).Events.Where(e => e.Title == "Soccer practice").Select(e => e.Id));
     }
 
     [Fact]

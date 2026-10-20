@@ -127,7 +127,7 @@ public sealed class RecipeTests(ApiFactory factory)
         Assert.Equal(before.MealsChangeNumber+1,after.MealsChangeNumber); Assert.Equal(before.CalendarChangeNumber,after.CalendarChangeNumber);
         Assert.Equal(before.ChoresChangeNumber,after.ChoresChangeNumber); Assert.Equal(before.ListsChangeNumber,after.ListsChangeNumber);
         await using(var tx=await db.Database.BeginTransactionAsync()) {
-            (await db.Recipes.FirstAsync()).Archived=true; await db.SaveChangesAsync();
+            (await db.Recipes.FirstAsync(r=>!r.Archived)).Archived=true; await db.SaveChangesAsync();
             Assert.Equal(after.MealsChangeNumber+1,await db.Families.Select(f=>f.MealsChangeNumber).SingleAsync());
             await tx.RollbackAsync();
         }

@@ -35,6 +35,8 @@ docker compose up --build -d
 
 Open http://localhost:8080 for the phone layout and http://localhost:8080/wall for the wall display. Locally the app runs as the demo, so you get your own copy of the fictional Marlowe family without signing in. Change anything you like: only your browser sees it, and it is cleared after a day. `http://localhost:8080/health` reports whether the API can reach its database.
 
+New demo copies start with Clara, Julian, Milo and Nora in Maplewood, NJ. `Demo/DemoSeedData.cs` builds their calendars, chore history, recipes, weekly meals and shared lists relative to the copy's creation instant in America/New_York. `DemoSeedAdapter` maps that dataset to the existing EF entities, including archived recipe snapshots and five ingredients already added from today's taco dinner. The school district calendar is read-only. Dates handle New York DST gaps and overlaps; morning completions and batch timestamps are capped at creation time for early visitors. This needs no migration and never reseeds an existing visitor's edits or a private family. A new visitor (or an expired copy) gets fresh relative dates; the existing 24-hour lifetime and cleanup remain unchanged.
+
 ```bash
 docker compose down
 ```

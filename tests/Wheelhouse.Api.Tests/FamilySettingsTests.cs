@@ -41,7 +41,7 @@ public sealed class FamilySettingsTests(ApiFactory factory) : IAsyncLifetime
         Assert.Equal(new TimeOnly(22, 0), family.NightModeFrom);
         Assert.Equal(new TimeOnly(7, 0), family.NightModeTo);
         Assert.Equal(Units.Metric, family.Units);
-        Assert.Equal(["Ben", "Tess", "Milo"], family.Members.Select(member => member.DisplayName));
+        Assert.Equal(["Clara", "Julian", "Milo", "Nora"], family.Members.Select(member => member.DisplayName));
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public sealed class FamilySettingsTests(ApiFactory factory) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
         Assert.Equal(["name", "nightModeTo", "timeZone", "weekStartsOn"], problem!.Errors.Keys.Order());
-        Assert.Equal("The Marlowes", (await GetFamily()).Name);
+        Assert.Equal("The Marlowe Family", (await GetFamily()).Name);
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public sealed class FamilySettingsTests(ApiFactory factory) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
         var created = await response.Content.ReadFromJsonAsync<MemberResponse>(ApiFactory.Json);
         var family = await GetFamily();
-        Assert.Equal(["Ben", "Tess", "Milo", "ada"], family.Members.Select(member => member.DisplayName));
+        Assert.Equal(["Clara", "Julian", "Milo", "Nora", "ada"], family.Members.Select(member => member.DisplayName));
         Assert.Equal(new MemberResponse(created!.Id, "ada", "#7243B8", "A", MemberRole.Kid), family.Members[^1]);
     }
 
@@ -88,7 +88,7 @@ public sealed class FamilySettingsTests(ApiFactory factory) : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
         Assert.Equal([field], problem!.Errors.Keys);
-        Assert.Equal(3, (await GetFamily()).Members.Count);
+        Assert.Equal(4, (await GetFamily()).Members.Count);
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public sealed class FamilySettingsTests(ApiFactory factory) : IAsyncLifetime
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var family = await GetFamily();
-        Assert.Equal(["Ben", "Tess", "Miles"], family.Members.Select(member => member.DisplayName));
+        Assert.Equal(["Clara", "Julian", "Miles", "Nora"], family.Members.Select(member => member.DisplayName));
         Assert.Equal(new MemberResponse(milo.Id, "Miles", "#A8326E", "M", MemberRole.Kid), family.Members[2]);
     }
 
@@ -113,24 +113,24 @@ public sealed class FamilySettingsTests(ApiFactory factory) : IAsyncLifetime
         var response = await _parent.DeleteAsync($"/api/family/members/{milo.Id}");
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-        Assert.Equal(["Ben", "Tess"], (await GetFamily()).Members.Select(member => member.DisplayName));
+        Assert.Equal(["Clara", "Julian", "Nora"], (await GetFamily()).Members.Select(member => member.DisplayName));
     }
 
     [Fact]
     public async Task The_last_parent_can_neither_be_removed_nor_turned_into_a_kid()
     {
         var family = await GetFamily();
-        var ben = family.Members.Single(member => member.DisplayName == "Ben");
-        var tess = family.Members.Single(member => member.DisplayName == "Tess");
-        Assert.Equal(HttpStatusCode.NoContent, (await _parent.DeleteAsync($"/api/family/members/{tess.Id}")).StatusCode);
+        var clara = family.Members.Single(member => member.DisplayName == "Clara");
+        var julian = family.Members.Single(member => member.DisplayName == "Julian");
+        Assert.Equal(HttpStatusCode.NoContent, (await _parent.DeleteAsync($"/api/family/members/{julian.Id}")).StatusCode);
 
-        var remove = await _parent.DeleteAsync($"/api/family/members/{ben.Id}");
+        var remove = await _parent.DeleteAsync($"/api/family/members/{clara.Id}");
         var demote = await _parent.PutAsJsonAsync(
-            $"/api/family/members/{ben.Id}", new MemberRequest("Ben", ben.Color, MemberRole.Kid), ApiFactory.Json);
+            $"/api/family/members/{clara.Id}", new MemberRequest("Clara", clara.Color, MemberRole.Kid), ApiFactory.Json);
 
         Assert.Equal(HttpStatusCode.BadRequest, remove.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, demote.StatusCode);
-        var stillThere = (await GetFamily()).Members.Single(member => member.Id == ben.Id);
+        var stillThere = (await GetFamily()).Members.Single(member => member.Id == clara.Id);
         Assert.Equal(MemberRole.Parent, stillThere.Role);
     }
 
@@ -165,9 +165,9 @@ public sealed class FamilySettingsTests(ApiFactory factory) : IAsyncLifetime
     public async Task Nothing_can_be_changed_on_a_family_instance_without_signing_in(string method, string url)
     {
         // Aim at a member that really exists, so only the missing sign-in can explain the refusal.
-        var ben = (await GetFamily()).Members[0];
+        var clara = (await GetFamily()).Members[0];
         using var stranger = factory.CreateClient();
-        using var request = new HttpRequestMessage(new HttpMethod(method), url.Replace("{member}", ben.Id.ToString()))
+        using var request = new HttpRequestMessage(new HttpMethod(method), url.Replace("{member}", clara.Id.ToString()))
         {
             Content = JsonContent.Create(new MemberRequest("Hacked", "#2F5FC4", MemberRole.Parent), options: ApiFactory.Json),
         };
@@ -175,6 +175,6 @@ public sealed class FamilySettingsTests(ApiFactory factory) : IAsyncLifetime
         var response = await stranger.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
-        Assert.Equal(["Ben", "Tess", "Milo"], (await GetFamily()).Members.Select(member => member.DisplayName));
+        Assert.Equal(["Clara", "Julian", "Milo", "Nora"], (await GetFamily()).Members.Select(member => member.DisplayName));
     }
 }
