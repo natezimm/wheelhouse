@@ -68,5 +68,5 @@ public static partial class ListEndpoints
         });
 
     private static IResult InvalidGrocery() => Results.ValidationProblem(new Dictionary<string, string[]> {
-        ["grocery"] = ["Choose a category in this Grocery list. Quantity/unit allow 50 characters each. Keep 1–16 unique category names (up to 40 characters), with Other last. Clear only reviewed checked items (up to 500)."] });
+        ["grocery"] = ["Choose a category in this Grocery list. Quantity allows 100 characters and unit 50. Keep 1–16 unique category names (up to 40 characters), with Other last. Clear only reviewed checked items (up to 500)."] });
 }

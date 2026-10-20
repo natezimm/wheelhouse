@@ -29,6 +29,17 @@ public static class DemoMeals
         var planned = family.Meals.Single(m => m.Date == today && m.Slot == "Dinner");
         planned.Title = content.Title; planned.Servings = 6;
         planned.RecipeData = RecipeJson.Write(new RecipeSnapshot(recipe.Id, recipe.Version, content));
+        // A prior purchase demonstrates durable source counts and incompatible manual units.
+        var grocery=family.Lists.Single(l=>l.IsGrocery); var batchId=Guid.NewGuid();
+        var item=new Wheelhouse.Api.Lists.ListItem {Id=Guid.CreateVersion7(),FamilyId=family.Id,HouseholdListId=grocery.Id,
+            CreationId=Guid.NewGuid(),CreationRequest="demo meal groceries",Text="Pasta",Quantity="600",Unit="g",
+            CategoryId=grocery.Categories.Single(c=>c.IsOther).Id,SortOrder=grocery.Items.Count};
+        item.Contributions.Add(new GroceryContribution {Id=Guid.CreateVersion7(),FamilyId=family.Id,ListItemId=item.Id,
+            Date=planned.Date,Slot=planned.Slot,SnapshotKey=GrocerySources.Key(planned),IngredientId=content.Ingredients[0].Id,
+            SourceData=RecipeJson.Write(new GroceryOrigin(batchId,planned.Date,planned.Slot,planned.Title,"Pasta",recipe.Id,recipe.Version,6,600,null,"g"))});
+        grocery.Items.Add(item);
+        family.GroceryBatches.Add(new GroceryBatch {Id=batchId,FamilyId=family.Id,Request="demo",
+            Result=RecipeJson.Write(new GroceryBatchResponse(batchId,createdAt,1,[item.Id]))});
 
         void Add(DateOnly date, string slot, string title, string? notes) => family.Meals.Add(new MealSlot
         { Id = Guid.CreateVersion7(), FamilyId = family.Id, Date = date, Slot = slot, Title = title, Notes = notes });

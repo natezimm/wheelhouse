@@ -161,7 +161,7 @@ public sealed partial class WheelhouseDbContext
     private List<Guid> MealChanges()
     {
         var deleting = ChangeTracker.Entries<Family>().Where(e => e.State == EntityState.Deleted).Select(e => e.Entity.Id).ToHashSet();
-        return ChangeTracker.Entries().Where(e => e.Entity is MealSlot or Recipe
+        return ChangeTracker.Entries().Where(e => e.Entity is MealSlot or Recipe or GroceryContribution
             && e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
             .Select(e => ((IFamilyOwned)e.Entity).FamilyId).Where(id => !deleting.Contains(id)).Distinct().Order().ToList();
     }
@@ -170,7 +170,7 @@ public sealed partial class WheelhouseDbContext
     {
         var deleting = ChangeTracker.Entries<Family>().Where(e => e.State == EntityState.Deleted)
             .Select(e => e.Entity.Id).ToHashSet();
-        return ChangeTracker.Entries().Where(e => e.Entity is HouseholdList or ListItem or GroceryCategory
+        return ChangeTracker.Entries().Where(e => e.Entity is HouseholdList or ListItem or GroceryCategory or GroceryContribution
             && e.State is EntityState.Added or EntityState.Modified or EntityState.Deleted)
             .Select(e => ((IFamilyOwned)e.Entity).FamilyId).Where(id => !deleting.Contains(id)).Distinct().Order().ToList();
     }
