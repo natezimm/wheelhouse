@@ -90,6 +90,28 @@ Nothing in the instance's `.env` names its domain, so no release is needed.
 
 ## Release
 
+### From GitHub (recommended)
+
+After merging the release controls into `main`, open **Actions → Release → Run workflow**.
+Choose branch **main** and enter a new version such as **v0.2.0**. The run tests that exact
+commit, creates its tag, builds both images and deploys every configured instance.
+The version must match `vMAJOR.MINOR.PATCH`, optionally with a prerelease suffix.
+Existing tags are never moved; choose a new version if a tag belongs to another commit.
+
+The first catch-up release is `v0.2.0`; it includes the calendar, live updates, chores,
+lists, grocery and weekly meal plan features merged since `v0.1.1`.
+Merging a PR alone still does not deploy. Use another version for each later release.
+A tag created by the workflow token does not start a second tag-triggered run: the
+manual run performs the complete release itself. Re-run a failed run to retry its
+original commit; starting a new run on a changed main needs a new version.
+
+Watch the test, prepare, images and deploy jobs. The deploy job also runs browser smoke checks. The deploy job must finish successfully
+before the release is live. Reload each site afterwards, and verify Today, Calendar,
+Chores, Lists and Meals; open `/wall` for the wall layout. A private family instance
+still requires Google sign-in and a calendar connection for real events.
+
+### From a local checkout
+
 ```bash
 git tag v0.1.0
 ```
@@ -111,3 +133,92 @@ docker compose --project-name wheelhouse-demo ps
 ```bash
 docker compose --project-name wheelhouse-demo logs --tail 100 api
 ```
+
+## Backups and release recovery
+
+Before any new API starts, the server pulls the candidate images, stops each existing
+instance's web/API writers, and saves a custom-format PostgreSQL dump, Data Protection
+keys (with ownership), its previous Compose file and its complete environment.
+All existing instances must finish backup and archive validation before any migration
+can run. This causes a short maintenance window. PostgreSQL stays running.
+A failed backup resumes the old services without applying migrations.
+
+The release log prints a recovery directory under `~/wheelhouse/backups/`. Each instance
+has a subfolder with checksums and a `COMPLETE` marker. A first deployment without an
+existing database has `FIRST_DEPLOY` instead and is not restorable.
+These files contain credentials and family data: permissions are private, they stay on
+the server, and they are never uploaded as Actions artifacts. Backups and old images
+are retained; review disk space and remove old copies deliberately after confirming
+a good release. These local snapshots do not replace off-server disaster-recovery backups.
+
+A startup or health failure stops the affected API/web so migration retries cannot
+continue. Instances that have not yet attempted migration resume their old versions.
+Instances already successfully updated remain updated. The release fails and identifies
+the snapshot to use. A browser smoke failure also fails the release, while leaving
+healthy services available for investigation.
+
+### Restore one instance
+
+Do not simply restart an older image on a migrated database. Review the printed
+snapshot path and stop family use of the instance first. Restoring deliberately
+discards all database writes made after that snapshot, including changes written
+through Google sync. Google itself is not rolled back. Its current calendar state is
+imported again after reconnect/sync.
+
+On the server, substitute the instance name and its matching snapshot directory:
+
+```bash
+bash ~/wheelhouse/restore.sh demo ~/wheelhouse/backups/<run>/demo --confirm-data-loss
+```
+
+The command verifies the checksums, pulls the old images before stopping services,
+recreates that instance's database from the dump, restores its encryption keys and
+environment, then starts the old version and checks health. It holds the same operations
+lock as deployment. A failed restore leaves writers stopped until recovery is resolved.
+It never drops another instance's database or deletes a Docker volume.
+Use the restored instance's `recovery-compose.yaml` for manual Compose commands until
+the next release; deployment automatically preserves that file in its next snapshot.
+Run the browser check again and manually verify private sign-in/calendar access.
+
+Automatic database restoration is intentionally excluded: it could silently erase new
+family edits or compound a partial migration. Recovery always requires the explicit
+`--confirm-data-loss` flag.
+
+## Post-deployment browser smoke checks
+
+The release runner installs Chromium and reaches every deployed instance through a
+short-lived SSH loopback tunnel. No public domain names or new secrets are required.
+This checks the application behind nginx; it does not check public DNS, certificates
+or the server's external nginx routing.
+
+- Demo: checks Today content, phone navigation to Calendar/Chores/Lists/Meals, then
+  verifies that an event returned by the real demo API appears in the wall layout.
+  The visitor gets a separate expiring demo copy; existing visitors are untouched.
+- Family: checks health, private mode, denied anonymous family access and the Google
+  sign-in screen in a fresh browser. It never signs in or reads private family content.
+- Runtime errors and core API server errors fail the check. Only successful fictional
+  demo wall screenshots are retained for seven days; no private screenshots, browser
+  traces or response bodies are uploaded.
+
+A release is successful only after the browser checks pass. To run a check manually
+from a machine with this checkout, install `web/` dependencies and Playwright Chromium,
+open an SSH tunnel to the instance's loopback port, then run:
+
+```bash
+SMOKE_URL=http://127.0.0.1:18080 SMOKE_MODE=Demo node deploy/smoke.mjs
+```
+
+Use `Family` for a private instance. An authenticated private-family smoke check is
+outside this workflow; verify real sign-in and Google Calendar access yourself.
+
+## Check release tooling
+
+```bash
+python3 -m unittest discover -s deploy -p 'test_*.py' -v
+node --test deploy/test-smoke.mjs
+```
+
+The operations tests exercise the real Bash scripts against disposable command
+doubles, including failure ordering, integrity checks and restore sequencing.
+The browser harness runs the real smoke script against small HTTP fixtures to verify
+both success and rejection of missing content; the release itself uses the live API.
