@@ -161,7 +161,8 @@ jobs:
         run: |
           ssh server 'mkdir -p ~/wheelhouse'
           scp deploy/compose.yaml server:wheelhouse/compose.candidate.yaml
-          scp deploy/deploy.sh deploy/restore.sh server:wheelhouse/
+          scp deploy/deploy.sh deploy/restore.sh deploy/storage.py deploy/install-maintenance.sh server:wheelhouse/
+          ssh server 'bash ~/wheelhouse/install-maintenance.sh'
 
       # The images are private, so the server signs in to the registry with this job's
       # short-lived token for the length of the deploy and signs out again afterwards.
@@ -190,6 +191,9 @@ jobs:
           done < "$RUNNER_TEMP/instances.tsv"
           [[ "$index" -gt 0 ]]
           echo "All deployed instances passed browser smoke checks." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Expire old backups and unused Wheelhouse images
+        run: ssh server 'python3 ~/wheelhouse/storage.py cleanup'
 
       - uses: actions/upload-artifact@v4
         if: always()
