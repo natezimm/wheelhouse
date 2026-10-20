@@ -24,6 +24,7 @@ public sealed class Family
     public long ListsChangeNumber { get; private set; }
     public long MealsChangeNumber { get; private set; }
     public List<Wheelhouse.Api.Meals.MealSlot> Meals { get; } = [];
+    public List<Wheelhouse.Api.Meals.Recipe> Recipes { get; } = [];
     public List<Wheelhouse.Api.Lists.HouseholdList> Lists { get; } = [];
 
     public List<Chore> Chores { get; } = [];
