@@ -35,11 +35,32 @@ restart_on_backup_failure() {
 }
 trap restart_on_backup_failure EXIT
 
+# Reserve twice the current database sizes for dump overhead, plus the policy's
+# fixed free-space floor. Check again after pulls, before any writer is stopped.
+backup_bytes=0
+for env_file in "${env_files[@]}"; do
+  dir="$(dirname "$env_file")"; name="$(basename "$dir")"
+  old="$(read_value "$env_file" WHEELHOUSE_VERSION)"
+  old_compose="$root/compose.yaml"
+  [[ ! -f "$dir/recovery-compose.yaml" ]] || old_compose="$dir/recovery-compose.yaml"
+  [[ -f "$old_compose" ]] || old_compose="$candidate"
+  compose=(docker compose --project-name "wheelhouse-$name" --project-directory "$dir" --env-file "$env_file" --file "$old_compose")
+  db="$(WHEELHOUSE_VERSION="${old:-$version}" "${compose[@]}" ps -a -q db)"
+  if [[ -n "$db" ]]; then
+    size="$(WHEELHOUSE_VERSION="${old:-$version}" "${compose[@]}" exec -T db psql -U wheelhouse -d wheelhouse -Atc "SELECT pg_database_size('wheelhouse')")"
+    [[ "$size" =~ ^[0-9]+$ ]] || { echo 'Cannot estimate backup size' >&2; exit 1; }
+    backup_bytes=$((backup_bytes + size * 2))
+  fi
+  backup_bytes=$((backup_bytes + 67108864))
+done
+python3 "$(dirname "$0")/storage.py" check --backup-bytes "$backup_bytes"
+
 # Pull everything first. A registry failure must not interrupt a running instance.
 for env_file in "${env_files[@]}"; do
   dir="$(dirname "$env_file")"; name="$(basename "$dir")"
   WHEELHOUSE_VERSION="$version" docker compose --project-name "wheelhouse-$name" --project-directory "$dir" --env-file "$env_file" --file "$candidate" pull --quiet
 done
+python3 "$(dirname "$0")/storage.py" check --backup-bytes "$backup_bytes"
 
 for env_file in "${env_files[@]}"; do
   dir="$(dirname "$env_file")"; name="$(basename "$dir")"; backup="$run/$name"
