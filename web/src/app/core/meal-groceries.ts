@@ -20,6 +20,15 @@ export function compatibleIngredient(line:GroceryIngredient, item:ListItem):bool
   return line.quantity!==null && !item.quantityIsText && !item.checked && !item.deleted && numericQuantity(item.quantity)!==null
     && normalizeIngredient(line.name)===normalizeIngredient(item.text) && normalizeIngredient(line.unit)===normalizeIngredient(item.unit);
 }
+/** All inputs are validated nonnegative decimal quantities with at most four significant decimal places. */
+export function sumQuantities(values:(number|string)[]):string {
+  const total=values.reduce((sum,value)=>{
+    const [whole,fraction='']=String(value).trim().split('.');
+    return sum+BigInt(whole||'0')*10000n+BigInt((fraction+'0000').slice(0,4));
+  },0n);
+  const fraction=(total%10000n).toString().padStart(4,'0').replace(/0+$/,'');
+  return (total/10000n).toString()+(fraction?'.'+fraction:'');
+}
 
 @Injectable({providedIn:'root'})
 export class MealGroceriesStore {

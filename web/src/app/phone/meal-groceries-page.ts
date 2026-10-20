@@ -5,7 +5,7 @@ import { Clock } from '../core/clock';
 import { addDays, dayIn, formatDay, startOfWeek } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { HouseholdLive } from '../core/household-live';
-import { GroceryChoice, GroceryIngredient, GroceryMeal, GroceryPreview, MealGroceriesStore, compatibleIngredient } from '../core/meal-groceries';
+import { GroceryChoice, GroceryIngredient, GroceryMeal, GroceryPreview, MealGroceriesStore, compatibleIngredient, numericQuantity, sumQuantities } from '../core/meal-groceries';
 import { DemoNotice } from '../shared/demo-notice';
 import { PhoneNav } from './phone-nav';
 import { SignIn } from './sign-in';
@@ -145,7 +145,7 @@ export class MealGroceriesPage {
   protected valid():boolean {
     const rows=this.rows().filter(r=>r.selected);
     return rows.length>0&&rows.length<=500&&rows.every(r=>(!r.previousCount||r.allowAdditional)&&
-      (r.quantity===null||Number.isFinite(r.quantity)&&r.quantity>=0&&r.quantity<=1e12&&Math.abs(r.quantity*10000-Math.round(r.quantity*10000))<0.01));
+      (r.quantity===null||numericQuantity(String(r.quantity))!==null));
   }
   protected review():void {const s=this.store.snapshot();if(!s||s.from!==this.week())return;this.submitted.set(false);this.apply(s);this.store.dismissError();}
   private apply(s:GroceryPreview):void {
@@ -153,15 +153,15 @@ export class MealGroceriesPage {
     this.rows.set(s.meals.flatMap(meal=>meal.ingredients.map(line=>({...structuredClone(line),meal:structuredClone(meal),numeric:line.quantity!==null,selected:line.previousCount===0,allowAdditional:false,targetId:''}))));
   }
   protected totals():string[]{
-    const grouped=new Map<string,{name:string;quantity:number|null;text:string|null;unit:string|null;existing:boolean}>();
+    const grouped=new Map<string,{name:string;quantities:(number|string)[]|null;text:string|null;unit:string|null;existing:boolean}>();
     for(const row of this.rows().filter(r=>r.selected)){
       const target=this.draft()?.grocery.items.find(i=>i.id===row.targetId);
       const group=row.targetId||this.combine()&&row.quantity!==null&&JSON.stringify([row.name.trim().replace(/\s+/g,' ').toUpperCase(),row.unit?.trim().replace(/\s+/g,' ').toUpperCase()??''])||key(row);
       const prior=grouped.get(group);
-      if(prior&&row.quantity!==null)prior.quantity=(prior.quantity??0)+row.quantity;
-      else grouped.set(group,{name:target?.text??row.name,quantity:row.quantity===null?null:row.quantity+Number(target?.quantity??0),text:row.quantityText,unit:target?.unit??row.unit,existing:!!target});
+      if(prior&&row.quantity!==null)prior.quantities!.push(row.quantity);
+      else grouped.set(group,{name:target?.text??row.name,quantities:row.quantity===null?null:[target?.quantity??'0',row.quantity],text:row.quantityText,unit:target?.unit??row.unit,existing:!!target});
     }
-    return [...grouped.values()].map(g=>(g.existing?'Update: ':'New: ')+g.name+' · '+(g.quantity===null?g.text??'':String(Math.round(g.quantity*10000)/10000))+' '+(g.unit??''));
+    return [...grouped.values()].map(g=>(g.existing?'Update: ':'New: ')+g.name+' · '+(g.quantities===null?g.text??'':sumQuantities(g.quantities))+' '+(g.unit??''));
   }
   protected async save():Promise<void>{
     const d=this.draft();if(!d||this.locked()||this.conflicted()||!this.valid())return;const epoch=this.epoch;
