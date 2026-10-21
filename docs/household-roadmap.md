@@ -1,3 +1,5 @@
+> **Status: deferred (calendar-only scope, October 2026).** This document is a historical record of work previously implemented and a backlog for possible future releases. Chores, to-dos, groceries, meals and recipes are **not active Wheelhouse features**. Old pages, clients, handlers, subscriptions and demo seeds are removed. Historical EF mappings and migrations remain temporarily to preserve existing records; Git history contains the old implementations. See [calendar-only scope](calendar-only-scope.md). No new household feature work should be scheduled until the calendar experience is complete.
+
 # Chores, lists and meals roadmap
 
 Created October 18, 2026. Roadmap agreed through PR #25. Status: 4.1 merged in [PR #26](https://github.com/natezimm/wheelhouse/pull/26); 4.2 merged in [PR #27](https://github.com/natezimm/wheelhouse/pull/27); 4.3 merged in [PR #29](https://github.com/natezimm/wheelhouse/pull/29); 5.1 merged in [PR #30](https://github.com/natezimm/wheelhouse/pull/30); 5.2 merged in [PR #31](https://github.com/natezimm/wheelhouse/pull/31); 6.1 merged in [PR #32](https://github.com/natezimm/wheelhouse/pull/32).

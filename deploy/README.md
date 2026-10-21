@@ -106,8 +106,7 @@ manual run performs the complete release itself. Re-run a failed run to retry it
 original commit; starting a new run on a changed main needs a new version.
 
 Watch the test, prepare, images and deploy jobs. The deploy job also runs browser smoke checks. The deploy job must finish successfully
-before the release is live. Reload each site afterwards, and verify Today, Calendar,
-Chores, Lists and Meals; open `/wall` for the wall layout. A private family instance
+before the release is live. Reload each site afterwards, and verify Today and Calendar; open `/wall` for the wall layout. A private family instance
 still requires Google sign-in and a calendar connection for real events.
 
 ### From a local checkout
@@ -191,7 +190,7 @@ short-lived SSH loopback tunnel. No public domain names or new secrets are requi
 This checks the application behind nginx; it does not check public DNS, certificates
 or the server's external nginx routing.
 
-- Demo: checks Today content, phone navigation to Calendar/Chores/Lists/Meals, then
+- Demo: checks Today content, phone navigation to Calendar, then
   verifies that an event returned by the real demo API appears in the wall layout.
   The visitor gets a separate expiring demo copy; existing visitors are untouched.
 - Family: checks health, private mode, denied anonymous family access and the Google
