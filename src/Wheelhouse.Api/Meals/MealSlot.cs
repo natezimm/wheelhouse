@@ -22,9 +22,3 @@ public sealed class MealCommand : IFamilyOwned
     public Guid FamilyId { get; set; }
     public required string Request { get; set; }
 }
-
-public sealed record MealResponse(DateOnly Date, string Slot, string? Title, string? Notes, Guid? Version, RecipeSnapshot? Recipe = null, int? Servings = null);
-public sealed record MealsResponse(DateOnly From, DateOnly To, long ChangeNumber, MealResponse[] Meals);
-public sealed record SaveMeal(Guid CommandId, Guid? Version, string? Title, string? Notes, RecipeChoice? Recipe = null, int? Servings = null, bool RemoveRecipe = false);
-public sealed record CopyChoice(DateOnly Date, string Slot, Guid SourceVersion, Guid? TargetVersion);
-public sealed record CopyMeals(Guid CommandId, DateOnly SourceFrom, DateOnly TargetFrom, CopyChoice[] Items);

@@ -19,16 +19,6 @@ public sealed class ChorePlan : IFamilyOwned
     public int WeekdaysMask { get; set; }
     public Guid Version { get; set; } = Guid.NewGuid();
 
-    public ChoreRepeat Repeat() => new(Frequency, IntervalWeeks,
-        Enumerable.Range(0, 7).Where(day => (WeekdaysMask & (1 << day)) != 0).ToArray(), EndsOn);
-
-    public void Apply(ChoreDraft draft)
-    {
-        Title = draft.Title; Notes = draft.Notes; MemberId = draft.MemberId; StartsOn = draft.DueDate;
-        Frequency = draft.Repeat!.Frequency; EndsOn = draft.Repeat.EndsOn; IntervalWeeks = draft.Repeat.IntervalWeeks;
-        WeekdaysMask = (draft.Repeat.Weekdays ?? []).Aggregate(0, (mask, day) => mask | (1 << day));
-        Version = Guid.NewGuid();
-    }
 }
 
 /// <summary>Only written on a completion command; GET never creates occurrence rows.</summary>
