@@ -20,16 +20,13 @@ for (const scenario of ['demo', 'family', 'old-ui', 'missing-wall-event', 'runti
         res.statusCode = scenario === 'api-error' ? 500 : 200;
         return res.end(JSON.stringify({events:[{title:'Fictional calendar event'}]}));
       }
-      const nav = '<nav aria-label="Sections">' + [['Today','/'],['Calendar','/calendar'],['Chores','/chores'],['Lists','/lists'],['Meals','/meals']].map(([name,href]) => `<a href="${href}">${name}</a>`).join('') + '</nav>';
+      const nav = '<nav aria-label="Sections">' + [['Today','/'],['Calendar','/calendar']].map(([name,href]) => `<a href="${href}">${name}</a>`).join('') + '</nav>';
       let content = '<h1>Today</h1>';
       if (family) content += '<a href="/api/auth/google">Sign in with Google</a>';
       else if (scenario !== 'old-ui') {
         content += nav;
         if (path === '/') content += '<app-today-events>Today content</app-today-events>';
         if (path === '/calendar') content += '<app-phone-calendar><div class="month">October</div></app-phone-calendar>';
-        if (path === '/chores') content += '<app-chores-page>Chores</app-chores-page>';
-        if (path === '/lists') content += '<app-lists-page>Grocery</app-lists-page>';
-        if (path === '/meals') content += '<app-meals-page>Meals</app-meals-page>';
         if (path === '/wall') content += '<div id="events"></div><script>fetch("/api/calendar").then(r=>r.json()).then(s=>{'+ (scenario === 'missing-wall-event' ? '' : 'document.getElementById("events").textContent=s.events[0].title;')+'});</script>';
       }
       if (scenario === 'runtime-error') content += '<script>throw new Error("fixture runtime failure")</script>';
