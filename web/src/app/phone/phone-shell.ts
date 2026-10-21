@@ -1,6 +1,4 @@
 import { dayIn, formatDay } from '../core/days';
-import { TodayChores } from './today-chores';
-import { TodayMeals } from './today-meals';
 import { CalendarSaveStatus } from '../shared/calendar-save-status';
 import { CalendarConnection } from '../shared/calendar-connection';
 import { CalendarLive } from '../core/calendar-live';
@@ -24,7 +22,7 @@ import { TodayEvents } from './today-events';
  */
 @Component({
   selector: 'app-phone-shell',
-  imports: [CalendarConnection, CalendarSaveStatus, DemoNotice, LowerCasePipe, MemberAvatar, PhoneNav, RouterLink, SignIn, StatusLine, TodayEvents, TodayChores, TodayMeals],
+  imports: [CalendarConnection, CalendarSaveStatus, DemoNotice, LowerCasePipe, MemberAvatar, PhoneNav, RouterLink, SignIn, StatusLine, TodayEvents],
   template: `
     <header>
       <div class="title">
@@ -53,8 +51,6 @@ import { TodayEvents } from './today-events';
       <app-sign-in [outcome]="signin()" />
     } @else if (family.state().status === 'ready') {
       <app-today-events />
-      <app-today-chores />
-      <app-today-meals />
     }
 
     <footer>

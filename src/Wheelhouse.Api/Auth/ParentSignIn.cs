@@ -4,7 +4,6 @@ using Microsoft.Extensions.Options;
 using Wheelhouse.Api.Data;
 using Wheelhouse.Api.Families;
 using Wheelhouse.Api.Instance;
-using Wheelhouse.Api.Lists;
 
 namespace Wheelhouse.Api.Auth;
 
@@ -142,7 +141,6 @@ public sealed class ParentSignIn(
             Name = "Our family",
             TimeZone = timeZone is not null && TimeZoneInfo.TryFindSystemTimeZoneById(timeZone, out _) ? timeZone : "UTC",
         };
-        family.Lists.Add(GroceryList.Create(family.Id));
         db.Families.Add(family);
         return family;
     }
