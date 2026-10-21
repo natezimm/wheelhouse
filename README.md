@@ -8,6 +8,12 @@ The fictional Marlowe family demo generates private, date-relative calendar data
 
 **Deferred, not deployed:** chores, to-dos/shared lists, grocery lists, meals and recipes are future features. Previous work is preserved in [the household roadmap](docs/household-roadmap.md) and Git history. Their historical EF Core tables and migrations are retained for compatibility and existing user data, but the application no longer exposes their pages, APIs, live connections or demo records. See [calendar-only scope](docs/calendar-only-scope.md) for implementation and data-retention decisions.
 
+## Calendar-first redesign plan
+
+The next product iteration focuses on a Skylight-inspired calendar experience: a seven-day hourly Week view for desktop and wall, a compact phone Day agenda, coherent Day/Week/Month views, and remembered per-device view preferences. Chores, lists/to-dos, groceries, meals and recipes have been removed from the active application and remain in the future backlog.
+
+Follow the [calendar redesign plan](docs/calendar-redesign-plan.md), starting with populated visual designs for review before UI implementation. The plan records acceptance criteria, implementation increments and required visual/functional checks; it does not mark these changes shipped. The household roadmap remains a future-feature reference.
+
 ## Layout
 
 | Path | What it holds |
