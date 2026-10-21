@@ -1,7 +1,7 @@
 import { Component } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
 
-/** The phone's sections, along the bottom of the screen. More join as their features land. */
+/** The phone's sections, along the bottom of the screen. Future features will be added only when the calendar is polished. */
 @Component({
   selector: 'app-phone-nav',
   imports: [RouterLink, RouterLinkActive],
@@ -15,18 +15,6 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"></rect><path d="M3.5 10h17M8 3v4M16 3v4"></path></svg>
         Calendar
       </a>
-      <a routerLink="/chores" routerLinkActive="current" ariaCurrentWhenActive="page">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"></rect><path d="m7 10 2 2 5-5M7 16h10"></path></svg>
-        Chores
-      </a>
-      <a routerLink="/lists" routerLinkActive="current" ariaCurrentWhenActive="page">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M9 6h12M9 12h12M9 18h12M3 6h2M3 12h2M3 18h2"></path></svg>
-        Lists
-      </a>
-      <a routerLink="/meals" routerLinkActive="current" ariaCurrentWhenActive="page">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 3v7m4-7v7M6 10v11M4 7h4M18 3v18M18 3c-5 4-5 9 0 9"></path></svg>
-        Meals
-      </a>
     </nav>
   `,
   styles: `
@@ -38,7 +26,7 @@ import { RouterLink, RouterLinkActive } from '@angular/router';
 
     nav {
       display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       align-items: center;
       height: 84px;
       padding: 0 6px 18px;

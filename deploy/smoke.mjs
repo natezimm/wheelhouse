@@ -17,7 +17,7 @@ page.on('pageerror', () => errors.push('Browser runtime error'));
 page.on('response', (response) => {
   const path = new URL(response.url()).pathname;
   const expectedPrivateRefusal = mode === 'Family' && response.status() === 401;
-  if (/^\/api\/(session|family|calendar|chores|lists|meals|demo\/visit)(\/|$)/.test(path) && response.status() >= 400 && !expectedPrivateRefusal) {
+  if (/^\/api\/(session|family|calendar|demo\/visit)(\/|$)/.test(path) && response.status() >= 400 && !expectedPrivateRefusal) {
     errors.push(`Core API failed (${response.status()})`);
   }
 });
@@ -39,15 +39,13 @@ try {
     await expect(page.locator('app-today-events')).toContainText(/\S/);
     for (const [name, path, selector] of [
       ['Calendar', '/calendar', 'app-phone-calendar .month'],
-      ['Chores', '/chores', 'app-chores-page'],
-      ['Lists', '/lists', 'app-lists-page'],
-      ['Meals', '/meals', 'app-meals-page'],
     ]) {
       await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name, exact: true }).click();
       await expect(page).toHaveURL(new URL(path, baseURL).href);
       await expect(page.locator(selector)).toBeVisible();
       await expect(page.locator(selector)).toContainText(/\S/);
     }
+    await expect(page.getByRole('navigation', { name: 'Sections' }).getByRole('link')).toHaveCount(2);
     // Match actual seeded events returned by this browser's own demo copy to
     // rendered wall text. A healthy API with an empty/old UI must fail here.
     await page.setViewportSize({ width: 1920, height: 1080 });
@@ -61,7 +59,6 @@ try {
       }
       return false;
     }, { timeout }).toBeTruthy();
-    await expect(page.getByRole('link', { name: 'Meals', exact: true })).toBeVisible();
     await mkdir('smoke-results', { recursive: true });
     await page.screenshot({ path: `smoke-results/demo-wall-${process.env.SMOKE_INDEX || '1'}.png` });
   }
