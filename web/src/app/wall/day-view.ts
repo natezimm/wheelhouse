@@ -1,9 +1,8 @@
-import { Component, computed, effect, inject, model, output } from '@angular/core';
+import { Component, computed, effect, inject, input, output } from '@angular/core';
 import { CalendarEvent, CalendarStore, FAMILY, FAMILY_COLOR, daysOf, ownerOf, timeRange } from '../core/calendar';
 import { Clock } from '../core/clock';
-import { Day, addDays, dayIn, formatDay, minutesIn, timeIn } from '../core/days';
+import { Day, addDays, dayIn, minutesIn, timeIn } from '../core/days';
 import { Family, FamilyStore } from '../core/family';
-import { CalendarNav, WallView } from './calendar-nav';
 
 /** The hours the day view always shows; it stretches to fit events outside them. */
 const FIRST_HOUR = 7;
@@ -12,19 +11,8 @@ const LAST_HOUR = 21;
 /** The wall's day: a column per person, all-day events on top and timed ones on an hour grid. */
 @Component({
   selector: 'app-day-view',
-  imports: [CalendarNav],
   template: `
     @if (day(); as day) {
-      <app-calendar-nav
-        [(view)]="view"
-        unit="day"
-        [label]="day.label"
-        [backLabel]="day.isToday ? null : 'Today'"
-        (previous)="move(-1)"
-        (next)="move(1)"
-        (back)="focus.set(null)"
-      />
-
       <div class="sheet" [style.--columns]="day.columns.length">
         <div class="heads">
           <span class="all-day-label">All day</span>
@@ -91,9 +79,7 @@ const LAST_HOUR = 21;
     .sheet {
       flex: 1;
       min-height: 0;
-      padding: 14px 16px 12px;
-      border-radius: 16px;
-      background: var(--surface);
+      padding: 16px 18px 14px;
       display: flex;
       flex-direction: column;
       gap: 16px;
@@ -137,8 +123,8 @@ const LAST_HOUR = 21;
       width: 32px;
       height: 32px;
       border-radius: 16px;
-      background: var(--member);
-      color: #ffffff;
+      background: color-mix(in srgb, var(--member) var(--member-shade), black);
+      color: var(--on-ink);
       font-size: 14px;
       font-weight: 700;
       display: flex;
@@ -151,7 +137,7 @@ const LAST_HOUR = 21;
       padding: 0 12px;
       border: 0;
       border-radius: 8px;
-      background: color-mix(in srgb, var(--member) 14%, white);
+      background: color-mix(in srgb, var(--member) var(--member-fill), var(--surface));
       color: var(--ink);
       font-family: inherit;
       text-align: left;
@@ -182,7 +168,7 @@ const LAST_HOUR = 21;
       font-size: 13px;
       font-weight: 600;
       line-height: 18px;
-      color: var(--muted);
+      color: var(--faint);
     }
 
     .column {
@@ -192,8 +178,8 @@ const LAST_HOUR = 21;
       list-style: none;
       background-image: repeating-linear-gradient(
         to bottom,
-        #e6e2da 0,
-        #e6e2da 1px,
+        var(--hour-rule) 0,
+        var(--hour-rule) 1px,
         transparent 1px,
         transparent var(--hour)
       );
@@ -205,7 +191,7 @@ const LAST_HOUR = 21;
       padding: 4px 12px;
       border: 2px solid var(--surface);
       border-radius: 10px;
-      background: color-mix(in srgb, var(--member) 14%, white);
+      background: color-mix(in srgb, var(--member) var(--member-fill), var(--surface));
       display: flex;
       flex-direction: column;
       justify-content: center;
@@ -245,7 +231,7 @@ const LAST_HOUR = 21;
     .column .when {
       font-size: 14px;
       font-weight: 600;
-      color: #4a4f57;
+      color: var(--quiet);
       white-space: nowrap;
     }
 
@@ -281,10 +267,8 @@ export class DayView {
   private readonly family = inject(FamilyStore);
   private readonly clock = inject(Clock);
 
-  readonly view = model.required<WallView>();
-
   /** The day to show; null shows today. */
-  readonly focus = model<Day | null>(null);
+  readonly focus = input<Day | null>(null);
 
   /** An event was tapped to change it; carries its id. */
   readonly edit = output<string>();
@@ -348,10 +332,7 @@ export class DayView {
 
     const isToday = day === this.today();
     const nowMinutes = minutesIn(family.timeZone, this.clock.now());
-    const count = events.length === 1 ? '1 event' : `${events.length} events`;
     return {
-      label: `${isToday ? 'Today' : formatDay(day, { weekday: 'long', month: 'short', day: 'numeric' })} · ${count}`,
-      isToday,
       columns,
       hours: Array.from({ length: last - first }, (_, i) => ({ label: hourLabel(first + i), top: at((first + i) * 60) })),
       now: isToday && nowMinutes >= first * 60 && nowMinutes <= last * 60 ? at(nowMinutes) : null,
@@ -366,10 +347,6 @@ export class DayView {
         this.calendar.show(day, addDays(day, 1));
       }
     });
-  }
-
-  protected move(days: number): void {
-    this.focus.set(addDays(this.shown()!, days));
   }
 
   /** A column for each person the filter shows, then the family's when it has a calendar. */

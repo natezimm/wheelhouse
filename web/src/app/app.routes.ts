@@ -1,10 +1,11 @@
 import { Routes } from '@angular/router';
 
-// One app, two layouts: the wall display opens /wall in kiosk mode, phones open /.
+// One app, two layouts: the wall display opens /wall in kiosk mode; phones and desktop browsers open /.
 // Settings exist only on the phone; the wall has none.
 export const routes: Routes = [
-  { path: '', loadComponent: () => import('./phone/phone-shell').then((m) => m.PhoneShell) },
-  { path: 'calendar', loadComponent: () => import('./phone/calendar').then((m) => m.PhoneCalendar) },
+  // The calendar for phones and desktop browsers; /calendar is kept for old links and bookmarks.
+  { path: '', pathMatch: 'full', loadComponent: () => import('./home/calendar-home').then((m) => m.CalendarHome) },
+  { path: 'calendar', redirectTo: '' },
   { path: 'settings', loadComponent: () => import('./phone/settings').then((m) => m.Settings) },
   {
     path: 'settings/members/new',
