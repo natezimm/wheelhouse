@@ -23,7 +23,7 @@ const LAST_HOUR = 21;
                 {{ column.name }}
               </div>
               @for (event of column.allDay; track event.id) {
-                <button type="button" class="all-day" [class.calendar-pending]="event.pending" [disabled]="!canEdit(event)" (click)="edit.emit(event.id)">{{ event.title }}</button>
+                <button type="button" class="all-day" [class.calendar-pending]="event.pending" (click)="inspect.emit(event.id)">{{ event.title }}</button>
               }
             </div>
           }
@@ -52,8 +52,7 @@ const LAST_HOUR = 21;
                     class="open"
                     [class.calendar-pending]="event.pending" [attr.aria-busy]="event.pending"
                     [attr.aria-label]="event.title + ', ' + event.when"
-                    [disabled]="!event.canEdit"
-                    (click)="edit.emit(event.id)"
+                    (click)="inspect.emit(event.id)"
                   ></button>
                 </li>
               }
@@ -208,11 +207,6 @@ const LAST_HOUR = 21;
       cursor: pointer;
     }
 
-    .all-day:disabled,
-    .column .open:disabled {
-      cursor: default;
-    }
-
     .column li.short {
       flex-direction: row;
       align-items: center;
@@ -270,14 +264,8 @@ export class DayView {
   /** The day to show; null shows today. */
   readonly focus = input<Day | null>(null);
 
-  /** An event was tapped to change it; carries its id. */
-  readonly edit = output<string>();
-
-  private readonly writable = computed(() => new Set(this.calendar.calendars().filter((c) => c.canWrite).map((c) => c.id)));
-
-  protected canEdit(event: CalendarEvent): boolean {
-    return this.writable().has(event.calendarId) && !this.calendar.isPending(event.id);
-  }
+  /** An event was tapped to see its details; carries its id. */
+  readonly inspect = output<string>();
 
   private readonly today = computed(() => {
     const family = this.family.family();
@@ -320,7 +308,6 @@ export class DayView {
           pending: !!event.pending,
           title: event.title,
           when: timeRange(event, family.timeZone),
-          canEdit: this.canEdit(event),
           top: at(start),
           height: at(Math.max(end, start + 30)) - at(start),
           left: (lane / lanes) * 100,

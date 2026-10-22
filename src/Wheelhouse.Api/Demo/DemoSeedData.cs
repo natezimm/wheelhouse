@@ -101,6 +101,26 @@ public static class DemoSeedData
             location: "Middle School Lab 204",
             description: "Julian picking up on the way back."));
 
+        // A busy afternoon: three people at once, so the week shows overlapping events side by side.
+        events.Add(anchor.TimedEvent(
+            familyId, calendars.Nora.Id,
+            title: "Swim lessons",
+            date: today, start: new(15, 0), end: new(16, 0),
+            location: "Riverside Rec Center"));
+
+        events.Add(anchor.TimedEvent(
+            familyId, calendars.Clara.Id,
+            title: "Pick up Nora from the pool",
+            date: today, start: new(15, 45), end: new(16, 15),
+            location: "Riverside Rec Center"));
+
+        // A stay across several days, shown as one bar in the week's all-day lane.
+        events.Add(anchor.AllDayEvent(
+            familyId, calendars.Family.Id,
+            title: "Grandma Evelyn visiting",
+            startDate: today.AddDays(-1),
+            endDateExclusive: today.AddDays(2)));
+
         events.Add(anchor.TimedEvent(
             familyId, calendars.Family.Id,
             title: "Family Taco Night & porch hangout",
@@ -121,6 +141,12 @@ public static class DemoSeedData
             title: "Client site walkthrough",
             date: tomorrow, start: new(10, 30), end: new(12, 0),
             location: "Summit Ave Renovation"));
+
+        events.Add(anchor.TimedEvent(
+            familyId, calendars.Julian.Id,
+            title: "Morning run",
+            date: tomorrow, start: new(7, 15), end: new(8, 0),
+            location: "South Mountain Reservation"));
 
         // --- RELATIVE WEEKDAY ANCHORS (Always in the future, never stale) ---
         // Example requested: "A doctor's appointment is always next Tuesday"

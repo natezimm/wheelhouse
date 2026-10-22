@@ -57,6 +57,9 @@ describe('calendar screens', () => {
 
   const texts = (elements: NodeListOf<Element>) => Array.from(elements, (e) => e.textContent?.replace(/\s+/g, ' ').trim());
 
+  /** The titles of a day's timed events on the week's grid. */
+  const column = (page: HTMLElement, name: string) => texts(page.querySelectorAll(`[role="group"][aria-label="${name}"] .event .title`));
+
   /** Each row's parts, such as its time, title and whose it is, one space apart. */
   const rows = (elements: NodeListOf<Element>) =>
     Array.from(elements, (row) =>
@@ -66,20 +69,102 @@ describe('calendar screens', () => {
     );
 
   describe('on the wall', () => {
-    const column = (page: HTMLElement, name: string) =>
-      texts(page.querySelectorAll(`section[aria-label="${name}"] li .title`));
-
-    it("shows the family's week from Monday, with each event on the days it covers", async () => {
+    it("shows the family's week from Monday on one hour grid, with all-day events as bars across their days", async () => {
       const { page } = await open('/wall', { from: '2026-10-12', to: '2026-10-19' });
 
       expect(shownTitle(page)).toBe('October 12 – 18 2026');
-      expect(texts(page.querySelectorAll('.day .dow'))).toEqual(['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']);
-      expect(texts(page.querySelectorAll('section[aria-label="Monday, October 12"] li .title'))).toEqual(['Grandma in town', 'Dentist', 'Swim lesson', 'Book club']);
-      expect(column(page, 'Tuesday, October 13')).toEqual(['Grandma in town', 'Trash & recycling']);
-      expect(page.querySelector('.day.is-today')?.getAttribute('aria-label')).toBe('Monday, October 12');
-      expect(rows(page.querySelectorAll('section[aria-label="Thursday, October 15"] li > button'))).toEqual([
-        '6:10 AM Flight to Chicago Ben',
+      expect(texts(page.querySelectorAll('.heads .dow'))).toEqual(['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']);
+      expect(page.querySelector('.head.today')?.getAttribute('aria-label')).toBe('Open Monday, October 12');
+
+      const bars = Array.from(page.querySelectorAll<HTMLElement>('.bars .bar'));
+      expect(bars.map((bar) => [bar.querySelector('.title')?.textContent, bar.style.gridColumn, bar.classList.contains('before')])).toEqual([
+        ['Grandma in town', '1 / span 2', true],
+        ['Trash & recycling', '2 / span 1', false],
       ]);
+
+      expect(column(page, 'Monday, October 12')).toEqual(['Dentist', 'Swim lesson', 'Book club']);
+      expect(column(page, 'Tuesday, October 13')).toEqual([]);
+      expect(Array.from(page.querySelectorAll('[aria-label="Thursday, October 15"] .event'), (e) => e.getAttribute('aria-label'))).toEqual([
+        'Flight to Chicago, Thursday 6:10 – 8:40 AM, Ben',
+      ]);
+    });
+
+    it('places timed events by their start and length, from an hour that fits the earliest, with the now line on today', async () => {
+      const { page } = await open('/wall', { from: '2026-10-12', to: '2026-10-19' });
+      const block = (title: string) =>
+        Array.from(page.querySelectorAll<HTMLElement>('.event')).find((e) => e.querySelector('.title')?.textContent === title)!;
+
+      // The 6:10 AM flight moves the first hour from 7 AM to 6. At 50 px an hour below 10 px of
+      // room, 3 PM is 9 hours down, and an hour-long event is 50 px less 3 px of gap.
+      expect(texts(page.querySelectorAll('.hours span')).slice(0, 2)).toEqual(['6 AM', '7 AM']);
+      expect([block('Dentist').style.top, block('Dentist').style.height]).toEqual(['461px', '47px']);
+      // An hour at 50 px leaves too little room for the time row and a title line, so it reads on one line.
+      expect(block('Dentist').classList.contains('short')).toBe(true);
+      expect(block('Book club').classList.contains('short')).toBe(false);
+      expect(block('Swim lesson').querySelector('.time')?.textContent).toBe('5:30 pm');
+      expect(page.querySelectorAll('[aria-label="Monday, October 12"] .now-line')).toHaveLength(1);
+      expect(page.querySelectorAll('.now-line')).toHaveLength(1);
+      expect(page.querySelector('.now-label')?.textContent).toBe('5:22');
+    });
+
+    it('opens an event’s details first, and closes them again', async () => {
+      const { page, settle } = await open('/wall', { from: '2026-10-12', to: '2026-10-19' });
+
+      page.querySelector<HTMLButtonElement>('[aria-label^="Swim lesson"]')!.click();
+      await settle();
+      const details = page.querySelector<HTMLElement>('app-event-details [role="dialog"]')!;
+      expect(details.getAttribute('aria-label')).toBe('Swim lesson');
+      expect(details.querySelector('.who')?.textContent).toContain('Milo');
+      expect(texts(details.querySelectorAll('.day, h2, .when, .facts li'))).toEqual([
+        'Monday, October 12',
+        'Swim lesson',
+        '5:30 – 6:15 PM',
+        'Riverside Rec Center',
+        'Does not repeat',
+        'Milo',
+      ]);
+      expect(page.querySelector('app-event-dialog')).toBeNull();
+      expect(page.querySelector('[aria-label^="Swim lesson"]')?.classList.contains('selected')).toBe(true);
+
+      details.querySelector<HTMLButtonElement>('[aria-label="Close"]')!.click();
+      await settle();
+      expect(page.querySelector('app-event-details')).toBeNull();
+    });
+
+    it('shows a read-only event’s details with why it cannot be changed', async () => {
+      const harness = await RouterTestingHarness.create('/wall');
+      http.expectOne('/api/family').flush(marlowes);
+      await harness.fixture.whenStable();
+      const school = { id: 'c9', name: 'School district', memberId: null, canWrite: false };
+      http.expectOne((r) => r.url === '/api/calendar').flush({
+        calendars: [...marloweCalendars, school],
+        events: [{ ...allDay('Spirit Day', null, '2026-10-16', '2026-10-17'), calendarId: 'c9' }],
+      });
+      await harness.fixture.whenStable();
+      const page = harness.routeNativeElement as HTMLElement;
+
+      page.querySelector<HTMLButtonElement>('.bar')!.click();
+      await harness.fixture.whenStable();
+      const details = page.querySelector<HTMLElement>('app-event-details')!;
+      expect(details.querySelector('.note')?.textContent?.trim()).toBe(
+        'This event comes from the School district calendar, which Wheelhouse can show but not change.',
+      );
+      expect(details.querySelector('.edit')).toBeNull();
+      expect(texts(details.querySelectorAll('.day, .when'))).toEqual(['Friday, October 16', 'All day']);
+    });
+
+    it('starts a new event at the half hour tapped on the grid', async () => {
+      const { page, settle } = await open('/wall', { from: '2026-10-12', to: '2026-10-19' });
+      const wednesday = page.querySelector<HTMLElement>('[role="group"][aria-label="Wednesday, October 14"]')!;
+
+      // 10 px of room, then 50 px an hour from 6 AM: 445 px is 8 hours and 42 minutes in.
+      Object.defineProperty(MouseEvent.prototype, 'offsetY', { configurable: true, get: () => 445 });
+      wednesday.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      delete (MouseEvent.prototype as { offsetY?: number }).offsetY;
+      await settle();
+
+      const dialog = page.querySelector<HTMLElement>('app-event-dialog form')!;
+      expect(Array.from(dialog.querySelectorAll('.stepper > span'), (s) => s.textContent?.trim())).toEqual(['Wed, Oct 14', '2:30 PM', '3:30 PM']);
     });
 
     it("hides a person's events when their chip is tapped", async () => {
@@ -94,7 +179,8 @@ describe('calendar screens', () => {
       await settle();
 
       expect(chip('Family').getAttribute('aria-pressed')).toBe('false');
-      expect(texts(page.querySelectorAll('section[aria-label="Monday, October 12"] li .title'))).toEqual(['Dentist', 'Swim lesson', 'Book club']);
+      expect(column(page, 'Monday, October 12')).toEqual(['Dentist', 'Swim lesson', 'Book club']);
+      expect(page.querySelectorAll('.bars .bar')).toHaveLength(0);
     });
 
     it('moves a week at a time', async () => {
@@ -109,7 +195,7 @@ describe('calendar screens', () => {
       await settle();
 
       expect(shownTitle(page)).toBe('October 19 – 25 2026');
-      expect(page.querySelectorAll('.day li').length).toBe(0);
+      expect(page.querySelectorAll('.event, .bar').length).toBe(0);
     });
   });
 
@@ -184,7 +270,7 @@ describe('calendar screens', () => {
       expect(page.querySelector('.reconnect')?.textContent?.trim()).toBe(
         'Google Calendar needs reconnecting. A parent can fix it in Settings on their phone.',
       );
-      expect(texts(page.querySelectorAll('section[aria-label="Monday, October 12"] li .title'))).toContain('Dentist');
+      expect(column(page, 'Monday, October 12')).toContain('Dentist');
     });
 
     it('shows no reconnect notice while Google is connected', async () => {
@@ -237,6 +323,21 @@ describe('calendar screens', () => {
       const page = await leaveEditor(null);
 
       expect(page.querySelector('app-event-dialog')).toBeNull();
+    });
+
+    it('closes an event’s details when the wall comes back to now', async () => {
+      const { page, settle } = await open('/wall', { from: '2026-10-12', to: '2026-10-19' });
+      page.querySelector<HTMLButtonElement>('[aria-label^="Dentist"]')!.click();
+      await settle();
+      expect(page.querySelector('app-event-details')).not.toBeNull();
+
+      vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+      page.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      vi.advanceTimersByTime(RETURN_AFTER_MS);
+      vi.useFakeTimers({ toFake: ['Date'] });
+      await settle();
+
+      expect(page.querySelector('app-event-details')).toBeNull();
     });
 
     it('keeps an editor with a half-typed event open when the wall comes back to now', async () => {
@@ -365,7 +466,7 @@ describe('calendar screens', () => {
       expect(shownTitle(page)).toBe('October 12 – 18 2026');
       expect(texts(page.querySelectorAll('nav.rail a'))).toEqual(['Calendar', 'Settings']);
       expect(page.querySelector('app-phone-nav')).toBeNull();
-      expect(texts(page.querySelectorAll('section[aria-label="Monday, October 12"] li .title'))).toContain('Dentist');
+      expect(column(page, 'Monday, October 12')).toContain('Dentist');
     });
 
     it('keeps the view and the day when the window narrows, and remembers a view for the context it is in now', async () => {
