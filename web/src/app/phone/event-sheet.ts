@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, computed, inject, input, output, signal } from '@angular/core';
+import { Component, computed, inject, input, linkedSignal, output, signal } from '@angular/core';
 import { CalendarEvent, CalendarStore, eventRefusal } from '../core/calendar';
 import { Day } from '../core/days';
 import { EventDraft, REPEATS, draftOf, newDraft, onDayOf, problemWith, requestOf, writableCalendars } from '../core/event-draft';
@@ -206,6 +206,12 @@ export class EventSheet {
   /** The day a new event goes on. */
   readonly day = input.required<Day>();
 
+  /** The time a new event starts, as 'HH:mm', when one was picked on the grid. */
+  readonly at = input<string | null>(null);
+
+  /** Opens straight to asking whether to delete the event, as Delete in its details does. */
+  readonly deleting = input(false);
+
   readonly closed = output<void>();
 
   protected readonly choices = computed(() => writableCalendars(this.calendar.calendars(), this.family.members()));
@@ -226,7 +232,7 @@ export class EventSheet {
     if (event) {
       return draftOf(event, family.timeZone);
     }
-    return first ? newDraft(this.day(), first.id, family.timeZone, new Date()) : null;
+    return first ? newDraft(this.day(), first.id, family.timeZone, new Date(), this.at()) : null;
   });
 
   protected readonly heading = computed(() => (this.event() ? 'Edit event' : 'New event'));
@@ -241,7 +247,7 @@ export class EventSheet {
   private readonly operationId = crypto.randomUUID();
   protected readonly uncertain = computed(() => this.calendar.isUncertain(this.operationId));
   protected readonly busy = signal(false);
-  protected readonly confirmingDelete = signal(false);
+  protected readonly confirmingDelete = linkedSignal(() => this.deleting());
   protected readonly message = signal<string | null>(null);
 
   protected set(change: Partial<EventDraft>): void {

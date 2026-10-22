@@ -41,6 +41,14 @@ describe('event screens', () => {
       (b) => b.getAttribute('aria-label') === label || b.textContent?.replace(/\s+/g, ' ').trim() === label,
     )!;
 
+  /** Opens the first event of a day on the wall's week, then its editor from the details. */
+  async function edit(page: HTMLElement, settle: () => Promise<void>, day: string): Promise<void> {
+    page.querySelector<HTMLButtonElement>(`[role="group"][aria-label="${day}"] .event`)!.click();
+    await settle();
+    button(page.querySelector('app-event-details')!, 'Edit event').click();
+    await settle();
+  }
+
   function type(input: HTMLInputElement, value: string): void {
     input.value = value;
     input.dispatchEvent(new Event('input'));
@@ -65,8 +73,8 @@ describe('event screens', () => {
       expect(button(dialog, 'Weekly').getAttribute('aria-pressed')).toBe('true');
       expect(Array.from(dialog.querySelectorAll('.stepper > span'), (s) => s.textContent?.trim())).toEqual([
         'Tue, Oct 13',
-        '6:30 PM',
-        '7:30 PM',
+        '6:00 PM',
+        '7:00 PM',
       ]);
       button(dialog, 'Save event').click();
 
@@ -77,25 +85,24 @@ describe('event screens', () => {
         location: null,
         allDay: false,
         startDate: '2026-10-13',
-        startTime: '18:30:00',
+        startTime: '18:00:00',
         endDate: '2026-10-13',
-        endTime: '19:30:00',
+        endTime: '19:00:00',
         repeat: 'Weekly',
       });
-      request.flush(timed('Parent & tot swim', 'm3', '2026-10-13T22:30:00Z', '2026-10-13T23:30:00Z'));
+      request.flush(timed('Parent & tot swim', 'm3', '2026-10-13T22:00:00Z', '2026-10-13T23:00:00Z'));
       http.expectOne((r) => r.url === '/api/calendar');
       await settle();
 
       expect(page.querySelector('app-event-dialog')).toBeNull();
-      const tuesday = page.querySelectorAll('section[aria-label="Tuesday, October 13"] li .title');
+      const tuesday = page.querySelectorAll('[role="group"][aria-label="Tuesday, October 13"] .event .title');
       expect(Array.from(tuesday, (t) => t.textContent)).toEqual(['Parent & tot swim']);
     });
 
     it('shows Google’s version when the event changed there first', async () => {
       const { page, settle } = await open('/wall');
 
-      page.querySelector<HTMLButtonElement>('section[aria-label="Monday, October 12"] li > button')!.click();
-      await settle();
+      await edit(page, settle, 'Monday, October 12');
       const dialog = page.querySelector<HTMLElement>('app-event-dialog form')!;
       expect(dialog.querySelector('h1')?.textContent).toBe('Edit event');
       type(dialog.querySelector('#event-title')!, 'Swim lesson (cancelled)');
@@ -114,8 +121,7 @@ describe('event screens', () => {
     it('changes every event of a series, keeping each on its own day', async () => {
       const { page, settle } = await open('/wall');
 
-      page.querySelector<HTMLButtonElement>('section[aria-label="Wednesday, October 14"] li > button')!.click();
-      await settle();
+      await edit(page, settle, 'Wednesday, October 14');
       const dialog = page.querySelector<HTMLElement>('app-event-dialog form')!;
       const tess = () => Array.from(dialog.querySelectorAll<HTMLButtonElement>('.chip')).find((chip) => chip.textContent?.trim().endsWith('Tess'))!;
       expect(button(dialog, 'This event').getAttribute('aria-pressed')).toBe('true');
@@ -137,18 +143,19 @@ describe('event screens', () => {
     it('deletes an event only once it is confirmed', async () => {
       const { page, settle } = await open('/wall');
 
-      page.querySelector<HTMLButtonElement>('section[aria-label="Monday, October 12"] li > button')!.click();
+      page.querySelector<HTMLButtonElement>('[role="group"][aria-label="Monday, October 12"] .event')!.click();
+      await settle();
+      button(page.querySelector('app-event-details')!, 'Delete').click();
       await settle();
       const dialog = page.querySelector<HTMLElement>('app-event-dialog form')!;
-      button(dialog, 'Delete').click();
-      await settle();
+      expect(dialog.querySelector('.confirm')?.textContent).toBe('Delete this event?');
       http.expectNone({ method: 'DELETE' });
       button(dialog, 'Delete event').click();
       http.expectOne({ method: 'DELETE', url: `/api/calendar/events/${swim.id}` }).flush(null, { status: 204, statusText: 'No Content' });
       await settle();
 
       expect(page.querySelector('app-event-dialog')).toBeNull();
-      expect(page.querySelectorAll('section[aria-label="Monday, October 12"] li').length).toBe(0);
+      expect(page.querySelectorAll('[role="group"][aria-label="Monday, October 12"] .event').length).toBe(0);
     });
   });
 
@@ -185,6 +192,8 @@ describe('event screens', () => {
       await settle();
       page.querySelector<HTMLButtonElement>('app-agenda-list li button')!.click();
       await settle();
+      button(page.querySelector('app-event-details')!, 'Edit event').click();
+      await settle();
       const sheet = page.querySelector<HTMLElement>('app-event-sheet form')!;
       const change = Array.from(sheet.querySelectorAll('select')).find((select) => select.parentElement?.textContent?.includes('Change'))!;
       change.value = 'all';
@@ -205,6 +214,8 @@ describe('event screens', () => {
       const { page, settle } = await open('/');
 
       page.querySelector<HTMLButtonElement>('app-agenda-list li button')!.click();
+      await settle();
+      button(page.querySelector('app-event-details')!, 'Edit event').click();
       await settle();
       const sheet = page.querySelector<HTMLElement>('app-event-sheet form')!;
       button(sheet, 'Save').click();

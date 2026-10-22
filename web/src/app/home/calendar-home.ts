@@ -16,11 +16,12 @@ import { CalendarFilter } from '../shared/calendar-filter';
 import { CalendarSaveStatus } from '../shared/calendar-save-status';
 import { CalendarToolbar } from '../shared/calendar-toolbar';
 import { DemoNotice } from '../shared/demo-notice';
+import { EventDetails } from '../shared/event-details';
 import { WeatherIcon } from '../shared/weather-icon';
 import { DayView } from '../wall/day-view';
 import { EventDialog } from '../wall/event-dialog';
 import { MonthView } from '../wall/month-view';
-import { WeekView } from '../wall/week-view';
+import { GridSlot, WeekView } from '../wall/week-view';
 import { PhoneDay } from './phone-day';
 import { PhoneMonth } from './phone-month';
 import { PhoneWeek } from './phone-week';
@@ -43,6 +44,7 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
     CalendarToolbar,
     DayView,
     DemoNotice,
+    EventDetails,
     EventDialog,
     EventSheet,
     MonthView,
@@ -96,10 +98,18 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
           @if (shown(); as day) {
             @switch (view()) {
               @case ('day') {
-                <app-day-view [focus]="day" (edit)="edit($event)" />
+                <app-day-view [focus]="day" (inspect)="selected.set($event)" />
               }
               @case ('week') {
-                <app-week-view [focus]="day" (edit)="edit($event)" />
+                <app-week-view
+                  [focus]="day"
+                  layout="desktop"
+                  [selected]="selected()"
+                  [canAdd]="canAdd()"
+                  (inspect)="selected.set($event)"
+                  (openDay)="openDay($event)"
+                  (create)="addAt($event)"
+                />
               }
               @case ('month') {
                 <app-month-view [focus]="day" (opened)="openDay($event)" />
@@ -107,6 +117,9 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
             }
           }
           <app-calendar-save-status class="toast" />
+          @if (selected(); as id) {
+            <app-event-details [eventId]="id" layout="desktop" (closed)="selected.set(null)" (edit)="edit($event)" (remove)="edit($event, true)" />
+          }
         </section>
       } @else {
         <header>
@@ -143,13 +156,13 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
           </div>
           @switch (view()) {
             @case ('day') {
-              <app-phone-day [focus]="day" (pick)="focus.set($event)" (edit)="edit($event)" />
+              <app-phone-day [focus]="day" (pick)="focus.set($event)" (inspect)="selected.set($event)" />
             }
             @case ('week') {
-              <app-phone-week [focus]="day" (edit)="edit($event)" />
+              <app-phone-week [focus]="day" (inspect)="selected.set($event)" />
             }
             @case ('month') {
-              <app-phone-month [focus]="day" (pick)="focus.set($event)" (openDay)="openDay($event)" (edit)="edit($event)" />
+              <app-phone-month [focus]="day" (pick)="focus.set($event)" (openDay)="openDay($event)" (inspect)="selected.set($event)" />
             }
           }
         }
@@ -161,13 +174,16 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
 
     @if (!wide()) {
       <app-phone-nav />
+      @if (selected(); as id) {
+        <app-event-details [eventId]="id" layout="phone" (closed)="selected.set(null)" (edit)="edit($event)" (remove)="edit($event, true)" />
+      }
     }
 
     @if (editing(); as open) {
       @if (open.wide) {
-        <app-event-dialog [event]="open.event" [day]="open.day" (closed)="editing.set(null)" />
+        <app-event-dialog [event]="open.event" [day]="open.day" [at]="open.at" [deleting]="open.deleting" (closed)="editing.set(null)" />
       } @else {
-        <app-event-sheet [event]="open.event" [day]="open.day" (closed)="editing.set(null)" />
+        <app-event-sheet [event]="open.event" [day]="open.day" [at]="open.at" [deleting]="open.deleting" (closed)="editing.set(null)" />
       }
     }
   `,
@@ -380,10 +396,12 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
       height: 24px;
     }
 
+    /* The calendar fills its card edge to edge, unlike the forms' cards. */
     .card {
       position: relative;
       flex: 1;
       min-height: 0;
+      padding: 0;
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -438,8 +456,11 @@ export class CalendarHome {
   /** A day the view shows; null means around today. */
   protected readonly focus = signal<Day | null>(null);
 
+  /** The event whose details are open, by id: a drawer on a desktop, a sheet on a phone. */
+  protected readonly selected = signal<string | null>(null);
+
   /** The event being added (no event) or changed, and whether it opened in the desktop editor. */
-  protected readonly editing = signal<{ event: CalendarEvent | null; day: Day; wide: boolean } | null>(null);
+  protected readonly editing = signal<{ event: CalendarEvent | null; day: Day; wide: boolean; at: string | null; deleting: boolean } | null>(null);
 
   protected readonly canAdd = computed(() => this.calendar.calendars().some((calendar) => calendar.canWrite));
 
@@ -508,8 +529,9 @@ export class CalendarHome {
     }
   }
 
-  /** A day picked in the month opens on its own. */
+  /** A day picked in the month or the week opens on its own. */
   protected openDay(day: Day): void {
+    this.selected.set(null);
     this.focus.set(day);
     this.choose('day');
   }
@@ -519,15 +541,21 @@ export class CalendarHome {
     const period = this.period();
     const day = this.view() !== 'week' ? this.shown() : period?.isCurrent ? this.today() : period?.start;
     if (day) {
-      this.editing.set({ event: null, day, wide: this.wide() });
+      this.editing.set({ event: null, day, wide: this.wide(), at: null, deleting: false });
     }
   }
 
-  protected edit(id: string): void {
-    const event = this.calendar.allEvents().find((e) => e.id === id);
+  /** An empty half hour tapped on the grid starts a new event there. */
+  protected addAt(slot: GridSlot): void {
+    this.editing.set({ event: null, day: slot.day, wide: this.wide(), at: slot.time, deleting: false });
+  }
+
+  /** Edit or Delete in an event's details opens the editor, which asks first before deleting. */
+  protected edit(event: CalendarEvent, deleting = false): void {
     const family = this.family.family();
-    if (event && family) {
-      this.editing.set({ event, day: event.startDate ?? dayIn(family.timeZone, event.startsAt!), wide: this.wide() });
+    if (family) {
+      this.selected.set(null);
+      this.editing.set({ event, day: event.startDate ?? dayIn(family.timeZone, event.startsAt!), wide: this.wide(), at: null, deleting });
     }
   }
 }

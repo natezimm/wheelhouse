@@ -110,7 +110,8 @@ jobs:
 
   deploy:
     needs: [prepare, images]
-    runs-on: ubuntu-latest
+    # Playwright cannot install Chromium on the newer image ubuntu-latest moved to; pin until it can.
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: read
