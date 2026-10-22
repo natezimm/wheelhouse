@@ -1,167 +1,224 @@
 # Wheelhouse calendar redesign plan
 
-Created October 21, 2026. Status: proposed implementation plan; no redesign is implemented by this document. Repository baseline: `8f1d7f0bb9bc7a86ba0c51c65eb716d879273d96`.
+Created October 21, 2026; reviewed against the code and given a visual direction on October 22, 2026. Status: milestone 0 (visual direction) has mockups awaiting review; no redesign is implemented yet. Repository baseline: `18e4afb` (after the calendar-only cleanup in PR #39).
 
 ## Product decision
 
-Wheelhouse becomes a calendar-first application. Its desktop and wall experience takes its visual direction from the supplied Skylight reference: a compact header, narrow navigation, member colors, a white calendar surface, subtle rules and pastel event blocks positioned on a shared time grid. Keep Wheelhouse's own name and visual identity.
+Wheelhouse is a calendar-first application. Its wall and desktop experience takes its visual direction from Skylight: a compact header, a white calendar surface with fine rules, member colors everywhere, and pastel event blocks positioned on a shared time grid. Skylight is inspiration, not a specification; Wheelhouse keeps its own name, fonts and warm neutral ground.
 
-The reference's hourly layout is called Schedule in Skylight. Wheelhouse will call its seven-day hourly layout **Week**. The initial view choices are **Day, Week and Month**; a separate Schedule choice would duplicate Week's purpose at this stage.
+The initial view choices are **Day, Week and Month**. The wall and desktop default to Week. A phone defaults to a Day agenda, which also replaces the separate phone Today screen. Remember the user's last selected view on that device, separately for phone, desktop and wall contexts. Chores, shared lists/to-dos, groceries, meals and recipes stay out of the calendar experience (see [calendar-only scope](calendar-only-scope.md)).
 
-Desktop and wall default to Week. A phone defaults to a compact Day agenda. Remember the user's last selected view on that device, separately for phone, desktop and explicit wall contexts. Chores, shared lists/to-dos, groceries, meals, recipes and meal-to-grocery workflows are future features, outside the active calendar experience.
+**Aesthetics are the priority of this redesign.** Functional behavior that exists today must keep working, but a milestone is not done until its screens look like the approved mockups with real data at the reviewed sizes.
 
-Build and review the plan in order. Approval of this document authorizes planning; the first deliverable is a populated visual design for review before UI implementation begins.
+## Approved reference
 
-## Current evidence and constraints
+The visual direction is the **Wheelhouse calendar redesign** design canvas: https://claude.ai/artifact/QLSDD2oc1RkfxGNLgaEmTE. It is private to the owner; implementers ask for access or screenshots. It holds:
 
-- [`phone/calendar.ts`](../web/src/app/phone/calendar.ts) is a compact month date picker followed by a selected-day agenda. Stretching it to desktop width creates large empty spaces and excessively wide agenda rows.
-- [`wall/week-view.ts`](../web/src/app/wall/week-view.ts) currently stacks events inside seven independent day columns. It is not an hourly time grid; CSS restyling alone will not produce the target layout.
-- [`wall/day-view.ts`](../web/src/app/wall/day-view.ts), [`wall/month-view.ts`](../web/src/app/wall/month-view.ts) and the existing calendar navigation/editor components contain reusable behavior. Audit them before deciding which presentation components to replace.
-- [`app.routes.ts`](../web/src/app/app.routes.ts), phone Today, navigation and wall chrome still expose household features at this baseline. Coordinate with any separate calendar-first retirement work instead of duplicating or reverting it.
-- [`wall/wall-shell.ts`](../web/src/app/wall/wall-shell.ts) has a two-minute return-to-this-week behavior. That conflicts with remembering a user's chosen Day/Month view and must be revised deliberately.
-- [`deploy/smoke.mjs`](../deploy/smoke.mjs) currently expects household navigation, including Meals. Scope retirement must update the smoke script and its fixtures in the same PR or a valid calendar-only release will fail.
-- Preserve the Angular stores, Google Calendar integration, family isolation, pairing, optimistic saves, conflict handling and live recovery. This is primarily a presentation/navigation change, not a replacement calendar backend.
-- Use the family's time zone and configured week start everywhere. Wall targets remain at least 56 px; phone controls remain at least 44 px. No new paid service or hosting component is required.
+| Board | What it fixes |
+| --- | --- |
+| Wall · Week (default) | Header, toolbar, member filter, Week grid, all-day lanes, overlaps, now line. Its Tweaks switch the connection states and open an event's details. |
+| Wall · Week, event details open | The details drawer, including the read-only variant. |
+| Wall · Day | A column per person on the same hour grid. |
+| Wall · Month | Full-height month with spanning bars, timed lines and "+N more". |
+| Desktop browser · Week | `/` on a laptop: narrow rail, compact toolbar, scrolling grid. |
+| Wall · Week, reconnecting | Reconnecting, refresh-failed and Google-reconnect pills. |
+| Phone · Day, Week, Month, details, states | The phone agenda, week agenda, compact month, details sheet, empty day and failed refresh. |
+| Theme · Groovy, Classic, Bold, Night | The wall Week in each of those themes (see Themes). |
+
+Where this document and the canvas disagree about appearance, the canvas wins; where they disagree about behavior, this document wins. Record any change agreed during implementation here and on the canvas.
+
+## Current code, reviewed October 22
+
+- The calendar-only cleanup (PR #39) is done: routes, navigation, smoke checks and demo seeds no longer expose household features. Milestone 1 no longer needs to retire them; it only verifies that nothing returns.
+- [`wall/week-view.ts`](../web/src/app/wall/week-view.ts) stacks event cards inside seven independent day columns with no hour grid. It must be replaced, not restyled.
+- [`wall/day-view.ts`](../web/src/app/wall/day-view.ts) already draws an hour grid with a column per person, all-day events on top, side-by-side overlaps and a now line, and grows its hour range to fit early or late events. Its positioning code is the starting point for the shared grid engine.
+- [`wall/month-view.ts`](../web/src/app/wall/month-view.ts) shows up to three titles per day with dots and "+N more", but no times and no bars for multi-day events.
+- [`wall/wall-shell.ts`](../web/src/app/wall/wall-shell.ts) spends about 150 px on a 52 px date heading and a footer that holds status, demo pairing and Add event. Its idle timer resets to Week after two minutes and discards an open editor (`editing.set(null)`), which this plan forbids.
+- Tapping an event opens the editor directly on both layouts. There is no read-only details view, so read-only events (the school district calendar) are disabled buttons that cannot be inspected.
+- The phone has two tabs: Today ([`phone/phone-shell.ts`](../web/src/app/phone/phone-shell.ts) with [`today-events.ts`](../web/src/app/phone/today-events.ts)) and Calendar ([`phone/calendar.ts`](../web/src/app/phone/calendar.ts), a month picker with a dot per person and the chosen day's agenda). There is no desktop layout: a laptop browser gets the phone layout stretched across the screen.
+- The wall has no settings by design ([AGENTS.md](../AGENTS.md)). That stays: this plan does not add settings, even display-only ones, to the wall.
+- Member colors are saturated (`MEMBER_COLORS`, demo seeds use similar shades). White initials on the brighter ones, such as amber, fall below 4.5:1. The redesign derives a darker shade for avatars and time labels instead of changing stored colors.
+- `Family.nightModeFrom/To` are settable but nothing uses them yet. The Night theme (see Themes) will; dimming the wall to a clock stays outside this redesign.
+- [`deploy/smoke.mjs`](../deploy/smoke.mjs) expects a "Today" heading, a two-link Sections nav and `/calendar` rendering `app-phone-calendar .month`. Milestone 1 must update it with the new phone entry and navigation.
+- Preserve the Angular stores, Google Calendar integration, family isolation, pairing, optimistic saves, conflict handling and live recovery. This is a presentation and navigation change, not a new calendar backend. No API change is expected for the redesign itself; the one candidate (repeat rule and notes in details) is deferred, see Event details.
+
+## Visual system
+
+Add these as design tokens in [`styles.css`](../web/src/styles.css) next to the existing ones, and use them instead of raw values. Values come from the canvas.
+
+- **Surfaces.** Ground `#F4F2EE`; calendar surface white, 28 px radius on the wall (22 px desktop, 20 px phone cards) with a faint shadow; rules `#ECE9E3` between days and `#EFECE7` for hour lines; today's column and header tinted `#FBFAF7`.
+- **Text.** Ink `#1F2328`; secondary `#5F646B`; hour labels and day names `#6B7077` (at least 4.5:1 on white). Outfit for the clock, headings and date numbers; Figtree for everything else.
+- **Member color.** For a member color `c`: event fill `color-mix(c 17%, white)` with a 1 px inset ring at 26%; filter chips at 15%; avatars, time labels and dots use `color-mix(c 72%, black)` so white initials and small text pass contrast. Event titles are always ink. Every event shows its owner's initial or name as well as color. The whole-family calendar uses the existing `FAMILY_COLOR`.
+- **Accents.** The primary action (Add event, Edit event) and the selected day number are ink-filled. The now line and its time label are coral `#E5484D`. Live is a small green dot (`#1F9D6B`). Problems are pills: amber for reconnecting, red for a failed refresh, neutral for Google needing reconnection.
+- **Controls.** The view switch is a segmented control on a `#E8E5DF` track with a raised white selected segment, not an ink pill. Wall controls are at least 56 px; desktop 44 px; phone 44 px.
+
+These values are the **Daylight** theme. Write every color, font, radius, border and shadow above as a token from the start, so the other themes below only swap values.
+
+## Themes
+
+The family chooses one of four themes, and a fifth look, Night, turns on automatically at night. All themes share the same layouts, sizes, behavior and touch targets; only tokens change. Themes are named for how they feel, never for the product that inspired them.
+
+| Theme | Look | Canvas board | Tokens it sets |
+| --- | --- | --- | --- |
+| **Daylight** (default) | Soft and airy: warm off-white ground, white card, pastel events with a fine ring | Wall · Week (default) | As in Visual system |
+| **Groovy** | Warm 70s paper: cream ground, ink outlines, hard offset shadows, three-stripe band under the header | Theme · Groovy | Ground `#F3E7D3`, card `#FFF8EC`, ink `#2B1D14`, accents orange `#D9622B`, mustard `#E3A72F`, teal `#2F7F7A`; Fraunces display and DM Sans body; events are a 38% member fill with a 2 px ink border and 3 px offset shadow |
+| **Classic** | Clean office calendar: white page, a calendar list with checkboxes on the side, solid event blocks with white text | Theme · Classic | White ground, rules `#DADCE0`, text `#3C4043`, today blue `#1A73E8`, now line `#EA4335`; Roboto and Roboto Flex; events are the member color darkened 16% with white text and 6 px corners |
+| **Bold** | Brutalist, from the author's Sudoku app: black outlines, yellow highlights, mono times | Theme · Bold | Ground `#EFEFE6`, white card, ink `#000000`, yellow `#FFDB3B`, lime `#C2FF66`, mint `#3BFF9D`; Space Grotesk and IBM Plex Mono; 2 px black borders, 4 to 6 px corners, 3 px event and 8 px card offset shadows |
+| **Night** (automatic) | Dark, low glare for a dark room; member colors become deep tinted fills with light text | Theme · Night | Ground `#14161A`, card `#1C1F25`, text `#ECEEF1`, secondary `#A3A9B2`, rules `#2A2E35`, hour lines `#262A31`, today tint `#20242B`; selected view `#3A3F48`; primary buttons and today's number are light (`#ECEEF1` on `#14161A`); event fill is the member color at about 30% over the card, time labels are the color lightened 48%, avatars darkened 22%; now line `#FF6B6F`, Live `#4FD1A0`; status pills use dark tinted backgrounds with light text; Outfit and Figtree as in Daylight |
+
+- **Choosing.** The theme is a family setting, so the wall and every phone match. A parent picks it in Settings with a live preview card per theme. This needs a `Theme` column on `Family` (migration) and the field in the family settings API; default Daylight. Each device also follows the family setting without a reload when it changes, through the existing family refresh.
+- **Night.** One dark look, drawn on the canvas, used whatever theme the family chose; Groovy, Classic and Bold have no dark variants of their own. Between `nightModeFrom` and `nightModeTo` (already family settings) every device switches to Night, on the family clock, and back in the morning. A family setting turns automatic Night off. Dimming the wall to a clock remains separate, deferred work.
+- **Mechanics.** `<html data-theme="daylight|groovy|classic|bold">` plus `data-night` selects token sets in `styles.css`. Components never use raw colors, fonts or shadows. Load only the active theme's fonts. Member colors stay recognizable in every theme: a theme may change how a color is rendered (pastel, flat, solid) but never the hue.
+- **Accessibility.** Every theme meets the same contrast rules for text, initials and time labels on its event fills, verified per theme and member color. `prefers-reduced-motion` and focus outlines work in every theme.
 
 ## Target experience
 
-### Desktop and wall
+### Wall (`/wall`, 1920 × 1080)
 
-The calendar occupies the available viewport height. At 1920 × 1080, the header and controls should normally fit in approximately 150 px above the grid, with no permanent status/footer bar competing with the calendar. Treat this as a visual acceptance target, not a fixed height that clips text or accessibility zoom.
+The calendar fills the screen with no footer. From the top:
 
-The compact header contains the family name, local date/time and optional weather. The calendar toolbar contains Today, previous/next, a readable date range, Day/Week/Month and Add event. Member filters appear as a compact adjacent row or group. Connection health occupies a small quiet indicator; reconnection and failed-refresh actions expand only when needed.
+1. **Header, about 72 px:** the time large (64 px Outfit) with the weekday, date and family name beside it; the member filter chips centered; weather on the right. On the demo, "Pair with a phone" and the demo notice sit as a quiet pill at the right of the header.
+2. **Toolbar, 56 px:** Today, previous/next, the range ("October 19 – 25 2026"), the connection indicator in the middle, then Day/Week/Month and Add event. Save feedback (the existing `CalendarSaveStatus`) appears as a toast over the bottom of the grid, not a footer.
+3. **Calendar card:** fills the rest, about 870 px.
 
-Desktop navigation contains Calendar and Settings. Phone navigation is similarly calendar-focused, with a clear Settings entry and no household tabs. The explicit wall route uses minimal kiosk chrome. A paired wall's settings access is limited to permitted display/pairing controls; Google connection and family administration retain their existing parent-only authorization.
+Connection: a small "Live" dot when the subscription is up. Reconnecting, a failed refresh and Google needing reconnection each replace it with a pill that says what is shown ("showing 4:32 PM") and, where useful, one action (Resync now, Try again), 56 px tall on the wall like every wall control. Google reconnection on the wall says a parent can fix it from Settings on their phone; it has no link because the wall has no settings. The server-health line is only a fallback before the live subscription exists, shown in the same slot.
 
-Use a neutral outer surface, white grid, fine separators and member-colored pastel event fills with dark readable text. Member color must remain consistent across filters, events and details. Color is supplemented with names/initials. Avoid oversized pills, a giant month heading or a floating action button that covers events on a wide screen.
+### Week: the default wall and desktop view
 
-### Week: primary desktop/wall view
+- Seven aligned day columns and a shared hour gutter. Day headings read "THU 22", with today's number in an ink circle and today's column faintly tinted.
+- **Hour range.** The wall shows the family's waking hours without scrolling: 7 AM–9 PM by default (about 50 px an hour), extended to cover the earliest start and latest end of the visible week's timed events. If that makes hours shorter than 36 px, the wall scrolls instead, opening at the current hour. Desktop always scrolls at 48 px an hour and opens about an hour before now (or the first event on another week). Background refreshes and live updates never move the scroll position.
+- **All-day lane** above the grid: multi-day events are one bar spanning their days, using the existing exclusive end dates. Show up to two lanes; beyond that a "+N" control in the lane opens the day's details rather than hiding events.
+- **Timed events** are positioned by local start and end and keep their real duration. A block shows its start time, owner initial and title (up to as many lines as fit). Blocks under 44 px tall show one line: start time and title. Overlaps sit side by side within their collision group with stable ordering; adjacent events do not count as overlapping. More than three side-by-side columns collapse the extras into a "+N" block that opens the Day view for that day.
+- **Touch.** A block's visual size never changes its saved duration. On the wall, a block shorter than 56 px still gets a 56 px hit area where it has free space below it; inside a dense cluster, any tap opens details for the event under the finger, from which the others are reachable.
+- Overnight timed events are split into per-day segments with one identity for editing, clipped at the visible range.
+- The now line, coral with a dot and a time label in the gutter, appears only on today's column, from the family clock.
+- Tapping empty grid space starts a new event at that half hour; Add event starts one at the next half hour on the focused day. Keyboard users reach the same action from Add event.
 
-- Show seven aligned day columns, a shared hourly gutter and one coordinated vertical scroll area. Keep day headings and time labels aligned while scrolling.
-- Position timed events by local start/end time. Preserve duration information, show the event title and readable time, and expose owner/calendar and location in details.
-- Put all-day events in a separate row above the timed grid. All-day ranges use the existing exclusive end-date semantics. Multi-day events must remain reachable when the row overflows; show an explicit expansion control rather than hiding events.
-- Lay out overlaps side by side within a collision group, with stable ordering. Adjacent events should not falsely collide. Handle dense clusters and short events without silently obscuring another event; provide a readable day agenda/overflow interaction with full-size touch targets. Any minimum visual card size must not change the saved event duration.
-- Split overnight timed events into the visible local-day segments while preserving one event identity for editing. Clip at the visible range and distinguish continuation across a boundary.
-- Highlight today and draw a current-time indicator only on the corresponding day. Derive both from the household clock, not the browser's local zone.
-- On initial entry/Today, reveal the current or relevant daytime hours. Keep earlier/later hours accessible. Background refreshes and live notifications must not repeatedly jump the scroll position.
-- A new timed event can start from Add event or an explicit empty-slot action. Choosing an empty slot pre-fills its date/time. Keyboard and touch users have a clear equivalent action.
+### Event details
+
+Tapping an event opens **details first**, then Edit opens the existing editor (`EventDialog` on the wall, `EventSheet` on the phone). Details show the owner, a tinted block with the day, title and time, then location, whether it repeats, and the calendar name, then Edit event and Delete. The cache and API carry a `recurring` flag but not the repeat rule or Google's description, so the details say "Repeats" rather than "Every 6 weeks" and show no notes. Showing the rule and notes needs `EventInstance`, sync, `EventResponse` and tests to carry them, and is deferred until after the redesign; the canvas's "Every 6 weeks" and notes rows show that later state. A read-only event shows the same details with a note that its calendar can be shown but not changed, so read-only events are no longer dead buttons. On the wall and desktop, details are a drawer from the right (560 px wall, about 420 px desktop) over a light scrim; on the phone, a bottom sheet. A pending event's details show its save state and disable Edit and Delete, as the editors do now.
 
 ### Day
 
-Desktop/wall Day uses the same time-grid rules with more space for event details and overlapping events. Phone Day is a compact chronological agenda with an all-day section, date navigation, member filters and Add event. It must be comfortable at 390 px and readable at 320 px.
+- **Wall and desktop:** a column per person (members, then Family), each headed by avatar, name and how many events they have that day, on the same hour grid and all-day rules as Week. This is the current Day view's structure, restyled. A person whose filter chip is off has no column.
+- **Phone:** the default screen, described below.
 
-Today means the household's current day. It changes the focus date without changing the selected view. A valid empty day has an intentional empty message; loading/failure must never be presented as "No events."
+Today changes the focus date without changing the view. A valid empty day says so plainly ("Nothing planned for Tuesday"); a loading or failed first load is never shown as an empty day.
 
 ### Month
 
-Desktop/wall Month fills the available calendar area with clearly separated day cells and pastel event summaries containing titles and useful times. Use five or six rows as required by the actual month; respect the family's week start. Overflow shows a count and opens the selected day's agenda; it never silently drops events.
+- **Wall and desktop:** the month fills the card in five or six rows as the month needs, starting on the family's week start. Multi-day and all-day events are tinted bars spanning their days. Timed events are one line each: owner dot, short time ("3:30p"), title. A cell shows what fits (about four lines at 1080 px) and then "+N more". Tapping a day or "+N more" opens that day in Day view. Today's number is in an ink circle and its cell is tinted.
+- **Phone:** a compact month card (a dot per busy person per day, up to three) above the selected day's agenda, with "Open day" to switch to Day. Selecting a day keeps the Month view.
 
-Phone Month remains a compact date selector plus a width-constrained selected-day agenda. Selecting a day preserves the chosen month view. An explicit Day action can open that day's fuller view. No desktop screen should render only an enlarged field of date numbers and dots.
+### Phone (`/`, 390 px wide, readable at 320 px)
 
-### Responsive behavior and preferences
+- `/` opens the calendar in the remembered view, Day by default. `/calendar` keeps working as an alias for the same screen. The Today tab and `PhoneShell`'s Today content are retired into Day: weather moves into the Day header's subtitle and "up next" is the now line.
+- Bottom navigation has two tabs: Calendar and Settings. Add event is a 44 px ink button in the header, not a floating button.
+- **Day:** header ("Today" or the date, with the weekday, date and weather above it), previous/next and Add; the Day/Week/Month switch; a week strip of seven days with the focused day ink-filled and a dot on busy days; the member chips in one scrolling row; then the agenda: all-day events, then timed events in order with start and end on the left and a tinted card with title, owner and location. On today, events that ended before the last hour collapse behind "N earlier events", and a coral now line sits between past and upcoming events.
+- **Week:** a vertical agenda of the week grouped by day in white cards, today outlined, rather than a squeezed seven-column grid. It opens scrolled to yesterday so today is in view.
+- **Month:** as above.
+- Failed refreshes show a red banner with Try again above the view switch; reconnecting shows an amber one with Resync now; both keep the last good data on screen.
 
-| Context | Initial view | Main layout | Navigation |
-| --- | --- | --- | --- |
-| Phone, below 768 px | Day agenda | Single column; compact Month; explicit Week remains usable with labeled horizontal day scrolling if needed | Calendar controls and Settings; no household tabs |
-| Tablet, 768–1199 px | Week | Compact toolbar; seven days where readable; reduce chrome before shrinking event text | Compact calendar navigation |
-| Desktop, 1200 px and above | Week | Full seven-day time grid; event-detail panel when room permits | Narrow Calendar/Settings rail |
-| Explicit `/wall` route | Week | Kiosk presentation with large touch controls and the same grid engine | Minimal wall-safe controls |
+### Desktop browser (`/`, 768 px and wider)
 
-Persist only presentation preferences, such as view enum, using validated/versioned local storage. Do not persist event contents, drafts, authentication or stale date ranges as part of view memory. Missing, corrupt or unavailable storage falls back safely.
+The same calendar screen as the phone route, laid out for a wide window: a 76 px left rail (Wheelhouse mark, Calendar, Settings) replaces the bottom tabs; the toolbar puts Today, arrows, range and the Live dot on the left, and member avatars, weather, the view switch and Add event on the right. The Week grid scrolls as described above. Week is the default from 768 px; Day from below it. The layout changes with the window width, without a route change, and keeps the selected date, filters, open details or draft and pending operations. The view also stays as it is when the window crosses 768 px during a visit, so resizing never swaps the screen out from under someone; the new context's remembered view applies only on the next load. A view chosen after crossing is saved for the context the window is now in.
 
-Changing viewport size must preserve an open draft, selected date, filters and pending operations. Restore the preference for the destination context without causing routing loops or duplicate active calendar reads. Phone defaults and explicit user choices must remain usable in landscape. Family changes reset drafts and member filters as they do today; presentation preferences must not leak family data.
+### Preferences and idle return
 
-The wall's idle return may move an inactive display to the current day/week range within its selected view. It must not force Month/Day back to Week, interrupt an editor or discard a pending save. The visual-design milestone will specify the idle behavior before implementation.
+| Context | Chosen by | Default view |
+| --- | --- | --- |
+| Phone | `/` below 768 px wide | Day |
+| Desktop | `/` at 768 px and wider | Week |
+| Wall | `/wall` | Week |
+
+Store only the view, per context, in `localStorage` under a versioned key (for example `wheelhouse.calendar.view.v1` holding `{ phone, desktop, wall }`), validated on read. Missing, corrupt or unavailable storage falls back to the default. Never store event data, drafts, dates or anything family-specific. A family switch still resets filters and drafts as today.
+
+**Wall idle return.** Two minutes after the last touch, the wall keeps its view but returns focus to the current day, week or month and scrolls the grid to the current hour. It closes event details. It closes an editor only if nothing in it has changed; an editor with changes, or any pending or uncertain save, stays as it is. This replaces the current reset to Week.
 
 ## Existing calendar behavior that must survive
 
-- Add, edit and delete; all-day/timed events; recurring occurrence versus whole-series choices; read-only source calendars.
-- Distinct event-detail and edit actions. Desktop uses a side panel when space allows; phones use a sheet/dialog. Pairing and permissions continue to govern which actions are available.
-- Optimistic previews, disabled duplicate saves, clear save state, uncertain-response reconciliation and stale-edit conflicts. A layout switch must not silently lose a draft or issue a duplicate mutation.
-- Live updates and Resync now preserve date, view, filters, scroll and drafts. Google reauthorization remains a separate message with an appropriate parent Settings link.
-- Initial loading, valid empty, failed initial load, stale-but-readable data, disconnected, saving, uncertain, conflict, denied access and expired demo states receive explicit presentations.
-- Daylight-saving gaps/overlaps, month/year boundaries and household midnight are supported. During a repeated clock hour, the grid/detail representation must distinguish actual instants; during a missing hour it must not invent an editable valid time. Do not use browser-zone `Date` arithmetic to position household events.
-- Quiet weather failure does not block the calendar. Keyboard focus, visible focus styles, accessible event names, appropriate contrast and browser zoom remain usable.
+- Add, edit and delete; all-day and timed events; one occurrence or the whole series; read-only calendars.
+- Optimistic previews, disabled duplicate saves, clear save state, uncertain-result checks and stale-edit conflicts. A layout or view switch never loses a draft or repeats a write.
+- Live updates and Resync now preserve date, view, filters, scroll and drafts. Google reauthorization stays a separate message.
+- Initial loading, valid empty, failed initial load, stale-but-readable data, disconnected, saving, uncertain, conflict, denied access and expired demo states each have a deliberate presentation.
+- Daylight-saving gaps and overlaps, month and year boundaries and household midnight work. Never use browser-zone `Date` arithmetic to place household events.
+- Weather failure is quiet. Keyboard focus, visible focus styles, accessible event names, contrast and browser zoom remain usable.
 
 ## Implementation sequence
 
-Each milestone is a reviewable result. Keep implementation PRs small enough to review, and include populated phone and wall/desktop evidence. Do not deploy an unfinished visual shell merely because its functional tests pass.
+Each milestone is reviewable on its own, with phone and wall/desktop screenshots in its PR compared against the canvas. Do not deploy an unfinished visual shell because its tests pass.
 
-### 0. Visual design and acceptance baseline
+### 0. Visual direction
 
-Create one focused design direction from the supplied reference, using fictional seeded events: desktop/wall Week first, then the phone Day agenda and desktop Month. Show populated, busy/overlapping and failure states. Establish typography, spacing, event colors, header/rail proportions and event-detail behavior.
+Mockups for the wall (Week, details, Day, Month, connection states), the desktop Week and the phone (Day, Week, Month, details, empty and failed states) are on the canvas linked above, populated with fictional demo data.
 
-Review at 1920 × 1080, 1440 × 900, 1024 × 768, 390 × 844 and 320 × 568. Check a 15-inch landscape display or equivalent physical-size simulation; pixel dimensions alone do not establish at-a-distance readability. Include an agreed idle-return rule.
+**Done when:** the owner has reviewed the canvas and any requested changes are made there and recorded here.
 
-**Done when:** the user has reviewed the populated Week direction and the companion phone/Month layouts. Record the approved reference and any changes in the implementation PR. No new calendar UI code is required in this milestone.
+### 1. Shell, entry points and preferences
 
-### 1. Calendar-first scope, entry points and shell
+Add the visual tokens. Rebuild the wall shell with the new header and toolbar, no footer, connection pills and the save toast. Make `/` the phone/desktop calendar screen (responsive at 768 px, rail on desktop, two-tab nav on phone), keep `/calendar` as an alias, and retire the Today screen into it. Add per-context view memory and the new idle return. Existing view components can render inside the new chrome until they are replaced. Update `deploy/smoke.mjs` and its fixtures for the new heading and navigation, and the README.
 
-Complete or verify retirement of household features from active routes, navigation, Today sections, seeds and active client subscriptions. Coordinate with existing retirement work. Preserve existing stored household data and migration history; destructive schema/data removal requires its own reviewed decision. Keep the household design documents as future-feature references and update their roadmap status without erasing history.
+**Done when:** first wall and desktop visits show Week, a first phone visit shows Day, remembered views survive a reload, direct links, sign-in and pairing work, idle return keeps the view and any edited draft, and the smoke checks pass.
 
-Make `/` and `/calendar` consistent calendar entry points for desktop and phone; retain `/wall` for explicit kiosk use. Introduce the agreed compact chrome and shared view/focus ownership, keeping existing functional calendar rendering until the replacement is ready. Add device-context view persistence and revise idle return. Update README and repository guidance for the calendar-first direction.
+### 2. Shared grid engine and Week
 
-Update release smoke checks and their fixture tests to expect Calendar/Settings, calendar data and rendered events rather than household tabs. Do not remove calendar write/recovery coverage while retiring unrelated tests.
+Build a pure, unit-tested projection of events into family-local day segments, collision groups and positions, starting from the Day view's code and `core/days.ts`. Build Week on it to match the canvas, including all-day lanes, short and dense events, the now line and stable scrolling. Add the details drawer and sheet, wire Edit to the existing editors, and add tap-to-create on empty slots. Keep one `CalendarStore` and one range owner per screen.
 
-**Done when:** first desktop/wall entry selects Week, first phone entry selects Day, remembered choices survive reload, direct links work, sign-in/pairing still work, and the active UI exposes no household sections. The calendar-first smoke contract passes.
+**Done when:** the populated Week matches the canvas at 1920 × 1080 and 1440 × 900; overlaps, overnight and all-day events render correctly; details and edits work for writable and read-only events; recovery still works.
 
-### 2. Shared time-grid engine and polished Week
+### 3. Day, Month and the phone views
 
-Build a pure, testable projection of calendar events into household-local day segments, overlap groups and positions. Reuse the existing date helpers and stores. Make the shared Week grid match the approved design, including all-day layout, short/dense events, today/current-time markers and stable scrolling.
+Rebuild wall/desktop Day on the engine, the full-height Month with bars and "+N more", and the phone Day agenda, Week agenda and compact Month.
 
-Connect event details/editing and Add event to the existing write flows in the same vertical slice. Keep navigation and presentation outside the backend cache/write logic. Avoid adding a second independent CalendarStore or concurrent range owners for the same screen.
-
-**Done when:** the populated seven-day grid is visually approved at wall and desktop sizes; overlaps, overnight and all-day events render correctly; event writes and recovery remain functional; no event is available only through an inaccessible tiny target.
-
-### 3. Day, Month and phone calendar completion
-
-Reuse the grid engine for desktop/wall Day. Complete the phone Day agenda, compact Month and readable explicit Week behavior. Replace desktop Month's date-picker appearance with the approved full month grid and explicit overflow handling.
-
-**Done when:** switching Day/Week/Month preserves the intended focus date and filters; Today works consistently; all months fit correctly; phone screens avoid horizontal page overflow and stretched desktop layouts; phone/wall event details and edits remain available.
+**Done when:** switching views keeps the focus date and filters; Today works everywhere; every month fits; phone screens have no horizontal overflow at 320 px; details and edits work on every view.
 
 ### 4. Recovery, accessibility and visual hardening
 
-Exercise the complete screen through reconnects, failed reads, uncertain writes, conflicts, route/viewport changes and household midnight. Correct misleading empty states and ensure quiet connection controls expand when action is necessary. Verify keyboard access, touch sizes, contrast, zoom, text wrapping and long titles.
+Exercise each screen through reconnects, failed reads, uncertain writes, conflicts, viewport changes and household midnight. Check keyboard access, touch sizes, contrast, zoom, long titles and busy days.
 
-**Done when:** the state matrix below passes and reviewed screenshots show no clipped controls, obscured events, accidental empty states or draft loss. Fix relevant failures rather than weakening assertions or adding blanket retries.
+**Done when:** the validation matrix passes and reviewed screenshots show no clipped controls, hidden events, false empty states or lost drafts.
 
-### 5. Release validation and calendar-first launch
+### 5. Themes
 
-Run the required CI checks. Review actual rendered desktop/wall and phone screenshots in addition to test results. Create a versioned release only after the redesign is merged and ready; retain the existing backup, restoration, disk-space and retention protections.
+Add the Groovy, Classic, Bold and Night token sets, the family `Theme` setting with its migration and API field, the Settings picker with previews, automatic Night on the family clock, and per-theme font loading.
 
-Post-deploy: test a fresh fictional demo visit, actual event rendering on Week and Month, view memory, a calendar mutation and reload, and reconnect recovery. Verify the private instance's signed-out screen separately; an authorized parent manually verifies real Google sign-in/calendar access. Check public HTTPS URLs as well as SSH-loopback smoke checks.
+**Done when:** every view on wall, desktop and phone matches its theme board in Daylight, Groovy, Classic and Bold, Night switches on and off at the family's night hours on every device, a theme change reaches a paired wall without a reload, and contrast passes for every member color in every theme.
 
-**Done when:** the live demo visibly matches the approved direction, the deployed version is verified, calendar data and interactions work, and there are no active household navigation entries. Merging a PR alone does not mean this milestone is complete.
+### 6. Release
+
+Run CI, review rendered screenshots, then release a version. After deploying, check a fresh demo visit, Week and Month with events, view memory, an edit and reload, and reconnect recovery; check the private instance's signed-out screen; a parent checks real Google sign-in and calendars.
+
+**Done when:** the live demo matches the canvas in every theme, the deployed version is verified and calendar interactions work.
 
 ## Validation matrix
 
 | Area | Evidence required |
 | --- | --- |
-| Layout projection | Unit cases for overlap chains, touching boundaries, short events, overnight splits, all-day exclusive ends, range clipping and stable ordering |
-| Dates and time | Household zone differs from browser zone; Sunday/Monday week starts; DST forward/back; midnight; month/year transitions |
-| View preferences | New device defaults, stored view, invalid/unavailable storage, phone/desktop context changes, idle return and family reset |
-| Editing/recovery | Add/edit/delete; occurrence/series; read-only calendars; optimistic state; lost response; conflict; reconnect/resync with an open draft |
-| Responsive visuals | Reviewed screenshots at the five target sizes; busy and empty calendars; long titles; overflow; zoom; accessible touch/keyboard actions |
-| State accuracy | Loading/failure never claims no events; stale data remains distinguishable; disconnected and Google reauthorization actions stay separate |
-| Release | Updated real-browser smoke and fixtures; fresh demo data shown; private access remains denied anonymously; public URLs and deployed version checked |
+| Grid projection | Unit cases for overlap chains, touching boundaries, short events, more than three overlaps, overnight splits, all-day exclusive ends, range clipping, hour-range growth and stable ordering |
+| Dates and time | Household zone differs from browser zone; Sunday and Monday week starts; DST forward and back; midnight; month and year transitions |
+| View preferences | New-device defaults per context, stored view, invalid or unavailable storage, crossing 768 px, idle return with and without an edited draft, family reset |
+| Editing and recovery | Details for writable and read-only events; add, edit, delete; occurrence and series; optimistic state; lost response; conflict; reconnect and resync with an open draft |
+| Visuals | Screenshots compared with the canvas at 1920 × 1080, 1440 × 900, 1024 × 768, 390 × 844 and 320 × 568; busy and empty calendars; long titles; zoom |
+| State accuracy | Loading or failure never claims no events; stale data says what time it shows; disconnected and Google reauthorization stay separate |
+| Themes | Screenshots of Week, Day, Month and phone Day in each theme; Night switching across the family's night hours in a zone that differs from the browser's; contrast per member color per theme; theme change reaching another signed-in device; reduced motion |
+| Release | Updated smoke checks; fresh demo data shown; private instance denies anonymous access; deployed version checked |
 
-Use the repository's current commands: `npm run build`, `npm test -- --watch=false`, `npm run test:e2e`, and `dotnet test` when API changes are made or required by CI. API tests need Docker and real Testcontainers PostgreSQL. Unit tests alone are insufficient proof of the visual result.
+Use the repository's commands: `npm run build`, `npm test -- --watch=false`, `npm run test:e2e`, and `dotnet test` when CI requires it. Unit tests alone do not prove the visual result.
 
-## Definition of done and deferred work
+## Deferred
 
-The redesign is complete when a fresh desktop/wall visit opens the approved seven-day hourly calendar, a fresh phone opens a compact agenda, Day/Week/Month are coherent, view choices are remembered, and real calendar workflows/recovery work at the reviewed sizes. The calendar must look complete with data, not merely pass a server health check.
-
-Future work remains in the household roadmap: chores, lists/to-dos, grocery categories, meal planning, recipes and meal-to-grocery generation. Also defer drag-and-drop/resizing, extra calendar view modes, offline mutation queues, child accounts and unrelated integrations unless separately agreed. These are not prerequisites for a polished calendar-first release.
+Household features stay in the [household roadmap](household-roadmap.md). Also deferred: drag-and-drop and resizing, other view modes, dimming the wall to a clock at night, offline write queues, child accounts and new integrations.
 
 ## Progress record
 
 | Milestone | Status | Evidence |
 | --- | --- | --- |
-| 0. Visual direction | Planned | Awaiting populated designs and user review |
-| 1. Calendar-first shell | Planned | No implementation PR yet; reconcile separate retirement work first |
-| 2. Week time grid | Planned | No implementation PR yet |
-| 3. Other views and phone | Planned | No implementation PR yet |
-| 4. Hardening | Planned | No implementation PR yet |
-| 5. Live release | Planned | No release under this plan yet |
+| 0. Visual direction | In review | Canvas linked under Approved reference, October 22, 2026 |
+| 1. Shell and preferences | Planned | Household retirement already done in PR #39 |
+| 2. Grid engine and Week | Planned | |
+| 3. Day, Month, phone | Planned | |
+| 4. Hardening | Planned | |
+| 5. Themes | Planned | Groovy, Classic, Bold and Night drawn on the canvas (wall Week) |
+| 6. Release | Planned | |
 
-Update this record with merged PR links and visual/test evidence after each milestone. An open PR or a successful build does not mark a milestone complete.
+Update this record with merged PR links and screenshots after each milestone. An open PR or a passing build does not complete a milestone.
