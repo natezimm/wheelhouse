@@ -30,8 +30,7 @@ describe('routes', () => {
   it('opens the phone layout at /', async () => {
     const { page } = await open('/');
 
-    expect(page.tagName.toLowerCase()).toBe('app-phone-shell');
-    expect(page.querySelector('h1')?.textContent).toBe('Today');
+    expect(page.tagName.toLowerCase()).toBe('app-calendar-home');
   });
 
   it('opens the wall layout at /wall', async () => {
@@ -61,15 +60,15 @@ describe('routes', () => {
     expect(page.querySelector('app-pairing-screen')).toBeNull();
   });
 
-  it('names each family member on the phone, as the way into Settings', async () => {
+  it('leads from the phone to Settings along the bottom', async () => {
     const { page, settle } = await open('/');
 
     http.expectOne('/api/family').flush(marlowes);
     await settle();
 
-    const link = page.querySelector('a.family');
-    expect(link?.getAttribute('href')).toBe('/settings');
-    expect(text(link!.querySelectorAll('.sr-only'))).toEqual(['Family settings:', 'Ben', 'Tess', 'Milo']);
+    const links = page.querySelectorAll('nav[aria-label="Sections"] a');
+    expect(text(links)).toEqual(['Calendar', 'Settings']);
+    expect(links[1].getAttribute('href')).toBe('/settings');
   });
 
   it('shows a pairing code on the wall when it is not signed in to a family', async () => {
@@ -121,7 +120,7 @@ describe('routes', () => {
 
     it('tells the visitor the family is fictional and theirs alone', async () => {
       await startDemo({ status: 204 });
-      const { page, settle } = await open('/wall');
+      const { page, settle } = await open('/');
       await settle();
 
       expect(page.querySelector('app-demo-notice')?.textContent?.trim()).toBe(

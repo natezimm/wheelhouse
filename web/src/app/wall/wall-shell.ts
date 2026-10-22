@@ -1,85 +1,101 @@
-import { CalendarSaveStatus } from '../shared/calendar-save-status';
-import { CalendarConnection } from '../shared/calendar-connection';
-import { CalendarLive } from '../core/calendar-live';
-import { DatePipe } from '@angular/common';
-import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, signal, viewChild } from '@angular/core';
 import { CalendarEvent, CalendarStore } from '../core/calendar';
+import { CalendarView, periodOf, stepFrom } from '../core/calendar-period';
 import { Clock } from '../core/clock';
-import { Day, dayIn } from '../core/days';
+import { Day, dayIn, formatDay, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { SessionStore } from '../core/session';
-import { CalendarFilter } from '../shared/calendar-filter';
-import { DemoNotice } from '../shared/demo-notice';
-import { StatusLine } from '../shared/status-line';
+import { ViewPreferences } from '../core/view-preferences';
 import { WeatherStore } from '../core/weather';
-import { PairingScreen } from './pairing-screen';
-import { WallView } from './calendar-nav';
+import { CalendarConnection } from '../shared/calendar-connection';
+import { CalendarFilter } from '../shared/calendar-filter';
+import { CalendarSaveStatus } from '../shared/calendar-save-status';
+import { CalendarToolbar } from '../shared/calendar-toolbar';
+import { DemoNotice } from '../shared/demo-notice';
 import { DayView } from './day-view';
 import { EventDialog } from './event-dialog';
 import { MonthView } from './month-view';
+import { PairingScreen } from './pairing-screen';
 import { WallWeather } from './wall-weather';
 import { WeekView } from './week-view';
 
-/** How long the wall stays on another day or view after the last touch before it goes back to this week. */
+/** How long the wall stays on another day, week or month after the last touch before it comes back to now. */
 export const RETURN_AFTER_MS = 2 * 60_000;
 
 /** How often the wall checks in: it picks up changes from the phones, and the server sees it is still there. */
 export const CHECK_IN_EVERY_MS = 5 * 60_000;
 
 /**
- * The wall display's frame: date, clock, a chip per person to filter the calendar, today's
- * weather, the calendar by day, week or month, and connection status. Sized for 1920 × 1080. A display that is not signed in to a family shows a pairing code instead.
+ * The wall display: the time, date and family, a chip per person to filter the calendar and
+ * today's weather; a toolbar with how up to date the calendar is; then the calendar by day,
+ * week or month filling the rest. Sized for 1920 × 1080. A display that is not signed in to a
+ * family shows a pairing code instead.
  */
 @Component({
   selector: 'app-wall-shell',
-  imports: [CalendarConnection, CalendarSaveStatus, CalendarFilter, DatePipe, DayView, DemoNotice, EventDialog, MonthView, PairingScreen, StatusLine, WallWeather, WeekView],
+  imports: [CalendarConnection, CalendarFilter, CalendarSaveStatus, CalendarToolbar, DayView, DemoNotice, EventDialog, MonthView, PairingScreen, WallWeather, WeekView],
   template: `
     @if (showPairing()) {
       <app-pairing-screen [cancellable]="pairingChosen()" (paired)="paired()" (cancelled)="pairingChosen.set(false)" />
     } @else {
       <header>
         <div class="now">
-          <h1>{{ clock.now() | date: 'EEEE, MMMM d' }}</h1>
-          <span class="time">{{ clock.now() | date: 'h:mm a' }}</span>
+          @if (now(); as now) {
+            <span class="clock">{{ now.time }}<span class="meridiem">{{ now.meridiem }}</span></span>
+            <span class="date">
+              <span class="weekday">{{ now.weekday }}</span>
+              <span class="detail">{{ now.date }}@if (family.family(); as f) { · {{ f.name }}}</span>
+            </span>
+          }
         </div>
         <app-calendar-filter />
-        <app-wall-weather />
-      </header>
-
-      @if (family.state().status === 'ready') {
-        @switch (view()) {
-          @case ('day') {
-            <app-day-view [(view)]="view" [(focus)]="focus" (edit)="editEvent($event)" />
-          }
-          @case ('week') {
-            <app-week-view [(view)]="view" [(focus)]="focus" (edit)="editEvent($event)" />
-          }
-          @case ('month') {
-            <app-month-view [(view)]="view" [(focus)]="focus" (opened)="openDay($event)" />
-          }
-        }
-      }
-
-      <footer>
-        <div class="status">
-          @if (!calendarLive.available()) { <app-status-line /> }
-          <app-calendar-connection [wall]="true" />
-          <app-calendar-save-status />
-        </div>
-        <div class="demo">
+        <div class="end">
+          <app-wall-weather />
           @if (session.isDemo()) {
             <!-- On the demo the wall starts with a copy of its own; pairing joins the phone's copy. -->
-            <button class="pair" type="button" (click)="pairingChosen.set(true)">Pair with a phone</button>
-          }
-          <app-demo-notice />
-          @if (canAdd()) {
-            <button class="add" type="button" (click)="addEvent()">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
-              Add event
-            </button>
+            <div class="demo">
+              <span>Demo family</span>
+              <button type="button" (click)="pairingChosen.set(true)">Pair with a phone</button>
+            </div>
+          } @else {
+            <app-demo-notice />
           }
         </div>
-      </footer>
+      </header>
+
+      @if (period(); as period) {
+        <app-calendar-toolbar
+          layout="wall"
+          [view]="view()"
+          (viewChange)="choose($event)"
+          [period]="period"
+          [canAdd]="canAdd()"
+          (today)="focus.set(null)"
+          (step)="step($event)"
+          (add)="addEvent()"
+        >
+          <app-calendar-connection status layout="wall" />
+        </app-calendar-toolbar>
+      } @else {
+        <app-calendar-connection layout="wall" />
+      }
+
+      <section class="card" aria-label="Calendar">
+        @if (family.state().status === 'ready') {
+          @switch (view()) {
+            @case ('day') {
+              <app-day-view [focus]="focus()" (edit)="editEvent($event)" />
+            }
+            @case ('week') {
+              <app-week-view [focus]="focus()" (edit)="editEvent($event)" />
+            }
+            @case ('month') {
+              <app-month-view [focus]="focus()" (opened)="openDay($event)" />
+            }
+          }
+        }
+        <app-calendar-save-status class="toast" />
+      </section>
 
       @if (editing(); as open) {
         <app-event-dialog [event]="open.event" [day]="open.day" (closed)="editing.set(null)" />
@@ -91,10 +107,120 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
     :host {
       box-sizing: border-box;
       height: 100vh;
-      padding: 28px 36px 24px;
+      padding: 22px 32px 24px;
       display: flex;
       flex-direction: column;
+      gap: 16px;
+    }
+
+    header {
+      height: 72px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .now {
+      min-width: 430px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+    }
+
+    .clock {
+      font-family: var(--font-display);
+      font-size: 64px;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .meridiem {
+      margin-left: 6px;
+      font-size: 24px;
+      font-weight: 500;
+      letter-spacing: 0;
+      color: var(--muted);
+    }
+
+    .date {
+      padding-left: 18px;
+      border-left: 1px solid var(--line);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .weekday {
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 600;
+      line-height: 1.1;
+    }
+
+    .detail {
+      font-size: 18px;
+      font-weight: 500;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    app-calendar-filter {
+      flex: 1;
+      min-width: 0;
+      justify-content: center;
+    }
+
+    .end {
+      min-width: 330px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
       gap: 20px;
+    }
+
+    .demo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 0 0 18px;
+      border-radius: 28px;
+      background: var(--track);
+      color: var(--muted);
+      font-size: 15px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .demo button {
+      min-height: 56px;
+      padding: 0 22px;
+      border: 0;
+      border-radius: 28px;
+      background: var(--surface);
+      box-shadow: var(--raised);
+      color: var(--ink);
+      font: 700 16px var(--font-body);
+      cursor: pointer;
+    }
+
+    app-calendar-toolbar {
+      height: 64px;
+      flex-shrink: 0;
+    }
+
+    .card {
+      position: relative;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      border-radius: var(--card-radius);
+      background: var(--surface);
+      box-shadow: var(--card-shadow);
     }
 
     app-day-view,
@@ -103,93 +229,31 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
       flex: 1;
     }
 
-    header,
-    footer {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 24px;
+    /* Save feedback floats over the bottom of the calendar instead of taking a footer. */
+    .toast {
+      position: absolute;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%);
+      z-index: 2;
     }
-
-    footer {
-      margin-top: auto;
-    }
-
-    .now {
-      display: flex;
-      align-items: baseline;
-      gap: 20px;
-    }
-
-    h1 {
-      margin: 0;
-      font-family: var(--font-display);
-      font-size: 52px;
-      font-weight: 600;
-      letter-spacing: -0.02em;
-    }
-
-    .time {
-      font-family: var(--font-display);
-      font-size: 34px;
-      color: var(--muted);
-    }
-
-    .status {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 20px;
-    }
-
-    .demo {
-      display: flex;
-      align-items: center;
-      gap: 16px;
-    }
-
-    .add {
-      min-height: 64px;
-      padding: 0 30px;
-      border: 0;
-      border-radius: 32px;
-      background: var(--accent);
-      color: #ffffff;
-      font: 700 20px var(--font-body);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      cursor: pointer;
-    }
-
-    .pair {
-      min-height: 56px;
-      padding: 0 24px;
-      border: 1px solid var(--line);
-      border-radius: 28px;
-      background: var(--surface);
-      color: var(--ink);
-      font: 700 18px var(--font-body);
-      cursor: pointer;
-    }
-
   `,
 })
 export class WallShell {
-  protected readonly calendarLive = inject(CalendarLive);
   protected readonly clock = inject(Clock);
   protected readonly family = inject(FamilyStore);
   protected readonly calendar = inject(CalendarStore);
-  private readonly weather = inject(WeatherStore);
-
   protected readonly session = inject(SessionStore);
+  private readonly weather = inject(WeatherStore);
+  private readonly preferences = inject(ViewPreferences);
 
-  /** Which calendar view is on screen, and a day it shows; null means around today. */
-  protected readonly view = signal<WallView>('week');
+  /** Which view is on screen, the one the wall had last, and a day it shows; null means around today. */
+  protected readonly view = signal<CalendarView>(this.preferences.view('wall'));
   protected readonly focus = signal<Day | null>(null);
 
   /** The event being added (no event) or changed in the dialog, or null when it is closed. */
   protected readonly editing = signal<{ event: CalendarEvent | null; day: Day } | null>(null);
+  private readonly dialog = viewChild(EventDialog);
 
   /** Whether any calendar takes new events; a family with none has nothing to add to. */
   protected readonly canAdd = computed(() => this.calendar.calendars().some((calendar) => calendar.canWrite));
@@ -200,6 +264,33 @@ export class WallShell {
   protected readonly showPairing = computed(
     () => this.pairingChosen() || (this.family.state().status === 'private' && !this.session.isDemoFull()),
   );
+
+  private readonly today = computed(() => {
+    const family = this.family.family();
+    return family ? dayIn(family.timeZone, this.clock.now()) : null;
+  });
+
+  /** The time and date in the family's zone, not the display's. */
+  protected readonly now = computed(() => {
+    const family = this.family.family();
+    const today = this.today();
+    if (!family || !today) {
+      return null;
+    }
+    const [time, meridiem] = timeIn(family.timeZone, this.clock.now()).split(/\s/);
+    return {
+      time,
+      meridiem,
+      weekday: formatDay(today, { weekday: 'long' }),
+      date: formatDay(today, { month: 'long', day: 'numeric' }),
+    };
+  });
+
+  protected readonly period = computed(() => {
+    const family = this.family.family();
+    const today = this.today();
+    return family && today ? periodOf(this.view(), this.focus() ?? today, today, family.weekStartsOn) : null;
+  });
 
   constructor() {
     this.family.load();
@@ -215,23 +306,40 @@ export class WallShell {
 
   private idle?: ReturnType<typeof setTimeout>;
 
-  /** Any touch restarts the wait before the wall goes back to this week, so nobody leaves it on next month. */
+  /** Any touch restarts the wait before the wall comes back to now, so nobody leaves it on next month. */
   protected touched(): void {
     clearTimeout(this.idle);
-    this.idle = setTimeout(() => {
-      this.view.set('week');
-      this.focus.set(null);
-      // Nobody is coming back to a half-typed event.
+    this.idle = setTimeout(() => this.returnToNow(), RETURN_AFTER_MS);
+  }
+
+  /**
+   * Keeps the view but shows the current day, week or month again. An editor closes only if
+   * nothing in it has changed and no save is still going, so a half-typed event is never lost.
+   */
+  private returnToNow(): void {
+    this.focus.set(null);
+    if (this.editing() && !this.dialog()?.holdsWork() && this.calendar.pending().length === 0) {
       this.editing.set(null);
-    }, RETURN_AFTER_MS);
+    }
+  }
+
+  protected choose(view: CalendarView): void {
+    this.view.set(view);
+    this.preferences.remember('wall', view);
+  }
+
+  protected step(by: number): void {
+    const today = this.today();
+    if (today) {
+      this.focus.set(stepFrom(this.view(), this.focus() ?? today, by));
+    }
   }
 
   /** A new event goes on the day on screen in the day view, otherwise on today. */
   protected addEvent(): void {
-    const family = this.family.family();
-    if (family) {
-      const day = (this.view() === 'day' && this.focus()) || dayIn(family.timeZone, this.clock.now());
-      this.editing.set({ event: null, day });
+    const today = this.today();
+    if (today) {
+      this.editing.set({ event: null, day: (this.view() === 'day' && this.focus()) || today });
     }
   }
 
@@ -245,7 +353,7 @@ export class WallShell {
   /** A day tapped in the month opens on its own. */
   protected openDay(day: Day): void {
     this.focus.set(day);
-    this.view.set('day');
+    this.choose('day');
   }
 
   /** Signed in now: show the family the display was paired with. */
@@ -254,5 +362,3 @@ export class WallShell {
     this.family.load();
   }
 }
-
-

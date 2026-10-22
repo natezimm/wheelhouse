@@ -184,7 +184,7 @@ describe('Settings', () => {
     expect(saveButton(page).disabled).toBe(true);
   });
 
-  it('lets a signed-in parent sign out, then shows Today as private', async () => {
+  it('lets a signed-in parent sign out, then shows the calendar as private', async () => {
     const starting = TestBed.inject(SessionStore).start();
     http.expectOne('/api/session').flush({ mode: 'Family', signedIn: true, canSignIn: true });
     await starting;
@@ -197,14 +197,14 @@ describe('Settings', () => {
     (harness.routeNativeElement as HTMLElement).querySelector<HTMLButtonElement>('button.sign-out')!.click();
     http.expectOne({ method: 'POST', url: '/api/auth/sign-out' }).flush(null, { status: 204, statusText: 'No Content' });
     await harness.fixture.whenStable();
-    // Today still holds the family for a moment, so it asks for the day's events once.
+    // The calendar still holds the family for a moment, so it asks for the week's events once.
     http.expectOne((request) => request.url === '/api/calendar').flush(null, { status: 401, statusText: 'Unauthorized' });
     http.expectOne('/api/family').flush(null, { status: 401, statusText: 'Unauthorized' });
     http.expectOne('/health').flush({ status: 'Healthy', checks: {} });
     await harness.fixture.whenStable();
 
     const today = harness.routeNativeElement as HTMLElement;
-    expect(today.tagName.toLowerCase()).toBe('app-phone-shell');
+    expect(today.tagName.toLowerCase()).toBe('app-calendar-home');
     expect(today.querySelector('app-sign-in a.button')?.textContent).toBe('Sign in with Google');
   });
 

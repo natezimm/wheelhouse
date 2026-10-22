@@ -22,36 +22,55 @@ import { CalendarStore } from '../core/calendar';
     }
   `,
   styles: `
+    /* A toast over the bottom of the calendar; each layout places it. */
     :host {
       display: block;
+      pointer-events: none;
     }
     .saving {
+      pointer-events: auto;
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 8px 16px;
-      color: var(--ink);
-      background: var(--surface);
-      border-radius: 12px;
+      gap: 14px;
+      min-height: 44px;
+      box-sizing: border-box;
+      padding: 4px 4px 4px 18px;
+      color: var(--on-ink);
+      background: var(--ink);
+      border-radius: 24px;
+      box-shadow: var(--toast-shadow);
       font-size: 14px;
+      font-weight: 600;
+    }
+    .saving:not(:has(button)) {
+      padding-right: 18px;
     }
     button {
       min-height: 44px;
       min-width: 44px;
-      padding: 8px 14px;
-      border: 1px solid var(--line);
-      border-radius: 10px;
+      padding: 0 16px;
+      border: 0;
+      border-radius: 22px;
       background: var(--surface);
-      color: inherit;
-      font: inherit;
+      color: var(--ink);
+      font: 700 14px var(--font-body);
       cursor: pointer;
     }
     :host-context(app-wall-shell) .saving {
+      min-height: 64px;
+      padding-left: 26px;
+      border-radius: 32px;
       font-size: 18px;
+    }
+    :host-context(app-wall-shell) .saving:not(:has(button)) {
+      padding-right: 26px;
     }
     :host-context(app-wall-shell) button {
       min-height: 56px;
       min-width: 56px;
+      padding: 0 22px;
+      border-radius: 28px;
+      font-size: 17px;
     }
   `,
 })
