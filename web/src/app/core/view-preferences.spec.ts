@@ -9,7 +9,10 @@ describe('ViewPreferences', () => {
     preferences = TestBed.inject(ViewPreferences);
   });
 
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    localStorage.clear();
+  });
 
   it('opens a new device on Day on the phone and Week on a desktop and the wall', () => {
     expect(preferences.view('phone')).toBe('day');
