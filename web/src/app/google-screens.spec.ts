@@ -146,7 +146,7 @@ describe('Google Calendar on the phone', () => {
       http.match('/api/family');
       http.match((r) => r.url === '/api/calendar');
 
-      expect(harness.routeNativeElement?.tagName.toLowerCase()).toBe('app-phone-calendar');
+      expect(harness.routeNativeElement?.tagName.toLowerCase()).toBe('app-calendar-home');
     });
 
     it('stays put and says why when the server refuses', async () => {

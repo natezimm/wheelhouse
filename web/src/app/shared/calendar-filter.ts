@@ -1,10 +1,11 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, input } from '@angular/core';
 import { CalendarStore, FAMILY, FAMILY_COLOR } from '../core/calendar';
 import { FamilyStore } from '../core/family';
 
 /**
  * A chip per person, plus one for the whole family's calendar, that shows or hides their
- * events. Sized for the wall; add the <code>compact</code> class for the phone.
+ * events. Sized for the wall; add the <code>compact</code> class for the phone, or set
+ * <code>avatars</code> for the desktop toolbar.
  */
 @Component({
   selector: 'app-calendar-filter',
@@ -14,14 +15,18 @@ import { FamilyStore } from '../core/family';
         type="button"
         [attr.aria-pressed]="!calendar.hidden().has(chip.owner)"
         [style.--member]="chip.color"
+        [attr.aria-label]="avatars() ? chip.name : null"
+        [attr.title]="avatars() ? chip.name : null"
         (click)="calendar.toggle(chip.owner)"
       >
         <span class="mark" aria-hidden="true">{{ chip.initial }}</span>
-        {{ chip.name }}
+        @if (!avatars()) {
+          {{ chip.name }}
+        }
       </button>
     }
   `,
-  host: { role: 'group', 'aria-label': 'Show calendars for' },
+  host: { role: 'group', 'aria-label': 'Show calendars for', '[class.avatars]': 'avatars()' },
   styles: `
     :host {
       display: flex;
@@ -32,24 +37,26 @@ import { FamilyStore } from '../core/family';
     button {
       display: flex;
       align-items: center;
-      gap: 9px;
+      gap: 10px;
       height: 56px;
-      padding: 0 20px 0 11px;
+      padding: 0 20px 0 9px;
       border: 0;
       border-radius: 28px;
-      background: color-mix(in srgb, var(--member) 14%, white);
+      background: color-mix(in srgb, var(--member) var(--member-chip), var(--surface));
       color: var(--ink);
       font: 600 18px var(--font-body);
+      white-space: nowrap;
       cursor: pointer;
     }
 
     .mark {
-      width: 34px;
-      height: 34px;
+      flex-shrink: 0;
+      width: 38px;
+      height: 38px;
       border-radius: 50%;
-      background: var(--member);
-      color: #ffffff;
-      font-size: 15px;
+      background: color-mix(in srgb, var(--member) var(--member-shade), black);
+      color: var(--on-ink);
+      font-size: 17px;
       font-weight: 700;
       display: flex;
       align-items: center;
@@ -65,30 +72,61 @@ import { FamilyStore } from '../core/family';
 
     button[aria-pressed='false'] .mark {
       background: transparent;
-      box-shadow: inset 0 0 0 2px var(--member);
-      color: var(--member);
+      box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--member) var(--member-shade), black);
+      color: color-mix(in srgb, var(--member) var(--member-shade), black);
     }
 
+    /* The phone: one row that scrolls sideways. */
     :host(.compact) {
-      gap: 8px;
+      flex-wrap: nowrap;
+      gap: 6px;
+      overflow-x: auto;
+      scrollbar-width: none;
     }
 
     :host(.compact) button {
+      flex-shrink: 0;
       height: 44px;
-      gap: 6px;
-      padding: 0 13px 0 8px;
+      gap: 7px;
+      padding: 0 14px 0 8px;
       border-radius: 22px;
-      font-size: 14px;
+      font-size: 15px;
     }
 
     :host(.compact) .mark {
-      width: 24px;
-      height: 24px;
-      font-size: 11px;
+      width: 28px;
+      height: 28px;
+      font-size: 13px;
+    }
+
+    /* The desktop toolbar: just the avatars, each named for screen readers and on hover. */
+    :host(.avatars) {
+      flex-wrap: nowrap;
+      gap: 2px;
+    }
+
+    :host(.avatars) button {
+      width: 44px;
+      height: 44px;
+      padding: 0;
+      justify-content: center;
+      background: transparent;
+    }
+
+    :host(.avatars) .mark {
+      width: 34px;
+      height: 34px;
+      font-size: 15px;
+    }
+
+    :host(.avatars) button[aria-pressed='false'] {
+      box-shadow: none;
     }
   `,
 })
 export class CalendarFilter {
+  /** Initials only, for a narrow toolbar. */
+  readonly avatars = input(false);
   protected readonly calendar = inject(CalendarStore);
   private readonly family = inject(FamilyStore);
 

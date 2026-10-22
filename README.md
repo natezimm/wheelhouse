@@ -2,7 +2,7 @@
 
 Wheelhouse is a **calendar-first family command center**: a wall-mounted touch calendar and a companion phone app for the family's Google Calendar events.
 
-The calendar is the only active household planning feature. On the wall, families can browse Day, Week and Month, view members' color-coded calendars and local weather, and add, edit or delete Google Calendar events. On the phone, Today and Calendar provide the companion view and Settings manages members, calendars and paired displays. Real-time SignalR updates, reconnection and conflict-safe event editing remain supported.
+The calendar is the only active household planning feature. On the wall, families can browse Day, Week and Month, view members' color-coded calendars and local weather, and add, edit or delete Google Calendar events. On a phone or a desktop browser, `/` opens the same calendar laid out for the screen (Day first on a phone, Week first on a desktop, each remembered per device), and Settings manages members, calendars and paired displays. Real-time SignalR updates, reconnection and conflict-safe event editing remain supported.
 
 The fictional Marlowe family demo generates private, date-relative calendar data, including recurring appointments and school events. Each visitor has a separate 24-hour copy; demo activity never calls Google.
 
@@ -10,9 +10,9 @@ The fictional Marlowe family demo generates private, date-relative calendar data
 
 ## Calendar-first redesign plan
 
-The next product iteration focuses on a Skylight-inspired calendar experience: a seven-day hourly Week view for desktop and wall, a compact phone Day agenda, coherent Day/Week/Month views, and remembered per-device view preferences. Chores, lists/to-dos, groceries, meals and recipes have been removed from the active application and remain in the future backlog.
+The calendar is being redesigned: a seven-day hourly Week view for desktop and wall, a compact phone Day agenda, coherent Day/Week/Month views, and remembered per-device view preferences. Chores, lists/to-dos, groceries, meals and recipes have been removed from the active application and remain in the future backlog.
 
-Follow the [calendar redesign plan](docs/calendar-redesign-plan.md), starting with populated visual designs for review before UI implementation. The plan records acceptance criteria, implementation increments and required visual/functional checks; it does not mark these changes shipped. The household roadmap remains a future-feature reference.
+Follow the [calendar redesign plan](docs/calendar-redesign-plan.md). Its progress record says which milestones have shipped; the new shell, entry points and remembered views are the first. The plan records acceptance criteria, implementation increments and required visual/functional checks. The household roadmap remains a future-feature reference.
 
 ## Layout
 
@@ -20,7 +20,7 @@ Follow the [calendar redesign plan](docs/calendar-redesign-plan.md), starting wi
 | --- | --- |
 | `src/Wheelhouse.Api/` | ASP.NET Core 10 API, EF Core with PostgreSQL |
 | `tests/Wheelhouse.Api.Tests/` | xUnit integration tests against a real PostgreSQL from Testcontainers |
-| `web/` | Angular 22 app: `/wall` for the wall display, `/` for phones |
+| `web/` | Angular 22 app: `/wall` for the wall display, `/` for phones and desktop browsers |
 | `compose.yaml` | Local stack: database, API and web |
 | `deploy/` | Production stack, the server-side deploy script and [how to deploy](deploy/README.md) |
 | `.github/workflows/` | CI on pull requests and on `main`; a version tag publishes images and deploys |
@@ -33,7 +33,7 @@ You need Docker with Compose.
 docker compose up --build -d
 ```
 
-Open http://localhost:8080 for the phone layout and http://localhost:8080/wall for the wall display. Locally the app runs as the demo, so you get your own copy of the fictional Marlowe family without signing in. Change anything you like: only your browser sees it, and it is cleared after a day. `http://localhost:8080/health` reports whether the API can reach its database.
+Open http://localhost:8080 for the phone layout (or the desktop layout in a window 768 px or wider) and http://localhost:8080/wall for the wall display. Locally the app runs as the demo, so you get your own copy of the fictional Marlowe family without signing in. Change anything you like: only your browser sees it, and it is cleared after a day. `http://localhost:8080/health` reports whether the API can reach its database.
 
 New demo copies start with Clara, Julian, Milo and Nora in Maplewood, NJ. `Demo/DemoSeedData.cs` builds their calendars and events relative to the copy's creation instant in America/New_York. `DemoSeedAdapter` maps the calendar dataset to the existing EF entities. The school district calendar is read-only. Dates handle New York DST gaps and overlaps. This needs no migration and never reseeds an existing visitor's edits or a private family. A new visitor (or an expired copy) gets fresh relative dates; the existing 24-hour lifetime and cleanup remain unchanged.
 

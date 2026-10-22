@@ -153,10 +153,10 @@ describe('event screens', () => {
   });
 
   describe('on the phone', () => {
-    it('adds an event on the day chosen in the month', async () => {
-      const { page, settle } = await open('/calendar');
+    it('adds an event on the day chosen in the week strip', async () => {
+      const { page, settle } = await open('/');
 
-      page.querySelector<HTMLButtonElement>('.grid button[aria-label="Thursday, October 15"]')!.click();
+      page.querySelector<HTMLButtonElement>('.strip button[aria-label="Thursday, October 15"]')!.click();
       await settle();
       button(page, 'Add event').click();
       await settle();
@@ -179,11 +179,11 @@ describe('event screens', () => {
     });
 
     it('deletes a whole series when asked to', async () => {
-      const { page, settle } = await open('/calendar');
+      const { page, settle } = await open('/');
 
-      page.querySelector<HTMLButtonElement>('.grid button[aria-label="Wednesday, October 14"]')!.click();
+      page.querySelector<HTMLButtonElement>('.strip button[aria-label="Wednesday, October 14"]')!.click();
       await settle();
-      page.querySelector<HTMLButtonElement>('.agenda li > button')!.click();
+      page.querySelector<HTMLButtonElement>('app-agenda-list li button')!.click();
       await settle();
       const sheet = page.querySelector<HTMLElement>('app-event-sheet form')!;
       const change = Array.from(sheet.querySelectorAll('select')).find((select) => select.parentElement?.textContent?.includes('Change'))!;
@@ -202,9 +202,9 @@ describe('event screens', () => {
     });
 
     it('keeps a refused event open with the server’s reason', async () => {
-      const { page, settle } = await open('/calendar');
+      const { page, settle } = await open('/');
 
-      page.querySelector<HTMLButtonElement>('.agenda li > button')!.click();
+      page.querySelector<HTMLButtonElement>('app-agenda-list li button')!.click();
       await settle();
       const sheet = page.querySelector<HTMLElement>('app-event-sheet form')!;
       button(sheet, 'Save').click();

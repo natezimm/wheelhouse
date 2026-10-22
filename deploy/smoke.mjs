@@ -28,30 +28,39 @@ try {
   expect(sessionResponse.ok()).toBeTruthy();
   expect((await sessionResponse.json()).mode).toBe(mode);
   await page.goto('/', { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
   if (mode === 'Family') {
     // A fresh, unauthenticated context must not expose family data.
     expect((await context.request.get('/api/family')).status()).toBe(401);
     await expect(page.getByRole('link', { name: 'Sign in with Google' })).toBeVisible();
-    await expect(page.locator('app-today-events')).toHaveCount(0);
+    await expect(page.locator('app-agenda-list')).toHaveCount(0);
   } else {
-    await expect(page.getByRole('navigation', { name: 'Sections' })).toBeVisible();
-    await expect(page.locator('app-today-events')).toContainText(/\S/);
-    for (const [name, path, selector] of [
-      ['Calendar', '/calendar', 'app-phone-calendar .month'],
-    ]) {
-      await page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name, exact: true }).click();
-      await expect(page).toHaveURL(new URL(path, baseURL).href);
-      await expect(page.locator(selector)).toBeVisible();
-      await expect(page.locator(selector)).toContainText(/\S/);
-    }
-    await expect(page.getByRole('navigation', { name: 'Sections' }).getByRole('link')).toHaveCount(2);
+    // A new phone opens on today's agenda, with the calendar and Settings along the bottom.
+    await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
+    await expect(page.locator('app-agenda-list')).toContainText(/\S/);
+    const sections = page.getByRole('navigation', { name: 'Sections' });
+    await expect(sections.getByRole('link')).toHaveCount(2);
+    await expect(sections.getByRole('link', { name: 'Calendar', exact: true })).toBeVisible();
+    await expect(sections.getByRole('link', { name: 'Settings', exact: true })).toBeVisible();
+    await page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'Month', exact: true }).click();
+    await expect(page.locator('app-phone-month .month')).toBeVisible();
+    await expect(page.locator('app-phone-month .month')).toContainText(/\S/);
+    // Old links to /calendar still reach the calendar.
+    await page.goto('/calendar', { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveURL(new URL('/', baseURL).href);
+    // A desktop window opens on the week, with the sections in a rail.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+    await expect(page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'Week', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Settings', exact: true })).toBeVisible();
     // Match actual seeded events returned by this browser's own demo copy to
     // rendered wall text. A healthy API with an empty/old UI must fail here.
     await page.setViewportSize({ width: 1920, height: 1080 });
-    const snapshot = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/calendar' && r.status() === 200);
+    // Read the body as soon as it arrives: a live refresh can replace it in the browser's cache.
+    const snapshot = page
+      .waitForResponse((r) => new URL(r.url()).pathname === '/api/calendar' && r.status() === 200)
+      .then((response) => response.json());
     await page.goto('/wall', { waitUntil: 'domcontentloaded' });
-    const events = (await (await snapshot).json()).events;
+    const events = (await snapshot).events;
     expect(events.length).toBeGreaterThan(0);
     await expect.poll(async () => {
       for (const event of events) {

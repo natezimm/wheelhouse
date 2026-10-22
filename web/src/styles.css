@@ -1,15 +1,48 @@
 /* Design tokens, taken from the mockups. Components use these instead of raw values. */
 :root {
-  --ground: #f3f1ec;
+  /* Daylight, the default theme. Other themes only change these values. */
+  --ground: #f4f2ee;
   --surface: #ffffff;
   --ink: #1f2328;
-  --muted: #5a5f66;
-  --line: #d6d2ca;
+  --on-ink: #ffffff;
+  --muted: #5f646b;
+  --faint: #6b7077;
+  --line: #dcd8d0;
   --hairline: #efede8;
   --accent: #2f5fc4;
   --ok: #137a6d;
   --warn: #b85a14;
   --danger: #b3261e;
+
+  /* The calendar: its card, the rules between days and hours, today, and the now line. */
+  --card-radius: 28px;
+  --card-shadow: 0 1px 2px rgba(31, 35, 40, 0.05), 0 8px 24px rgba(31, 35, 40, 0.04);
+  --rule: #ece9e3;
+  --hour-rule: #efece7;
+  --today-tint: #fbfaf7;
+  --now: #e5484d;
+  --now-text: #c42b30;
+  --live: #1f9d6b;
+
+  /* Segmented controls: a sunken track with a raised selected segment. */
+  --track: #e8e5df;
+  --raised: 0 1px 3px rgba(31, 35, 40, 0.14);
+  --quiet: #4a4f57;
+
+  /* Problems are pills: amber while reconnecting, red when a refresh failed, neutral for notices. */
+  --reconnecting: #fdf1e2;
+  --reconnecting-ink: #7a4210;
+  --failed: #fbe9e8;
+  --failed-ink: #8e1f18;
+  --notice: #ecebe5;
+  --notice-ink: #3e4349;
+
+  /* How a member's color is used: event fills and rings, chips, and a shade dark enough for white initials and small text. */
+  --member-fill: 17%;
+  --member-ring: 26%;
+  --member-chip: 15%;
+  --member-shade: 72%;
+  --toast-shadow: 0 10px 30px rgba(31, 35, 40, 0.22);
 
   --font-display: 'Outfit', system-ui, sans-serif;
   --font-body: 'Figtree', system-ui, sans-serif;
@@ -118,3 +151,34 @@ body {
 
 /* Optimistic events remain visible while their confirmed snapshot catches up. */
 .calendar-pending { opacity: 0.65; }
+
+/* The Day, Week and Month switch, shared by every layout. */
+.view-switch {
+  display: flex;
+  padding: 3px;
+  border-radius: 24px;
+  background: var(--track);
+}
+
+.view-switch button {
+  height: 40px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 20px;
+  background: transparent;
+  color: var(--quiet);
+  font: 600 15px var(--font-body);
+  cursor: pointer;
+}
+
+.view-switch button[aria-pressed='true'] {
+  background: var(--surface);
+  box-shadow: var(--raised);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 2px;
+}

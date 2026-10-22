@@ -20,15 +20,18 @@ for (const scenario of ['demo', 'family', 'old-ui', 'missing-wall-event', 'runti
         res.statusCode = scenario === 'api-error' ? 500 : 200;
         return res.end(JSON.stringify({events:[{title:'Fictional calendar event'}]}));
       }
-      const nav = '<nav aria-label="Sections">' + [['Today','/'],['Calendar','/calendar']].map(([name,href]) => `<a href="${href}">${name}</a>`).join('') + '</nav>';
-      let content = '<h1>Today</h1>';
-      if (family) content += '<a href="/api/auth/google">Sign in with Google</a>';
-      else if (scenario !== 'old-ui') {
-        content += nav;
-        if (path === '/') content += '<app-today-events>Today content</app-today-events>';
-        if (path === '/calendar') content += '<app-phone-calendar><div class="month">October</div></app-phone-calendar>';
-        if (path === '/wall') content += '<div id="events"></div><script>fetch("/api/calendar").then(r=>r.json()).then(s=>{'+ (scenario === 'missing-wall-event' ? '' : 'document.getElementById("events").textContent=s.events[0].title;')+'});</script>';
+      if (path === '/calendar' && scenario !== 'old-ui') { res.writeHead(302, { Location: '/' }); return res.end(); }
+      const nav = '<nav aria-label="Sections">' + [['Calendar','/'],['Settings','/settings']].map(([name,href]) => `<a href="${href}">${name}</a>`).join('') + '</nav>';
+      let content = '<h1>Calendar</h1>';
+      if (family) content = '<a href="/api/auth/google">Sign in with Google</a>';
+      else if (scenario === 'old-ui') content = '<h1>Today</h1><app-today-events>Today content</app-today-events>';
+      else if (path === '/') {
+        content = '<h1>Today</h1>' + nav + '<app-agenda-list>Agenda</app-agenda-list>'
+          + '<div role="group" aria-label="View"><button aria-pressed="false">Day</button><button id="week">Week</button><button onclick="document.getElementById(\'m\').hidden=false">Month</button></div>'
+          + '<app-phone-month id="m" hidden><div class="month">October</div></app-phone-month>'
+          + '<script>document.getElementById("week").setAttribute("aria-pressed", String(innerWidth >= 768))</script>';
       }
+      else if (path === '/wall') content += '<div id="events"></div><script>fetch("/api/calendar").then(r=>r.json()).then(s=>{'+ (scenario === 'missing-wall-event' ? '' : 'document.getElementById("events").textContent=s.events[0].title;')+'});</script>';
       if (scenario === 'runtime-error') content += '<script>throw new Error("fixture runtime failure")</script>';
       res.end('<!doctype html><html><body>' + content + '</body></html>');
     });

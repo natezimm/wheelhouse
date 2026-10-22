@@ -57,13 +57,13 @@ describe('weather', () => {
     expect(header?.querySelector('app-weather-icon svg')).not.toBeNull();
   });
 
-  it('adds the weather to the date on the phone’s Today', async () => {
+  it('adds the weather to the date above the phone’s day', async () => {
     const { page, settle } = await open('/', newYork);
 
     http.expectOne('/api/weather').flush(partlyCloudy);
     await settle();
 
-    expect(text(page.querySelector('.date'))).toBe('Mon, Oct 12 · 61° partly cloudy');
+    expect(text(page.querySelector('.subtitle .text'))).toBe('Mon, Oct 12 · 61° partly cloudy');
   });
 
   it('leaves the weather out until a parent says where the family lives', async () => {
@@ -71,7 +71,7 @@ describe('weather', () => {
     await settle();
 
     http.expectNone('/api/weather');
-    expect(text(page.querySelector('.date'))).toBe('Mon, Oct 12');
+    expect(text(page.querySelector('.subtitle .text'))).toBe('Mon, Oct 12');
   });
 
   it('leaves the weather out while the forecast cannot be reached', async () => {

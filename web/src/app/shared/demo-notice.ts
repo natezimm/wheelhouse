@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { Component, inject, input } from '@angular/core';
 import { SessionStore } from '../core/session';
 
 /** Tells visitors to the public demo that nothing here is real or kept, or that it has no room. */
@@ -6,7 +6,11 @@ import { SessionStore } from '../core/session';
   selector: 'app-demo-notice',
   template: `
     @if (session.isDemo()) {
-      <span>Demo · your own copy of a fictional family, cleared after a day</span>
+      @if (short()) {
+        <span title="Your own copy of a fictional family, cleared after a day">Demo</span>
+      } @else {
+        <span>Demo · your own copy of a fictional family, cleared after a day</span>
+      }
     } @else if (session.isDemoFull()) {
       <span>The demo is full right now. Please try again later.</span>
     }
@@ -17,12 +21,14 @@ import { SessionStore } from '../core/session';
       padding: 4px 12px;
       border-radius: 999px;
       background: var(--ink);
-      color: #ffffff;
+      color: var(--on-ink);
       font-size: 14px;
       font-weight: 600;
     }
   `,
 })
 export class DemoNotice {
+  /** Just "Demo", for the desktop rail. */
+  readonly short = input(false);
   protected readonly session = inject(SessionStore);
 }

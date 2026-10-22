@@ -550,6 +550,9 @@ export class EventDialog {
   protected readonly confirmingDelete = signal(false);
   protected readonly message = signal<string | null>(null);
 
+  /** Whether closing it would lose something: a change, or a save still going or to check. */
+  readonly holdsWork = computed(() => this.edits() !== null || this.busy() || this.uncertain());
+
   ngAfterViewInit(): void {
     if (!this.event()) {
       this.titleInput()?.nativeElement.focus();
