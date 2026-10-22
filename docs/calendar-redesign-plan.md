@@ -39,7 +39,7 @@ Where this document and the canvas disagree about appearance, the canvas wins; w
 - Member colors are saturated (`MEMBER_COLORS`, demo seeds use similar shades). White initials on the brighter ones, such as amber, fall below 4.5:1. The redesign derives a darker shade for avatars and time labels instead of changing stored colors.
 - `Family.nightModeFrom/To` are settable but the wall does not dim yet. Night mode is outside this redesign.
 - [`deploy/smoke.mjs`](../deploy/smoke.mjs) expects a "Today" heading, a two-link Sections nav and `/calendar` rendering `app-phone-calendar .month`. Milestone 1 must update it with the new phone entry and navigation.
-- Preserve the Angular stores, Google Calendar integration, family isolation, pairing, optimistic saves, conflict handling and live recovery. This is a presentation and navigation change, not a new calendar backend. No API change is expected.
+- Preserve the Angular stores, Google Calendar integration, family isolation, pairing, optimistic saves, conflict handling and live recovery. This is a presentation and navigation change, not a new calendar backend. No API change is expected for the redesign itself; the one candidate (repeat rule and notes in details) is deferred, see Event details.
 
 ## Visual system
 
@@ -61,7 +61,7 @@ The calendar fills the screen with no footer. From the top:
 2. **Toolbar, 56 px:** Today, previous/next, the range ("October 19 – 25 2026"), the connection indicator in the middle, then Day/Week/Month and Add event. Save feedback (the existing `CalendarSaveStatus`) appears as a toast over the bottom of the grid, not a footer.
 3. **Calendar card:** fills the rest, about 870 px.
 
-Connection: a small "Live" dot when the subscription is up. Reconnecting, a failed refresh and Google needing reconnection each replace it with a pill that says what is shown ("showing 4:32 PM") and, where useful, one 44 px action (Resync now, Try again). Google reconnection on the wall says a parent can fix it from Settings on their phone; it has no link because the wall has no settings. The server-health line is only a fallback before the live subscription exists, shown in the same slot.
+Connection: a small "Live" dot when the subscription is up. Reconnecting, a failed refresh and Google needing reconnection each replace it with a pill that says what is shown ("showing 4:32 PM") and, where useful, one action (Resync now, Try again), 56 px tall on the wall like every wall control. Google reconnection on the wall says a parent can fix it from Settings on their phone; it has no link because the wall has no settings. The server-health line is only a fallback before the live subscription exists, shown in the same slot.
 
 ### Week: the default wall and desktop view
 
@@ -76,7 +76,7 @@ Connection: a small "Live" dot when the subscription is up. Reconnecting, a fail
 
 ### Event details
 
-Tapping an event opens **details first**, then Edit opens the existing editor (`EventDialog` on the wall, `EventSheet` on the phone). Details show the owner, a tinted block with the day, title and time, then location, repeat rule, calendar name and notes, then Edit event and Delete. A read-only event shows the same details with a note that its calendar can be shown but not changed, so read-only events are no longer dead buttons. On the wall and desktop, details are a drawer from the right (560 px wall, about 420 px desktop) over a light scrim; on the phone, a bottom sheet. A pending event's details show its save state and disable Edit and Delete, as the editors do now.
+Tapping an event opens **details first**, then Edit opens the existing editor (`EventDialog` on the wall, `EventSheet` on the phone). Details show the owner, a tinted block with the day, title and time, then location, whether it repeats, and the calendar name, then Edit event and Delete. The cache and API carry a `recurring` flag but not the repeat rule or Google's description, so the details say "Repeats" rather than "Every 6 weeks" and show no notes. Showing the rule and notes needs `EventInstance`, sync, `EventResponse` and tests to carry them, and is deferred until after the redesign; the canvas's "Every 6 weeks" and notes rows show that later state. A read-only event shows the same details with a note that its calendar can be shown but not changed, so read-only events are no longer dead buttons. On the wall and desktop, details are a drawer from the right (560 px wall, about 420 px desktop) over a light scrim; on the phone, a bottom sheet. A pending event's details show its save state and disable Edit and Delete, as the editors do now.
 
 ### Day
 
@@ -101,7 +101,7 @@ Today changes the focus date without changing the view. A valid empty day says s
 
 ### Desktop browser (`/`, 768 px and wider)
 
-The same calendar screen as the phone route, laid out for a wide window: a 76 px left rail (Wheelhouse mark, Calendar, Settings) replaces the bottom tabs; the toolbar puts Today, arrows, range and the Live dot on the left, and member avatars, weather, the view switch and Add event on the right. The Week grid scrolls as described above. Week is the default from 768 px; Day from below it. The layout changes with the window width, without a route change, and keeps the selected date, view, filters, open details or draft and pending operations.
+The same calendar screen as the phone route, laid out for a wide window: a 76 px left rail (Wheelhouse mark, Calendar, Settings) replaces the bottom tabs; the toolbar puts Today, arrows, range and the Live dot on the left, and member avatars, weather, the view switch and Add event on the right. The Week grid scrolls as described above. Week is the default from 768 px; Day from below it. The layout changes with the window width, without a route change, and keeps the selected date, filters, open details or draft and pending operations. The view also stays as it is when the window crosses 768 px during a visit, so resizing never swaps the screen out from under someone; the new context's remembered view applies only on the next load. A view chosen after crossing is saved for the context the window is now in.
 
 ### Preferences and idle return
 
