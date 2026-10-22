@@ -23,7 +23,7 @@ The visual direction is the **Wheelhouse calendar redesign** design canvas: http
 | Desktop browser · Week | `/` on a laptop: narrow rail, compact toolbar, scrolling grid. |
 | Wall · Week, reconnecting | Reconnecting, refresh-failed and Google-reconnect pills. |
 | Phone · Day, Week, Month, details, states | The phone agenda, week agenda, compact month, details sheet, empty day and failed refresh. |
-| Theme · Retro, Classic, Bold | The wall Week in the Groovy, Crisp and Bold themes (see Themes). |
+| Theme · Groovy, Crisp, Bold | The wall Week in each of those themes (see Themes). |
 
 Where this document and the canvas disagree about appearance, the canvas wins; where they disagree about behavior, this document wins. Record any change agreed during implementation here and on the canvas.
 
@@ -61,8 +61,8 @@ The family can choose one of four looks, and a fifth turns on at night. All them
 | Theme | Look | Canvas board | Tokens it sets |
 | --- | --- | --- | --- |
 | **Daylight** (default) | Soft and airy: warm off-white ground, white card, pastel events with a fine ring | Wall · Week (default) | As in Visual system |
-| **Groovy** | Warm 70s paper: cream ground, ink outlines, hard offset shadows, three-stripe band under the header | Theme · Retro | Ground `#F3E7D3`, card `#FFF8EC`, ink `#2B1D14`, accents orange `#D9622B`, mustard `#E3A72F`, teal `#2F7F7A`; Fraunces display and DM Sans body; events are a 38% member fill with a 2 px ink border and 3 px offset shadow |
-| **Crisp** | Clean office calendar: white page, a calendar list with checkboxes on the side, solid event blocks with white text | Theme · Classic | White ground, rules `#DADCE0`, text `#3C4043`, today blue `#1A73E8`, now line `#EA4335`; Roboto and Roboto Flex; events are the member color darkened 16% with white text and 6 px corners |
+| **Groovy** | Warm 70s paper: cream ground, ink outlines, hard offset shadows, three-stripe band under the header | Theme · Groovy | Ground `#F3E7D3`, card `#FFF8EC`, ink `#2B1D14`, accents orange `#D9622B`, mustard `#E3A72F`, teal `#2F7F7A`; Fraunces display and DM Sans body; events are a 38% member fill with a 2 px ink border and 3 px offset shadow |
+| **Crisp** | Clean office calendar: white page, a calendar list with checkboxes on the side, solid event blocks with white text | Theme · Crisp | White ground, rules `#DADCE0`, text `#3C4043`, today blue `#1A73E8`, now line `#EA4335`; Roboto and Roboto Flex; events are the member color darkened 16% with white text and 6 px corners |
 | **Bold** | Brutalist, from the author's Sudoku app: black outlines, yellow highlights, mono times | Theme · Bold | Ground `#EFEFE6`, white card, ink `#000000`, yellow `#FFDB3B`, lime `#C2FF66`, mint `#3BFF9D`; Space Grotesk and IBM Plex Mono; 2 px black borders, 4 to 6 px corners, 3 px event and 8 px card offset shadows |
 | **Night** (automatic) | Dark version of the chosen theme's layout, low glare for a dark room | To be drawn before milestone 5 | Dark ground and card, dimmed member fills, the same accents at lower brightness |
 
