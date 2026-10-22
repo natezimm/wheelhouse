@@ -214,11 +214,19 @@ Household features stay in the [household roadmap](household-roadmap.md). Also d
 | Milestone | Status | Evidence |
 | --- | --- | --- |
 | 0. Visual direction | In review | Canvas linked under Approved reference, October 22, 2026 |
-| 1. Shell and preferences | In review | [PR #41](https://github.com/natezimm/wheelhouse/pull/41), screenshots in `docs/screenshots/m1-*.png`; household retirement done in PR #39 |
-| 2. Grid engine and Week | Planned | |
+| 1. Shell and preferences | Done | [PR #41](https://github.com/natezimm/wheelhouse/pull/41), merged October 22, 2026; screenshots in `docs/screenshots/m1-*.png`; household retirement done in PR #39 |
+| 2. Grid engine and Week | In review | Grid engine, Week, event details and tap-to-create; screenshots in `docs/screenshots/m2-*.png` |
 | 3. Day, Month, phone | Planned | |
 | 4. Hardening | Planned | |
 | 5. Themes | Planned | Groovy, Classic, Bold and Night drawn on the canvas (wall Week) |
 | 6. Release | Planned | |
+
+Decisions made while building milestone 2:
+
+- A timed event of 24 hours or more is a bar in the all-day lane, not a block in each day it covers; shorter overnight events are split per day.
+- The all-day lane shows two rows of bars and, when more do not fit, a third row of "+N more" that opens that day.
+- The wall's Week fits its hours without scrolling unless an hour would be shorter than 36 px; a desktop window always scrolls the whole day at 48 px an hour.
+- Add event starts a new event at the next half hour today, or 9 AM on another day; a tapped empty slot starts it at that half hour. Delete in the details opens the editor already asking to confirm, so series choices and save states stay in one place.
+- Demo seeds gained an overlapping afternoon, a morning run and a three-day visit so the populated Week shows side-by-side events and a spanning bar.
 
 Update this record with merged PR links and screenshots after each milestone. An open PR or a passing build does not complete a milestone.

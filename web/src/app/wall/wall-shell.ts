@@ -12,12 +12,13 @@ import { CalendarFilter } from '../shared/calendar-filter';
 import { CalendarSaveStatus } from '../shared/calendar-save-status';
 import { CalendarToolbar } from '../shared/calendar-toolbar';
 import { DemoNotice } from '../shared/demo-notice';
+import { EventDetails } from '../shared/event-details';
 import { DayView } from './day-view';
 import { EventDialog } from './event-dialog';
 import { MonthView } from './month-view';
 import { PairingScreen } from './pairing-screen';
 import { WallWeather } from './wall-weather';
-import { WeekView } from './week-view';
+import { GridSlot, WeekView } from './week-view';
 
 /** How long the wall stays on another day, week or month after the last touch before it comes back to now. */
 export const RETURN_AFTER_MS = 2 * 60_000;
@@ -33,7 +34,20 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
  */
 @Component({
   selector: 'app-wall-shell',
-  imports: [CalendarConnection, CalendarFilter, CalendarSaveStatus, CalendarToolbar, DayView, DemoNotice, EventDialog, MonthView, PairingScreen, WallWeather, WeekView],
+  imports: [
+    CalendarConnection,
+    CalendarFilter,
+    CalendarSaveStatus,
+    CalendarToolbar,
+    DayView,
+    DemoNotice,
+    EventDetails,
+    EventDialog,
+    MonthView,
+    PairingScreen,
+    WallWeather,
+    WeekView,
+  ],
   template: `
     @if (showPairing()) {
       <app-pairing-screen [cancellable]="pairingChosen()" (paired)="paired()" (cancelled)="pairingChosen.set(false)" />
@@ -84,10 +98,18 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
         @if (family.state().status === 'ready') {
           @switch (view()) {
             @case ('day') {
-              <app-day-view [focus]="focus()" (edit)="editEvent($event)" />
+              <app-day-view [focus]="focus()" (inspect)="selected.set($event)" />
             }
             @case ('week') {
-              <app-week-view [focus]="focus()" (edit)="editEvent($event)" />
+              <app-week-view
+                [focus]="focus()"
+                layout="wall"
+                [selected]="selected()"
+                [canAdd]="canAdd()"
+                (inspect)="selected.set($event)"
+                (openDay)="openDay($event)"
+                (create)="addAt($event)"
+              />
             }
             @case ('month') {
               <app-month-view [focus]="focus()" (opened)="openDay($event)" />
@@ -95,10 +117,13 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
           }
         }
         <app-calendar-save-status class="toast" />
+        @if (selected(); as id) {
+          <app-event-details [eventId]="id" layout="wall" (closed)="selected.set(null)" (edit)="editEvent($event)" (remove)="editEvent($event, true)" />
+        }
       </section>
 
       @if (editing(); as open) {
-        <app-event-dialog [event]="open.event" [day]="open.day" (closed)="editing.set(null)" />
+        <app-event-dialog [event]="open.event" [day]="open.day" [at]="open.at" [deleting]="open.deleting" (closed)="editing.set(null)" />
       }
     }
   `,
@@ -211,10 +236,12 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
       flex-shrink: 0;
     }
 
+    /* The calendar fills its card edge to edge, unlike the forms' cards. */
     .card {
       position: relative;
       flex: 1;
       min-height: 0;
+      padding: 0;
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -251,9 +278,13 @@ export class WallShell {
   protected readonly view = signal<CalendarView>(this.preferences.view('wall'));
   protected readonly focus = signal<Day | null>(null);
 
+  /** The event whose details are open, by id. */
+  protected readonly selected = signal<string | null>(null);
+
   /** The event being added (no event) or changed in the dialog, or null when it is closed. */
-  protected readonly editing = signal<{ event: CalendarEvent | null; day: Day } | null>(null);
+  protected readonly editing = signal<{ event: CalendarEvent | null; day: Day; at: string | null; deleting: boolean } | null>(null);
   private readonly dialog = viewChild(EventDialog);
+  private readonly week = viewChild(WeekView);
 
   /** Whether any calendar takes new events; a family with none has nothing to add to. */
   protected readonly canAdd = computed(() => this.calendar.calendars().some((calendar) => calendar.canWrite));
@@ -313,11 +344,14 @@ export class WallShell {
   }
 
   /**
-   * Keeps the view but shows the current day, week or month again. An editor closes only if
-   * nothing in it has changed and no save is still going, so a half-typed event is never lost.
+   * Keeps the view but shows the current day, week or month again, scrolled to now, with any
+   * details closed. An editor closes only if nothing in it has changed and no save is still
+   * going, so a half-typed event is never lost.
    */
   private returnToNow(): void {
     this.focus.set(null);
+    this.selected.set(null);
+    this.week()?.scrollToNow();
     if (this.editing() && !this.dialog()?.holdsWork() && this.calendar.pending().length === 0) {
       this.editing.set(null);
     }
@@ -339,19 +373,24 @@ export class WallShell {
   protected addEvent(): void {
     const today = this.today();
     if (today) {
-      this.editing.set({ event: null, day: (this.view() === 'day' && this.focus()) || today });
+      this.editing.set({ event: null, day: (this.view() === 'day' && this.focus()) || today, at: null, deleting: false });
     }
   }
 
-  protected editEvent(id: string): void {
-    const event = this.calendar.allEvents().find((e) => e.id === id);
-    if (event) {
-      this.editing.set({ event, day: event.startDate ?? dayIn(this.family.family()!.timeZone, event.startsAt!) });
-    }
+  /** An empty half hour tapped on the grid starts a new event there. */
+  protected addAt(slot: GridSlot): void {
+    this.editing.set({ event: null, day: slot.day, at: slot.time, deleting: false });
   }
 
-  /** A day tapped in the month opens on its own. */
+  /** Edit or Delete in an event's details opens the editor, which asks first before deleting. */
+  protected editEvent(event: CalendarEvent, deleting = false): void {
+    this.selected.set(null);
+    this.editing.set({ event, day: event.startDate ?? dayIn(this.family.family()!.timeZone, event.startsAt!), at: null, deleting });
+  }
+
+  /** A day tapped in the month or the week opens on its own. */
   protected openDay(day: Day): void {
+    this.selected.set(null);
     this.focus.set(day);
     this.choose('day');
   }

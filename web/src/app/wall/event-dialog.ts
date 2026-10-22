@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, ElementRef, computed, inject, input, output, signal, viewChild } from '@angular/core';
+import { Component, ElementRef, computed, inject, input, linkedSignal, output, signal, viewChild } from '@angular/core';
 import { CalendarEvent, CalendarStore, eventRefusal } from '../core/calendar';
 import { Day, formatDay } from '../core/days';
 import {
@@ -503,6 +503,12 @@ export class EventDialog {
   /** The day a new event goes on. */
   readonly day = input.required<Day>();
 
+  /** The time a new event starts, as 'HH:mm', when one was picked on the grid. */
+  readonly at = input<string | null>(null);
+
+  /** Opens straight to asking whether to delete the event, as Delete in its details does. */
+  readonly deleting = input(false);
+
   readonly closed = output<void>();
 
   protected readonly step = STEP_MINUTES;
@@ -534,7 +540,7 @@ export class EventDialog {
     if (event) {
       return draftOf(event, family.timeZone);
     }
-    return first ? newDraft(this.day(), first.id, family.timeZone, new Date()) : null;
+    return first ? newDraft(this.day(), first.id, family.timeZone, new Date(), this.at()) : null;
   });
 
   protected readonly heading = computed(() => (this.event() ? 'Edit event' : 'New event'));
@@ -547,7 +553,7 @@ export class EventDialog {
   private readonly operationId = crypto.randomUUID();
   protected readonly uncertain = computed(() => this.calendar.isUncertain(this.operationId));
   protected readonly busy = signal(false);
-  protected readonly confirmingDelete = signal(false);
+  protected readonly confirmingDelete = linkedSignal(() => this.deleting());
   protected readonly message = signal<string | null>(null);
 
   /** Whether closing it would lose something: a change, or a save still going or to check. */

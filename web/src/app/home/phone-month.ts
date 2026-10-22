@@ -45,7 +45,7 @@ import { AgendaList } from './agenda-list';
           <h2 id="agenda">{{ month.heading }}</h2>
           <button type="button" class="open" (click)="openDay.emit(focus())">Open day</button>
         </div>
-        <app-agenda-list [day]="focus()" (edit)="edit.emit($event)" />
+        <app-agenda-list [day]="focus()" (inspect)="inspect.emit($event)" />
       </section>
     }
   `,
@@ -176,7 +176,7 @@ export class PhoneMonth {
   readonly focus = input.required<Day>();
   readonly pick = output<Day>();
   readonly openDay = output<Day>();
-  readonly edit = output<string>();
+  readonly inspect = output<string>();
 
   /** The weeks the month covers, whole, from the family's first day of the week. */
   private readonly grid = computed(() => {

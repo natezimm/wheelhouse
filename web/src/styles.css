@@ -44,6 +44,15 @@
   --member-shade: 72%;
   --toast-shadow: 0 10px 30px rgba(31, 35, 40, 0.22);
 
+  /* Event details: a drawer or sheet over a scrim, with a soft close button and an outlined Delete. */
+  --scrim: rgba(31, 35, 40, 0.16);
+  --scrim-strong: rgba(31, 35, 40, 0.38);
+  --drawer-shadow: -18px 0 48px rgba(31, 35, 40, 0.16);
+  --sheet-shadow: 0 -12px 40px rgba(31, 35, 40, 0.18);
+  --soft: #f1efea;
+  --danger-line: #e3c3c0;
+  --danger-text: #a3241c;
+
   --font-display: 'Outfit', system-ui, sans-serif;
   --font-body: 'Figtree', system-ui, sans-serif;
 }

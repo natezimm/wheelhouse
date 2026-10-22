@@ -15,7 +15,7 @@ import { AgendaList } from './agenda-list';
     @for (day of days(); track day.day) {
       <section class="day" [class.is-today]="day.isToday" [attr.aria-label]="day.label">
         <h2><span class="dow">{{ day.dow }}</span> {{ day.num }}</h2>
-        <app-agenda-list [day]="day.day" (edit)="edit.emit($event)" />
+        <app-agenda-list [day]="day.day" (inspect)="inspect.emit($event)" />
       </section>
     }
   `,
@@ -60,7 +60,7 @@ export class PhoneWeek {
   private readonly clock = inject(Clock);
 
   readonly focus = input.required<Day>();
-  readonly edit = output<string>();
+  readonly inspect = output<string>();
 
   private readonly start = computed(() => {
     const family = this.family.family();

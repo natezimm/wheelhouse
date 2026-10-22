@@ -5,11 +5,19 @@ import { clockLabel, draftOf, moveEnd, moveStart, newDraft, onDayOf, problemWith
 describe('event drafts', () => {
   const zone = 'America/New_York';
 
-  it('start a new event at the next whole hour today, and at 9 AM on another day', () => {
+  it('start a new event at the next half hour today, and at 9 AM on another day', () => {
     const now = new Date('2026-10-12T21:22:00Z'); // 5:22 PM in New York
 
-    expect(newDraft('2026-10-12', 'c1', zone, now)).toMatchObject({ startTime: '18:00', endDate: '2026-10-12', endTime: '19:00' });
+    expect(newDraft('2026-10-12', 'c1', zone, now)).toMatchObject({ startTime: '17:30', endDate: '2026-10-12', endTime: '18:30' });
+    expect(newDraft('2026-10-12', 'c1', zone, new Date('2026-10-12T21:40:00Z'))).toMatchObject({ startTime: '18:00' });
     expect(newDraft('2026-10-14', 'c1', zone, now)).toMatchObject({ startTime: '09:00', endTime: '10:00' });
+  });
+
+  it('start a new event at the time picked on the grid, across midnight if it must', () => {
+    const now = new Date('2026-10-12T21:22:00Z');
+
+    expect(newDraft('2026-10-14', 'c1', zone, now, '15:30')).toMatchObject({ startDate: '2026-10-14', startTime: '15:30', endDate: '2026-10-14', endTime: '16:30' });
+    expect(newDraft('2026-10-14', 'c1', zone, now, '23:30')).toMatchObject({ startTime: '23:30', endDate: '2026-10-15', endTime: '00:30' });
   });
 
   it('read an event in the family’s own clock, with an all-day event’s last day inclusive', () => {
