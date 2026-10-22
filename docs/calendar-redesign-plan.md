@@ -23,6 +23,7 @@ The visual direction is the **Wheelhouse calendar redesign** design canvas: http
 | Desktop browser · Week | `/` on a laptop: narrow rail, compact toolbar, scrolling grid. |
 | Wall · Week, reconnecting | Reconnecting, refresh-failed and Google-reconnect pills. |
 | Phone · Day, Week, Month, details, states | The phone agenda, week agenda, compact month, details sheet, empty day and failed refresh. |
+| Theme · Retro, Classic, Bold | The wall Week in the Groovy, Crisp and Bold themes (see Themes). |
 
 Where this document and the canvas disagree about appearance, the canvas wins; where they disagree about behavior, this document wins. Record any change agreed during implementation here and on the canvas.
 
@@ -37,7 +38,7 @@ Where this document and the canvas disagree about appearance, the canvas wins; w
 - The phone has two tabs: Today ([`phone/phone-shell.ts`](../web/src/app/phone/phone-shell.ts) with [`today-events.ts`](../web/src/app/phone/today-events.ts)) and Calendar ([`phone/calendar.ts`](../web/src/app/phone/calendar.ts), a month picker with a dot per person and the chosen day's agenda). There is no desktop layout: a laptop browser gets the phone layout stretched across the screen.
 - The wall has no settings by design ([AGENTS.md](../AGENTS.md)). That stays: this plan does not add settings, even display-only ones, to the wall.
 - Member colors are saturated (`MEMBER_COLORS`, demo seeds use similar shades). White initials on the brighter ones, such as amber, fall below 4.5:1. The redesign derives a darker shade for avatars and time labels instead of changing stored colors.
-- `Family.nightModeFrom/To` are settable but the wall does not dim yet. Night mode is outside this redesign.
+- `Family.nightModeFrom/To` are settable but nothing uses them yet. The Night theme (see Themes) will; dimming the wall to a clock stays outside this redesign.
 - [`deploy/smoke.mjs`](../deploy/smoke.mjs) expects a "Today" heading, a two-link Sections nav and `/calendar` rendering `app-phone-calendar .month`. Milestone 1 must update it with the new phone entry and navigation.
 - Preserve the Angular stores, Google Calendar integration, family isolation, pairing, optimistic saves, conflict handling and live recovery. This is a presentation and navigation change, not a new calendar backend. No API change is expected for the redesign itself; the one candidate (repeat rule and notes in details) is deferred, see Event details.
 
@@ -50,6 +51,25 @@ Add these as design tokens in [`styles.css`](../web/src/styles.css) next to the 
 - **Member color.** For a member color `c`: event fill `color-mix(c 17%, white)` with a 1 px inset ring at 26%; filter chips at 15%; avatars, time labels and dots use `color-mix(c 72%, black)` so white initials and small text pass contrast. Event titles are always ink. Every event shows its owner's initial or name as well as color. The whole-family calendar uses the existing `FAMILY_COLOR`.
 - **Accents.** The primary action (Add event, Edit event) and the selected day number are ink-filled. The now line and its time label are coral `#E5484D`. Live is a small green dot (`#1F9D6B`). Problems are pills: amber for reconnecting, red for a failed refresh, neutral for Google needing reconnection.
 - **Controls.** The view switch is a segmented control on a `#E8E5DF` track with a raised white selected segment, not an ink pill. Wall controls are at least 56 px; desktop 44 px; phone 44 px.
+
+These values are the **Daylight** theme. Write every color, font, radius, border and shadow above as a token from the start, so the other themes below only swap values.
+
+## Themes
+
+The family can choose one of four looks, and a fifth turns on at night. All themes share the same layouts, sizes, behavior and touch targets; only tokens change. Themes are named for how they feel, never for the product that inspired them.
+
+| Theme | Look | Canvas board | Tokens it sets |
+| --- | --- | --- | --- |
+| **Daylight** (default) | Soft and airy: warm off-white ground, white card, pastel events with a fine ring | Wall · Week (default) | As in Visual system |
+| **Groovy** | Warm 70s paper: cream ground, ink outlines, hard offset shadows, three-stripe band under the header | Theme · Retro | Ground `#F3E7D3`, card `#FFF8EC`, ink `#2B1D14`, accents orange `#D9622B`, mustard `#E3A72F`, teal `#2F7F7A`; Fraunces display and DM Sans body; events are a 38% member fill with a 2 px ink border and 3 px offset shadow |
+| **Crisp** | Clean office calendar: white page, a calendar list with checkboxes on the side, solid event blocks with white text | Theme · Classic | White ground, rules `#DADCE0`, text `#3C4043`, today blue `#1A73E8`, now line `#EA4335`; Roboto and Roboto Flex; events are the member color darkened 16% with white text and 6 px corners |
+| **Bold** | Brutalist, from the author's Sudoku app: black outlines, yellow highlights, mono times | Theme · Bold | Ground `#EFEFE6`, white card, ink `#000000`, yellow `#FFDB3B`, lime `#C2FF66`, mint `#3BFF9D`; Space Grotesk and IBM Plex Mono; 2 px black borders, 4 to 6 px corners, 3 px event and 8 px card offset shadows |
+| **Night** (automatic) | Dark version of the chosen theme's layout, low glare for a dark room | To be drawn before milestone 5 | Dark ground and card, dimmed member fills, the same accents at lower brightness |
+
+- **Choosing.** The theme is a family setting, so the wall and every phone match. A parent picks it in Settings with a live preview card per theme. This needs a `Theme` column on `Family` (migration) and the field in the family settings API; default Daylight. Each device also follows the family setting without a reload when it changes, through the existing family refresh.
+- **Night.** Between `nightModeFrom` and `nightModeTo` (already family settings) every device switches to Night, on the family clock, and back in the morning. A family setting turns automatic Night off. Dimming the wall to a clock remains separate, deferred work.
+- **Mechanics.** `<html data-theme="daylight|groovy|crisp|bold">` plus `data-night` selects token sets in `styles.css`. Components never use raw colors, fonts or shadows. Load only the active theme's fonts. Member colors stay recognizable in every theme: a theme may change how a color is rendered (pastel, flat, solid) but never the hue.
+- **Accessibility.** Every theme meets the same contrast rules for text, initials and time labels on its event fills, verified per theme and member color. `prefers-reduced-motion` and focus outlines work in every theme.
 
 ## Target experience
 
@@ -158,11 +178,17 @@ Exercise each screen through reconnects, failed reads, uncertain writes, conflic
 
 **Done when:** the validation matrix passes and reviewed screenshots show no clipped controls, hidden events, false empty states or lost drafts.
 
-### 5. Release
+### 5. Themes
+
+Draw Night on the canvas first. Add the Groovy, Crisp, Bold and Night token sets, the family `Theme` setting with its migration and API field, the Settings picker with previews, automatic Night on the family clock, and per-theme font loading.
+
+**Done when:** every view on wall, desktop and phone matches its theme board in all four themes, Night switches on and off at the family's night hours on every device, a theme change reaches a paired wall without a reload, and contrast passes for every member color in every theme.
+
+### 6. Release
 
 Run CI, review rendered screenshots, then release a version. After deploying, check a fresh demo visit, Week and Month with events, view memory, an edit and reload, and reconnect recovery; check the private instance's signed-out screen; a parent checks real Google sign-in and calendars.
 
-**Done when:** the live demo matches the canvas, the deployed version is verified and calendar interactions work.
+**Done when:** the live demo matches the canvas in every theme, the deployed version is verified and calendar interactions work.
 
 ## Validation matrix
 
@@ -174,13 +200,14 @@ Run CI, review rendered screenshots, then release a version. After deploying, ch
 | Editing and recovery | Details for writable and read-only events; add, edit, delete; occurrence and series; optimistic state; lost response; conflict; reconnect and resync with an open draft |
 | Visuals | Screenshots compared with the canvas at 1920 × 1080, 1440 × 900, 1024 × 768, 390 × 844 and 320 × 568; busy and empty calendars; long titles; zoom |
 | State accuracy | Loading or failure never claims no events; stale data says what time it shows; disconnected and Google reauthorization stay separate |
+| Themes | Screenshots of Week, Day, Month and phone Day in each theme; Night switching across the family's night hours in a zone that differs from the browser's; contrast per member color per theme; theme change reaching another signed-in device; reduced motion |
 | Release | Updated smoke checks; fresh demo data shown; private instance denies anonymous access; deployed version checked |
 
 Use the repository's commands: `npm run build`, `npm test -- --watch=false`, `npm run test:e2e`, and `dotnet test` when CI requires it. Unit tests alone do not prove the visual result.
 
 ## Deferred
 
-Household features stay in the [household roadmap](household-roadmap.md). Also deferred: drag-and-drop and resizing, other view modes, wall night mode, offline write queues, child accounts and new integrations.
+Household features stay in the [household roadmap](household-roadmap.md). Also deferred: drag-and-drop and resizing, other view modes, dimming the wall to a clock at night, offline write queues, child accounts and new integrations.
 
 ## Progress record
 
@@ -191,6 +218,7 @@ Household features stay in the [household roadmap](household-roadmap.md). Also d
 | 2. Grid engine and Week | Planned | |
 | 3. Day, Month, phone | Planned | |
 | 4. Hardening | Planned | |
-| 5. Release | Planned | |
+| 5. Themes | Planned | Groovy, Crisp and Bold drawn on the canvas; Night still to draw |
+| 6. Release | Planned | |
 
 Update this record with merged PR links and screenshots after each milestone. An open PR or a passing build does not complete a milestone.
