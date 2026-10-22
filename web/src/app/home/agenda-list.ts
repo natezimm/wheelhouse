@@ -25,8 +25,7 @@ const EARLIER_THAN_MS = 60 * 60_000;
               [style.--member]="event.color"
               [class.calendar-pending]="event.pending"
               [attr.aria-busy]="event.pending"
-              [disabled]="!event.canEdit"
-              (click)="edit.emit(event.id)"
+              (click)="inspect.emit(event.id)"
             >
               <span class="mark" role="img" [attr.aria-label]="event.who">{{ event.initial }}</span>
               <span class="title">{{ event.title }}</span>
@@ -53,7 +52,7 @@ const EARLIER_THAN_MS = 60 * 60_000;
                 <span class="start">{{ row.start }}</span>
                 <span class="end">{{ row.end }}</span>
               </span>
-              <button type="button" [disabled]="!row.canEdit" (click)="edit.emit(row.id)">
+              <button type="button" (click)="inspect.emit(row.id)">
                 <span class="title">{{ row.title }}</span>
                 <span class="meta">
                   <span class="mark" role="img" [attr.aria-label]="row.who">{{ row.initial }}</span>
@@ -96,10 +95,6 @@ const EARLIER_THAN_MS = 60 * 60_000;
       font: inherit;
       text-align: left;
       cursor: pointer;
-    }
-
-    button:disabled {
-      cursor: default;
     }
 
     .bar {
@@ -268,8 +263,8 @@ export class AgendaList {
 
   readonly day = input.required<Day>();
 
-  /** An event was tapped to change it; carries its id. */
-  readonly edit = output<string>();
+  /** An event was tapped to see its details; carries its id. */
+  readonly inspect = output<string>();
 
   /** Whether the folded early events have been opened; another day starts folded again. */
   protected readonly showEarlier = linkedSignal({ source: this.day, computation: () => false });
@@ -282,7 +277,6 @@ export class AgendaList {
       return null;
     }
     const zone = family.timeZone;
-    const writable = new Set(this.calendar.calendars().filter((c) => c.canWrite).map((c) => c.id));
     const now = this.clock.now();
     const isToday = day === dayIn(zone, now);
 
@@ -293,7 +287,6 @@ export class AgendaList {
         id: event.id,
         title: event.title,
         pending: !!event.pending,
-        canEdit: writable.has(event.calendarId) && !this.calendar.isPending(event.id),
         color: colorOf(event, family.members),
         who: member?.displayName ?? 'Family',
         initial: member?.initial ?? 'F',
@@ -341,7 +334,7 @@ export class AgendaList {
   });
 
   private nowRow(zone: string, now: Date) {
-    return { id: 'now', title: '', pending: false, canEdit: false, color: '', who: '', initial: '', start: short(timeIn(zone, now)), end: '', detail: '', folded: false, now: true };
+    return { id: 'now', title: '', pending: false, color: '', who: '', initial: '', start: short(timeIn(zone, now)), end: '', detail: '', folded: false, now: true };
   }
 }
 

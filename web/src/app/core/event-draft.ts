@@ -28,10 +28,17 @@ export const STEP_MINUTES = 15;
 
 const DAY_MINUTES = 24 * 60;
 
-/** A new event on <code>day</code>: the next whole hour when it is today, otherwise 9 AM, for an hour. */
-export function newDraft(day: Day, calendarId: string, timeZone: string, now: Date): EventDraft {
+/**
+ * A new event on <code>day</code> for an hour: at <code>at</code> ('HH:mm') when a time was
+ * picked, otherwise the next half hour when it is today, or 9 AM on another day.
+ */
+export function newDraft(day: Day, calendarId: string, timeZone: string, now: Date, at: string | null = null): EventDraft {
   const today = dayIn(timeZone, now);
-  const start = day === today ? Math.min(Math.floor(minutesIn(timeZone, now) / 60) + 1, 23) * 60 : 9 * 60;
+  const start = at
+    ? minutesOf(day, at) - minutesOf(day, '00:00')
+    : day === today
+      ? Math.min(Math.floor(minutesIn(timeZone, now) / 30) + 1, 47) * 30
+      : 9 * 60;
   const [endDate, endTime] = split(minutesOf(day, clock(start)) + 60);
   return {
     calendarId,

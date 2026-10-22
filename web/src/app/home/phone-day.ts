@@ -24,7 +24,7 @@ import { AgendaList } from './agenda-list';
     }
     <app-calendar-filter class="compact" />
     <section [attr.aria-label]="name()">
-      <app-agenda-list [day]="focus()" (edit)="edit.emit($event)" />
+      <app-agenda-list [day]="focus()" (inspect)="inspect.emit($event)" />
     </section>
   `,
   styles: `
@@ -109,7 +109,7 @@ export class PhoneDay {
 
   readonly focus = input.required<Day>();
   readonly pick = output<Day>();
-  readonly edit = output<string>();
+  readonly inspect = output<string>();
 
   protected readonly name = computed(() => formatDay(this.focus(), { weekday: 'long', month: 'long', day: 'numeric' }));
 
