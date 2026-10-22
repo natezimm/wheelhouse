@@ -82,7 +82,7 @@ describe('calendar grid', () => {
       ['A', 0, 3],
       ['B', 1, 3],
     ]);
-    expect(more).toEqual([expect.objectContaining({ day, lane: 2, lanes: 3, start: 15 * 60, end: 17 * 60 })]);
+    expect(more).toEqual([expect.objectContaining({ day, lane: 2, lanes: 3, start: 15 * 60, end: 17 * 60, room: 7 * 60 })]);
     expect(more[0].events.map((e) => e.title)).toEqual(['C', 'D']);
   });
 

@@ -43,6 +43,8 @@ export interface MoreBlock {
   lane: number;
   lanes: number;
   events: CalendarEvent[];
+  /** Minutes free below it in its lanes, as for a placed segment. */
+  room: number;
 }
 
 /** An all-day or long event as a bar across the visible days it covers. */
@@ -144,6 +146,7 @@ export function arrange(segments: readonly TimedSegment[], maxColumns = 3): { pl
         lane: kept,
         lanes,
         events: hidden.map((s) => s.event),
+        room: nextGroup - Math.max(...hidden.map((s) => s.end)),
       });
     }
   });

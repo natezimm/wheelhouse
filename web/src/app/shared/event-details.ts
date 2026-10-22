@@ -393,7 +393,8 @@ export class EventDetails {
   });
 
   constructor() {
-    // An event that is gone (deleted here or in Google) has nothing left to show.
+    // An event that is gone (deleted here or in Google, or the calendar was reset because the
+    // family signed out) has nothing left to show. Only a read in flight is worth waiting for.
     let seen = false;
     effect(() => {
       const shown = this.shown();
@@ -401,7 +402,7 @@ export class EventDetails {
         seen = true;
         queueMicrotask(() => this.closeButton()?.nativeElement.focus());
       }
-      if (!shown && seen && this.calendar.state().status === 'ready') {
+      if (!shown && seen && this.calendar.state().status !== 'loading') {
         this.closed.emit();
       }
     });

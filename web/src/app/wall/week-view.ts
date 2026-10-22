@@ -124,6 +124,7 @@ export interface GridSlot {
                   [style.height.px]="more.height"
                   [style.left]="more.left"
                   [style.width]="more.width"
+                  [style.--reach.px]="more.reach"
                   [attr.aria-label]="more.label"
                   (click)="openDay.emit(day.day)"
                 >
@@ -256,11 +257,11 @@ export interface GridSlot {
     }
 
     .bars {
-      --bar: 36px;
+      --bar: 48px;
       display: grid;
       grid-template-columns: repeat(7, minmax(0, 1fr));
       grid-template-rows: repeat(var(--rows), var(--bar));
-      row-gap: 6px;
+      row-gap: 8px;
     }
 
     :host(.desktop) .bars {
@@ -278,6 +279,20 @@ export interface GridSlot {
       cursor: pointer;
       display: flex;
       align-items: center;
+      position: relative;
+    }
+
+    /* On the wall a bar's hit area takes half the gap on each side, so it is 56 px tall. */
+    .bar::after,
+    .bar-more::after {
+      content: '';
+      position: absolute;
+      inset: -4px 0;
+    }
+
+    :host(.desktop) .bar::after,
+    :host(.desktop) .bar-more::after {
+      inset: 0;
     }
 
     .bar {
@@ -437,7 +452,8 @@ export interface GridSlot {
     }
 
     /* On the wall a short event still takes a finger: its hit area reaches into free space below. */
-    .event::after {
+    .event::after,
+    .more::after {
       content: '';
       position: absolute;
       left: 0;
@@ -730,14 +746,18 @@ export class WeekView {
               label: `${shown.title}, ${weekday} ${timeRange(segment.event, zone)}${shown.suffix}`,
             };
           }),
-          more: more.map((block) => ({
-            ...across(block.lane, block.lanes),
-            key: `${day}@${block.start}`,
-            count: block.events.length,
-            top: y(block.start) + 1,
-            height: Math.max((block.end - block.start) * perMinute - 3, layout.minBlock),
-            label: `${block.events.length} more events from ${timeIn(zone, block.events[0].startsAt!)}, open ${weekday}`,
-          })),
+          more: more.map((block) => {
+            const height = Math.max((block.end - block.start) * perMinute - 3, layout.minBlock);
+            return {
+              ...across(block.lane, block.lanes),
+              key: `${day}@${block.start}`,
+              count: block.events.length,
+              top: y(block.start) + 1,
+              height,
+              reach: layout.reach ? Math.max(height, Math.min(layout.reach, height + block.room * perMinute)) : null,
+              label: `${block.events.length} more events from ${timeIn(zone, block.events[0].startsAt!)}, open ${weekday}`,
+            };
+          }),
         };
       }),
     };
