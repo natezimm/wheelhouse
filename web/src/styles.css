@@ -156,15 +156,16 @@ body {
 .view-switch {
   display: flex;
   padding: 3px;
-  border-radius: 24px;
+  border-radius: 25px;
   background: var(--track);
 }
 
+/* 44 px, the phone's smallest touch target; the wall's toolbar makes them larger. */
 .view-switch button {
-  height: 40px;
+  height: 44px;
   padding: 0 18px;
   border: 0;
-  border-radius: 20px;
+  border-radius: 22px;
   background: transparent;
   color: var(--quiet);
   font: 600 15px var(--font-body);

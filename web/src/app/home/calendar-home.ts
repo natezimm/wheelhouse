@@ -271,10 +271,6 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
 
-    .view-switch button {
-      height: 40px;
-    }
-
     .subtitle app-calendar-connection {
       flex-shrink: 0;
     }
