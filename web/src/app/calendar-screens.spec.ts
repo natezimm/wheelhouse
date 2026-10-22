@@ -4,7 +4,8 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from './app.routes';
-import { CalendarEvent } from './core/calendar';
+import { CalendarEvent, CalendarStore } from './core/calendar';
+import { FamilyStore } from './core/family';
 import { VIEW_STORAGE_KEY } from './core/view-preferences';
 import { RETURN_AFTER_MS } from './wall/wall-shell';
 import { allDay, marloweCalendars, timed } from './testing/calendar';
@@ -359,6 +360,20 @@ describe('calendar screens', () => {
   describe('on the phone', () => {
     const button = (page: HTMLElement, label: string) =>
       Array.from(page.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.trim() === label)!;
+
+    it('closes an event’s details when the family signs out, so they never cover the sign-in screen', async () => {
+      const { page, settle } = await open('/', { from: '2026-10-12', to: '2026-10-19' });
+      page.querySelector<HTMLButtonElement>('app-agenda-list li.event button')!.click();
+      await settle();
+      expect(page.querySelector('app-event-details [role="dialog"]')).not.toBeNull();
+
+      // What the live connection does when the cookie no longer opens the family.
+      TestBed.inject(FamilyStore).refresh();
+      http.expectOne('/api/family').flush(null, { status: 401, statusText: 'Unauthorized' });
+      TestBed.inject(CalendarStore).reset();
+      await settle();
+      expect(page.querySelector('app-event-details')).toBeNull();
+    });
 
     it("opens on today's agenda, with the now line between what has happened and what is next", async () => {
       const { page, settle } = await open('/', { from: '2026-10-12', to: '2026-10-19' });

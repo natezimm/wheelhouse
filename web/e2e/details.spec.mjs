@@ -78,6 +78,9 @@ test('an event opens its details first, with finger-sized controls, then the edi
     expect(b.x).toBeGreaterThan(a.x + a.width - 1);
     const reach = await pickup.evaluate((el) => parseFloat(getComputedStyle(el, '::after').height));
     expect(reach).toBeGreaterThanOrEqual(target);
+    // So does an all-day bar, through half the gap above and below it.
+    const bar = page.locator('app-week-view .bar', { hasText: 'Spirit Day' });
+    expect(await bar.evaluate((el) => parseFloat(getComputedStyle(el, '::after').height))).toBeGreaterThanOrEqual(target);
     await swim.click();
   } else {
     await page.locator('app-agenda-list li.event button', { hasText: 'Swim lesson' }).click();
