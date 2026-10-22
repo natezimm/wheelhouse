@@ -34,7 +34,11 @@ describe('calendar screens', () => {
     http = TestBed.inject(HttpTestingController);
   });
 
-  afterEach(() => vi.useRealTimers());
+  // Remembered views would otherwise reach other spec files that share this browser storage.
+  afterEach(() => {
+    vi.useRealTimers();
+    localStorage.clear();
+  });
 
   /** Opens a screen, answers for the family and the calendar, and returns the page. */
   async function open(url: string, range: { from: string; to: string }) {
