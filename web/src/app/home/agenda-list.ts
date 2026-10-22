@@ -64,8 +64,22 @@ const EARLIER_THAN_MS = 60 * 60_000;
         }
       </ul>
       @if (agenda.empty) {
-        <p class="empty">Nothing planned for {{ agenda.name }}</p>
+        <div class="empty">
+          <span class="icon" aria-hidden="true">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"></rect><path d="M3.5 10h17M8 3v4M16 3v4M9.5 15h5"></path></svg>
+          </span>
+          <h2>Nothing planned for {{ agenda.name }}</h2>
+          <p>{{ agenda.empty }}</p>
+          @if (canAdd()) {
+            <button type="button" class="add" (click)="add.emit()">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+              Add event
+            </button>
+          }
+        </div>
       }
+    } @else if (calendar.state().status === 'loading') {
+      <p class="loading" role="status">Loading the day…</p>
     }
   `,
   styles: `
@@ -250,14 +264,65 @@ const EARLIER_THAN_MS = 60 * 60_000;
     }
 
     .empty {
-      margin: 8px 0 0;
+      padding: 36px 12px 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      text-align: center;
+    }
+
+    .icon {
+      width: 72px;
+      height: 72px;
+      border-radius: 36px;
+      background: var(--surface);
       color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .empty h2 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 600;
+    }
+
+    .empty p {
+      max-width: 300px;
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.45;
+      color: var(--muted);
+    }
+
+    .empty .add {
+      margin-top: 6px;
+      height: 48px;
+      padding: 0 22px 0 18px;
+      border: 0;
+      border-radius: 24px;
+      background: var(--ink);
+      color: var(--on-ink);
       font-size: 16px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .loading {
+      margin: 24px 0 0;
+      text-align: center;
+      font-size: 15px;
+      color: var(--muted);
     }
   `,
 })
 export class AgendaList {
-  private readonly calendar = inject(CalendarStore);
+  protected readonly calendar = inject(CalendarStore);
   private readonly family = inject(FamilyStore);
   private readonly clock = inject(Clock);
 
@@ -265,6 +330,11 @@ export class AgendaList {
 
   /** An event was tapped to see its details; carries its id. */
   readonly inspect = output<string>();
+
+  /** Add event was tapped on an empty day. */
+  readonly add = output<void>();
+
+  protected readonly canAdd = computed(() => this.calendar.calendars().some((calendar) => calendar.canWrite));
 
   /** Whether the folded early events have been opened; another day starts folded again. */
   protected readonly showEarlier = linkedSignal({ source: this.day, computation: () => false });
@@ -328,7 +398,15 @@ export class AgendaList {
       allDay,
       rows,
       earlier,
-      empty: events.length === 0,
+      // Why the day is empty, and how sure that is.
+      empty:
+        events.length > 0
+          ? null
+          : this.calendar.refreshFailed()
+            ? 'This is from the last good refresh, so try again to be sure.'
+            : this.calendar.hidden().size > 0
+              ? 'Nothing on the calendars shown. Tap a name above to show more.'
+              : 'No events on anyone’s calendar.',
       name: formatDay(day, { weekday: 'long' }),
     };
   });

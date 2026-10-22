@@ -4,12 +4,12 @@ import { Clock } from '../core/clock';
 import { Day, addDays, addMonths, dayIn, formatDay, startOfMonth, startOfWeek } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { CalendarFilter } from '../shared/calendar-filter';
-import { AgendaList } from './agenda-list';
+import { CompactAgenda } from './compact-agenda';
 
 /** The phone's month: a dot for each person busy on a day, and the chosen day's agenda below. */
 @Component({
   selector: 'app-phone-month',
-  imports: [AgendaList, CalendarFilter],
+  imports: [CompactAgenda, CalendarFilter],
   template: `
     <app-calendar-filter class="compact" />
     @if (month(); as month) {
@@ -45,7 +45,7 @@ import { AgendaList } from './agenda-list';
           <h2 id="agenda">{{ month.heading }}</h2>
           <button type="button" class="open" (click)="openDay.emit(focus())">Open day</button>
         </div>
-        <app-agenda-list [day]="focus()" (inspect)="inspect.emit($event)" />
+        <app-compact-agenda [day]="focus()" (inspect)="inspect.emit($event)" />
       </section>
     }
   `,
@@ -86,7 +86,7 @@ import { AgendaList } from './agenda-list';
     }
 
     .grid button {
-      height: 46px;
+      height: 48px;
       padding: 0;
       border: 0;
       background: none;
@@ -139,31 +139,37 @@ import { AgendaList } from './agenda-list';
       padding-bottom: 16px;
     }
 
+    .agenda {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
     .heading {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 4px;
+      padding: 0 2px;
     }
 
     h2 {
+      min-width: 0;
       margin: 0;
-      font-size: 13px;
+      font-size: 16px;
       font-weight: 700;
-      letter-spacing: 0.08em;
-      line-height: 18px;
-      text-transform: uppercase;
-      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .open {
+      flex-shrink: 0;
       min-height: 44px;
-      padding: 0 16px;
-      border: 1px solid var(--line);
-      border-radius: 22px;
-      background: var(--surface);
-      color: var(--ink);
-      font: 700 14px var(--font-body);
+      padding: 0 2px 0 12px;
+      border: 0;
+      background: none;
+      color: var(--accent);
+      font: 700 15px var(--font-body);
       cursor: pointer;
     }
   `,
@@ -203,10 +209,8 @@ export class PhoneMonth {
     const today = dayIn(family.timeZone, this.clock.now());
 
     const ownersByDay = new Map<Day, Set<string>>();
-    let chosen = 0;
     for (const event of this.calendar.events()) {
       const days = daysOf(event, family.timeZone);
-      chosen += days.includes(this.focus()) ? 1 : 0;
       for (const day of days) {
         ownersByDay.set(day, (ownersByDay.get(day) ?? new Set()).add(ownerOf(event)));
       }
@@ -233,12 +237,12 @@ export class PhoneMonth {
       });
     }
 
-    const count = chosen === 1 ? '1 event' : `${chosen === 0 ? 'No' : chosen} events`;
+    const named = formatDay(this.focus(), { weekday: 'long', month: 'long', day: 'numeric' });
     return {
       title: formatDay(first, { month: 'long', year: 'numeric' }),
       dows: cells.slice(0, 7).map((cell) => formatDay(cell.day, { weekday: 'narrow' })),
       cells,
-      heading: `${formatDay(this.focus(), { weekday: 'short', month: 'short', day: 'numeric' })} · ${count}`,
+      heading: this.focus() === today ? `Today · ${named}` : named,
     };
   });
 
