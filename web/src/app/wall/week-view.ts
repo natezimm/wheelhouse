@@ -1,26 +1,14 @@
-import { Component, computed, effect, inject, model, output } from '@angular/core';
+import { Component, computed, effect, inject, input, output } from '@angular/core';
 import { CalendarStore, colorOf, daysOf, whenOn } from '../core/calendar';
 import { Clock } from '../core/clock';
 import { Day, addDays, dayIn, formatDay, startOfWeek } from '../core/days';
 import { FamilyStore } from '../core/family';
-import { CalendarNav, WallView } from './calendar-nav';
 
 /** The wall's week: a column per day with that day's events, in each person's color. */
 @Component({
   selector: 'app-week-view',
-  imports: [CalendarNav],
   template: `
     @if (week(); as week) {
-      <app-calendar-nav
-        [(view)]="view"
-        unit="week"
-        [label]="week.label"
-        [backLabel]="week.isThisWeek ? null : 'This week'"
-        (previous)="move(-7)"
-        (next)="move(7)"
-        (back)="focus.set(null)"
-      />
-
       <div class="days">
         @for (day of week.days; track day.day) {
           <section class="day" [class.is-today]="day.isToday" [attr.aria-label]="day.name">
@@ -57,23 +45,24 @@ import { CalendarNav, WallView } from './calendar-nav';
       min-height: 0;
       display: grid;
       grid-template-columns: repeat(7, minmax(0, 1fr));
-      gap: 10px;
     }
 
     .day {
       min-width: 0;
       min-height: 0;
       overflow-y: auto;
-      padding: 12px 10px;
-      border-radius: 16px;
-      background: var(--surface);
+      padding: 14px 10px;
       display: flex;
       flex-direction: column;
       gap: 8px;
     }
 
+    .day + .day {
+      border-left: 1px solid var(--rule);
+    }
+
     .day.is-today {
-      box-shadow: inset 0 0 0 2px var(--ink);
+      background: var(--today-tint);
     }
 
     .date {
@@ -87,7 +76,7 @@ import { CalendarNav, WallView } from './calendar-nav';
       font-size: 15px;
       font-weight: 700;
       letter-spacing: 0.08em;
-      color: var(--muted);
+      color: var(--faint);
     }
 
     .num {
@@ -104,7 +93,7 @@ import { CalendarNav, WallView } from './calendar-nav';
 
     .is-today .num {
       background: var(--ink);
-      color: #ffffff;
+      color: var(--on-ink);
     }
 
     ul {
@@ -121,7 +110,8 @@ import { CalendarNav, WallView } from './calendar-nav';
       padding: 10px 12px;
       border: 0;
       border-radius: 12px;
-      background: color-mix(in srgb, var(--member) 14%, white);
+      background: color-mix(in srgb, var(--member) var(--member-fill), var(--surface));
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--member) var(--member-ring), var(--surface));
       color: var(--ink);
       font: inherit;
       text-align: left;
@@ -138,14 +128,15 @@ import { CalendarNav, WallView } from './calendar-nav';
     .when {
       font-size: 14px;
       font-weight: 600;
-      color: #4a4f57;
+      color: var(--quiet);
     }
 
     .title {
       font-size: 17px;
       font-weight: 600;
       line-height: 1.25;
-      overflow-wrap: anywhere;
+      overflow-wrap: break-word;
+      hyphens: auto;
     }
 
     .who {
@@ -153,14 +144,34 @@ import { CalendarNav, WallView } from './calendar-nav';
       align-items: center;
       gap: 6px;
       font-size: 14px;
-      color: #4a4f57;
+      color: var(--quiet);
     }
 
     .dot {
       width: 10px;
       height: 10px;
       border-radius: 5px;
-      background: var(--member);
+      background: color-mix(in srgb, var(--member) var(--member-shade), black);
+    }
+
+    /* A narrow desktop window: smaller words, so titles break between them rather than inside. */
+    @media (max-width: 1100px) {
+      .day {
+        padding: 12px 5px;
+      }
+
+      li button {
+        padding: 8px;
+      }
+
+      .title {
+        font-size: 14px;
+      }
+
+      .when,
+      .who {
+        font-size: 12px;
+      }
     }
   `,
 })
@@ -169,10 +180,8 @@ export class WeekView {
   private readonly family = inject(FamilyStore);
   private readonly clock = inject(Clock);
 
-  readonly view = model.required<WallView>();
-
   /** A day in the week to show; null shows this week. */
-  readonly focus = model<Day | null>(null);
+  readonly focus = input<Day | null>(null);
 
   /** An event was tapped to change it; carries its id. */
   readonly edit = output<string>();
@@ -211,8 +220,6 @@ export class WeekView {
     }
 
     return {
-      label: rangeLabel(days[0], days[6]),
-      isThisWeek: days.includes(this.today()!),
       days: days.map((day) => ({
         day,
         name: formatDay(day, { weekday: 'long', month: 'long', day: 'numeric' }),
@@ -224,10 +231,6 @@ export class WeekView {
       })),
     };
   });
-
-  protected move(days: number): void {
-    this.focus.set(addDays(this.start()!, days));
-  }
 
   constructor() {
     effect(() => {
@@ -248,12 +251,3 @@ interface WeekEvent {
   who: string;
   canEdit: boolean;
 }
-
-/** "Oct 12 – 18", or "Oct 26 – Nov 1" across a month's end. */
-function rangeLabel(first: Day, last: Day): string {
-  const from = formatDay(first, { month: 'short', day: 'numeric' });
-  const sameMonth = first.slice(0, 7) === last.slice(0, 7);
-  const to = formatDay(last, sameMonth ? { day: 'numeric' } : { month: 'short', day: 'numeric' });
-  return `${from} – ${to}`;
-}
-

@@ -1,9 +1,8 @@
-import { Component, computed, effect, inject, model, output } from '@angular/core';
+import { Component, computed, effect, inject, input, output } from '@angular/core';
 import { CalendarStore, colorOf, daysOf } from '../core/calendar';
 import { Clock } from '../core/clock';
 import { Day, addDays, addMonths, dayIn, formatDay, startOfMonth, startOfWeek } from '../core/days';
 import { FamilyStore } from '../core/family';
-import { CalendarNav, WallView } from './calendar-nav';
 
 /** How many events fit in a day's box; a busier day shows one fewer and says how many more. */
 const FITS = 3;
@@ -11,19 +10,8 @@ const FITS = 3;
 /** The wall's month: a box per day with its first few events. Tapping a day opens it. */
 @Component({
   selector: 'app-month-view',
-  imports: [CalendarNav],
   template: `
     @if (month(); as month) {
-      <app-calendar-nav
-        [(view)]="view"
-        unit="month"
-        [label]="month.label"
-        [backLabel]="month.isThisMonth ? null : 'This month'"
-        (previous)="move(-1)"
-        (next)="move(1)"
-        (back)="focus.set(null)"
-      />
-
       <div class="dows" aria-hidden="true">
         @for (dow of month.dows; track $index) {
           <span>{{ dow }}</span>
@@ -65,15 +53,14 @@ const FITS = 3;
     .grid {
       display: grid;
       grid-template-columns: repeat(7, minmax(0, 1fr));
-      gap: 8px;
     }
 
     .dows span {
-      padding-left: 10px;
+      padding: 14px 0 6px 12px;
       font-size: 15px;
       font-weight: 700;
       letter-spacing: 0.08em;
-      color: var(--muted);
+      color: var(--faint);
     }
 
     .grid {
@@ -88,8 +75,8 @@ const FITS = 3;
       overflow: hidden;
       padding: 8px 10px;
       border: 0;
-      border-radius: 14px;
-      background: var(--surface);
+      border-top: 1px solid var(--rule);
+      background: transparent;
       color: var(--ink);
       font: inherit;
       text-align: left;
@@ -99,12 +86,12 @@ const FITS = 3;
       cursor: pointer;
     }
 
-    .grid > button.outside {
-      background: #ebe8e1;
+    .grid > button:not(:nth-child(7n + 1)) {
+      border-left: 1px solid var(--rule);
     }
 
     .grid > button.is-today {
-      box-shadow: inset 0 0 0 2px var(--ink);
+      background: var(--today-tint);
     }
 
     .num {
@@ -121,12 +108,13 @@ const FITS = 3;
     }
 
     .outside .num {
-      color: var(--muted);
+      color: var(--faint);
+      font-weight: 400;
     }
 
     .is-today .num {
       background: var(--ink);
-      color: #ffffff;
+      color: var(--on-ink);
     }
 
     .event {
@@ -135,7 +123,7 @@ const FITS = 3;
       height: 26px;
       padding: 0 8px;
       border-radius: 8px;
-      background: color-mix(in srgb, var(--member) 14%, white);
+      background: color-mix(in srgb, var(--member) var(--member-fill), var(--surface));
       display: flex;
       align-items: center;
       gap: 6px;
@@ -149,7 +137,7 @@ const FITS = 3;
       width: 8px;
       height: 8px;
       border-radius: 4px;
-      background: var(--member);
+      background: color-mix(in srgb, var(--member) var(--member-shade), black);
     }
 
     .title {
@@ -162,7 +150,7 @@ const FITS = 3;
       font-size: 14px;
       font-weight: 600;
       line-height: 26px;
-      color: #4a4f57;
+      color: var(--quiet);
     }
   `,
 })
@@ -171,10 +159,8 @@ export class MonthView {
   private readonly family = inject(FamilyStore);
   private readonly clock = inject(Clock);
 
-  readonly view = model.required<WallView>();
-
   /** A day in the month to show; null shows this month. */
-  readonly focus = model<Day | null>(null);
+  readonly focus = input<Day | null>(null);
 
   /** A day was tapped. */
   readonly opened = output<Day>();
@@ -232,8 +218,6 @@ export class MonthView {
     }
 
     return {
-      label: formatDay(first, { month: 'long', year: 'numeric' }),
-      isThisMonth: first === startOfMonth(this.today()!),
       dows: cells.slice(0, 7).map((cell) => formatDay(cell.day, { weekday: 'short' }).toUpperCase()),
       weeks: cells.length / 7,
       cells,
@@ -247,9 +231,5 @@ export class MonthView {
         this.calendar.show(grid.start, grid.end);
       }
     });
-  }
-
-  protected move(months: number): void {
-    this.focus.set(addMonths(this.grid()!.first, months));
   }
 }

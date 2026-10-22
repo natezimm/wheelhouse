@@ -166,6 +166,7 @@ export class CalendarStore {
   private readonly accepted = signal<number | null>(null);
   private readonly fetching = signal(false);
   private readonly readFailed = signal(false);
+  private readonly acceptedAt = signal<Date | null>(null);
 
   readonly state = computed<CalendarState>(() => {
     const state = this.current();
@@ -176,6 +177,8 @@ export class CalendarStore {
   readonly refreshing = this.fetching.asReadonly();
   /** A failed background refresh retains the snapshot, but must still offer a visible retry. */
   readonly refreshFailed = this.readFailed.asReadonly();
+  /** When the snapshot on screen was read, so a stale screen can say what time it shows. */
+  readonly shownAt = this.acceptedAt.asReadonly();
 
   /** Forget another family's data and invalidate every outstanding response. */
   reset(): void {
@@ -189,6 +192,7 @@ export class CalendarStore {
     this.accepted.set(null);
     this.fetching.set(false);
     this.readFailed.set(false);
+    this.acceptedAt.set(null);
     this.current.set({ status: 'idle' });
     this.hiddenOwners.set(new Set());
   }
@@ -415,6 +419,7 @@ export class CalendarStore {
         if (revision >= (this.accepted() ?? 0)) {
           this.readFailed.set(false);
           this.accepted.set(revision);
+          this.acceptedAt.set(new Date());
           this.operations.update((ops) => ops.filter((op) => op.status !== 'settling' || serial < op.settleAfter!));
           this.current.set({ status: 'ready', from, to, ...response, changeNumber: revision });
         }

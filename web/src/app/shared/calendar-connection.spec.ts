@@ -59,23 +59,25 @@ describe('calendar connection controls', () => {
 
   it('distinguishes the live connection from snapshot progress and exposes a disabled busy action', async () => {
     await settle();
-    expect(page().querySelector('.pill')?.textContent).toContain('Live updates');
+    expect(page().querySelector('[role=status]')?.textContent).toContain('Live');
     button().click();
     await settle();
     expect(resync).toHaveBeenCalledTimes(1);
     expect(button().disabled).toBe(true);
-    expect(button().textContent).toContain('Resyncing');
+    expect(button().getAttribute('aria-label')).toBe('Resyncing…');
     expect(button().getAttribute('aria-busy')).toBe('true');
+    expect(page().querySelector('[role=status]')?.textContent).toContain('Refreshing');
     read().flush(snapshot());
     await settle();
     expect(button().disabled).toBe(false);
-    expect(button().textContent).toContain('Resync now');
+    expect(button().getAttribute('aria-label')).toBe('Resync now');
   });
 
   it('shows Reconnecting immediately and retains the accepted calendar', async () => {
     state.set('reconnecting');
     await settle();
     expect(page().querySelector('.pill')?.textContent).toContain('Reconnecting');
+    expect(button().textContent?.trim()).toBe('Resync now');
     expect(calendar.events()).toEqual([event]);
     expect(button().disabled).toBe(false);
   });
@@ -85,7 +87,8 @@ describe('calendar connection controls', () => {
     button().click();
     read().flush(null, { status: 503, statusText: 'Offline' });
     await settle();
-    expect(page().querySelector('[role=alert]')?.textContent).toContain('Calendar refresh failed');
+    expect(page().querySelector('[role=alert]')?.textContent).toContain("Couldn't refresh");
+    expect(button().textContent?.trim()).toBe('Try again');
     expect(button().disabled).toBe(false);
     expect(calendar.events()).toEqual([event]);
     button().click();
@@ -101,10 +104,8 @@ describe('calendar connection controls', () => {
     calendar.refresh();
     read().flush(snapshot(true));
     await settle();
-    expect(page().querySelector('.pill')?.textContent).toContain('Live updates');
-    expect(page().querySelector('.reconnect')?.textContent).toContain(
-      'Google Calendar has stopped updating',
-    );
+    expect(page().querySelector('[role=status]')?.textContent).toContain('Live');
+    expect(page().querySelector('.reconnect')?.textContent).toContain('Google Calendar needs reconnecting');
     expect(page().querySelector('a')?.getAttribute('href')).toBe('/settings/calendars');
     button().click();
     read().flush(snapshot(true));
@@ -117,5 +118,9 @@ describe('calendar connection controls', () => {
     state.set('stopped');
     await settle();
     expect(page().querySelector('button')).toBeNull();
+    // The server-health line takes its place until there is a subscription.
+    http.expectOne('/health').flush({ status: 'Healthy', checks: {} });
+    await settle();
+    expect(page().querySelector('app-status-line')?.textContent).toContain('Server connected');
   });
 });

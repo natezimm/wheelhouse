@@ -79,7 +79,7 @@ test('optimistic save, rollback and draft preservation', async ({ page }, testIn
   await save();
   await expect(page.locator('app-calendar-save-status')).toContainText('Saving calendar');
   const rendered = page
-    .locator(wall ? 'app-week-view .title' : 'section.agenda .title')
+    .locator(wall ? 'app-week-view .title' : 'app-agenda-list .title')
     .filter({ hasText: 'Optimistic QA event' });
   await expect(rendered).toHaveCount(1);
   await expect(title).toBeDisabled();

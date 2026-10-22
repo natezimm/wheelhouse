@@ -131,7 +131,9 @@ test('recovery preserves calendar view, filters and an open draft', async ({ pag
   const server = await serverFor(page);
   await page.goto(wall ? '/wall' : '/calendar');
   const controls = page.locator('app-calendar-connection');
-  await expect(controls.locator('.pill')).toHaveText('Live updates');
+  const live = controls.locator('.state').first();
+  const reconnecting = controls.locator('.pill.reconnecting');
+  await expect(live).toHaveText('Live');
   if (wall) {
     await page.getByRole('button', { name: 'Day', exact: true }).click();
     await page.getByRole('button', { name: 'Next day', exact: true }).click();
@@ -143,18 +145,16 @@ test('recovery preserves calendar view, filters and an open draft', async ({ pag
     .getByRole('button', { name: 'Ben', exact: true });
   await ben.click();
   await expect(ben).toHaveAttribute('aria-pressed', 'false');
-  const heading = page.locator(wall ? 'app-calendar-nav h2' : '.agenda h2');
+  const heading = page.locator(wall ? 'app-calendar-toolbar h1' : 'app-calendar-home main > header h1');
   const selected = await heading.textContent();
-  await expect(controls.getByRole('button', { name: 'Resync now', exact: true })).toBeEnabled();
+  if (wall) await expect(controls.getByRole('button', { name: 'Resync now', exact: true })).toBeEnabled();
   const range = server.range;
 
   server.online = false;
   server.socket.close({ code: 1011, reason: 'Connection lost' });
-  await expect(controls.locator('.pill')).toHaveText('Reconnecting');
+  await expect(reconnecting).toContainText('Reconnecting · showing');
   // Upstream Google reauthorization remains a different notice from the dropped live socket.
-  await expect(controls.locator('.reconnect')).toContainText(
-    'Google Calendar has stopped updating',
-  );
+  await expect(controls.locator('.reconnect')).toContainText('Google Calendar needs reconnecting');
   server.fail = true;
   server.hold = true;
   await controls.getByRole('button', { name: 'Resync now', exact: true }).click();
@@ -162,16 +162,20 @@ test('recovery preserves calendar view, filters and an open draft', async ({ pag
   await expect.poll(() => !!server.held).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('resyncing.png'), fullPage: true });
   await server.held.fulfill({ status: 503, body: 'Offline' });
-  await expect(controls.locator('.failure')).toContainText('Calendar refresh failed');
+  await expect(controls.locator('.failure')).toContainText("Couldn't refresh · showing");
   await expect(heading).toHaveText(selected);
   await expect(ben).toHaveAttribute('aria-pressed', 'false');
+  const tryAgain = controls.getByRole('button', { name: 'Try again', exact: true });
+  const bounds = await tryAgain.boundingBox();
+  expect(bounds.height).toBeGreaterThanOrEqual(wall ? 56 : 44);
+  await page.screenshot({ path: testInfo.outputPath('failed.png'), fullPage: true });
 
   server.fail = false;
   server.online = true;
   server.revision = 2;
-  await controls.getByRole('button', { name: 'Resync now', exact: true }).click();
-  await expect(controls.locator('.pill')).toHaveText('Live updates');
-  await expect(controls.getByRole('button', { name: 'Resync now', exact: true })).toBeEnabled();
+  await tryAgain.click();
+  await expect(live).toHaveText('Live');
+  if (wall) await expect(controls.getByRole('button', { name: 'Resync now', exact: true })).toBeEnabled();
   await expect(controls.locator('.failure')).toHaveCount(0);
   await expect(heading).toHaveText(selected);
   await expect(ben).toHaveAttribute('aria-pressed', 'false');
@@ -182,10 +186,6 @@ test('recovery preserves calendar view, filters and an open draft', async ({ pag
       'aria-pressed',
       'true',
     );
-  const bounds = await controls
-    .getByRole('button', { name: 'Resync now', exact: true })
-    .boundingBox();
-  expect(bounds.height).toBeGreaterThanOrEqual(wall ? 56 : 44);
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
   await page.screenshot({ path: testInfo.outputPath('recovered.png'), fullPage: true });
 
@@ -195,11 +195,11 @@ test('recovery preserves calendar view, filters and an open draft', async ({ pag
   await title.fill('Keep this draft');
   server.online = false;
   server.socket.close({ code: 1011, reason: 'Connection lost with an open draft' });
-  await expect(controls.locator('.pill')).toHaveText('Reconnecting');
+  await expect(reconnecting).toContainText('Reconnecting');
   server.online = true;
   server.revision = 3;
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
-  await expect(controls.locator('.pill')).toHaveText('Live updates');
+  await expect(live).toHaveText('Live');
   await expect(title).toHaveValue('Keep this draft');
   await expect(heading).toHaveText(selected);
   await expect(ben).toHaveAttribute('aria-pressed', 'false');
@@ -208,19 +208,19 @@ test('recovery preserves calendar view, filters and an open draft', async ({ pag
   await page.screenshot({ path: testInfo.outputPath('draft-preserved.png'), fullPage: true });
 });
 
-test('Today exposes the same recovery controls', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'phone', 'Today is the phone layout.');
+test('the phone day offers the same recovery controls', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'phone', 'The day opens first on the phone layout.');
   const server = await serverFor(page);
   await page.goto('/');
   const controls = page.locator('app-calendar-connection');
-  await expect(controls.locator('.pill')).toHaveText('Live updates');
+  await expect(controls.locator('.state').first()).toHaveText('Live');
   server.online = false;
   server.socket.close({ code: 1011, reason: 'Connection lost' });
-  await expect(controls.locator('.pill')).toHaveText('Reconnecting');
+  await expect(controls.locator('.pill.reconnecting')).toContainText('Reconnecting');
   server.online = true;
   await controls.getByRole('button', { name: 'Resync now', exact: true }).click();
-  await expect(controls.locator('.pill')).toHaveText('Live updates');
+  await expect(controls.locator('.state').first()).toHaveText('Live');
   await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
   expect(server.googleRequests).toBe(0);
-  await page.screenshot({ path: testInfo.outputPath('today-recovery.png'), fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('day-recovery.png'), fullPage: true });
 });
