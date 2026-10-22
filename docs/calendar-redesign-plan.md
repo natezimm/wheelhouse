@@ -214,7 +214,7 @@ Household features stay in the [household roadmap](household-roadmap.md). Also d
 | Milestone | Status | Evidence |
 | --- | --- | --- |
 | 0. Visual direction | In review | Canvas linked under Approved reference, October 22, 2026 |
-| 1. Shell and preferences | Planned | Household retirement already done in PR #39 |
+| 1. Shell and preferences | In review | [PR #41](https://github.com/natezimm/wheelhouse/pull/41), screenshots in `docs/screenshots/m1-*.png`; household retirement done in PR #39 |
 | 2. Grid engine and Week | Planned | |
 | 3. Day, Month, phone | Planned | |
 | 4. Hardening | Planned | |
