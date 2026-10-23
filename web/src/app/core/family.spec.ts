@@ -100,6 +100,22 @@ describe('FamilyStore', () => {
       expect(failed).toBe(true);
       expect(names()).toEqual(['Ben', 'Tess', 'Milo']);
     });
+
+    it('takes a check-in that answers with a newer family', () => {
+      store.refresh();
+      http.expectOne('/api/family').flush({ ...marlowes, theme: 'Groovy' });
+
+      expect(store.family()?.theme).toBe('Groovy');
+    });
+
+    it('ignores a check-in that started before a change was accepted', () => {
+      store.refresh();
+      store.saveTheme('Bold', true).subscribe();
+      http.expectOne({ method: 'PUT', url: '/api/family/theme' }).flush({ ...marlowes, theme: 'Bold' });
+      http.expectOne({ method: 'GET', url: '/api/family' }).flush(marlowes);
+
+      expect(store.family()?.theme).toBe('Bold');
+    });
   });
 });
 
