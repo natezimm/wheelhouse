@@ -44,6 +44,9 @@ try {
     await page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'Month', exact: true }).click();
     await expect(page.locator('app-phone-month .month')).toBeVisible();
     await expect(page.locator('app-phone-month .month')).toContainText(/\S/);
+    // The phone remembers its last view across a reload.
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(page.locator('app-phone-month .month')).toBeVisible();
     // Old links to /calendar still reach the calendar.
     await page.goto('/calendar', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(new URL('/', baseURL).href);
@@ -55,12 +58,21 @@ try {
     // Match actual seeded events returned by this browser's own demo copy to
     // rendered wall text. A healthy API with an empty/old UI must fail here.
     await page.setViewportSize({ width: 1920, height: 1080 });
-    // Read the body as soon as it arrives: a live refresh can replace it in the browser's cache.
-    const snapshot = page
-      .waitForResponse((r) => new URL(r.url()).pathname === '/api/calendar' && r.status() === 200)
-      .then((response) => response.json());
-    await page.goto('/wall', { waitUntil: 'domcontentloaded' });
-    const events = (await snapshot).events;
+    // Read the body as soon as it arrives: a live refresh can replace it in the browser's cache, and a
+    // read the previous page started can finish during the navigation and lose its body, so try again.
+    let result;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      const snapshot = page
+        .waitForResponse((r) => new URL(r.url()).pathname === '/api/calendar' && r.status() === 200)
+        .then((response) => response.json())
+        .catch((error) => ({ error }));
+      await page.goto('/wall', { waitUntil: 'domcontentloaded' });
+      result = await snapshot;
+      if (!result.error) break;
+    }
+    if (result.error) throw result.error;
+    const events = result.events;
+    expect(Array.isArray(events)).toBeTruthy();
     expect(events.length).toBeGreaterThan(0);
     await expect.poll(async () => {
       for (const event of events) {

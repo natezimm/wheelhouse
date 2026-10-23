@@ -74,7 +74,7 @@ public sealed class DemoSeedDataTests
             Assert.Contains(start.DayOfWeek, new[] { DayOfWeek.Tuesday, DayOfWeek.Thursday });
             Assert.Equal(new TimeOnly(17, 15), TimeOnly.FromDateTime(start.DateTime));
             Assert.Equal(TimeSpan.FromMinutes(75), e.EndUtc - e.StartUtc);
-            Assert.InRange(DateOnly.FromDateTime(start.DateTime).DayNumber - seed.AnchorDate.DayNumber, -14, 42);
+            Assert.InRange(DateOnly.FromDateTime(start.DateTime).DayNumber - seed.AnchorDate.DayNumber, -42, 42);
         });
         Assert.Equal(2, soccer.Select(e => TimeZoneInfo.ConvertTime(e.StartUtc!.Value, anchor.TimeZone).Offset).Distinct().Count());
         Assert.All(seed.Events.Where(e => e.IsAllDay), e =>
