@@ -20,6 +20,7 @@ import {
 } from '../core/event-draft';
 import { FamilyStore } from '../core/family';
 import { SessionStore } from '../core/session';
+import { ModalFocus } from '../shared/modal-focus';
 
 /**
  * The wall's dialog for adding an event, or changing or deleting one. Everything works by touch:
@@ -27,10 +28,19 @@ import { SessionStore } from '../core/session';
  */
 @Component({
   selector: 'app-event-dialog',
+  imports: [ModalFocus],
   template: `
     <div class="scrim" aria-hidden="true" (click)="!busy() && closed.emit()"></div>
     @if (draft(); as draft) {
-      <form [attr.aria-label]="heading()" (submit)="$event.preventDefault(); save()">
+      <form
+        appModalFocus
+        tabindex="-1"
+        role="dialog"
+        aria-modal="true"
+        [attr.aria-label]="heading()"
+        (keydown.escape)="!busy() && closed.emit()"
+        (submit)="$event.preventDefault(); save()"
+      >
         <div class="top">
           <h1>{{ heading() }}</h1>
           <span class="saves"><span class="dot" aria-hidden="true"></span>{{ savesTo() }}</span>

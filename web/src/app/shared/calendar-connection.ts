@@ -37,6 +37,11 @@ import { StatusLine } from './status-line';
             {{ live.recovering() ? 'Resyncing…' : 'Try again' }}
           </button>
         </div>
+      } @else if (live.state() === 'connecting') {
+        <!-- The first connection is not a problem yet: say so quietly, without a pill or a button. -->
+        @if (show() === 'all') {
+          <span class="state connecting" role="status" aria-live="polite"><span class="dot" aria-hidden="true"></span>Connecting…</span>
+        }
       } @else if (offline()) {
         <div class="pill reconnecting" aria-label="Calendar connection">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.4-5.7M20 4v4h-4"></path></svg>
@@ -47,7 +52,7 @@ import { StatusLine } from './status-line';
         </div>
       } @else if (show() === 'all') {
         <div class="live" aria-label="Calendar connection">
-          <span class="state" role="status" aria-live="polite"><span class="dot" aria-hidden="true"></span>{{ live.recovering() ? 'Refreshing' : 'Live' }}</span>
+          <span class="state" role="status" aria-live="polite"><span class="dot" aria-hidden="true"></span><span class="word">{{ live.recovering() ? 'Refreshing' : 'Live' }}</span></span>
           <button
             type="button"
             class="quiet"
@@ -111,6 +116,22 @@ import { StatusLine } from './status-line';
       height: 8px;
       border-radius: 50%;
       background: var(--live);
+    }
+
+    /* A narrow desktop toolbar keeps the dot and lets the word go, still read aloud. */
+    @media (max-width: 1180px) {
+      :host(.desktop) .word {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+    }
+
+    .connecting .dot {
+      background: var(--line);
     }
 
     button {
@@ -289,7 +310,8 @@ export class CalendarConnection {
   protected readonly session = inject(SessionStore);
   private readonly family = inject(FamilyStore);
 
-  protected readonly offline = computed(() => this.live.state() === 'connecting' || this.live.state() === 'reconnecting');
+  /** Lost the subscription it had, or never got one after the first try; connecting the first time is not a problem. */
+  protected readonly offline = computed(() => this.live.state() === 'reconnecting');
 
   /** Whether a connection problem already takes room, so the Google notice keeps to its first sentence. */
   protected readonly problem = computed(
@@ -303,7 +325,5 @@ export class CalendarConnection {
     return at && family ? ` · showing ${timeIn(family.timeZone, at)}` : '';
   });
 
-  protected readonly offlineLabel = computed(() =>
-    this.live.state() === 'connecting' && !this.calendar.shownAt() ? 'Connecting' : `Reconnecting${this.showing()}`,
-  );
+  protected readonly offlineLabel = computed(() => `Reconnecting${this.showing()}`);
 }
