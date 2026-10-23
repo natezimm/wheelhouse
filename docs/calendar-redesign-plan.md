@@ -1,6 +1,6 @@
 # Wheelhouse calendar redesign plan
 
-Created October 21, 2026; reviewed against the code and given a visual direction on October 22, 2026. Status: milestones 1 to 4 are merged; milestone 5 (themes) is in review. Repository baseline: `18e4afb` (after the calendar-only cleanup in PR #39).
+Created October 21, 2026; reviewed against the code and given a visual direction on October 22, 2026. Status: milestones 1 to 5 are merged; milestone 6 (release) is in review. Repository baseline: `18e4afb` (after the calendar-only cleanup in PR #39).
 
 ## Product decision
 
@@ -218,8 +218,8 @@ Household features stay in the [household roadmap](household-roadmap.md). Also d
 | 2. Grid engine and Week | Done | [PR #42](https://github.com/natezimm/wheelhouse/pull/42), merged October 22, 2026; screenshots in `docs/screenshots/m2-*.png` |
 | 3. Day, Month, phone | Done | [PR #44](https://github.com/natezimm/wheelhouse/pull/44), merged October 23, 2026; screenshots in `docs/screenshots/m3-*.png` |
 | 4. Hardening | Done | [PR #45](https://github.com/natezimm/wheelhouse/pull/45), merged October 23, 2026, with two review fixes after it; loading and failed states on every view, keyboard focus in details and editors, contrast checks per member color, the narrow desktop toolbar; screenshots in `docs/screenshots/m4-*.png` |
-| 5. Themes | In review | Daylight, Groovy, Classic, Bold and automatic Night on every view, the Settings picker, contrast per theme and member color; screenshots in `docs/screenshots/m5-*.png` |
-| 6. Release | Planned | |
+| 5. Themes | Done | [PR #47](https://github.com/natezimm/wheelhouse/pull/47), merged October 23, 2026; Daylight, Groovy, Classic, Bold and automatic Night on every view, the Settings picker, contrast per theme and member color; screenshots in `docs/screenshots/m5-*.png` |
+| 6. Release | In review | Pre-release review of every view in every theme; demo seeds and desktop opening scroll fixed, smoke checks the remembered view; screenshots in `docs/screenshots/m6-*.png`. Done once a version is released and checked live |
 
 Decisions made while building milestone 2:
 
@@ -256,5 +256,11 @@ Decisions made while building milestone 5:
 - The whole family's slate is too dark to see at night, so `FAMILY_COLOR` became the `--family` token, lighter in Night (#8B929C).
 - Every device re-reads the family on the shared 30-second check, so a theme chosen on one phone reaches the wall and other phones within half a minute without a reload, and an unchanged family is not replaced.
 - Settings loads every theme's fonts for its previews; everywhere else only the active theme's load.
+
+Decisions made while preparing milestone 6:
+
+- The demo filled only the weeks ahead, so the first half of Month and the start of the current Week looked abandoned. Its weekly series now run six weeks back as well as ahead, and a handful of one-off events sit in the days and weeks before the copy's day, so any month on screen looks lived in.
+- A desktop window opened its Week and Day exactly an hour before now, so at 10:20 it started at 9:20 and cut off the 9 AM label and the tops of events at that hour. It now opens a quarter hour above the previous whole hour.
+- The release smoke check also reloads the phone and expects its Month to come back, and reads the wall's calendar again if the previous page's request finishes during the navigation.
 
 Update this record with merged PR links and screenshots after each milestone. An open PR or a passing build does not complete a milestone.

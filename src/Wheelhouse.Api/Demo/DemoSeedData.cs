@@ -214,10 +214,65 @@ public static class DemoSeedData
             location: "Phoenicia, NY",
             description: "Check-in after 3 PM Saturday; pack hiking boots and board games."));
 
-        // --- EXPANDED RECURRING SERIES (-14 days to +42 days) ---
+        // --- EARLIER DAYS (so the current week and month look lived in, not only what is ahead) ---
+        events.Add(anchor.TimedEvent(
+            familyId, calendars.Milo.Id,
+            title: "Science fair build session",
+            date: today.AddDays(-1), start: new(16, 0), end: new(17, 30),
+            location: "Garage workbench"));
+
+        events.Add(anchor.TimedEvent(
+            familyId, calendars.Clara.Id,
+            title: "Book club at Priya's",
+            date: today.AddDays(-2), start: new(19, 0), end: new(21, 0),
+            location: "Ridgewood Rd"));
+
+        events.Add(anchor.TimedEvent(
+            familyId, calendars.Julian.Id,
+            title: "Permit review at Town Hall",
+            date: today.AddDays(-3), start: new(9, 0), end: new(10, 0),
+            location: "Maplewood Town Hall"));
+
+        events.Add(anchor.TimedEvent(
+            familyId, calendars.Nora.Id,
+            title: "Library reading buddies",
+            date: today.AddDays(-3), start: new(15, 30), end: new(16, 30),
+            location: "Maplewood Memorial Library"));
+
+        events.Add(anchor.TimedEvent(
+            familyId, calendars.Family.Id,
+            title: "Family movie night",
+            date: today.AddDays(-4), start: new(19, 0), end: new(21, 0),
+            location: "Home"));
+
+        events.Add(anchor.TimedEvent(
+            familyId, calendars.Family.Id,
+            title: "Apple picking at Hillside Orchard",
+            date: today.AddDays(-9), start: new(10, 0), end: new(13, 0),
+            location: "Hillside Orchard"));
+
+        events.Add(anchor.TimedEvent(
+            familyId, calendars.Clara.Id,
+            title: "Haircut",
+            date: today.AddDays(-16), start: new(12, 0), end: new(12, 45),
+            location: "Studio Nine"));
+
+        events.Add(anchor.TimedEvent(
+            familyId, calendars.Milo.Id,
+            title: "Robotics regional qualifier",
+            date: today.AddDays(-23), start: new(8, 30), end: new(15, 0),
+            location: "County STEM Center"));
+
+        events.Add(anchor.TimedEvent(
+            familyId, calendars.Julian.Id,
+            title: "Car service",
+            date: today.AddDays(-30), start: new(8, 0), end: new(9, 0),
+            location: "Valley Auto"));
+
+        // --- EXPANDED RECURRING SERIES (-42 days to +42 days, so any month on screen shows them) ---
         // 1. Nora's Tue/Thu Soccer Practice (Weekly series)
         var soccerSeriesId = Guid.NewGuid().ToString("N");
-        for (var offset = -14; offset <= 42; offset++)
+        for (var offset = -42; offset <= 42; offset++)
         {
             var d = today.AddDays(offset);
             if (d.DayOfWeek is DayOfWeek.Tuesday or DayOfWeek.Thursday)
@@ -234,7 +289,7 @@ public static class DemoSeedData
 
         // 2. Garbage & Recycling Night (Weekly on Wednesday evening)
         var trashSeriesId = Guid.NewGuid().ToString("N");
-        for (var offset = -14; offset <= 42; offset++)
+        for (var offset = -42; offset <= 42; offset++)
         {
             var d = today.AddDays(offset);
             if (d.DayOfWeek == DayOfWeek.Wednesday)
