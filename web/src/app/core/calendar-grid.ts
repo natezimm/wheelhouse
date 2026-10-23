@@ -3,8 +3,8 @@ import { Day, dayIn, minutesIn } from './days';
 
 /**
  * Where events sit on an hour grid, worked out without any screen: which family days each
- * covers, which overlap, and which side-by-side column each takes. Week uses it now, and Day
- * and Month will.
+ * covers, which overlap, and which side-by-side column each takes. Week and Day draw their
+ * hour grids from it, and Month its bars and lines.
  */
 
 const DAY_MINUTES = 24 * 60;
@@ -222,4 +222,53 @@ export function hourRange(segments: Iterable<TimedSegment>, first = FIRST_HOUR, 
 export function hourLabel(hour: number): string {
   const h = hour % 24;
   return `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+/** One day of a month row: the rows of bars over it, its timed events in order, and how many of its events did not fit. */
+export interface MonthDay {
+  day: Day;
+  lanes: number;
+  segments: TimedSegment[];
+  more: number;
+}
+
+/**
+ * One week of the month: all-day and long events as bars across their days, then each day's
+ * timed events as lines, starting under the last bar over that day. <code>room(lanes)</code>
+ * says how many lines fit under that many rows of bars. A day with more than fits shows one
+ * line fewer and counts the rest as "+N more", bars that did not fit included.
+ */
+export function monthWeek(
+  events: readonly CalendarEvent[],
+  days: readonly Day[],
+  timeZone: string,
+  room: (lanes: number) => number,
+  maxLanes = 2,
+): { bars: DayBar[]; lanes: number; days: MonthDay[] } {
+  // Never so many rows of bars that a day has no line left to say what else it holds.
+  while (maxLanes > 0 && room(maxLanes) < 1) {
+    maxLanes--;
+  }
+  const { bars, lanes, hidden } = dayBars(events, days, timeZone, maxLanes);
+  const segments = timedSegments(events, days, timeZone);
+  return {
+    bars,
+    lanes,
+    days: days.map((day, i) => {
+      const over = bars.filter((bar) => bar.first <= i && i < bar.first + bar.span).map((bar) => bar.lane + 1);
+      const dayLanes = Math.max(0, ...over);
+      const fits = room(dayLanes);
+      const timed = [...(segments.get(day) ?? [])].sort(bySegment);
+      if (timed.length <= fits && hidden[i] === 0) {
+        return { day, lanes: dayLanes, segments: timed, more: 0 };
+      }
+      const shown = Math.max(0, Math.min(timed.length, fits - 1));
+      return { day, lanes: dayLanes, segments: timed.slice(0, shown), more: timed.length - shown + hidden[i] };
+    }),
+  };
+}
+
+/** "3:30 PM" as "3:30p" and "9:00 AM" as "9a", for a line in a month's day. */
+export function compactTime(time: string): string {
+  return time.replace(':00', '').replace(/\s?(AM|PM)$/, (_, half: string) => (half === 'AM' ? 'a' : 'p'));
 }

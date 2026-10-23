@@ -215,8 +215,8 @@ Household features stay in the [household roadmap](household-roadmap.md). Also d
 | --- | --- | --- |
 | 0. Visual direction | In review | Canvas linked under Approved reference, October 22, 2026 |
 | 1. Shell and preferences | Done | [PR #41](https://github.com/natezimm/wheelhouse/pull/41), merged October 22, 2026; screenshots in `docs/screenshots/m1-*.png`; household retirement done in PR #39 |
-| 2. Grid engine and Week | In review | Grid engine, Week, event details and tap-to-create; screenshots in `docs/screenshots/m2-*.png` |
-| 3. Day, Month, phone | Planned | |
+| 2. Grid engine and Week | Done | [PR #42](https://github.com/natezimm/wheelhouse/pull/42), merged October 22, 2026; screenshots in `docs/screenshots/m2-*.png` |
+| 3. Day, Month, phone | In review | Day on the shared hour grid, full-height Month, phone Week and Month agendas and the empty day; screenshots in `docs/screenshots/m3-*.png` |
 | 4. Hardening | Planned | |
 | 5. Themes | Planned | Groovy, Classic, Bold and Night drawn on the canvas (wall Week) |
 | 6. Release | Planned | |
@@ -228,5 +228,12 @@ Decisions made while building milestone 2:
 - The wall's Week fits its hours without scrolling unless an hour would be shorter than 36 px; a desktop window always scrolls the whole day at 48 px an hour.
 - Add event starts a new event at the next half hour today, or 9 AM on another day; a tapped empty slot starts it at that half hour. Delete in the details opens the editor already asking to confirm, so series choices and save states stay in one place.
 - Demo seeds gained an overlapping afternoon, a morning run and a three-day visit so the populated Week shows side-by-side events and a spanning bar.
+
+Decisions made while building milestone 3:
+
+- Week and Day draw their timed events with one shared hour grid (`wall/hour-grid.ts`): Week gives it a column per day, Day a column per person. Day blocks lead with the title, then the times, then the place where it fits; in a narrow column a short block keeps its title and drops the times. A "+N" in a person's column opens the first event it hides.
+- A day with nothing planned says so over the grid on the wall and desktop, and as a centered message with Add event on the phone; a failed refresh says the empty day is from the last good refresh. Neither shows before the day has loaded.
+- In Month every target is a whole day: bars and lines are drawn under the day's button rather than being buttons themselves, so they never fall below the wall's 56 px. A day's lines start under the last bar over that day, not under the week's deepest bar, and how many fit follows the card's height.
+- The phone's Week and Month list each event as one compact tinted row (time, initial, title); the Day agenda keeps the full cards. Week names today, tomorrow and yesterday, and once loaded scrolls yesterday to the top so today is in view.
 
 Update this record with merged PR links and screenshots after each milestone. An open PR or a passing build does not complete a milestone.

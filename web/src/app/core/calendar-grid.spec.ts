@@ -1,5 +1,5 @@
 import { allDay, timed } from '../testing/calendar';
-import { arrange, dayBars, hourLabel, hourRange, inAllDayLane, timedSegments } from './calendar-grid';
+import { arrange, compactTime, dayBars, hourLabel, hourRange, inAllDayLane, monthWeek, timedSegments } from './calendar-grid';
 import { daysBetween } from './days';
 
 describe('calendar grid', () => {
@@ -133,5 +133,49 @@ describe('calendar grid', () => {
 
   it('labels hours the way the family reads them', () => {
     expect([0, 7, 12, 15].map(hourLabel)).toEqual(['12 AM', '7 AM', '12 PM', '3 PM']);
+  });
+
+  it('lists a month day’s timed events in order and counts what does not fit', () => {
+    const day = '2026-10-22';
+    const busy = ['08:00', '12:00', '15:00', '15:15', '17:30'].map((from, i) => at(`Event ${i}`, day, from, from.replace(/^\d+/, (h) => String(Number(h) + 1).padStart(2, '0'))));
+    const row = monthWeek([...busy].reverse(), week, zone, () => 4);
+    const thursday = row.days[3];
+    expect(thursday.segments.map((s) => s.event.title)).toEqual(['Event 0', 'Event 1', 'Event 2']);
+    expect(thursday.more).toBe(2);
+    expect(row.days[0]).toEqual({ day: '2026-10-19', lanes: 0, segments: [], more: 0 });
+  });
+
+  it('shows every line when they all fit', () => {
+    const day = '2026-10-22';
+    const row = monthWeek([at('Swim', day, '15:00', '16:00'), at('Soccer', day, '17:30', '18:30')], week, zone, () => 2);
+    expect(row.days[3].segments.length).toBe(2);
+    expect(row.days[3].more).toBe(0);
+  });
+
+  it('gives bars their rows and counts bars that did not fit as more', () => {
+    const events = [
+      allDay('Grandma visiting', null, '2026-10-19', '2026-10-22'),
+      allDay('Trash night', 'm1', '2026-10-20', '2026-10-21'),
+      allDay('Spirit Day', null, '2026-10-20', '2026-10-21'),
+      at('Swim', '2026-10-20', '15:00', '16:00'),
+    ];
+    const row = monthWeek(events, week, zone, (lanes) => 4 - lanes);
+    expect(row.lanes).toBe(2);
+    expect(row.bars.map((b) => b.event.title)).toEqual(['Grandma visiting', 'Spirit Day']);
+    expect(row.days[1]).toEqual(expect.objectContaining({ lanes: 2, more: 1 }));
+    expect(row.days[1].segments.map((s) => s.event.title)).toEqual(['Swim']);
+    // A day under one bar starts its lines under that bar, and one under none at the top.
+    expect(row.days.map((d) => d.lanes)).toEqual([1, 2, 1, 0, 0, 0, 0]);
+  });
+
+  it('uses fewer rows of bars when a short day would have no line left', () => {
+    const events = [allDay('Grandma visiting', null, '2026-10-19', '2026-10-22'), allDay('Spirit Day', null, '2026-10-19', '2026-10-20')];
+    const row = monthWeek(events, week, zone, (lanes) => 2 - lanes);
+    expect(row.lanes).toBe(1);
+    expect(row.days[0].more).toBe(1);
+  });
+
+  it('writes times short enough for a month line', () => {
+    expect(['9:00 AM', '3:30 PM', '12:00 PM'].map(compactTime)).toEqual(['9a', '3:30p', '12p']);
   });
 });

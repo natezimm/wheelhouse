@@ -24,7 +24,7 @@ import { AgendaList } from './agenda-list';
     }
     <app-calendar-filter class="compact" />
     <section [attr.aria-label]="name()">
-      <app-agenda-list [day]="focus()" (inspect)="inspect.emit($event)" />
+      <app-agenda-list [day]="focus()" (inspect)="inspect.emit($event)" (add)="add.emit()" />
     </section>
   `,
   styles: `
@@ -56,9 +56,8 @@ import { AgendaList } from './agenda-list';
     }
 
     .dow {
-      font-size: 11px;
+      font-size: 12px;
       font-weight: 700;
-      letter-spacing: 0.06em;
       color: var(--faint);
     }
 
@@ -110,6 +109,7 @@ export class PhoneDay {
   readonly focus = input.required<Day>();
   readonly pick = output<Day>();
   readonly inspect = output<string>();
+  readonly add = output<void>();
 
   protected readonly name = computed(() => formatDay(this.focus(), { weekday: 'long', month: 'long', day: 'numeric' }));
 
@@ -130,7 +130,7 @@ export class PhoneDay {
       const day = addDays(start, i);
       return {
         day,
-        dow: formatDay(day, { weekday: 'short' }).toUpperCase(),
+        dow: formatDay(day, { weekday: 'narrow' }),
         num: Number(day.slice(8)),
         label: formatDay(day, { weekday: 'long', month: 'long', day: 'numeric' }),
         isToday: day === today,

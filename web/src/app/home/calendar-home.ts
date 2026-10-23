@@ -98,7 +98,14 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
           @if (shown(); as day) {
             @switch (view()) {
               @case ('day') {
-                <app-day-view [focus]="day" (inspect)="selected.set($event)" />
+                <app-day-view
+                  [focus]="day"
+                  layout="desktop"
+                  [selected]="selected()"
+                  [canAdd]="canAdd()"
+                  (inspect)="selected.set($event)"
+                  (create)="addAt($event)"
+                />
               }
               @case ('week') {
                 <app-week-view
@@ -112,7 +119,7 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
                 />
               }
               @case ('month') {
-                <app-month-view [focus]="day" (opened)="openDay($event)" />
+                <app-month-view [focus]="day" layout="desktop" (opened)="openDay($event)" />
               }
             }
           }
@@ -156,7 +163,7 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
           </div>
           @switch (view()) {
             @case ('day') {
-              <app-phone-day [focus]="day" (pick)="focus.set($event)" (inspect)="selected.set($event)" />
+              <app-phone-day [focus]="day" (pick)="focus.set($event)" (inspect)="selected.set($event)" (add)="add()" />
             }
             @case ('week') {
               <app-phone-week [focus]="day" (inspect)="selected.set($event)" />
