@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-for (const scenario of ['demo', 'family', 'old-ui', 'missing-wall-event', 'runtime-error', 'api-error']) {
+for (const scenario of ['demo', 'family', 'old-ui', 'missing-wall-event', 'runtime-error', 'api-error', 'forgets-view']) {
   test(`Smoke contract: ${scenario}`, async () => {
     const family = scenario === 'family';
     const server = createServer((req, res) => {
@@ -27,8 +27,9 @@ for (const scenario of ['demo', 'family', 'old-ui', 'missing-wall-event', 'runti
       else if (scenario === 'old-ui') content = '<h1>Today</h1><app-today-events>Today content</app-today-events>';
       else if (path === '/') {
         content = '<h1>Today</h1>' + nav + '<app-agenda-list>Agenda</app-agenda-list>'
-          + '<div role="group" aria-label="View"><button aria-pressed="false">Day</button><button id="week">Week</button><button onclick="document.getElementById(\'m\').hidden=false">Month</button></div>'
+          + '<div role="group" aria-label="View"><button aria-pressed="false">Day</button><button id="week">Week</button><button onclick="document.getElementById(\'m\').hidden=false;localStorage.view=\'month\'">Month</button></div>'
           + '<app-phone-month id="m" hidden><div class="month">October</div></app-phone-month>'
+          + (scenario === 'forgets-view' ? '' : '<script>if (localStorage.view === "month") document.getElementById("m").hidden = false</script>')
           + '<script>document.getElementById("week").setAttribute("aria-pressed", String(innerWidth >= 768))</script>';
       }
       else if (path === '/wall') content += '<div id="events"></div><script>fetch("/api/calendar").then(r=>r.json()).then(s=>{'+ (scenario === 'missing-wall-event' ? '' : 'document.getElementById("events").textContent=s.events[0].title;')+'});</script>';

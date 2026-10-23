@@ -732,7 +732,8 @@ export class HourGrid {
     let minutes: number;
     if (this.columns().some((column) => column.day === this.today())) {
       const now = minutesIn(family.timeZone, this.clock.now());
-      minutes = this.layout() === 'desktop' ? now - 60 : Math.floor(now / 60) * 60 - 30;
+      // Desktop opens a little above the previous whole hour, so the hour's label and its events show from their start.
+      minutes = Math.floor(now / 60) * 60 - (this.layout() === 'desktop' ? 75 : 30);
     } else {
       const starts = this.segments().map((segment) => segment.start);
       minutes = (starts.length ? Math.min(...starts) : 8 * 60) - 30;
