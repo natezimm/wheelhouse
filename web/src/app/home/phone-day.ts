@@ -43,8 +43,9 @@ import { AgendaList } from './agenda-list';
     .strip button {
       min-height: 64px;
       padding: 6px 0;
+      box-sizing: border-box;
       border: 0;
-      border-radius: 16px;
+      border-radius: min(16px, var(--card-radius));
       background: transparent;
       color: var(--ink);
       font: inherit;
@@ -64,7 +65,8 @@ import { AgendaList } from './agenda-list';
     .num {
       font-family: var(--font-display);
       font-size: 18px;
-      font-weight: 600;
+      font-weight: var(--display-weight);
+      font-variation-settings: var(--display-variation);
     }
 
     .is-today .dow,
@@ -73,13 +75,14 @@ import { AgendaList } from './agenda-list';
     }
 
     .strip button[aria-pressed='true'] {
-      background: var(--ink);
-      color: var(--on-ink);
+      border: var(--today-num-border);
+      background: var(--today-num);
+      color: var(--on-today-num);
     }
 
     .strip button[aria-pressed='true'] .dow,
     .strip button[aria-pressed='true'] .num {
-      color: var(--on-ink);
+      color: var(--on-today-num);
     }
 
     .dot {
@@ -93,7 +96,7 @@ import { AgendaList } from './agenda-list';
     }
 
     [aria-pressed='true'] .dot.busy {
-      background: var(--on-ink);
+      background: var(--on-today-num);
     }
 
     section {

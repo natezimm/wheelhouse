@@ -94,6 +94,7 @@ export type { GridSlot } from './hour-grid';
 
     .heads {
       height: 58px;
+      border-bottom: var(--head-rule);
       grid-template-columns: var(--gutter) repeat(7, minmax(0, 1fr));
     }
 
@@ -121,7 +122,7 @@ export type { GridSlot } from './hour-grid';
     }
 
     .head.today {
-      background: var(--today-tint);
+      background: var(--today-head);
     }
 
     .dow {
@@ -132,22 +133,25 @@ export type { GridSlot } from './hour-grid';
     }
 
     .today .dow {
-      color: var(--ink);
+      color: var(--today-dow);
     }
 
     .num {
       font-family: var(--font-display);
       font-size: 24px;
-      font-weight: 600;
+      font-weight: var(--display-weight);
+      font-variation-settings: var(--display-variation);
       line-height: 1;
     }
 
     .today .num {
+      box-sizing: border-box;
       width: 40px;
       height: 40px;
-      border-radius: 20px;
-      background: var(--ink);
-      color: var(--on-ink);
+      border: var(--today-num-border);
+      border-radius: var(--today-num-radius);
+      background: var(--today-num);
+      color: var(--on-today-num);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -164,7 +168,6 @@ export type { GridSlot } from './hour-grid';
     :host(.desktop) .today .num {
       width: 32px;
       height: 32px;
-      border-radius: 16px;
     }
 
     .all-day {
@@ -206,7 +209,7 @@ export type { GridSlot } from './hour-grid';
       min-width: 0;
       margin: 0 4px;
       border: 0;
-      border-radius: 10px;
+      border-radius: var(--event-radius);
       font: inherit;
       cursor: pointer;
       display: flex;
@@ -231,9 +234,10 @@ export type { GridSlot } from './hour-grid';
       box-sizing: border-box;
       padding: 0 12px 0 7px;
       gap: 8px;
-      background: color-mix(in srgb, var(--member) var(--member-fill), var(--surface));
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--member) var(--member-ring), var(--surface));
-      color: var(--ink);
+      background: var(--member-bg);
+      box-shadow: var(--bar-outline);
+      border: var(--event-border);
+      color: var(--event-ink);
       font-size: 15px;
       font-weight: 600;
       text-align: left;
@@ -264,7 +268,7 @@ export type { GridSlot } from './hour-grid';
       margin: 0 3px;
       padding: 0 10px 0 5px;
       gap: 6px;
-      border-radius: 8px;
+      border-radius: var(--event-radius-small);
       font-size: 13px;
     }
 
@@ -280,8 +284,10 @@ export type { GridSlot } from './hour-grid';
       width: 22px;
       height: 22px;
       border-radius: 11px;
-      background: color-mix(in srgb, var(--member) var(--member-shade), black);
-      color: var(--on-ink);
+      background: var(--member-strong);
+      border: var(--avatar-border);
+      box-sizing: border-box;
+      color: var(--on-avatar);
       font-size: 11px;
       font-weight: 700;
       line-height: 1;

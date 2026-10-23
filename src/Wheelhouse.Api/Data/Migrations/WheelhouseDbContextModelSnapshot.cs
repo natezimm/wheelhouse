@@ -395,6 +395,9 @@ namespace Wheelhouse.Api.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("AutoNight")
+                        .HasColumnType("boolean");
+
                     b.Property<long>("CalendarChangeNumber")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bigint")
@@ -432,6 +435,11 @@ namespace Wheelhouse.Api.Data.Migrations
 
                     b.Property<TimeOnly>("NightModeTo")
                         .HasColumnType("time without time zone");
+
+                    b.Property<string>("Theme")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
 
                     b.Property<string>("TimeZone")
                         .IsRequired()

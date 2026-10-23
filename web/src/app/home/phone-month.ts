@@ -58,9 +58,10 @@ import { CompactAgenda } from './compact-agenda';
 
     .month {
       padding: 12px 10px;
-      border-radius: 20px;
+      border: var(--card-border);
+      border-radius: min(20px, var(--card-radius));
       background: var(--surface);
-      box-shadow: var(--card-shadow);
+      box-shadow: var(--card-shadow-small);
       display: flex;
       flex-direction: column;
       gap: 6px;
@@ -100,9 +101,10 @@ import { CompactAgenda } from './compact-agenda';
     }
 
     .num {
+      box-sizing: border-box;
       width: 32px;
       height: 32px;
-      border-radius: 16px;
+      border-radius: var(--today-num-radius);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -118,8 +120,9 @@ import { CompactAgenda } from './compact-agenda';
     }
 
     .is-today .num {
-      background: var(--ink);
-      color: var(--on-ink);
+      border: var(--today-num-border);
+      background: var(--today-num);
+      color: var(--on-today-num);
     }
 
     .dots {
@@ -132,7 +135,7 @@ import { CompactAgenda } from './compact-agenda';
       width: 5px;
       height: 5px;
       border-radius: 3px;
-      background: color-mix(in srgb, var(--member) var(--member-shade), black);
+      background: var(--member-text);
     }
 
     .agenda {

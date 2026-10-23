@@ -201,7 +201,7 @@ import { ModalFocus } from '../shared/modal-focus';
     .scrim {
       position: absolute;
       inset: 0;
-      background: rgba(31, 35, 40, 0.55);
+      background: var(--scrim-strong);
     }
 
     /* Near the top, so the on-screen keyboard leaves the fields in view. */
@@ -215,9 +215,10 @@ import { ModalFocus } from '../shared/modal-focus';
       box-sizing: border-box;
       margin: 0;
       padding: 32px 36px;
-      border-radius: 28px;
+      border: var(--card-border);
+      border-radius: var(--card-radius);
       background: var(--surface);
-      box-shadow: 0 24px 60px rgba(31, 35, 40, 0.3);
+      box-shadow: var(--dialog-shadow);
       display: flex;
       flex-direction: column;
       gap: 24px;
@@ -233,7 +234,8 @@ import { ModalFocus } from '../shared/modal-focus';
       margin: 0;
       font-family: var(--font-display);
       font-size: 34px;
-      font-weight: 600;
+      font-weight: var(--display-weight);
+      font-variation-settings: var(--display-variation);
     }
 
     .saves {
@@ -277,7 +279,7 @@ import { ModalFocus } from '../shared/modal-focus';
       padding: 0 18px;
       border: 1px solid var(--line);
       border-radius: 16px;
-      background: #faf9f7;
+      background: var(--field);
       color: var(--ink);
       font: 400 20px var(--font-body);
     }
@@ -302,7 +304,7 @@ import { ModalFocus } from '../shared/modal-focus';
       box-sizing: border-box;
       border: 1px solid var(--line);
       border-radius: 16px;
-      background: #faf9f7;
+      background: var(--field);
       display: flex;
       align-items: center;
     }
@@ -348,7 +350,7 @@ import { ModalFocus } from '../shared/modal-focus';
       height: 64px;
       padding: 0 14px;
       border: 1px solid var(--line);
-      border-radius: 32px;
+      border-radius: var(--pill);
       background: var(--surface);
       color: var(--ink);
       font: 600 19px var(--font-body);
@@ -360,7 +362,7 @@ import { ModalFocus } from '../shared/modal-focus';
 
     .chip[aria-pressed='true'] {
       border: 2px solid var(--ink);
-      background: color-mix(in srgb, var(--member) 14%, white);
+      background: var(--member-chip-bg);
     }
 
     .chip:disabled {
@@ -372,9 +374,11 @@ import { ModalFocus } from '../shared/modal-focus';
       flex-shrink: 0;
       width: 34px;
       height: 34px;
+      box-sizing: border-box;
       border-radius: 17px;
-      background: var(--member);
-      color: #ffffff;
+      background: var(--member-strong);
+      border: var(--avatar-border);
+      color: var(--on-avatar);
       font-size: 15px;
       font-weight: 700;
       display: flex;
@@ -418,23 +422,26 @@ import { ModalFocus } from '../shared/modal-focus';
       grid-auto-columns: minmax(0, 1fr);
       grid-auto-flow: column;
       padding: 4px;
-      border-radius: 16px;
-      background: #e6e2da;
+      border: var(--track-border);
+      border-radius: min(16px, var(--pill));
+      background: var(--track);
     }
 
     .segments button {
       height: 56px;
       border: 0;
-      border-radius: 12px;
+      border-radius: min(12px, var(--pill));
       background: transparent;
-      color: #4a4f57;
+      color: var(--quiet);
       font: 600 17px var(--font-body);
       cursor: pointer;
     }
 
     .segments button[aria-pressed='true'] {
-      background: var(--ink);
-      color: #ffffff;
+      background: var(--segment);
+      box-shadow: var(--raised);
+      color: var(--on-segment);
+      font-weight: 700;
     }
 
     .actions {
@@ -447,7 +454,7 @@ import { ModalFocus } from '../shared/modal-focus';
     .actions button {
       height: 64px;
       padding: 0 32px;
-      border-radius: 32px;
+      border-radius: var(--pill);
       font: 600 20px var(--font-body);
       cursor: pointer;
     }
@@ -458,23 +465,25 @@ import { ModalFocus } from '../shared/modal-focus';
     }
 
     .ghost {
-      border: 1px solid #b9b4aa;
+      border: var(--control-border);
       background: var(--surface);
+      box-shadow: var(--control-shadow);
       color: var(--ink);
     }
 
     .primary {
       padding: 0 44px;
-      border: 0;
-      background: var(--accent);
-      color: #ffffff;
+      border: var(--primary-border);
+      background: var(--primary);
+      box-shadow: var(--primary-shadow);
+      color: var(--on-primary);
       font-weight: 700;
     }
 
     .danger {
       border: 0;
       background: var(--danger);
-      color: #ffffff;
+      color: var(--on-danger);
       font-weight: 700;
     }
 

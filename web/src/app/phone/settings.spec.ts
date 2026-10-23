@@ -42,7 +42,7 @@ describe('Settings', () => {
   }
 
   const saveButton = (page: HTMLElement) => page.querySelector<HTMLButtonElement>('button[type=submit]')!;
-  const message = (page: HTMLElement) => page.querySelector('[role=status]')?.textContent;
+  const message = (page: HTMLElement) => page.querySelector('form [role=status]')?.textContent;
 
   it('lists each member with a link to edit them, then a way to add one', async () => {
     const { page } = await open();
@@ -173,6 +173,68 @@ describe('Settings', () => {
 
     expect(message(page)).toBe('Night mode needs a different start and end time.');
     expect(field(page, 'nightModeTo').value).toBe('21:30');
+  });
+
+  describe('look', () => {
+    const themeButton = (page: HTMLElement, name: string) =>
+      [...page.querySelectorAll<HTMLButtonElement>('.themes button')].find((button) =>
+        button.textContent?.includes(name),
+      )!;
+    const nightBox = (page: HTMLElement) => page.querySelector<HTMLInputElement>('.night input')!;
+
+    it('previews every theme, each in its own look, with the family’s one pressed', async () => {
+      const { page } = await open();
+
+      const buttons = [...page.querySelectorAll<HTMLButtonElement>('.themes button')];
+      expect(buttons.map((button) => button.querySelector('.theme-name')?.textContent)).toEqual([
+        'Daylight',
+        'Groovy',
+        'Classic',
+        'Bold',
+      ]);
+      expect(buttons.map((button) => button.querySelector('.preview')?.getAttribute('data-theme'))).toEqual([
+        'daylight',
+        'groovy',
+        'classic',
+        'bold',
+      ]);
+      expect(themeButton(page, 'Daylight').getAttribute('aria-pressed')).toBe('true');
+      expect(page.querySelector('.night .preview')?.getAttribute('data-theme')).toBe('night');
+      expect(nightBox(page).checked).toBe(true);
+      expect(page.querySelector('.night')?.textContent).toContain('Dark from 9:30 PM to 6:30 AM');
+    });
+
+    it('saves a chosen theme at once, keeping Night as it was', async () => {
+      const { page, settle } = await open();
+
+      themeButton(page, 'Groovy').click();
+      const request = http.expectOne({ method: 'PUT', url: '/api/family/theme' });
+      expect(request.request.body).toEqual({ theme: 'Groovy', autoNight: true });
+      request.flush({ ...marlowes, theme: 'Groovy' });
+      await settle();
+
+      expect(themeButton(page, 'Groovy').getAttribute('aria-pressed')).toBe('true');
+      expect(themeButton(page, 'Daylight').getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('turns automatic Night off, and keeps the theme when the server refuses a change', async () => {
+      const { page, settle } = await open();
+
+      nightBox(page).click();
+      const request = http.expectOne({ method: 'PUT', url: '/api/family/theme' });
+      expect(request.request.body).toEqual({ theme: 'Daylight', autoNight: false });
+      request.flush({ ...marlowes, autoNight: false });
+      await settle();
+      expect(nightBox(page).checked).toBe(false);
+
+      themeButton(page, 'Bold').click();
+      http
+        .expectOne({ method: 'PUT', url: '/api/family/theme' })
+        .flush({ errors: { theme: ['Choose Daylight, Groovy, Classic or Bold.'] } }, { status: 400, statusText: 'Bad Request' });
+      await settle();
+      expect(themeButton(page, 'Daylight').getAttribute('aria-pressed')).toBe('true');
+      expect(page.querySelector('.look [role=status]')?.textContent).toBe('Choose Daylight, Groovy, Classic or Bold.');
+    });
   });
 
   it('cannot save without a family name', async () => {

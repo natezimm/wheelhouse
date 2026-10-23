@@ -168,6 +168,7 @@ export interface GridMore {
       position: absolute;
       right: 12px;
       transform: translateY(-50%);
+      font-family: var(--font-time);
       font-size: 13px;
       font-weight: 600;
       color: var(--faint);
@@ -187,9 +188,10 @@ export interface GridMore {
     .hours .now-label {
       right: 8px;
       padding: 1px 6px;
-      border-radius: 8px;
+      border: var(--now-label-border);
+      border-radius: var(--now-label-radius);
       background: var(--now-label);
-      color: var(--on-ink);
+      color: var(--on-now);
       font-weight: 700;
       z-index: 1;
     }
@@ -216,7 +218,7 @@ export interface GridMore {
       position: absolute;
       box-sizing: border-box;
       border: 0;
-      border-radius: 10px;
+      border-radius: var(--event-radius);
       font: inherit;
       text-align: left;
       cursor: pointer;
@@ -224,9 +226,10 @@ export interface GridMore {
 
     .event {
       padding: 0;
-      background: color-mix(in srgb, var(--member) var(--member-fill), var(--surface));
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--member) var(--member-ring), var(--surface));
-      color: var(--ink);
+      background: var(--member-bg);
+      box-shadow: var(--event-outline);
+      border: var(--event-border);
+      color: var(--event-ink);
     }
 
     /* On the wall a short event still takes a finger: its hit area reaches into free space below. */
@@ -276,8 +279,10 @@ export interface GridMore {
       width: 22px;
       height: 22px;
       border-radius: 11px;
-      background: color-mix(in srgb, var(--member) var(--member-shade), black);
-      color: var(--on-ink);
+      background: var(--member-strong);
+      border: var(--avatar-border);
+      box-sizing: border-box;
+      color: var(--on-avatar);
       font-size: 11px;
       font-weight: 700;
       line-height: 1;
@@ -297,7 +302,8 @@ export interface GridMore {
       flex-shrink: 0;
       font-size: 13px;
       font-weight: 700;
-      color: color-mix(in srgb, var(--member) var(--member-shade), black);
+      font-family: var(--font-time);
+      color: var(--member-time);
     }
 
     .title {
@@ -339,7 +345,7 @@ export interface GridMore {
 
     :host(.desktop) .event,
     :host(.desktop) .more {
-      border-radius: 8px;
+      border-radius: var(--event-radius-small);
     }
 
     :host(.desktop) .content {
@@ -389,7 +395,10 @@ export interface GridMore {
       }
     }
 
+    /* When a theme's outline leaves less room than the lines were counted for, the title keeps its
+       line and the times below it give way. */
     :host(.day) .event .title {
+      flex-shrink: 0;
       font-size: 17px;
       font-weight: 700;
     }
@@ -406,7 +415,7 @@ export interface GridMore {
     .place {
       font-size: 14px;
       font-weight: 500;
-      color: var(--quiet);
+      color: var(--event-quiet);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -453,6 +462,7 @@ export interface GridMore {
       height: 2px;
       margin-top: -1px;
       background: var(--now);
+      box-shadow: 0 0 0 1px var(--now-edge);
       pointer-events: none;
       z-index: 2;
     }
@@ -465,6 +475,8 @@ export interface GridMore {
       width: 12px;
       height: 12px;
       border-radius: 6px;
+      box-sizing: border-box;
+      border: var(--now-label-border);
       background: var(--now);
     }
 
@@ -479,7 +491,8 @@ export interface GridMore {
       text-align: center;
       font-family: var(--font-display);
       font-size: 24px;
-      font-weight: 600;
+      font-weight: var(--display-weight);
+      font-variation-settings: var(--display-variation);
       color: var(--muted);
       pointer-events: none;
       z-index: 2;

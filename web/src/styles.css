@@ -1,6 +1,9 @@
-/* Design tokens, taken from the mockups. Components use these instead of raw values. */
-:root {
-  /* Daylight, the default theme. Other themes only change these values. */
+/* Design tokens, taken from the mockups. Components use these instead of raw values.
+   The family's theme is <html data-theme="…">, and data-night turns any of them into Night.
+   A preview of one theme inside another page carries data-theme itself. */
+:root,
+[data-theme] {
+  /* Daylight, the default theme. Every other theme starts from these and changes some of them. */
   --ground: #f4f2ee;
   --surface: #ffffff;
   --ink: #1f2328;
@@ -13,22 +16,58 @@
   --ok: #137a6d;
   --warn: #b85a14;
   --danger: #b3261e;
+  --on-danger: #ffffff;
+  /* A text field or stepper inside a card. */
+  --field: #faf9f7;
+  --dialog-shadow: 0 24px 60px rgba(31, 35, 40, 0.3);
 
   /* The calendar: its card, the rules between days and hours, today, and the now line. */
   --card-radius: 28px;
+  --card-border: none;
   --card-shadow: 0 1px 2px rgba(31, 35, 40, 0.05), 0 8px 24px rgba(31, 35, 40, 0.04);
+  /* The phone's smaller cards, where a bold theme's offset is scaled down. */
+  --card-shadow-small: var(--card-shadow);
   --rule: #ece9e3;
   --hour-rule: #efece7;
+  /* The rule under the day names, which a bolder theme draws in ink. */
+  --head-rule: 1px solid var(--rule);
   --today-tint: #fbfaf7;
+  --today-head: var(--today-tint);
+  --today-dow: var(--ink);
+  --today-num: var(--ink);
+  --on-today-num: var(--on-ink);
+  --today-num-border: none;
+  --today-num-radius: 50%;
   --month-outside: #faf9f6;
   --now: #e5484d;
+  /* Drawn around the now line where its own color would not stand out from the calendar. */
+  --now-edge: transparent;
   /* The now line's time: white on a coral a shade deeper than the line, so it reads at 4.5:1. */
   --now-label: #d6363c;
+  --on-now: #ffffff;
+  --now-label-border: none;
+  --now-label-radius: 8px;
   --now-text: #c42b30;
   --live: #1f9d6b;
+  --live-border: none;
+
+  /* Controls. Pills are as round as their height allows; a square theme makes them blocks. */
+  --pill: 999px;
+  --control-border: 1px solid var(--line);
+  --control-shadow: 0 0 0 transparent;
+  --primary: var(--ink);
+  --on-primary: var(--on-ink);
+  --primary-border: none;
+  /* A primary button's outline where it has one, as the form buttons do. */
+  --primary-edge: var(--primary);
+  --primary-shadow: 0 0 0 transparent;
+  --primary-icon: currentColor;
 
   /* Segmented controls: a sunken track with a raised selected segment. */
   --track: #e8e5df;
+  --track-border: none;
+  --segment: var(--surface);
+  --on-segment: var(--ink);
   --raised: 0 1px 3px rgba(31, 35, 40, 0.14);
   --quiet: #4a4f57;
 
@@ -40,11 +79,34 @@
   --notice: #ecebe5;
   --notice-ink: #3e4349;
 
-  /* How a member's color is used: event fills and rings, chips, and a shade dark enough for white initials and small text. */
+  /* How a member's color is used: event fills and rings, chips, and a shade dark enough for white
+     initials and small text. Each is the member's color mixed with a base, so a theme can make
+     fills pastel, flat or solid without changing the hue. The mixes are below, under [style*='--member']. */
+  /* Whole-family events, which belong to no one member. */
+  --family: #4a4f57;
   --member-fill: 17%;
+  --member-fill-base: var(--surface);
   --member-ring: 26%;
+  --member-ring-base: var(--surface);
   --member-chip: 15%;
+  --member-chip-base: var(--surface);
   --member-shade: 72%;
+  /* A member's color as text or a line on the calendar, such as the day on the details. */
+  --member-text-mix: 72%;
+  --member-text-base: black;
+  /* An event's own text: its title, and its time in the member's color. */
+  --event-ink: var(--ink);
+  --event-time-mix: 72%;
+  --event-time-base: black;
+  --event-quiet: var(--quiet);
+  --event-radius: 10px;
+  --event-radius-small: 8px;
+  --event-border: none;
+  --event-lift: 0 0 0 transparent;
+  --bar-lift: 0 0 0 transparent;
+  --on-avatar: #ffffff;
+  --avatar-border: none;
+  --chip-border: none;
   --toast-shadow: 0 10px 30px rgba(31, 35, 40, 0.22);
 
   /* Event details: a drawer or sheet over a scrim, with a soft close button and an outlined Delete. */
@@ -58,6 +120,366 @@
 
   --font-display: 'Outfit', system-ui, sans-serif;
   --font-body: 'Figtree', system-ui, sans-serif;
+  /* Times on events and the hour labels. */
+  --font-time: var(--font-body);
+  --display-weight: 600;
+  --display-variation: normal;
+  /* Groovy's three stripes under the wall's header. */
+  --band-display: none;
+}
+
+/* Groovy: warm 70s paper, ink outlines and hard offset shadows. */
+[data-theme='groovy'] {
+  --ground: #f3e7d3;
+  --surface: #fff8ec;
+  --ink: #2b1d14;
+  --on-ink: #fff8ec;
+  --muted: #6b4e36;
+  --faint: #6b4e36;
+  --line: #dcc9a8;
+  --hairline: #eadbc0;
+  --accent: #2a706b;
+  --ok: #2f7f7a;
+  --field: #fbf1df;
+  --dialog-shadow: 8px 8px 0 var(--ink);
+
+  --card-radius: 26px;
+  --card-border: 2px solid var(--ink);
+  --card-shadow: 6px 6px 0 var(--ink);
+  --card-shadow-small: 4px 4px 0 var(--ink);
+  --rule: #dcc9a8;
+  --hour-rule: #eadbc0;
+  --head-rule: 2px solid var(--ink);
+  --today-tint: #fbefd4;
+  --today-head: #f8e2b0;
+  --today-num: #de6a33;
+  --on-today-num: var(--ink);
+  --today-num-border: 2px solid var(--ink);
+  --month-outside: #f8eedc;
+  --now: #d9622b;
+  --now-edge: var(--ink);
+  --now-label: #de6a33;
+  --on-now: var(--ink);
+  --now-label-border: 2px solid var(--ink);
+  --now-label-radius: 9px;
+  --now-text: #a8461a;
+  --live: #2f7f7a;
+  --live-border: 2px solid var(--ink);
+
+  --control-border: 2px solid var(--ink);
+  --control-shadow: 3px 3px 0 var(--ink);
+  --primary: #de6a33;
+  --on-primary: var(--ink);
+  --primary-border: 2px solid var(--ink);
+  --primary-shadow: 3px 3px 0 var(--ink);
+
+  --track: #fff8ec;
+  --track-border: 2px solid var(--ink);
+  --segment: #e3a72f;
+  --on-segment: var(--ink);
+  --raised: none;
+  --quiet: #5a3f2a;
+
+  --member-fill: 38%;
+  --member-chip: 38%;
+  --member-shade: 70%;
+  --event-time-mix: 0%;
+  --event-time-base: var(--ink);
+  --event-radius: 12px;
+  --event-radius-small: 10px;
+  --event-border: 2px solid var(--ink);
+  --member-ring: 0%;
+  --member-ring-base: transparent;
+  --primary-edge: var(--ink);
+  --event-lift: 3px 3px 0 var(--ink);
+  --bar-lift: 2px 2px 0 var(--ink);
+  --avatar-border: 2px solid var(--ink);
+  --chip-border: 2px solid var(--ink);
+  --toast-shadow: 4px 4px 0 var(--ink);
+
+  --scrim: rgba(43, 29, 20, 0.2);
+  --drawer-shadow: -6px 0 0 var(--ink);
+  --sheet-shadow: 0 -4px 0 var(--ink);
+  --soft: #f3e7d3;
+
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --display-weight: 800;
+  --display-variation: 'SOFT' 100;
+  --band-display: flex;
+  --band-1: #d9622b;
+  --band-2: #e3a72f;
+  --band-3: #2f7f7a;
+}
+
+/* Classic: a clean office calendar. White page, fine grey rules, solid events with white text. */
+[data-theme='classic'] {
+  --ground: #ffffff;
+  --surface: #ffffff;
+  --ink: #3c4043;
+  --on-ink: #ffffff;
+  --muted: #5f6368;
+  --faint: #6a6f74;
+  --line: #dadce0;
+  --hairline: #e8eaed;
+  --accent: #1a73e8;
+  --ok: #188038;
+  --field: #f1f3f4;
+  --dialog-shadow: 0 24px 38px 3px rgba(60, 64, 67, 0.15), 0 9px 46px 8px rgba(60, 64, 67, 0.12);
+
+  --card-radius: 12px;
+  --card-border: 1px solid #dadce0;
+  --card-shadow: none;
+  --rule: #dadce0;
+  --hour-rule: #e3e5e8;
+  --today-tint: #ffffff;
+  --today-head: #ffffff;
+  --today-dow: #1a73e8;
+  --today-num: #1a73e8;
+  --on-today-num: #ffffff;
+  --month-outside: #f8f9fa;
+  --now: #ea4335;
+  --now-label: #d93025;
+  --now-text: #c5221f;
+  --live: #188038;
+
+  --control-border: 1px solid #dadce0;
+  --primary: #ffffff;
+  --on-primary: #3c4043;
+  --primary-icon: #1a73e8;
+  --primary-shadow: 0 1px 3px rgba(60, 64, 67, 0.3), 0 4px 8px 3px rgba(60, 64, 67, 0.15);
+
+  --track: #ffffff;
+  --track-border: 1px solid #dadce0;
+  --segment: #e8f0fe;
+  --on-segment: #174ea6;
+  --raised: none;
+  --quiet: #5f6368;
+
+  /* Solid blocks: the member's color darkened just enough for white text. */
+  --member-fill: 72%;
+  --member-fill-base: black;
+  --member-ring: 0%;
+  --member-ring-base: #ffffff;
+  --member-chip: 12%;
+  --member-shade: 72%;
+  --event-ink: #ffffff;
+  --event-time-mix: 0%;
+  --event-time-base: #ffffff;
+  --event-quiet: #ffffff;
+  --event-radius: 6px;
+  --event-radius-small: 6px;
+  --avatar-border: 1.5px solid #ffffff;
+  --chip-border: 1px solid #dadce0;
+
+  --font-display: 'Roboto Flex', 'Roboto', system-ui, sans-serif;
+  --font-body: 'Roboto', system-ui, sans-serif;
+  --display-weight: 500;
+}
+
+/* Bold: brutalist black outlines, yellow highlights and mono times. */
+[data-theme='bold'] {
+  --ground: #efefe6;
+  --surface: #ffffff;
+  --ink: #000000;
+  --on-ink: #ffffff;
+  --muted: #4a4a4a;
+  --faint: #4a4a4a;
+  --line: #d6d6cc;
+  --hairline: #e6e6dc;
+  --accent: #1d4ed8;
+  --field: #f7f7f0;
+  --dialog-shadow: 8px 8px 0 var(--ink);
+
+  --card-radius: 6px;
+  --card-border: 2px solid var(--ink);
+  --card-shadow: 8px 8px 0 var(--ink);
+  --card-shadow-small: 4px 4px 0 var(--ink);
+  --rule: #d6d6cc;
+  --hour-rule: #e6e6dc;
+  --head-rule: 2px solid var(--ink);
+  --today-tint: #fffbe3;
+  --today-head: #fff1a8;
+  --today-num: #ffdb3b;
+  --on-today-num: var(--ink);
+  --today-num-border: 2px solid var(--ink);
+  --today-num-radius: 4px;
+  --month-outside: #f7f7f0;
+  --now: #ffdb3b;
+  --now-edge: var(--ink);
+  --now-label: #ffdb3b;
+  --on-now: var(--ink);
+  --now-label-border: 2px solid var(--ink);
+  --now-label-radius: 3px;
+  --now-text: #000000;
+  --live: #3bff9d;
+  --live-border: 2px solid var(--ink);
+
+  --pill: 6px;
+  --control-border: 2px solid var(--ink);
+  --control-shadow: 3px 3px 0 var(--ink);
+  --primary: #ffdb3b;
+  --on-primary: var(--ink);
+  --primary-border: 2px solid var(--ink);
+  --primary-shadow: 3px 3px 0 var(--ink);
+
+  --track: #ffffff;
+  --track-border: 2px solid var(--ink);
+  --segment: #c2ff66;
+  --on-segment: var(--ink);
+  --raised: none;
+  --quiet: #3a3a3a;
+
+  --member-fill: 48%;
+  --member-chip: 48%;
+  --member-shade: 70%;
+  --member-ring: 0%;
+  --member-ring-base: transparent;
+  --primary-edge: var(--ink);
+  --event-time-mix: 0%;
+  --event-time-base: var(--ink);
+  --event-radius: 4px;
+  --event-radius-small: 4px;
+  --event-border: 2px solid var(--ink);
+  --event-lift: 3px 3px 0 var(--ink);
+  --bar-lift: 2px 2px 0 var(--ink);
+  --avatar-border: 2px solid var(--ink);
+  --chip-border: 2px solid var(--ink);
+  --toast-shadow: 4px 4px 0 var(--ink);
+
+  --drawer-shadow: -6px 0 0 var(--ink);
+  --sheet-shadow: 0 -4px 0 var(--ink);
+  --soft: #efefe6;
+
+  --font-display: 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Space Grotesk', system-ui, sans-serif;
+  --font-time: 'IBM Plex Mono', ui-monospace, monospace;
+  --display-weight: 700;
+}
+
+/* Night: one dark, low-glare look for the family's night hours, whatever theme it chose. It sets
+   every token a theme may change, so nothing of the day's theme shows through. */
+:root[data-night],
+[data-theme='night'] {
+  --ground: #14161a;
+  --surface: #1c1f25;
+  --ink: #eceef1;
+  --on-ink: #14161a;
+  --muted: #a3a9b2;
+  --faint: #98a0aa;
+  --line: #3a3f48;
+  --hairline: #2a2e35;
+  --accent: #8ab4f8;
+  --ok: #4fd1a0;
+  --warn: #f0a35e;
+  --danger: #b3261e;
+  --on-danger: #ffffff;
+  --field: #23272e;
+  --dialog-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+
+  --card-radius: 28px;
+  --card-border: none;
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3);
+  --card-shadow-small: var(--card-shadow);
+  --rule: #2a2e35;
+  --hour-rule: #262a31;
+  --head-rule: 1px solid var(--rule);
+  --today-tint: #20242b;
+  --today-head: #20242b;
+  --today-dow: var(--ink);
+  --today-num: #eceef1;
+  --on-today-num: #14161a;
+  --today-num-border: none;
+  --today-num-radius: 50%;
+  --month-outside: #181b20;
+  --now: #ff6b6f;
+  --now-edge: transparent;
+  --now-label: #ff6b6f;
+  --on-now: #14161a;
+  --now-label-border: none;
+  --now-label-radius: 8px;
+  --now-text: #ff8a80;
+  --live: #4fd1a0;
+  --live-border: none;
+
+  --pill: 999px;
+  --control-border: 1px solid #3a3f48;
+  --control-shadow: 0 0 0 transparent;
+  --primary: #eceef1;
+  --on-primary: #14161a;
+  --primary-border: none;
+  --primary-edge: var(--primary);
+  --primary-shadow: 0 0 0 transparent;
+  --primary-icon: currentColor;
+
+  --track: #262a31;
+  --track-border: none;
+  --segment: #3a3f48;
+  --on-segment: #ffffff;
+  --raised: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --quiet: #c4c9d0;
+
+  --reconnecting: #3a2a14;
+  --reconnecting-ink: #ffd59a;
+  --failed: #3f1d1b;
+  --failed-ink: #ffb4ab;
+  --notice: #2a2e35;
+  --notice-ink: #c4c9d0;
+
+  /* Member colors become deep tinted fills with light text. */
+  --family: #8b929c;
+  --member-fill: 29%;
+  --member-fill-base: var(--surface);
+  --member-ring: 44%;
+  --member-ring-base: var(--surface);
+  --member-chip: 26%;
+  --member-chip-base: var(--surface);
+  --member-shade: 78%;
+  --member-text-mix: 52%;
+  --member-text-base: white;
+  --event-ink: #eceef1;
+  --event-time-mix: 52%;
+  --event-time-base: white;
+  --event-quiet: #c4c9d0;
+  --event-radius: 10px;
+  --event-radius-small: 8px;
+  --event-border: none;
+  --event-lift: 0 0 0 transparent;
+  --bar-lift: 0 0 0 transparent;
+  --on-avatar: #ffffff;
+  --avatar-border: none;
+  --chip-border: none;
+  --toast-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+
+  --scrim: rgba(0, 0, 0, 0.5);
+  --scrim-strong: rgba(0, 0, 0, 0.6);
+  --drawer-shadow: -18px 0 48px rgba(0, 0, 0, 0.5);
+  --sheet-shadow: 0 -12px 40px rgba(0, 0, 0, 0.5);
+  --soft: #2a2e35;
+  --danger-line: #6b3a36;
+  --danger-text: #ff8a80;
+
+  --font-display: 'Outfit', system-ui, sans-serif;
+  --font-body: 'Figtree', system-ui, sans-serif;
+  --font-time: var(--font-body);
+  --display-weight: 600;
+  --display-variation: normal;
+  --band-display: none;
+
+  color-scheme: dark;
+}
+
+/* Wherever a member's color is set, the colors drawn from it, mixed as the theme says. */
+[style*='--member'] {
+  --member-bg: color-mix(in srgb, var(--member) var(--member-fill), var(--member-fill-base));
+  --member-edge: color-mix(in srgb, var(--member) var(--member-ring), var(--member-ring-base));
+  --member-chip-bg: color-mix(in srgb, var(--member) var(--member-chip), var(--member-chip-base));
+  --member-strong: color-mix(in srgb, var(--member) var(--member-shade), black);
+  --member-text: color-mix(in srgb, var(--member) var(--member-text-mix), var(--member-text-base));
+  --member-time: color-mix(in srgb, var(--member) var(--event-time-mix), var(--event-time-base));
+  /* An event block or bar: its ring, then the theme's offset shadow. */
+  --event-outline: inset 0 0 0 1px var(--member-edge), var(--event-lift);
+  --bar-outline: inset 0 0 0 1px var(--member-edge), var(--bar-lift);
 }
 
 html,
@@ -119,28 +541,32 @@ body {
 .button {
   min-height: 48px;
   padding: 0 20px;
-  border: 1px solid var(--line);
-  border-radius: 24px;
+  border: var(--control-border);
+  border-radius: var(--pill);
   background: var(--surface);
+  box-shadow: var(--control-shadow);
   color: var(--ink);
   font: 700 15px var(--font-body);
   cursor: pointer;
 }
 
 .button.primary {
-  border-color: var(--ink);
-  background: var(--ink);
-  color: #ffffff;
+  border-color: var(--primary-edge);
+  background: var(--primary);
+  box-shadow: var(--primary-shadow);
+  color: var(--on-primary);
 }
 
 .button.danger {
   border-color: var(--danger);
   background: var(--danger);
-  color: #ffffff;
+  color: var(--on-danger);
+  box-shadow: none;
 }
 
 .button.quiet-danger {
   border-color: transparent;
+  box-shadow: none;
   background: transparent;
   color: var(--danger);
 }
@@ -168,7 +594,8 @@ body {
 .view-switch {
   display: flex;
   padding: 3px;
-  border-radius: 25px;
+  border: var(--track-border);
+  border-radius: var(--pill);
   background: var(--track);
 }
 
@@ -177,7 +604,7 @@ body {
   height: 44px;
   padding: 0 18px;
   border: 0;
-  border-radius: 22px;
+  border-radius: var(--pill);
   background: transparent;
   color: var(--quiet);
   font: 600 15px var(--font-body);
@@ -185,9 +612,9 @@ body {
 }
 
 .view-switch button[aria-pressed='true'] {
-  background: var(--surface);
+  background: var(--segment);
   box-shadow: var(--raised);
-  color: var(--ink);
+  color: var(--on-segment);
   font-weight: 700;
 }
 

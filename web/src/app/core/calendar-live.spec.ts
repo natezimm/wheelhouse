@@ -213,6 +213,9 @@ describe('CalendarLive', () => {
     read().flush(snapshot());
     await vi.advanceTimersByTimeAsync(CALENDAR_EVERY_MS);
     read().flush(snapshot(2));
+    // The same check picks up the family itself, such as a theme chosen on another phone.
+    http.expectOne('/api/family').flush({ ...marlowes, theme: 'Bold' });
+    expect(family.family()?.theme).toBe('Bold');
     document.dispatchEvent(new Event('visibilitychange'));
     read().flush(snapshot(3));
     window.dispatchEvent(new Event('online'));
