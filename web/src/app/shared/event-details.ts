@@ -150,8 +150,10 @@ import { ModalFocus } from './modal-focus';
       width: 36px;
       height: 36px;
       border-radius: 18px;
-      background: color-mix(in srgb, var(--member) var(--member-shade), black);
-      color: var(--on-ink);
+      background: var(--member-strong);
+      border: var(--avatar-border);
+      box-sizing: border-box;
+      color: var(--on-avatar);
       font-size: 17px;
       font-weight: 700;
       display: flex;
@@ -178,21 +180,23 @@ import { ModalFocus } from './modal-focus';
       flex-direction: column;
       gap: 8px;
       padding: 22px 24px 24px;
+      border: var(--chip-border);
       border-radius: 22px;
-      background: color-mix(in srgb, var(--member) var(--member-chip), var(--surface));
+      background: var(--member-chip-bg);
     }
 
     .day {
       font-size: 16px;
       font-weight: 700;
-      color: color-mix(in srgb, var(--member) var(--member-shade), black);
+      color: var(--member-text);
     }
 
     h2 {
       margin: 0;
       font-family: var(--font-display);
       font-size: 38px;
-      font-weight: 600;
+      font-weight: var(--display-weight);
+      font-variation-settings: var(--display-variation);
       line-height: 1.1;
       letter-spacing: -0.01em;
       overflow-wrap: anywhere;
@@ -240,7 +244,7 @@ import { ModalFocus } from './modal-focus';
 
     .buttons button {
       height: 64px;
-      border-radius: 32px;
+      border-radius: var(--pill);
       font: 700 20px var(--font-body);
       cursor: pointer;
     }
@@ -252,9 +256,10 @@ import { ModalFocus } from './modal-focus';
 
     .edit {
       flex: 1;
-      border: 0;
-      background: var(--ink);
-      color: var(--on-ink);
+      border: var(--primary-border);
+      background: var(--primary);
+      box-shadow: var(--primary-shadow);
+      color: var(--on-primary);
     }
 
     .delete {
@@ -332,7 +337,6 @@ import { ModalFocus } from './modal-focus';
     :host(.desktop) .buttons button,
     :host(.phone) .buttons button {
       height: 52px;
-      border-radius: 26px;
       font-size: 17px;
     }
 

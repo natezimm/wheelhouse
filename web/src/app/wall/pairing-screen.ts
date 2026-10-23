@@ -83,7 +83,8 @@ import { WallPairing } from '../core/pairing';
       margin: 0;
       font-family: var(--font-display);
       font-size: 64px;
-      font-weight: 600;
+      font-weight: var(--display-weight);
+      font-variation-settings: var(--display-variation);
       letter-spacing: -0.02em;
     }
 
@@ -106,7 +107,8 @@ import { WallPairing } from '../core/pairing';
       background: var(--surface);
       font-family: var(--font-display);
       font-size: 120px;
-      font-weight: 600;
+      font-weight: var(--display-weight);
+      font-variation-settings: var(--display-variation);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -121,7 +123,7 @@ import { WallPairing } from '../core/pairing';
       height: 8px;
       margin: 0 12px;
       border-radius: 4px;
-      background: #b9b4aa;
+      background: var(--line);
     }
 
     .steps {
@@ -151,10 +153,11 @@ import { WallPairing } from '../core/pairing';
       height: 40px;
       border-radius: 20px;
       background: var(--ink);
-      color: #ffffff;
+      color: var(--on-ink);
       font-family: var(--font-display);
       font-size: 20px;
-      font-weight: 600;
+      font-weight: var(--display-weight);
+      font-variation-settings: var(--display-variation);
       display: flex;
       align-items: center;
       justify-content: center;

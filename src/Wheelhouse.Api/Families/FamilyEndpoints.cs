@@ -16,6 +16,7 @@ public static class FamilyEndpoints
         family.MapGet("", GetFamily).RequireAuthorization(Policies.Family);
         family.MapPut("", UpdateFamily).RequireAuthorization(Policies.Parent);
         family.MapPut("location", UpdateLocation).RequireAuthorization(Policies.Parent);
+        family.MapPut("theme", UpdateTheme).RequireAuthorization(Policies.Parent);
         family.MapPost("members", AddMember).RequireAuthorization(Policies.Parent);
         family.MapPut("members/{id:guid}", UpdateMember).RequireAuthorization(Policies.Parent);
         family.MapDelete("members/{id:guid}", RemoveMember).RequireAuthorization(Policies.Parent);
@@ -91,6 +92,32 @@ public static class FamilyEndpoints
         // than the family needs to share.
         family.Latitude = request.Latitude is { } latitude ? Math.Round(latitude, 2) : null;
         family.Longitude = request.Longitude is { } longitude ? Math.Round(longitude, 2) : null;
+        await db.SaveChangesAsync(cancellationToken);
+
+        return TypedResults.Ok(FamilyResponse.From(family));
+    }
+
+    private static async Task<Results<Ok<FamilyResponse>, ValidationProblem, NotFound>> UpdateTheme(
+        FamilyThemeRequest request,
+        WheelhouseDbContext db,
+        CancellationToken cancellationToken)
+    {
+        var errors = request.Validate();
+        if (errors.Count > 0)
+        {
+            return TypedResults.ValidationProblem(errors);
+        }
+
+        var family = await db.Families
+            .Include(f => f.Members.OrderBy(member => member.SortOrder))
+            .SingleOrDefaultAsync(cancellationToken);
+        if (family is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        family.Theme = request.Theme;
+        family.AutoNight = request.AutoNight;
         await db.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(FamilyResponse.From(family));

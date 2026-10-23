@@ -250,7 +250,8 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
       margin: 0;
       font-family: var(--font-display);
       font-size: 32px;
-      font-weight: 600;
+      font-weight: var(--display-weight);
+      font-variation-settings: var(--display-variation);
       letter-spacing: -0.02em;
       line-height: 1.15;
       white-space: nowrap;
@@ -262,7 +263,7 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
       flex-shrink: 0;
       height: 44px;
       border: 0;
-      border-radius: 22px;
+      border-radius: var(--pill);
       color: var(--ink);
       display: flex;
       align-items: center;
@@ -277,16 +278,19 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
 
     .today {
       padding: 0 14px;
-      border: 1px solid var(--line) !important;
+      border: var(--control-border) !important;
       background: var(--surface);
+      box-shadow: var(--control-shadow);
       font: 700 14px var(--font-body);
     }
 
     .add {
       width: 44px;
       margin-left: 2px;
-      background: var(--ink) !important;
-      color: var(--on-ink) !important;
+      border: var(--primary-border) !important;
+      background: var(--primary) !important;
+      box-shadow: var(--primary-shadow);
+      color: var(--on-primary) !important;
     }
 
     .view-switch {
@@ -339,9 +343,11 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
       width: 40px;
       height: 40px;
       margin-bottom: 14px;
-      border-radius: 12px;
-      background: var(--ink);
-      color: var(--on-ink);
+      box-sizing: border-box;
+      border: var(--today-num-border);
+      border-radius: min(12px, var(--card-radius));
+      background: var(--today-num);
+      color: var(--on-today-num);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -366,9 +372,9 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
     }
 
     .rail a.current {
-      background: var(--surface);
+      background: var(--segment);
       box-shadow: var(--raised);
-      color: var(--ink);
+      color: var(--on-segment);
       font-weight: 700;
     }
 
@@ -412,7 +418,8 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      border-radius: 22px;
+      border: var(--card-border);
+      border-radius: min(22px, var(--card-radius));
       background: var(--surface);
       box-shadow: var(--card-shadow);
     }

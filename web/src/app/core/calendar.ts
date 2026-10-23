@@ -89,8 +89,11 @@ export type CalendarState =
 /** The filter key for whole-family events. Members' events use the member's id. */
 export const FAMILY = 'family';
 
-/** The color of whole-family events, which belong to no one member. */
-export const FAMILY_COLOR = '#4A4F57';
+/**
+ * The color of whole-family events, which belong to no one member. It is a token, because Night
+ * lightens it: the day's slate would all but vanish on a dark card.
+ */
+export const FAMILY_COLOR = 'var(--family)';
 
 /** Whose an event is, for the filter: a member's id, or FAMILY. */
 export const ownerOf = (event: CalendarEvent) => event.memberId ?? FAMILY;

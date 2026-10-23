@@ -64,6 +64,33 @@ public sealed class FamilySettingsTests(ApiFactory factory) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_family_starts_in_Daylight_with_Night_on_and_a_parent_can_change_both()
+    {
+        var before = await GetFamily();
+        Assert.Equal(Theme.Daylight, before.Theme);
+        Assert.True(before.AutoNight);
+
+        var response = await _parent.PutAsJsonAsync("/api/family/theme", new FamilyThemeRequest(Theme.Groovy, false), ApiFactory.Json);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var family = await GetFamily();
+        Assert.Equal(Theme.Groovy, family.Theme);
+        Assert.False(family.AutoNight);
+        // Saving the other settings leaves the theme alone.
+        await _parent.PutAsJsonAsync("/api/family", ValidSettings, ApiFactory.Json);
+        Assert.Equal(Theme.Groovy, (await GetFamily()).Theme);
+    }
+
+    [Fact]
+    public async Task A_theme_that_does_not_exist_is_refused()
+    {
+        var response = await _parent.PutAsJsonAsync("/api/family/theme", new { theme = "Neon", autoNight = true });
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(Theme.Daylight, (await GetFamily()).Theme);
+    }
+
+    [Fact]
     public async Task A_new_member_goes_last_with_an_initial_taken_from_the_name()
     {
         var response = await _parent.PostAsJsonAsync(

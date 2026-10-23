@@ -32,10 +32,19 @@ public sealed class Family
 
     public DayOfWeek WeekStartsOn { get; set; } = DayOfWeek.Monday;
 
-    /// <summary>The wall display dims to a clock between these two local times.</summary>
+    /// <summary>
+    /// Between these two local times every screen turns to the Night look, unless
+    /// <see cref="AutoNight"/> is off.
+    /// </summary>
     public TimeOnly NightModeFrom { get; set; } = new(21, 30);
 
     public TimeOnly NightModeTo { get; set; } = new(6, 30);
+
+    /// <summary>How every screen of the family looks, wall and phones alike.</summary>
+    public Theme Theme { get; set; } = Theme.Daylight;
+
+    /// <summary>Whether screens turn dark during the night hours, whatever the theme.</summary>
+    public bool AutoNight { get; set; } = true;
 
     /// <summary>Where the weather is for. Null until a parent sets it.</summary>
     public double? Latitude { get; set; }
@@ -57,6 +66,14 @@ public sealed class Family
 
     /// <summary>The Google calendars the family shows.</summary>
     public List<CalendarSource> Calendars { get; } = [];
+}
+
+public enum Theme
+{
+    Daylight,
+    Groovy,
+    Classic,
+    Bold,
 }
 
 public enum Units

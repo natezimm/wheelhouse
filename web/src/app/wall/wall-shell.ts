@@ -76,6 +76,8 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
           }
         </div>
       </header>
+      <!-- Drawn only by a theme that has one: Groovy's three stripes. -->
+      <div class="band" aria-hidden="true"><span></span><span></span><span></span></div>
 
       @if (period(); as period) {
         <app-calendar-toolbar
@@ -163,7 +165,8 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
     .clock {
       font-family: var(--font-display);
       font-size: 64px;
-      font-weight: 600;
+      font-weight: var(--display-weight);
+      font-variation-settings: var(--display-variation);
       letter-spacing: -0.03em;
       line-height: 1;
       white-space: nowrap;
@@ -179,7 +182,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
 
     .date {
       padding-left: 18px;
-      border-left: 1px solid var(--line);
+      border-left: var(--control-border);
       display: flex;
       flex-direction: column;
       gap: 2px;
@@ -188,7 +191,8 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
     .weekday {
       font-family: var(--font-display);
       font-size: 24px;
-      font-weight: 600;
+      font-weight: var(--display-weight);
+      font-variation-settings: var(--display-variation);
       line-height: 1.1;
     }
 
@@ -218,7 +222,8 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
       align-items: center;
       gap: 12px;
       padding: 0 0 0 18px;
-      border-radius: 28px;
+      border: var(--track-border);
+      border-radius: var(--pill);
       background: var(--track);
       color: var(--muted);
       font-size: 15px;
@@ -230,8 +235,8 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
       min-height: 56px;
       padding: 0 22px;
       border: 0;
-      border-radius: 28px;
-      background: var(--surface);
+      border-radius: var(--pill);
+      background: var(--segment);
       box-shadow: var(--raised);
       color: var(--ink);
       font: 700 16px var(--font-body);
@@ -252,9 +257,32 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
       overflow: hidden;
       display: flex;
       flex-direction: column;
+      border: var(--card-border);
       border-radius: var(--card-radius);
       background: var(--surface);
       box-shadow: var(--card-shadow);
+    }
+
+    .band {
+      flex-shrink: 0;
+      margin-top: -4px;
+      display: var(--band-display);
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .band span {
+      height: 5px;
+      border-radius: 3px;
+      background: var(--band-1);
+    }
+
+    .band span:nth-child(2) {
+      background: var(--band-2);
+    }
+
+    .band span:nth-child(3) {
+      background: var(--band-3);
     }
 
     app-day-view,

@@ -2,7 +2,7 @@
 
 Wheelhouse is a **calendar-first family command center**: a wall-mounted touch calendar and a companion phone app for the family's Google Calendar events.
 
-The calendar is the only active household planning feature. On the wall, families can browse Day, Week and Month, view members' color-coded calendars on an hourly Week grid with local weather, tap an event to see its details, and add, edit or delete Google Calendar events. On a phone or a desktop browser, `/` opens the same calendar laid out for the screen (Day first on a phone, Week first on a desktop, each remembered per device), and Settings manages members, calendars and paired displays. Real-time SignalR updates, reconnection and conflict-safe event editing remain supported.
+The calendar is the only active household planning feature. On the wall, families can browse Day, Week and Month, view members' color-coded calendars on an hourly Week grid with local weather, tap an event to see its details, and add, edit or delete Google Calendar events. On a phone or a desktop browser, `/` opens the same calendar laid out for the screen (Day first on a phone, Week first on a desktop, each remembered per device), and Settings manages members, calendars, paired displays and the family's theme: Daylight, Groovy, Classic or Bold, with a dark Night look that every screen turns to during the family's night hours. Real-time SignalR updates, reconnection and conflict-safe event editing remain supported.
 
 The fictional Marlowe family demo generates private, date-relative calendar data, including recurring appointments and school events. Each visitor has a separate 24-hour copy; demo activity never calls Google.
 

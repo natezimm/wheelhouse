@@ -6,7 +6,7 @@ import { Member } from '../core/family';
   selector: 'app-member-avatar',
   template: '{{ member().initial }}',
   host: {
-    '[style.background]': 'member().color',
+    '[style.--member]': 'member().color',
     'aria-hidden': 'true',
   },
   styles: `
@@ -15,11 +15,14 @@ import { Member } from '../core/family';
       flex-shrink: 0;
       width: var(--size);
       height: var(--size);
+      box-sizing: border-box;
+      border: var(--avatar-border);
       border-radius: 50%;
+      background: var(--member-strong);
       display: flex;
       align-items: center;
       justify-content: center;
-      color: #ffffff;
+      color: var(--on-avatar);
       font-size: calc(var(--size) * 0.45);
       font-weight: 700;
     }
