@@ -8,6 +8,8 @@ let handoff: HTMLElement | null = null;
 
 const FOCUSABLE = 'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
+// :disabled in the filter below also catches controls inside a disabled fieldset, as while a save is going.
+
 /**
  * Keeps the keyboard inside a dialog while it is open: Tab and Shift+Tab go round its controls,
  * focus starts inside it, and when it closes focus goes back to what opened it, such as the
@@ -40,7 +42,7 @@ export class ModalFocus implements OnDestroy {
     if (event.key !== 'Tab') {
       return;
     }
-    const stops = Array.from(this.panel.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((stop) => stop.checkVisibility?.() ?? true);
+    const stops = Array.from(this.panel.querySelectorAll<HTMLElement>(FOCUSABLE)).filter((stop) => !stop.matches(':disabled') && (stop.checkVisibility?.() ?? true));
     if (stops.length === 0) {
       event.preventDefault();
       return;
