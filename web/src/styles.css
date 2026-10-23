@@ -22,6 +22,8 @@
   --today-tint: #fbfaf7;
   --month-outside: #faf9f6;
   --now: #e5484d;
+  /* The now line's time: white on a coral a shade deeper than the line, so it reads at 4.5:1. */
+  --now-label: #d6363c;
   --now-text: #c42b30;
   --live: #1f9d6b;
 
@@ -192,4 +194,9 @@ body {
 :focus-visible {
   outline: 3px solid var(--ink);
   outline-offset: 2px;
+}
+
+/* A dialog takes focus itself only to hold the keyboard inside it; its controls show focus instead. */
+[data-modal]:focus {
+  outline: none;
 }

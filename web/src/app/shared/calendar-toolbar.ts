@@ -18,21 +18,23 @@ import { CalendarView, Period, VIEWS } from '../core/calendar-period';
       <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
     </button>
     <h1>
-      {{ period().title }}@if (period().year) {<span class="year"> {{ period().year }}</span>}
+      <span class="full">{{ period().title }}</span><span class="brief">{{ period().brief }}</span>@if (period().year) {<span class="year"> {{ period().year }}</span>}
     </h1>
     <div class="status"><ng-content select="[status]" /></div>
     <ng-content select="[extras]" />
-    <div class="view-switch" role="group" aria-label="View">
-      @for (option of views; track option.view) {
-        <button type="button" [attr.aria-pressed]="view() === option.view" (click)="view.set(option.view)">{{ option.label }}</button>
+    <div class="actions">
+      <div class="view-switch" role="group" aria-label="View">
+        @for (option of views; track option.view) {
+          <button type="button" [attr.aria-pressed]="view() === option.view" (click)="view.set(option.view)">{{ option.label }}</button>
+        }
+      </div>
+      @if (canAdd()) {
+        <button type="button" class="add" (click)="add.emit()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+          <span class="label">Add event</span>
+        </button>
       }
     </div>
-    @if (canAdd()) {
-      <button type="button" class="add" (click)="add.emit()">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
-        <span class="label">Add event</span>
-      </button>
-    }
   `,
   styles: `
     :host {
@@ -101,11 +103,22 @@ import { CalendarView, Period, VIEWS } from '../core/calendar-period';
       color: var(--faint);
     }
 
+    .brief {
+      display: none;
+    }
+
     .status {
       flex: 1 0 auto;
       margin-left: 12px;
       display: flex;
       align-items: center;
+    }
+
+    /* The view switch and Add event stay together, so neither is left alone on a line. */
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
     .add {
@@ -129,10 +142,34 @@ import { CalendarView, Period, VIEWS } from '../core/calendar-period';
       height: 18px;
     }
 
-    /* A narrower desktop window keeps every control by dropping words: the year, and Add event's label. */
+    /* When the controls no longer fit one line, the view switch and Add event move to a second, on the right. */
+    :host(.desktop) .actions {
+      margin-left: auto;
+    }
+
+    /* A narrower desktop window keeps every control on one line by dropping words: the year, the
+       long day and month names, and Add event's label. A connection problem takes a line of its own. */
     @media (max-width: 1180px) {
       :host(.desktop) h1 {
         font-size: 22px;
+      }
+
+      :host(.desktop) .full {
+        display: none;
+      }
+
+      :host(.desktop) .brief {
+        display: inline;
+      }
+
+      :host(.desktop) .status {
+        margin-left: 4px;
+      }
+
+      :host(.desktop) .status:has(.pill) {
+        order: 1;
+        flex-basis: 100%;
+        margin-left: 0;
       }
 
       :host(.desktop) .year,
@@ -202,6 +239,10 @@ import { CalendarView, Period, VIEWS } from '../core/calendar-period';
       padding: 0 28px;
       border-radius: 28px;
       font-size: 18px;
+    }
+
+    :host(.wall) .actions {
+      gap: 10px;
     }
 
     :host(.wall) .add {

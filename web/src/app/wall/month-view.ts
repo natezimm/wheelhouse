@@ -72,10 +72,14 @@ const LAYOUTS = {
           </div>
         }
       </div>
+      @if (note(); as note) {
+        <p class="note" [class.waiting]="note.waiting" role="status">{{ note.text }}</p>
+      }
     }
   `,
   styles: `
     :host {
+      position: relative;
       display: flex;
       flex-direction: column;
       min-height: 0;
@@ -115,6 +119,46 @@ const LAYOUTS = {
     :host(.desktop) .dows span {
       padding: 0 12px;
       font-size: 12px;
+    }
+
+    /* While the month loads, or when it could not, empty days would read as an empty month. */
+    .note {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      margin: 0;
+      padding: 14px 26px;
+      border-radius: 18px;
+      background: var(--surface);
+      box-shadow: var(--card-shadow);
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--muted);
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    :host(.desktop) .note {
+      font-size: 19px;
+    }
+
+    .note.waiting {
+      animation: appear 0.2s ease-out 0.4s both;
+    }
+
+    @keyframes appear {
+      from {
+        opacity: 0;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .note.waiting {
+        animation-duration: 0s;
+      }
     }
 
     .weeks {
@@ -352,6 +396,12 @@ export class MonthView {
 
   /** A day was tapped. */
   readonly opened = output<Day>();
+
+  /** Said over the days while the month loads or when it could not. */
+  protected readonly note = computed(() => {
+    const status = this.calendar.state().status;
+    return status === 'loading' ? { text: 'Loading the month…', waiting: true } : status === 'unavailable' ? { text: "Couldn't load the month", waiting: false } : null;
+  });
 
   private readonly weeksElement = viewChild<ElementRef<HTMLElement>>('weeks');
   private readonly height = signal(0);

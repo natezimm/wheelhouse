@@ -216,8 +216,8 @@ Household features stay in the [household roadmap](household-roadmap.md). Also d
 | 0. Visual direction | In review | Canvas linked under Approved reference, October 22, 2026 |
 | 1. Shell and preferences | Done | [PR #41](https://github.com/natezimm/wheelhouse/pull/41), merged October 22, 2026; screenshots in `docs/screenshots/m1-*.png`; household retirement done in PR #39 |
 | 2. Grid engine and Week | Done | [PR #42](https://github.com/natezimm/wheelhouse/pull/42), merged October 22, 2026; screenshots in `docs/screenshots/m2-*.png` |
-| 3. Day, Month, phone | In review | Day on the shared hour grid, full-height Month, phone Week and Month agendas and the empty day; screenshots in `docs/screenshots/m3-*.png` |
-| 4. Hardening | Planned | |
+| 3. Day, Month, phone | Done | [PR #44](https://github.com/natezimm/wheelhouse/pull/44), merged October 23, 2026; screenshots in `docs/screenshots/m3-*.png` |
+| 4. Hardening | In review | Loading and failed states on every view, keyboard focus in details and editors, contrast checks per member color, the narrow desktop toolbar; screenshots in `docs/screenshots/m4-*.png` |
 | 5. Themes | Planned | Groovy, Classic, Bold and Night drawn on the canvas (wall Week) |
 | 6. Release | Planned | |
 
@@ -235,5 +235,16 @@ Decisions made while building milestone 3:
 - A day with nothing planned says so over the grid on the wall and desktop, and as a centered message with Add event on the phone; a failed refresh says the empty day is from the last good refresh. Neither shows before the day has loaded.
 - In Month every target is a whole day: bars and lines are drawn under the day's button rather than being buttons themselves, so they never fall below the wall's 56 px. A day's lines start under the last bar over that day, not under the week's deepest bar, and how many fit follows the card's height.
 - The phone's Week and Month list each event as one compact tinted row (time, initial, title); the Day agenda keeps the full cards. Week names today, tomorrow and yesterday, and once loaded scrolls yesterday to the top so today is in view.
+
+Decisions made while building milestone 4:
+
+- Week, Day and Month say "Loading the week…" (fading in only after 0.4 s, so a quick read never flashes it) or "Couldn't load the week" over the grid, and a Day column's count stays blank until the day has loaded, so nothing is called empty before it is known to be. A failed read no longer makes the view ask again at once; the shared recovery timer and Try again retry it.
+- While other days load, the calendar keeps the calendars from its last snapshot, so the Family column, its chip and Add event no longer blink out on every step.
+- The first connection is a quiet grey "Connecting…" rather than an amber pill; Reconnecting stays a pill, because then the screen is showing older data.
+- A desktop window narrower than 1180 px shortens the range ("Oct 19 – 25", "Fri, Oct 23") and keeps the Live dot without its word, so the toolbar fits one line at 1024 px. Narrower still, the view switch and Add event move together to a second line on the right, and a connection problem takes a line of its own.
+- A short block three abreast lets its title use the lines it has and hyphenates long words where the browser can.
+- Event details and both editors keep Tab inside them, close with Escape, and give focus back to the event that opened them, through the editor that Edit opens (`shared/modal-focus.ts`).
+- A unit test reads the tokens from `styles.css` and checks 4.5:1 for initials, time labels, titles and chips for every member color and the demo's, and for the status pills. It found the now line's time label at 3.9:1; the label now sits on `--now-label` (#D6363C, 4.7:1) while the line keeps the canvas coral.
+- Checked by hand: household midnight on a live wall, phone and Day view (the date, now line and week move over without a reload), a busy day with five overlaps and long titles, browser zoom from 125 to 200 percent, and an API outage through reconnect, a failed refresh and recovery on the wall, a 1024 px desktop and the phone. Touch targets measured at 56 px on the wall and 44 px on the phone in every view, details and editor.
 
 Update this record with merged PR links and screenshots after each milestone. An open PR or a passing build does not complete a milestone.

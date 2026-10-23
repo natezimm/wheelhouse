@@ -2,6 +2,7 @@ import { Component, ElementRef, computed, effect, inject, input, output, viewChi
 import { CalendarEvent, CalendarStore, colorOf, daysOf, timeRange } from '../core/calendar';
 import { addDays, dayIn, formatDay, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
+import { ModalFocus } from './modal-focus';
 
 /**
  * What an event is, before anyone changes it: whose it is, when, where, whether it repeats and
@@ -11,11 +12,12 @@ import { FamilyStore } from '../core/family';
  */
 @Component({
   selector: 'app-event-details',
+  imports: [ModalFocus],
   host: { '[class]': 'layout()', '(keydown.escape)': 'closed.emit()' },
   template: `
     @if (shown(); as event) {
       <button type="button" class="scrim" tabindex="-1" aria-label="Close details" (click)="closed.emit()"></button>
-      <section class="panel" role="dialog" aria-modal="true" [attr.aria-label]="event.title" [style.--member]="event.color">
+      <section class="panel" appModalFocus tabindex="-1" role="dialog" aria-modal="true" [attr.aria-label]="event.title" [style.--member]="event.color">
         @if (layout() === 'phone') {
           <span class="grip" aria-hidden="true"></span>
         }

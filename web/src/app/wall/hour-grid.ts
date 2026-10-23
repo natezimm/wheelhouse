@@ -31,6 +31,12 @@ export interface GridColumn {
   segments: readonly TimedSegment[];
 }
 
+/** A note over the grid: why it is empty. A waiting note is only for a read still going. */
+export interface GridNote {
+  text: string;
+  waiting?: boolean;
+}
+
 /** Events that did not fit side by side in a column, from a "+N" block. */
 export interface GridMore {
   column: GridColumn;
@@ -91,7 +97,7 @@ export interface GridMore {
                     }
                   } @else if (block.short) {
                     <span class="time">{{ block.time }}</span>
-                    <span class="title">{{ block.title }}</span>
+                    <span class="title" [class.clamp]="block.narrow" [style.--lines]="block.lines">{{ block.title }}</span>
                   } @else {
                     <span class="top">
                       <span class="time">{{ block.time }}</span>
@@ -124,7 +130,9 @@ export interface GridMore {
         }
       </div>
     </div>
-    <ng-content />
+    @if (note(); as note) {
+      <p class="note" [class.waiting]="note.waiting" role="status">{{ note.text }}</p>
+    }
   `,
   styles: `
     :host {
@@ -180,7 +188,7 @@ export interface GridMore {
       right: 8px;
       padding: 1px 6px;
       border-radius: 8px;
-      background: var(--now);
+      background: var(--now-label);
       color: var(--on-ink);
       font-weight: 700;
       z-index: 1;
@@ -309,12 +317,24 @@ export interface GridMore {
       font-size: 14px;
     }
 
+    /* A long word that has to break, in a narrow block, breaks where a dictionary says it may. */
     .event .clamp {
       white-space: normal;
       display: -webkit-box;
       -webkit-box-orient: vertical;
       -webkit-line-clamp: var(--lines);
       overflow-wrap: break-word;
+      -webkit-hyphens: auto;
+      hyphens: auto;
+    }
+
+    /* A short block three abreast has no room for its time on the line, so its title takes the lines it has. */
+    .short.narrow .content {
+      white-space: normal;
+    }
+
+    .short.narrow .title {
+      line-height: 1.15;
     }
 
     :host(.desktop) .event,
@@ -448,6 +468,45 @@ export interface GridMore {
       background: var(--now);
     }
 
+    /* A quiet note over the grid, such as an empty day or one still loading. It stays put as the
+       grid scrolls, and taps reach the hours beneath. */
+    .note {
+      position: absolute;
+      top: 96px;
+      left: var(--gutter);
+      right: 0;
+      margin: 0;
+      text-align: center;
+      font-family: var(--font-display);
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--muted);
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    :host(.desktop) .note {
+      top: 72px;
+      font-size: 19px;
+    }
+
+    /* Loading is only worth saying when it takes a moment, so a quick read never flashes it. */
+    .note.waiting {
+      animation: appear 0.2s ease-out 0.4s both;
+    }
+
+    @keyframes appear {
+      from {
+        opacity: 0;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .note.waiting {
+        animation-duration: 0s;
+      }
+    }
+
     /* Only the first column's line starts with a dot; the rest carry it across. */
     :host(.day) .column ~ .column .now-line::before {
       display: none;
@@ -478,6 +537,9 @@ export class HourGrid {
 
   /** Whether tapping an empty half hour starts a new event there. */
   readonly canAdd = input(false);
+
+  /** Said over the grid when it has nothing to show yet, or nothing at all; waiting notes fade in late. */
+  readonly note = input<GridNote | null>(null);
 
   /** An event was tapped to see its details; carries its id. */
   readonly inspect = output<string>();
@@ -580,7 +642,9 @@ export class HourGrid {
               lines:
                 this.variant() === 'day'
                   ? Math.max(1, Math.floor((height - 18 - layout.dayTime - (place ? layout.dayLine : 0)) / layout.dayLine))
-                  : Math.max(1, Math.floor((height - layout.titleTop) / layout.lineHeight)),
+                  : short
+                    ? Math.max(1, Math.floor((height - 4) / layout.lineHeight))
+                    : Math.max(1, Math.floor((height - layout.titleTop) / layout.lineHeight)),
               time: segment.continuesBefore ? `Until ${shortTime(timeIn(zone, event.endsAt!))}` : shortTime(timeIn(zone, event.startsAt!)),
               range: timeRange(event, zone),
               place,

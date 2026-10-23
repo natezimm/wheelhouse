@@ -73,6 +73,18 @@ describe('calendar connection controls', () => {
     expect(button().getAttribute('aria-label')).toBe('Resync now');
   });
 
+  it('says Connecting quietly the first time, with no pill or button, and nothing in the phone banners', async () => {
+    state.set('connecting');
+    await settle();
+    expect(page().querySelector('[role=status]')?.textContent?.trim()).toBe('Connecting…');
+    expect(page().querySelector('.pill')).toBeNull();
+    expect(page().querySelector('button')).toBeNull();
+
+    fixture.componentRef.setInput('show', 'problems');
+    await settle();
+    expect(page().textContent?.trim()).toBe('');
+  });
+
   it('shows Reconnecting immediately and retains the accepted calendar', async () => {
     state.set('reconnecting');
     await settle();
