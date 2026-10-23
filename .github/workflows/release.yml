@@ -25,6 +25,7 @@ jobs:
   prepare:
     needs: test
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: write
     outputs:
@@ -79,6 +80,7 @@ jobs:
   images:
     needs: prepare
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
       packages: write
@@ -112,6 +114,7 @@ jobs:
     needs: [prepare, images]
     # Playwright cannot install Chromium on the newer image ubuntu-latest moved to; pin until it can.
     runs-on: ubuntu-24.04
+    timeout-minutes: 25
     permissions:
       contents: read
       packages: read
