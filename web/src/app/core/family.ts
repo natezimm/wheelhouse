@@ -65,6 +65,9 @@ export class FamilyStore {
   private readonly http = inject(HttpClient);
   private readonly current = signal<FamilyState>({ status: 'loading' });
 
+  /** Counts accepted changes, so a check-in that started before one cannot undo it. */
+  private writes = 0;
+
   readonly state = this.current.asReadonly();
 
   /** The family once loaded, or null. */
@@ -90,9 +93,13 @@ export class FamilyStore {
    * display has been removed, but a failed attempt keeps what is on screen.
    */
   refresh(): void {
+    const writes = this.writes;
     this.http.get<Family>('/api/family').subscribe({
       // An unchanged family keeps its object, so nothing that depends on it works again for nothing.
       next: (family) => {
+        if (writes !== this.writes) {
+          return;
+        }
         const state = this.current();
         if (state.status !== 'ready' || JSON.stringify(state.family) !== JSON.stringify(family)) {
           this.current.set({ status: 'ready', family });
@@ -112,21 +119,21 @@ export class FamilyStore {
   saveSettings(settings: FamilySettings): Observable<Family> {
     return this.http
       .put<Family>('/api/family', settings)
-      .pipe(tap((family) => this.current.set({ status: 'ready', family })));
+      .pipe(tap((family) => this.accept(family)));
   }
 
   /** Sets where the weather is for; null for both clears it. */
   saveLocation(latitude: number | null, longitude: number | null): Observable<Family> {
     return this.http
       .put<Family>('/api/family/location', { latitude, longitude })
-      .pipe(tap((family) => this.current.set({ status: 'ready', family })));
+      .pipe(tap((family) => this.accept(family)));
   }
 
   /** Chooses the family's theme, and whether screens turn dark at night. */
   saveTheme(theme: Theme, autoNight: boolean): Observable<Family> {
     return this.http
       .put<Family>('/api/family/theme', { theme, autoNight })
-      .pipe(tap((family) => this.current.set({ status: 'ready', family })));
+      .pipe(tap((family) => this.accept(family)));
   }
 
   addMember(draft: MemberDraft): Observable<Member> {
@@ -151,7 +158,13 @@ export class FamilyStore {
       .pipe(tap(() => this.changeMembers((members) => members.filter((member) => member.id !== id))));
   }
 
+  private accept(family: Family): void {
+    this.writes++;
+    this.current.set({ status: 'ready', family });
+  }
+
   private changeMembers(change: (members: Member[]) => Member[]): void {
+    this.writes++;
     this.current.update((state) =>
       state.status === 'ready'
         ? { status: 'ready', family: { ...state.family, members: change(state.family.members) } }
