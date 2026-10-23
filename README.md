@@ -23,7 +23,7 @@ Follow the [calendar redesign plan](docs/calendar-redesign-plan.md). Its progres
 | `web/` | Angular 22 app: `/wall` for the wall display, `/` for phones and desktop browsers |
 | `compose.yaml` | Local stack: database, API and web |
 | `deploy/` | Production stack, the server-side deploy script and [how to deploy](deploy/README.md) |
-| `.github/workflows/` | CI on pull requests and on `main`; a version tag publishes images and deploys |
+| `.github/workflows/` | CI on pull requests; a version tag tests, publishes images and deploys |
 
 ## Run it
 
