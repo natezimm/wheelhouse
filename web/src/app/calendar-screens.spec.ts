@@ -220,11 +220,26 @@ describe('calendar screens', () => {
       const { page } = await switchTo('Day', { from: '2026-10-12', to: '2026-10-13' });
 
       expect(shownTitle(page)).toBe('Monday, October 12 2026');
-      expect(texts(page.querySelectorAll('.head .who'))).toEqual(['B Ben', 'T Tess', 'M Milo', 'F Family']);
-      expect(texts(page.querySelectorAll('.head .all-day'))).toEqual(['Grandma in town']);
-      expect(rows(page.querySelectorAll('ul.column[aria-label="Milo"] li'))).toEqual(['Swim lesson 5:30 – 6:15 PM']);
-      expect(rows(page.querySelectorAll('ul.column[aria-label="Tess"] li'))).toEqual(['Book club 7:00 – 9:00 PM']);
-      expect(page.querySelector('app-day-view .now span')?.textContent).toBe('5:22 PM');
+      expect(rows(page.querySelectorAll('app-day-view .head .who'))).toEqual(['Ben 1 today', 'Tess 1 today', 'Milo 1 today', 'Family 1 today']);
+      expect(texts(page.querySelectorAll('app-day-view .all-day .bar'))).toEqual(['Grandma in town']);
+      expect(rows(page.querySelectorAll('[role="group"][aria-label="Milo"] .event .content'))).toEqual(['Swim lesson 5:30 – 6:15 PM']);
+      expect(rows(page.querySelectorAll('[role="group"][aria-label="Tess"] .event .content'))).toEqual(['Book club 7:00 – 9:00 PM']);
+      // The now line crosses every person's column, with the time in the gutter.
+      expect(page.querySelectorAll('app-day-view .now-line').length).toBe(4);
+      expect(page.querySelector('app-day-view .now-label')?.textContent).toBe('5:22');
+    });
+
+    it('says plainly when a day has nothing planned, and only once it has loaded', async () => {
+      const { page, settle } = await switchTo('Day', { from: '2026-10-12', to: '2026-10-13' });
+      page.querySelector<HTMLButtonElement>('button[aria-label="Next day"]')!.click();
+      await settle();
+      const tuesday = http.expectOne((r) => r.params.get('from') === '2026-10-13');
+      expect(page.querySelector('app-day-view .empty')).toBeNull();
+      tuesday.flush({ calendars: marloweCalendars, events: [] });
+      await settle();
+
+      expect(page.querySelector('app-day-view .empty')?.textContent).toBe('Nothing planned for Tuesday');
+      expect(texts(page.querySelectorAll('app-day-view .head .count'))).toEqual(['Nothing planned', 'Nothing planned', 'Nothing planned', 'Nothing planned']);
     });
 
     it("drops a hidden person's column from the day", async () => {
@@ -235,21 +250,23 @@ describe('calendar screens', () => {
         .click();
       await settle();
 
-      expect(texts(page.querySelectorAll('.head .who'))).toEqual(['B Ben', 'M Milo', 'F Family']);
+      expect(texts(page.querySelectorAll('app-day-view .head .name'))).toEqual(['Ben', 'Milo', 'Family']);
     });
 
     it('shows the month with the first events of each day, and opens a day when it is tapped', async () => {
       const { page, settle } = await switchTo('Month', { from: '2026-09-28', to: '2026-11-02' });
       const cell = (label: string) =>
-        Array.from(page.querySelectorAll<HTMLButtonElement>('app-month-view .grid > button')).find((b) =>
-          b.getAttribute('aria-label')?.startsWith(label),
-        )!;
+        Array.from(page.querySelectorAll<HTMLButtonElement>('app-month-view button.cell')).find((b) => b.getAttribute('aria-label')?.startsWith(label))!;
+      const lines = (day: string) => rows(page.querySelectorAll(`app-month-view .lines[data-day="${day}"] .line`));
 
       expect(shownTitle(page)).toBe('October 2026');
-      expect(page.querySelectorAll('app-month-view .grid > button').length).toBe(35);
+      expect(page.querySelectorAll('app-month-view button.cell').length).toBe(35);
+      expect(page.querySelectorAll('app-month-view .week').length).toBe(5);
       expect(cell('Monday, October 12').getAttribute('aria-label')).toBe('Monday, October 12, 4 events');
-      expect(texts(cell('Monday, October 12').querySelectorAll('.event'))).toEqual(['Grandma in town', 'Dentist']);
-      expect(cell('Monday, October 12').querySelector('.more')?.textContent).toBe('+2 more');
+      // All-day events are bars across their days; timed ones a line each with a short time.
+      expect(texts(page.querySelectorAll('app-month-view .bar .title'))).toEqual(['Grandma in town', 'Grandma in town', 'Trash & recycling']);
+      expect(lines('2026-10-12')).toEqual(['3p Dentist', '5:30p Swim lesson', '7p Book club']);
+      expect(lines('2026-10-15')).toEqual(['6:10a Flight to Chicago']);
 
       cell('Tuesday, October 13').click();
       await settle();
@@ -400,7 +417,7 @@ describe('calendar screens', () => {
       const { page, settle } = await open('/', { from: '2026-10-12', to: '2026-10-19' });
       const day = (label: string) => page.querySelector<HTMLButtonElement>(`.strip button[aria-label="${label}"]`)!;
 
-      expect(texts(page.querySelectorAll('.strip .dow'))).toEqual(['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN']);
+      expect(texts(page.querySelectorAll('.strip .dow'))).toEqual(['M', 'T', 'W', 'T', 'F', 'S', 'S']);
       expect(day('Thursday, October 15').querySelector('.dot.busy')).not.toBeNull();
       expect(day('Friday, October 16').querySelector('.dot.busy')).toBeNull();
 
@@ -408,9 +425,37 @@ describe('calendar screens', () => {
       await settle();
 
       expect(page.querySelector('h1')?.textContent).toBe('Friday');
-      expect(page.querySelector('.empty')?.textContent).toBe('Nothing planned for Friday');
+      expect(page.querySelector('.empty h2')?.textContent).toBe('Nothing planned for Friday');
+      expect(page.querySelector('.empty p')?.textContent).toBe('No events on anyone’s calendar.');
       // The week is already loaded, so no more reads.
       http.expectNone((r) => r.url === '/api/calendar');
+    });
+
+    it('shows the week as a card per day with a row per event, today outlined', async () => {
+      const { page, settle } = await open('/', { from: '2026-10-12', to: '2026-10-19' });
+      button(page, 'Week').click();
+      await settle();
+      http.expectNone((r) => r.url === '/api/calendar');
+
+      const cards = page.querySelectorAll('app-phone-week section.day');
+      expect(cards.length).toBe(7);
+      expect(rows(page.querySelectorAll('app-phone-week section.day h2'))).toEqual([
+        'Today Monday · 4 events',
+        'Tomorrow Tuesday · 2 events',
+        'Wednesday October 14 · No events',
+        'Thursday October 15 · 1 event',
+        'Friday October 16 · No events',
+        'Saturday October 17 · No events',
+        'Sunday October 18 · No events',
+      ]);
+      expect(cards[0].classList).toContain('is-today');
+      expect(rows(cards[0].querySelectorAll('app-compact-agenda button'))).toEqual([
+        'All day F Grandma in town',
+        '3:00 pm B Dentist',
+        '5:30 pm M Swim lesson',
+        '7:00 pm T Book club',
+      ]);
+      expect(cards[2].querySelector('app-compact-agenda .empty')?.textContent).toBe('Nothing planned');
     });
 
     it('shows the month with a dot per busy person, the chosen day below, and opens a day', async () => {
@@ -424,13 +469,13 @@ describe('calendar screens', () => {
       expect(page.querySelector('h1')?.textContent).toBe('October');
       expect(page.querySelectorAll('.grid button').length).toBe(35);
       expect(cell('Monday, October 12').querySelectorAll('.dots span').length).toBe(3);
-      expect(page.querySelector('#agenda')?.textContent).toBe('Mon, Oct 12 · 4 events');
+      expect(page.querySelector('#agenda')?.textContent).toBe('Today · Monday, October 12');
 
       cell('Tuesday, October 13').click();
       await settle();
 
-      expect(page.querySelector('#agenda')?.textContent).toBe('Tue, Oct 13 · 2 events');
-      expect(texts(page.querySelectorAll('.agenda .all-day .title'))).toEqual(['Grandma in town', 'Trash & recycling']);
+      expect(page.querySelector('#agenda')?.textContent).toBe('Tuesday, October 13');
+      expect(rows(page.querySelectorAll('.agenda app-compact-agenda button'))).toEqual(['All day F Grandma in town', 'All day F Trash & recycling']);
       expect(button(page, 'Month').getAttribute('aria-pressed')).toBe('true');
 
       button(page, 'Open day').click();

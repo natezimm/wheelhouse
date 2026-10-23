@@ -98,7 +98,14 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
         @if (family.state().status === 'ready') {
           @switch (view()) {
             @case ('day') {
-              <app-day-view [focus]="focus()" (inspect)="selected.set($event)" />
+              <app-day-view
+                [focus]="focus()"
+                layout="wall"
+                [selected]="selected()"
+                [canAdd]="canAdd()"
+                (inspect)="selected.set($event)"
+                (create)="addAt($event)"
+              />
             }
             @case ('week') {
               <app-week-view
@@ -285,6 +292,7 @@ export class WallShell {
   protected readonly editing = signal<{ event: CalendarEvent | null; day: Day; at: string | null; deleting: boolean } | null>(null);
   private readonly dialog = viewChild(EventDialog);
   private readonly week = viewChild(WeekView);
+  private readonly dayView = viewChild(DayView);
 
   /** Whether any calendar takes new events; a family with none has nothing to add to. */
   protected readonly canAdd = computed(() => this.calendar.calendars().some((calendar) => calendar.canWrite));
@@ -352,6 +360,7 @@ export class WallShell {
     this.focus.set(null);
     this.selected.set(null);
     this.week()?.scrollToNow();
+    this.dayView()?.scrollToNow();
     if (this.editing() && !this.dialog()?.holdsWork() && this.calendar.pending().length === 0) {
       this.editing.set(null);
     }
