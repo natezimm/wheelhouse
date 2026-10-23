@@ -85,4 +85,4 @@ Local development and `docker compose up` run as `Demo`.
 - **Touch targets** are at least 56 px on the wall and 44 px on the phone.
 - **Confirmed state and pending intent stay separate.** `CalendarStore` renders optimistic overlays over its last confirmed snapshot. Live reads preserve them; definite failures remove only the refused operation, and successes retain their overlay until a snapshot started after acceptance replaces it. `FamilyStore` still changes only after server acceptance.
 - **API tests run against real PostgreSQL** through `ApiFactory`. The `api` collection shares one container. `DemoVisitorAsync()` gives a client signed in as a parent of its own fresh copy of the demo family, which is how a test acts as a parent without touching another test's data. `DbContextFor(familyId)` reads and writes as a given family. Each test must pass when run alone.
-- **Changes reach `main` through pull requests.** CI runs on pull requests and on `main`.
+- **Changes reach `main` through pull requests.** CI runs on pull requests (and can be started by hand); merging to `main` does not run it again, and a release tests its tag before publishing.

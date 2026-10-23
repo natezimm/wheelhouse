@@ -1,0 +1,35 @@
+# Dependency updates once a month, one grouped pull request per ecosystem, so they do not
+# eat into the monthly Actions minutes.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      nuget:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule:
+      interval: monthly
+    groups:
+      npm:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directories: [/src/Wheelhouse.Api, /web]
+    schedule:
+      interval: monthly
+    groups:
+      docker:
+        patterns: ["*"]
