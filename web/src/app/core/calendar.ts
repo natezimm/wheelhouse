@@ -1,5 +1,5 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, inject, signal, untracked } from '@angular/core';
 import { Observable, catchError, defer, of, shareReplay, switchMap, tap, throwError, timeout } from 'rxjs';
 import { Day, addDays, dayIn, timeIn } from './days';
 import { FamilyStore, Member, refusalMessage } from './family';
@@ -193,6 +193,7 @@ export class CalendarStore {
     this.fetching.set(false);
     this.readFailed.set(false);
     this.acceptedAt.set(null);
+    this.knownCalendars.set([]);
     this.current.set({ status: 'idle' });
     this.hiddenOwners.set(new Set());
   }
@@ -208,9 +209,12 @@ export class CalendarStore {
   /** Owners whose events are filtered out: member ids, or FAMILY. */
   readonly hidden = this.hiddenOwners.asReadonly();
 
+  /** The calendars from the last snapshot, so columns, chips and Add event stay put while other days load. */
+  private readonly knownCalendars = signal<CalendarSource[]>([]);
+
   readonly calendars = computed(() => {
     const state = this.current();
-    return state.status === 'ready' ? state.calendars : [];
+    return state.status === 'ready' ? state.calendars : this.knownCalendars();
   });
 
   /** Every event in range, filtered or not. */
@@ -236,13 +240,16 @@ export class CalendarStore {
 
   /** Shows the days from <code>from</code> up to, not including, <code>to</code>. Asking again for the same days does nothing. */
   show(from: Day, to: Day): void {
-    const state = this.current();
-    if (state.status !== 'idle' && state.status !== 'unavailable' && state.from === from && state.to === to) {
-      return;
-    }
-    this.invalidateRead();
-    this.current.set({ status: 'loading', from, to });
-    this.fetch(from, to);
+    // Views call this from effects. Untracked, so a failed read does not make their effect ask again at once.
+    untracked(() => {
+      const state = this.current();
+      if (state.status !== 'idle' && state.status !== 'unavailable' && state.from === from && state.to === to) {
+        return;
+      }
+      this.invalidateRead();
+      this.current.set({ status: 'loading', from, to });
+      this.fetch(from, to);
+    });
   }
 
   /** Fetches the days on screen again. A failed attempt keeps what is shown. */
@@ -420,6 +427,7 @@ export class CalendarStore {
           this.readFailed.set(false);
           this.accepted.set(revision);
           this.acceptedAt.set(new Date());
+          this.knownCalendars.set(response.calendars);
           this.operations.update((ops) => ops.filter((op) => op.status !== 'settling' || serial < op.settleAfter!));
           this.current.set({ status: 'ready', from, to, ...response, changeNumber: revision });
         }

@@ -4,7 +4,7 @@ import { inAllDayLane, timedSegments } from '../core/calendar-grid';
 import { Clock } from '../core/clock';
 import { Day, addDays, dayIn, formatDay } from '../core/days';
 import { FamilyStore } from '../core/family';
-import { GridColumn, GridSlot, HourGrid } from './hour-grid';
+import { GridColumn, GridNote, GridSlot, HourGrid } from './hour-grid';
 import { spanLabel } from './week-view';
 
 /**
@@ -65,12 +65,9 @@ import { spanLabel } from './week-view';
         [canAdd]="canAdd()"
         (inspect)="inspect.emit($event)"
         (moreOpened)="inspect.emit($event.events[0].id)"
+        [note]="day.note"
         (create)="create.emit($event)"
-      >
-        @if (day.empty) {
-          <p class="empty">{{ day.empty }}</p>
-        }
-      </app-hour-grid>
+      />
     }
   `,
   styles: `
@@ -256,27 +253,6 @@ import { spanLabel } from './week-view';
     app-hour-grid {
       flex: 1;
     }
-
-    /* A quiet note over the empty grid that stays put as it scrolls; taps reach the hours beneath. */
-    .empty {
-      position: absolute;
-      top: 96px;
-      left: var(--gutter);
-      right: 0;
-      margin: 0;
-      text-align: center;
-      font-family: var(--font-display);
-      font-size: 24px;
-      font-weight: 600;
-      color: var(--muted);
-      pointer-events: none;
-      z-index: 1;
-    }
-
-    :host(.desktop) .empty {
-      top: 72px;
-      font-size: 19px;
-    }
   `,
 })
 export class DayView {
@@ -356,13 +332,16 @@ export class DayView {
     const writable = new Set(this.calendar.calendars().filter((c) => c.canWrite).map((c) => c.id));
     const isToday = day === this.today();
     const events = this.events();
+    // A day still loading, or that failed to load, is never called empty.
+    const status = this.calendar.state().status;
+    const ready = status === 'ready';
 
     const people = this.people().map((person) => {
       const mine = events.filter((event) => ownerOf(event) === person.owner);
       const count = mine.length;
       return {
         ...person,
-        count: count === 0 ? 'Nothing planned' : `${count} ${isToday ? 'today' : count === 1 ? 'event' : 'events'}`,
+        count: !ready ? '' : count === 0 ? 'Nothing planned' : `${count} ${isToday ? 'today' : count === 1 ? 'event' : 'events'}`,
         allDay: mine.filter(inAllDayLane).map((event) => ({
           id: event.id,
           title: event.title,
@@ -373,13 +352,21 @@ export class DayView {
       };
     });
 
-    // A day still loading, or that failed to load, is never called empty.
-    const ready = this.calendar.state().status === 'ready';
     const weekday = formatDay(day, { weekday: 'long' });
+    const note: GridNote | null =
+      status === 'loading'
+        ? { text: `Loading ${isToday ? 'today' : weekday}…`, waiting: true }
+        : status === 'unavailable'
+          ? { text: `Couldn't load ${isToday ? 'today' : weekday}` }
+          : people.length === 0
+            ? { text: 'Choose someone above to see their day' }
+            : events.length === 0
+              ? { text: `Nothing planned for ${isToday ? 'today' : weekday}` }
+              : null;
     return {
       people,
       hasAllDay: people.some((person) => person.allDay.length > 0),
-      empty: !ready ? null : people.length === 0 ? 'Choose someone above to see their day' : events.length === 0 ? `Nothing planned for ${isToday ? 'today' : weekday}` : null,
+      note,
     };
   });
 

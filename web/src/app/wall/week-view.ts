@@ -4,7 +4,7 @@ import { dayBars, timedSegments } from '../core/calendar-grid';
 import { Clock } from '../core/clock';
 import { Day, addDays, dayIn, formatDay, startOfWeek, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
-import { GridColumn, GridSlot, HourGrid } from './hour-grid';
+import { GridColumn, GridNote, GridSlot, HourGrid } from './hour-grid';
 
 export type { GridSlot } from './hour-grid';
 
@@ -65,6 +65,7 @@ export type { GridSlot } from './hour-grid';
         [anchor]="start() ?? ''"
         [selected]="selected()"
         [canAdd]="canAdd()"
+        [note]="note()"
         (inspect)="inspect.emit($event)"
         (moreOpened)="openDay.emit($event.column.day)"
         (create)="create.emit($event)"
@@ -366,6 +367,12 @@ export class WeekView {
       name: formatDay(day, { weekday: 'long', month: 'long', day: 'numeric' }),
       segments: segments.get(day) ?? [],
     }));
+  });
+
+  /** Over the grid while the week loads, or when it could not: an empty grid would read as an empty week. */
+  protected readonly note = computed<GridNote | null>(() => {
+    const status = this.calendar.state().status;
+    return status === 'loading' ? { text: 'Loading the week…', waiting: true } : status === 'unavailable' ? { text: "Couldn't load the week" } : null;
   });
 
   protected readonly week = computed(() => {

@@ -16,6 +16,8 @@ export interface Period {
   end: Day;
   /** Such as "October 19 – 25", "Thursday, October 22" or "October". */
   title: string;
+  /** The title with short day and month names, such as "Oct 19 – 25", for a narrow toolbar. */
+  brief: string;
   /** The year, set apart from the title; empty when the title already has it. */
   year: string;
   /** What the arrows move by: day, week or month. */
@@ -26,10 +28,12 @@ export interface Period {
 
 export function periodOf(view: CalendarView, day: Day, today: Day, weekStartsOn: 'Sunday' | 'Monday'): Period {
   if (view === 'day') {
+    const title = formatDay(day, { weekday: 'long', month: 'long', day: 'numeric' });
     return {
       start: day,
       end: addDays(day, 1),
-      title: formatDay(day, { weekday: 'long', month: 'long', day: 'numeric' }),
+      title,
+      brief: abbreviated(title),
       year: day.slice(0, 4),
       unit: 'day',
       isCurrent: day === today,
@@ -38,13 +42,16 @@ export function periodOf(view: CalendarView, day: Day, today: Day, weekStartsOn:
   if (view === 'week') {
     const start = startOfWeek(day, weekStartsOn);
     const last = addDays(start, 6);
-    return { start, end: addDays(start, 7), ...weekTitle(start, last), unit: 'week', isCurrent: start <= today && today <= last };
+    const { title, year } = weekTitle(start, last);
+    return { start, end: addDays(start, 7), title, brief: abbreviated(title), year, unit: 'week', isCurrent: start <= today && today <= last };
   }
   const first = startOfMonth(day);
+  const title = formatDay(first, { month: 'long' });
   return {
     start: first,
     end: addMonths(first, 1),
-    title: formatDay(first, { month: 'long' }),
+    title,
+    brief: title,
     year: first.slice(0, 4),
     unit: 'month',
     isCurrent: first === startOfMonth(today),
@@ -66,6 +73,11 @@ export function stepFrom(view: CalendarView, day: Day, by: number): Day {
 }
 
 /** "October 19 – 25", "October 26 – November 1", or with both years across a year's end. */
+/** "Thursday, October 22" as "Thu, Oct 22": day and month names cut to three letters. */
+function abbreviated(title: string): string {
+  return title.replace(/[A-Z][a-z]+/g, (name) => name.slice(0, 3));
+}
+
 function weekTitle(first: Day, last: Day): { title: string; year: string } {
   const from = formatDay(first, { month: 'long', day: 'numeric' });
   if (first.slice(0, 4) !== last.slice(0, 4)) {

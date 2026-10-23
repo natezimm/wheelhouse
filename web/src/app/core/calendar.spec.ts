@@ -112,6 +112,19 @@ describe('CalendarStore', () => {
     respond();
     expect(store.refreshFailed()).toBe(false);
   });
+
+  it('keeps the calendars it knows while other days load, so columns and Add event stay put', () => {
+    store.show('2026-10-12', '2026-10-19');
+    respond();
+    store.show('2026-10-19', '2026-10-26');
+
+    expect(store.state().status).toBe('loading');
+    expect(store.calendars()).toEqual(marloweCalendars);
+    expect(store.events()).toEqual([]);
+    respond([]);
+    store.reset();
+    expect(store.calendars()).toEqual([]);
+  });
 });
 
 describe('calendar snapshot recovery', () => {

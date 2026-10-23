@@ -54,7 +54,9 @@ describe('calendar screens', () => {
   }
 
   /** What the toolbar says is shown, such as "October 12 – 18 2026". */
-  const shownTitle = (page: HTMLElement) => page.querySelector('app-calendar-toolbar h1')?.textContent?.replace(/\s+/g, ' ').trim();
+  // The toolbar's long title and its year; the brief one is for a narrow window.
+  const shownTitle = (page: HTMLElement) =>
+    Array.from(page.querySelectorAll('app-calendar-toolbar h1 .full, app-calendar-toolbar h1 .year'), (e) => e.textContent).join('').replace(/\s+/g, ' ').trim();
 
   const texts = (elements: NodeListOf<Element>) => Array.from(elements, (e) => e.textContent?.replace(/\s+/g, ' ').trim());
 
@@ -130,6 +132,34 @@ describe('calendar screens', () => {
       details.querySelector<HTMLButtonElement>('[aria-label="Close"]')!.click();
       await settle();
       expect(page.querySelector('app-event-details')).toBeNull();
+    });
+
+    it('keeps the keyboard in the details, closes them with Escape, and goes back to the event', async () => {
+      const { page, settle } = await open('/wall', { from: '2026-10-12', to: '2026-10-19' });
+      const key = (target: Element, key: string, shiftKey = false) => target.dispatchEvent(new KeyboardEvent('keydown', { key, shiftKey, bubbles: true }));
+
+      const swim = page.querySelector<HTMLButtonElement>('[aria-label^="Swim lesson"]')!;
+      swim.focus();
+      swim.click();
+      await settle();
+      await settle();
+      const details = page.querySelector<HTMLElement>('app-event-details [role="dialog"]')!;
+      const close = details.querySelector<HTMLButtonElement>('[aria-label="Close"]')!;
+      const remove = details.querySelector<HTMLButtonElement>('.delete')!;
+      expect(document.activeElement).toBe(close);
+
+      // Tab goes round the drawer's controls rather than out to the grid behind it.
+      remove.focus();
+      key(remove, 'Tab');
+      expect(document.activeElement).toBe(close);
+      key(close, 'Tab', true);
+      expect(document.activeElement).toBe(remove);
+
+      key(remove, 'Escape');
+      await settle();
+      await settle();
+      expect(page.querySelector('app-event-details')).toBeNull();
+      expect(document.activeElement).toBe(page.querySelector('[aria-label^="Swim lesson"]'));
     });
 
     it('shows a read-only event’s details with why it cannot be changed', async () => {
@@ -234,12 +264,25 @@ describe('calendar screens', () => {
       page.querySelector<HTMLButtonElement>('button[aria-label="Next day"]')!.click();
       await settle();
       const tuesday = http.expectOne((r) => r.params.get('from') === '2026-10-13');
-      expect(page.querySelector('app-day-view .empty')).toBeNull();
+      // While it loads it says so, and nobody's column claims to be empty.
+      expect(page.querySelector('app-day-view .note')?.textContent).toBe('Loading Tuesday…');
+      expect(texts(page.querySelectorAll('app-day-view .head .count'))).toEqual(['', '', '', '']);
       tuesday.flush({ calendars: marloweCalendars, events: [] });
       await settle();
 
-      expect(page.querySelector('app-day-view .empty')?.textContent).toBe('Nothing planned for Tuesday');
+      expect(page.querySelector('app-day-view .note')?.textContent).toBe('Nothing planned for Tuesday');
       expect(texts(page.querySelectorAll('app-day-view .head .count'))).toEqual(['Nothing planned', 'Nothing planned', 'Nothing planned', 'Nothing planned']);
+    });
+
+    it("says when a day couldn't load, rather than calling it empty", async () => {
+      const { page, settle } = await switchTo('Day', { from: '2026-10-12', to: '2026-10-13' });
+      page.querySelector<HTMLButtonElement>('button[aria-label="Next day"]')!.click();
+      await settle();
+      http.expectOne((r) => r.params.get('from') === '2026-10-13').flush(null, { status: 503, statusText: 'Unavailable' });
+      await settle();
+
+      expect(page.querySelector('app-day-view .note')?.textContent).toBe("Couldn't load Tuesday");
+      expect(texts(page.querySelectorAll('app-day-view .head .count'))).toEqual(['', '', '', '']);
     });
 
     it("drops a hidden person's column from the day", async () => {

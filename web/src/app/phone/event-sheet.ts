@@ -5,13 +5,24 @@ import { Day } from '../core/days';
 import { EventDraft, REPEATS, draftOf, newDraft, onDayOf, problemWith, requestOf, writableCalendars } from '../core/event-draft';
 import { FamilyStore } from '../core/family';
 import { SessionStore } from '../core/session';
+import { ModalFocus } from '../shared/modal-focus';
 
 /** The phone's sheet for adding an event, or changing or deleting one, over the calendar. */
 @Component({
   selector: 'app-event-sheet',
+  imports: [ModalFocus],
   template: `
     @if (draft(); as draft) {
-      <form class="card" [attr.aria-label]="heading()" (submit)="$event.preventDefault(); save()">
+      <form
+        class="card"
+        appModalFocus
+        tabindex="-1"
+        role="dialog"
+        aria-modal="true"
+        [attr.aria-label]="heading()"
+        (keydown.escape)="!busy() && closed.emit()"
+        (submit)="$event.preventDefault(); save()"
+      >
         <header>
           <h1>{{ heading() }}</h1>
           <span class="saves">{{ savesTo() }}</span>
