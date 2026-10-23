@@ -38,9 +38,10 @@ import { CompactAgenda } from './compact-agenda';
 
     .day {
       padding: 12px;
-      border-radius: 20px;
+      border: var(--card-border);
+      border-radius: min(20px, var(--card-radius));
       background: var(--surface);
-      box-shadow: var(--card-shadow);
+      box-shadow: var(--card-shadow-small);
       display: flex;
       flex-direction: column;
       gap: 6px;
@@ -48,7 +49,7 @@ import { CompactAgenda } from './compact-agenda';
     }
 
     .day.is-today {
-      box-shadow: inset 0 0 0 2px var(--ink);
+      box-shadow: inset 0 0 0 2px var(--ink), var(--card-shadow-small);
     }
 
     .heading {
@@ -62,19 +63,22 @@ import { CompactAgenda } from './compact-agenda';
       flex-shrink: 0;
       width: 38px;
       height: 38px;
-      border-radius: 19px;
+      box-sizing: border-box;
+      border-radius: var(--today-num-radius);
       background: var(--soft);
       display: flex;
       align-items: center;
       justify-content: center;
       font-family: var(--font-display);
       font-size: 19px;
-      font-weight: 600;
+      font-weight: var(--display-weight);
+      font-variation-settings: var(--display-variation);
     }
 
     .is-today .num {
-      background: var(--ink);
-      color: var(--on-ink);
+      border: var(--today-num-border);
+      background: var(--today-num);
+      color: var(--on-today-num);
     }
 
     h2 {

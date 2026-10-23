@@ -8,6 +8,8 @@ export const marlowes: Family = {
   weekStartsOn: 'Monday',
   nightModeFrom: '21:30:00',
   nightModeTo: '06:30:00',
+  theme: 'Daylight',
+  autoNight: true,
   units: 'Imperial',
   // No place by default, so specs that are not about the weather never ask for it.
   latitude: null,

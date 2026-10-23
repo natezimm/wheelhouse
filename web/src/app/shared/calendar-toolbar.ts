@@ -53,9 +53,10 @@ import { CalendarView, Period, VIEWS } from '../core/calendar-period';
     .today {
       height: 44px;
       padding: 0 18px;
-      border: 1px solid var(--line);
-      border-radius: 22px;
+      border: var(--control-border);
+      border-radius: var(--pill);
       background: var(--surface);
+      box-shadow: var(--control-shadow);
       color: var(--ink);
       font-size: 15px;
       font-weight: 700;
@@ -63,6 +64,7 @@ import { CalendarView, Period, VIEWS } from '../core/calendar-period';
 
     /* Already on today: it stays put, quieter, so the toolbar never jumps. */
     .today:disabled {
+      box-shadow: none;
       color: var(--muted);
       cursor: default;
     }
@@ -72,7 +74,7 @@ import { CalendarView, Period, VIEWS } from '../core/calendar-period';
       height: 44px;
       padding: 0;
       border: 0;
-      border-radius: 22px;
+      border-radius: var(--pill);
       background: transparent;
       color: var(--ink);
       display: flex;
@@ -93,7 +95,8 @@ import { CalendarView, Period, VIEWS } from '../core/calendar-period';
       margin: 0 0 0 4px;
       font-family: var(--font-display);
       font-size: 26px;
-      font-weight: 600;
+      font-weight: var(--display-weight);
+      font-variation-settings: var(--display-variation);
       letter-spacing: -0.01em;
       white-space: nowrap;
     }
@@ -125,10 +128,11 @@ import { CalendarView, Period, VIEWS } from '../core/calendar-period';
       height: 44px;
       margin-left: 6px;
       padding: 0 20px 0 16px;
-      border: 0;
-      border-radius: 22px;
-      background: var(--ink);
-      color: var(--on-ink);
+      border: var(--primary-border);
+      border-radius: var(--pill);
+      background: var(--primary);
+      box-shadow: var(--primary-shadow);
+      color: var(--on-primary);
       font-size: 15px;
       font-weight: 700;
       display: flex;
@@ -138,6 +142,7 @@ import { CalendarView, Period, VIEWS } from '../core/calendar-period';
     }
 
     .add svg {
+      color: var(--primary-icon);
       width: 18px;
       height: 18px;
     }
@@ -202,14 +207,12 @@ import { CalendarView, Period, VIEWS } from '../core/calendar-period';
     :host(.wall) .today {
       height: 56px;
       padding: 0 26px;
-      border-radius: 28px;
       font-size: 18px;
     }
 
     :host(.wall) .arrow {
       width: 56px;
       height: 56px;
-      border-radius: 28px;
     }
 
     :host(.wall) .arrow svg {
@@ -231,13 +234,11 @@ import { CalendarView, Period, VIEWS } from '../core/calendar-period';
 
     :host(.wall) .view-switch {
       padding: 4px;
-      border-radius: 32px;
     }
 
     :host(.wall) .view-switch button {
       height: 56px;
       padding: 0 28px;
-      border-radius: 28px;
       font-size: 18px;
     }
 
@@ -248,7 +249,6 @@ import { CalendarView, Period, VIEWS } from '../core/calendar-period';
     :host(.wall) .add {
       height: 60px;
       padding: 0 28px 0 22px;
-      border-radius: 30px;
       font-size: 18px;
       gap: 10px;
     }

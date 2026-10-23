@@ -39,10 +39,11 @@ import { FamilyStore } from '../core/family';
       align-items: center;
       gap: 10px;
       height: 56px;
+      box-sizing: border-box;
       padding: 0 20px 0 9px;
-      border: 0;
+      border: var(--chip-border);
       border-radius: 28px;
-      background: color-mix(in srgb, var(--member) var(--member-chip), var(--surface));
+      background: var(--member-chip-bg);
       color: var(--ink);
       font: 600 18px var(--font-body);
       white-space: nowrap;
@@ -54,8 +55,10 @@ import { FamilyStore } from '../core/family';
       width: 38px;
       height: 38px;
       border-radius: 50%;
-      background: color-mix(in srgb, var(--member) var(--member-shade), black);
-      color: var(--on-ink);
+      background: var(--member-strong);
+      border: var(--avatar-border);
+      box-sizing: border-box;
+      color: var(--on-avatar);
       font-size: 17px;
       font-weight: 700;
       display: flex;
@@ -65,6 +68,7 @@ import { FamilyStore } from '../core/family';
 
     /* A hidden person's chip goes plain, with their color as an outline. */
     button[aria-pressed='false'] {
+      border-color: var(--line);
       background: transparent;
       box-shadow: inset 0 0 0 2px var(--line);
       color: var(--muted);
@@ -72,8 +76,9 @@ import { FamilyStore } from '../core/family';
 
     button[aria-pressed='false'] .mark {
       background: transparent;
-      box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--member) var(--member-shade), black);
-      color: color-mix(in srgb, var(--member) var(--member-shade), black);
+      border: 0;
+      box-shadow: inset 0 0 0 2px var(--member-text);
+      color: var(--member-text);
     }
 
     /* The phone: one row that scrolls sideways. */
@@ -110,6 +115,7 @@ import { FamilyStore } from '../core/family';
       height: 44px;
       padding: 0;
       justify-content: center;
+      border: 0;
       background: transparent;
     }
 

@@ -43,8 +43,8 @@ import { FamilyStore } from '../core/family';
       min-height: 44px;
       padding: 0 12px;
       border: 0;
-      border-radius: 12px;
-      background: color-mix(in srgb, var(--member) var(--member-chip), var(--surface));
+      border-radius: min(12px, calc(var(--event-radius) + 2px));
+      background: var(--member-chip-bg);
       color: var(--ink);
       font: inherit;
       text-align: left;
@@ -63,7 +63,7 @@ import { FamilyStore } from '../core/family';
     }
 
     .all-day .time {
-      color: color-mix(in srgb, var(--member) var(--member-shade), black);
+      color: var(--member-text);
     }
 
     .mark {
@@ -71,8 +71,10 @@ import { FamilyStore } from '../core/family';
       width: 22px;
       height: 22px;
       border-radius: 11px;
-      background: color-mix(in srgb, var(--member) var(--member-shade), black);
-      color: var(--on-ink);
+      background: var(--member-strong);
+      border: var(--avatar-border);
+      box-sizing: border-box;
+      color: var(--on-avatar);
       font-size: 11px;
       font-weight: 700;
       display: flex;

@@ -92,6 +92,7 @@ import { spanLabel } from './week-view';
 
     .heads {
       height: 70px;
+      border-bottom: var(--head-rule);
     }
 
     :host(.desktop) .heads {
@@ -117,8 +118,10 @@ import { spanLabel } from './week-view';
       width: 40px;
       height: 40px;
       border-radius: 20px;
-      background: color-mix(in srgb, var(--member) var(--member-shade), black);
-      color: var(--on-ink);
+      background: var(--member-strong);
+      border: var(--avatar-border);
+      box-sizing: border-box;
+      color: var(--on-avatar);
       font-size: 19px;
       font-weight: 700;
       line-height: 1;
@@ -143,7 +146,8 @@ import { spanLabel } from './week-view';
     .name {
       font-family: var(--font-display);
       font-size: 22px;
-      font-weight: 600;
+      font-weight: var(--display-weight);
+      font-variation-settings: var(--display-variation);
       line-height: 1.1;
       white-space: nowrap;
       overflow: hidden;
@@ -206,10 +210,11 @@ import { spanLabel } from './week-view';
       box-sizing: border-box;
       padding: 0 14px;
       border: 0;
-      border-radius: 10px;
-      background: color-mix(in srgb, var(--member) var(--member-fill), var(--surface));
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--member) var(--member-ring), var(--surface));
-      color: var(--ink);
+      border-radius: var(--event-radius);
+      background: var(--member-bg);
+      box-shadow: var(--bar-outline);
+      border: var(--event-border);
+      color: var(--event-ink);
       font: inherit;
       font-size: 16px;
       font-weight: 600;
@@ -229,7 +234,7 @@ import { spanLabel } from './week-view';
     :host(.desktop) .bar {
       height: 30px;
       padding: 0 10px;
-      border-radius: 8px;
+      border-radius: var(--event-radius-small);
       font-size: 13px;
     }
 

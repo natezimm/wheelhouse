@@ -9,6 +9,8 @@ public sealed record FamilyResponse(
     DayOfWeek WeekStartsOn,
     TimeOnly NightModeFrom,
     TimeOnly NightModeTo,
+    Theme Theme,
+    bool AutoNight,
     Units Units,
     double? Latitude,
     double? Longitude,
@@ -21,6 +23,8 @@ public sealed record FamilyResponse(
         family.WeekStartsOn,
         family.NightModeFrom,
         family.NightModeTo,
+        family.Theme,
+        family.AutoNight,
         family.Units,
         family.Latitude,
         family.Longitude,
@@ -69,6 +73,22 @@ public sealed record FamilySettingsRequest(
         if (!Enum.IsDefined(Units))
         {
             errors["units"] = ["Choose Imperial or Metric."];
+        }
+
+        return errors;
+    }
+}
+
+/// <summary>The family's theme, and whether screens turn dark at night.</summary>
+public sealed record FamilyThemeRequest(Theme Theme, bool AutoNight)
+{
+    public Dictionary<string, string[]> Validate()
+    {
+        var errors = new Dictionary<string, string[]>();
+
+        if (!Enum.IsDefined(Theme))
+        {
+            errors["theme"] = ["Choose Daylight, Groovy, Classic or Bold."];
         }
 
         return errors;
