@@ -504,7 +504,7 @@ export class CalendarHome {
       return { title, subtitle: `${formatDay(day, { weekday: 'short', month: 'short', day: 'numeric' })}${current}` };
     }
     if (this.view() === 'week') {
-      return { title: period.title.replace(/[A-Z][a-z]+/g, (month) => month.slice(0, 3)), subtitle: `${period.year}${current}` };
+      return { title: period.brief, subtitle: `${period.year}${current}` };
     }
     return { title: period.title, subtitle: `${period.year}${current}` };
   });

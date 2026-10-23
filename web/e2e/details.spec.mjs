@@ -48,10 +48,8 @@ const events = [
   },
 ];
 
-test('an event opens its details first, with finger-sized controls, then the editor', async ({ page }, testInfo) => {
-  const wall = testInfo.project.name === 'wall';
-  const errors = [];
-  page.on('pageerror', (error) => errors.push(error.message));
+/** The family, calendars and events above, with the live connection down so nothing refreshes under the test. */
+async function stub(page, wall) {
   await page.clock.install({ time: new Date('2026-10-12T21:22:00Z') });
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -68,6 +66,13 @@ test('an event opens its details first, with finger-sized controls, then the edi
   await page.route('**/health', (route) => route.fulfill({ status: 200, body: 'Healthy' }));
   await page.route('**/hubs/**', (route) => route.fulfill({ status: 503, body: 'Offline' }));
   await page.goto(wall ? '/wall' : '/');
+}
+
+test('an event opens its details first, with finger-sized controls, then the editor', async ({ page }, testInfo) => {
+  const wall = testInfo.project.name === 'wall';
+  const errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await stub(page, wall);
 
   const target = wall ? 56 : 44;
   if (wall) {
@@ -109,4 +114,34 @@ test('an event opens its details first, with finger-sized controls, then the edi
   await page.keyboard.press('Escape');
   await expect(readOnly).toHaveCount(0);
   expect(errors).toEqual([]);
+});
+
+test('the keyboard opens an event, stays inside its details and editor, and comes back to it', async ({ page }, testInfo) => {
+  const wall = testInfo.project.name === 'wall';
+  await stub(page, wall);
+  const event = wall
+    ? page.locator('app-week-view .event', { hasText: 'Swim lesson' })
+    : page.locator('app-agenda-list li.event button', { hasText: 'Swim lesson' });
+  await event.focus();
+  await page.keyboard.press('Enter');
+
+  const details = page.getByRole('dialog', { name: 'Swim lesson' });
+  await expect(details.getByRole('button', { name: 'Close' })).toBeFocused();
+  // Tab goes round the details: Close, Edit event, Delete, then Close again.
+  await page.keyboard.press('Tab');
+  await expect(details.getByRole('button', { name: 'Edit event' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  await expect(details.getByRole('button', { name: 'Close' })).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(details.getByRole('button', { name: 'Delete' })).toBeFocused();
+
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Enter');
+  const editor = page.getByRole('dialog', { name: 'Edit event' });
+  await expect(editor).toBeVisible();
+  expect(await editor.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(editor).toHaveCount(0);
+  await expect(event).toBeFocused();
 });
