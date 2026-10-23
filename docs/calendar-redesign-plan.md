@@ -217,7 +217,7 @@ Household features stay in the [household roadmap](household-roadmap.md). Also d
 | 1. Shell and preferences | Done | [PR #41](https://github.com/natezimm/wheelhouse/pull/41), merged October 22, 2026; screenshots in `docs/screenshots/m1-*.png`; household retirement done in PR #39 |
 | 2. Grid engine and Week | Done | [PR #42](https://github.com/natezimm/wheelhouse/pull/42), merged October 22, 2026; screenshots in `docs/screenshots/m2-*.png` |
 | 3. Day, Month, phone | Done | [PR #44](https://github.com/natezimm/wheelhouse/pull/44), merged October 23, 2026; screenshots in `docs/screenshots/m3-*.png` |
-| 4. Hardening | In review | Loading and failed states on every view, keyboard focus in details and editors, contrast checks per member color, the narrow desktop toolbar; screenshots in `docs/screenshots/m4-*.png` |
+| 4. Hardening | Done | [PR #45](https://github.com/natezimm/wheelhouse/pull/45), merged October 23, 2026, with two review fixes after it; loading and failed states on every view, keyboard focus in details and editors, contrast checks per member color, the narrow desktop toolbar; screenshots in `docs/screenshots/m4-*.png` |
 | 5. Themes | Planned | Groovy, Classic, Bold and Night drawn on the canvas (wall Week) |
 | 6. Release | Planned | |
 
