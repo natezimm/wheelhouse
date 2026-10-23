@@ -16,9 +16,12 @@ export interface Family {
   name: string;
   timeZone: string;
   weekStartsOn: 'Sunday' | 'Monday';
-  /** Local times as HH:mm:ss. The wall display dims to a clock between them. */
+  /** Local times as HH:mm:ss. Every screen turns to Night between them, unless autoNight is off. */
   nightModeFrom: string;
   nightModeTo: string;
+  /** How every screen of the family looks. */
+  theme: Theme;
+  autoNight: boolean;
   units: 'Imperial' | 'Metric';
   /** Where the weather is for, to about a kilometre. Null until a parent sets it. */
   latitude: number | null;
@@ -26,8 +29,10 @@ export interface Family {
   members: Member[];
 }
 
-/** What a parent can change about the family itself. */
-export type FamilySettings = Omit<Family, 'id' | 'members' | 'latitude' | 'longitude'>;
+export type Theme = 'Daylight' | 'Groovy' | 'Classic' | 'Bold';
+
+/** What a parent can change about the family itself. The theme has its own save. */
+export type FamilySettings = Omit<Family, 'id' | 'members' | 'latitude' | 'longitude' | 'theme' | 'autoNight'>;
 
 /** What a parent enters for a member; the server assigns the rest. */
 export type MemberDraft = Pick<Member, 'displayName' | 'color' | 'role'>;
@@ -86,7 +91,13 @@ export class FamilyStore {
    */
   refresh(): void {
     this.http.get<Family>('/api/family').subscribe({
-      next: (family) => this.current.set({ status: 'ready', family }),
+      // An unchanged family keeps its object, so nothing that depends on it works again for nothing.
+      next: (family) => {
+        const state = this.current();
+        if (state.status !== 'ready' || JSON.stringify(state.family) !== JSON.stringify(family)) {
+          this.current.set({ status: 'ready', family });
+        }
+      },
       error: (error: HttpErrorResponse) => {
         if (error.status === 401) {
           this.current.set({ status: 'private' });
@@ -108,6 +119,13 @@ export class FamilyStore {
   saveLocation(latitude: number | null, longitude: number | null): Observable<Family> {
     return this.http
       .put<Family>('/api/family/location', { latitude, longitude })
+      .pipe(tap((family) => this.current.set({ status: 'ready', family })));
+  }
+
+  /** Chooses the family's theme, and whether screens turn dark at night. */
+  saveTheme(theme: Theme, autoNight: boolean): Observable<Family> {
+    return this.http
+      .put<Family>('/api/family/theme', { theme, autoNight })
       .pipe(tap((family) => this.current.set({ status: 'ready', family })));
   }
 

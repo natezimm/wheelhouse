@@ -36,7 +36,8 @@ import { WeatherIcon } from '../shared/weather-icon';
     .temperature {
       font-family: var(--font-display);
       font-size: 34px;
-      font-weight: 600;
+      font-weight: var(--display-weight);
+      font-variation-settings: var(--display-variation);
       line-height: 1;
     }
 

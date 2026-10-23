@@ -99,7 +99,7 @@ const LAYOUTS = {
       height: 44px;
       display: grid;
       grid-template-columns: repeat(7, minmax(0, 1fr));
-      border-bottom: 1px solid var(--rule);
+      border-bottom: var(--head-rule);
     }
 
     :host(.desktop) .dows {
@@ -134,7 +134,8 @@ const LAYOUTS = {
       box-shadow: var(--card-shadow);
       font-family: var(--font-display);
       font-size: 24px;
-      font-weight: 600;
+      font-weight: var(--display-weight);
+      font-variation-settings: var(--display-variation);
       color: var(--muted);
       white-space: nowrap;
       pointer-events: none;
@@ -217,7 +218,8 @@ const LAYOUTS = {
       padding-left: 6px;
       font-family: var(--font-display);
       font-size: 20px;
-      font-weight: 600;
+      font-weight: var(--display-weight);
+      font-variation-settings: var(--display-variation);
     }
 
     :host(.desktop) .num {
@@ -230,12 +232,14 @@ const LAYOUTS = {
     }
 
     .num.is-today {
+      box-sizing: border-box;
       width: 36px;
       height: 36px;
       padding: 0;
-      border-radius: 18px;
-      background: var(--ink);
-      color: var(--on-ink);
+      border: var(--today-num-border);
+      border-radius: var(--today-num-radius);
+      background: var(--today-num);
+      color: var(--on-today-num);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -244,7 +248,6 @@ const LAYOUTS = {
     :host(.desktop) .num.is-today {
       width: 28px;
       height: 28px;
-      border-radius: 14px;
     }
 
     .lines {
@@ -282,7 +285,7 @@ const LAYOUTS = {
       width: 8px;
       height: 8px;
       border-radius: 4px;
-      background: color-mix(in srgb, var(--member) var(--member-shade), black);
+      background: var(--member-text);
     }
 
     :host(.desktop) .dot {
@@ -329,10 +332,11 @@ const LAYOUTS = {
       margin: 0 6px;
       box-sizing: border-box;
       padding: 0 10px 0 4px;
-      border-radius: 8px;
-      background: color-mix(in srgb, var(--member) var(--member-fill), var(--surface));
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--member) var(--member-ring), var(--surface));
-      color: var(--ink);
+      border-radius: var(--event-radius-small);
+      background: var(--member-bg);
+      box-shadow: var(--bar-outline);
+      border: var(--event-border);
+      color: var(--event-ink);
       display: flex;
       align-items: center;
       gap: 7px;
@@ -344,7 +348,6 @@ const LAYOUTS = {
       margin: 0 4px;
       padding: 0 8px 0 3px;
       gap: 5px;
-      border-radius: 6px;
       font-size: 13px;
     }
 
@@ -366,8 +369,10 @@ const LAYOUTS = {
       width: 20px;
       height: 20px;
       border-radius: 10px;
-      background: color-mix(in srgb, var(--member) var(--member-shade), black);
-      color: var(--on-ink);
+      background: var(--member-strong);
+      border: var(--avatar-border);
+      box-sizing: border-box;
+      color: var(--on-avatar);
       font-size: 10px;
       font-weight: 700;
       display: flex;

@@ -67,6 +67,7 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
             family.HasMany(f => f.Lists).WithOne().HasForeignKey(l => l.FamilyId).OnDelete(DeleteBehavior.Cascade);
             family.Property(f => f.WeekStartsOn).HasConversion<string>().HasMaxLength(16);
             family.Property(f => f.Units).HasConversion<string>().HasMaxLength(16);
+            family.Property(f => f.Theme).HasConversion<string>().HasMaxLength(16);
             family.HasMany(f => f.Members).WithOne().HasForeignKey(m => m.FamilyId).OnDelete(DeleteBehavior.Cascade);
         });
 

@@ -1,6 +1,6 @@
 # Wheelhouse calendar redesign plan
 
-Created October 21, 2026; reviewed against the code and given a visual direction on October 22, 2026. Status: milestone 0 (visual direction) has mockups awaiting review; no redesign is implemented yet. Repository baseline: `18e4afb` (after the calendar-only cleanup in PR #39).
+Created October 21, 2026; reviewed against the code and given a visual direction on October 22, 2026. Status: milestones 1 to 4 are merged; milestone 5 (themes) is in review. Repository baseline: `18e4afb` (after the calendar-only cleanup in PR #39).
 
 ## Product decision
 
@@ -217,8 +217,8 @@ Household features stay in the [household roadmap](household-roadmap.md). Also d
 | 1. Shell and preferences | Done | [PR #41](https://github.com/natezimm/wheelhouse/pull/41), merged October 22, 2026; screenshots in `docs/screenshots/m1-*.png`; household retirement done in PR #39 |
 | 2. Grid engine and Week | Done | [PR #42](https://github.com/natezimm/wheelhouse/pull/42), merged October 22, 2026; screenshots in `docs/screenshots/m2-*.png` |
 | 3. Day, Month, phone | Done | [PR #44](https://github.com/natezimm/wheelhouse/pull/44), merged October 23, 2026; screenshots in `docs/screenshots/m3-*.png` |
-| 4. Hardening | In review | Loading and failed states on every view, keyboard focus in details and editors, contrast checks per member color, the narrow desktop toolbar; screenshots in `docs/screenshots/m4-*.png` |
-| 5. Themes | Planned | Groovy, Classic, Bold and Night drawn on the canvas (wall Week) |
+| 4. Hardening | Done | [PR #45](https://github.com/natezimm/wheelhouse/pull/45), merged October 23, 2026; screenshots in `docs/screenshots/m4-*.png` |
+| 5. Themes | In review | Daylight, Groovy, Classic, Bold and automatic Night on every view, the Settings picker, contrast per theme and member color; screenshots in `docs/screenshots/m5-*.png` |
 | 6. Release | Planned | |
 
 Decisions made while building milestone 2:
@@ -246,5 +246,15 @@ Decisions made while building milestone 4:
 - Event details and both editors keep Tab inside them, close with Escape, and give focus back to the event that opened them, through the editor that Edit opens (`shared/modal-focus.ts`).
 - A unit test reads the tokens from `styles.css` and checks 4.5:1 for initials, time labels, titles and chips for every member color and the demo's, and for the status pills. It found the now line's time label at 3.9:1; the label now sits on `--now-label` (#D6363C, 4.7:1) while the line keeps the canvas coral.
 - Checked by hand: household midnight on a live wall, phone and Day view (the date, now line and week move over without a reload), a busy day with five overlaps and long titles, browser zoom from 125 to 200 percent, and an API outage through reconnect, a failed refresh and recovery on the wall, a 1024 px desktop and the phone. Touch targets measured at 56 px on the wall and 44 px on the phone in every view, details and editor.
+
+Decisions made while building milestone 5:
+
+- The theme has its own endpoint, `PUT /api/family/theme` with `{ theme, autoNight }`, rather than riding on the details form, so picking a theme in Settings applies at once without saving the other fields. Existing families migrate to Daylight with Night on.
+- Night is on from `nightModeFrom` up to `nightModeTo` on the family's clock, on every device, the wall and phones alike, and a parent can turn it off with one checkbox beside its preview. It replaces the token values; the wall is not dimmed to a clock.
+- Themes keep one layout. Classic's board puts the calendar list in a side column with checkboxes; here Classic keeps the shared header and chips, drawn in its own flat style, so every theme has the same touch targets and behavior. Groovy's three stripes are the only theme-only element, shown by a token.
+- A theme sets how a member color is mixed (fill share and base, ring, avatar shade, time label) rather than a color per member. Classic's solid blocks are the color at 72% over black so white text passes 4.5:1 for every member color; the board's 84% fails for amber. Groovy's orange is a shade lighter (#DE6A33) where ink text sits on it, for 4.8:1.
+- The whole family's slate is too dark to see at night, so `FAMILY_COLOR` became the `--family` token, lighter in Night (#8B929C).
+- Every device re-reads the family on the shared 30-second check, so a theme chosen on one phone reaches the wall and other phones within half a minute without a reload, and an unchanged family is not replaced.
+- Settings loads every theme's fonts for its previews; everywhere else only the active theme's load.
 
 Update this record with merged PR links and screenshots after each milestone. An open PR or a passing build does not complete a milestone.

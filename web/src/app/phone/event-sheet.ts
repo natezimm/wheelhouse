@@ -148,7 +148,8 @@ import { ModalFocus } from '../shared/modal-focus';
       margin: 0;
       font-family: var(--font-display);
       font-size: 26px;
-      font-weight: 600;
+      font-weight: var(--display-weight);
+      font-variation-settings: var(--display-variation);
     }
 
     .saves {

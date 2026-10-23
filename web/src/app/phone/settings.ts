@@ -1,12 +1,13 @@
-import { DatePipe } from '@angular/common';
+import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { Component, computed, effect, inject, input, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Clock } from '../core/clock';
 import { Display, DisplayStore, ONLINE_WITHIN_MS } from '../core/displays';
-import { Family, FamilySettings, FamilyStore, refusalMessage } from '../core/family';
+import { Family, FamilySettings, FamilyStore, MEMBER_COLORS, Theme, refusalMessage } from '../core/family';
 import { GOOGLE_CONNECT_URL, GoogleStore } from '../core/google';
 import { SessionStore } from '../core/session';
+import { THEMES, ThemeService } from '../core/theme';
 import { MemberAvatar } from '../shared/member-avatar';
 import { SignIn } from './sign-in';
 
@@ -16,7 +17,7 @@ import { SignIn } from './sign-in';
  */
 @Component({
   selector: 'app-settings',
-  imports: [DatePipe, MemberAvatar, ReactiveFormsModule, RouterLink, SignIn],
+  imports: [DatePipe, MemberAvatar, NgTemplateOutlet, ReactiveFormsModule, RouterLink, SignIn],
   template: `
     <header>
       <a class="back" routerLink="/" aria-label="Back to Today">
@@ -128,6 +129,57 @@ import { SignIn } from './sign-in';
           </div>
         </section>
 
+        <section aria-labelledby="look-heading">
+          <h2 id="look-heading">Look</h2>
+          <div class="card look">
+            <p class="place">The wall and every phone use the family's theme.</p>
+            <div class="themes" role="group" aria-label="Theme">
+              @for (theme of themes; track theme.value) {
+                <button
+                  class="theme"
+                  type="button"
+                  [attr.aria-pressed]="theme.value === chosenTheme()"
+                  [disabled]="savingTheme()"
+                  (click)="chooseTheme(theme.value)"
+                >
+                  <ng-container *ngTemplateOutlet="preview; context: { look: theme.value.toLowerCase() }" />
+                  <span class="theme-name">{{ theme.name }}</span>
+                  <span class="theme-about">{{ theme.about }}</span>
+                </button>
+              }
+            </div>
+            <div class="night">
+              <ng-container *ngTemplateOutlet="preview; context: { look: 'night' }" />
+              <label class="night-choice">
+                <input type="checkbox" [checked]="autoNight()" [disabled]="savingTheme()" (change)="chooseNight($any($event.target).checked)" />
+                <span>
+                  <span class="theme-name">Night</span>
+                  <span class="theme-about">Dark from {{ nightHours() }}, whatever the theme. The hours are under Details.</span>
+                </span>
+              </label>
+            </div>
+            <p class="message" role="status">{{ themeMessage() }}</p>
+          </div>
+        </section>
+
+        <!-- A small calendar drawn in one look, with the family's own colors. -->
+        <ng-template #preview let-look="look">
+          <span class="preview" [attr.data-theme]="look" aria-hidden="true">
+            <span class="mini">
+              <span class="mini-head"><span class="mini-dow">Thu</span><span class="mini-num">22</span></span>
+              <span class="mini-event" [style.--member]="previewColors()[0]">
+                <span class="mini-time">9:00</span>
+                <span class="mini-title">Swim lessons</span>
+              </span>
+              <span class="mini-event" [style.--member]="previewColors()[1]">
+                <span class="mini-time">4:30</span>
+                <span class="mini-title">Taco night</span>
+              </span>
+            </span>
+            <span class="mini-add">+ Add</span>
+          </span>
+        </ng-template>
+
         <section aria-labelledby="details-heading">
           <h2 id="details-heading">Details</h2>
           <form class="card" [formGroup]="form" (ngSubmit)="save()">
@@ -227,7 +279,8 @@ import { SignIn } from './sign-in';
       margin: 0;
       font-family: var(--font-display);
       font-size: 30px;
-      font-weight: 600;
+      font-weight: var(--display-weight);
+      font-variation-settings: var(--display-variation);
       letter-spacing: -0.02em;
     }
 
@@ -402,6 +455,188 @@ import { SignIn } from './sign-in';
       align-self: center;
     }
 
+    .themes {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .theme {
+      min-width: 0;
+      padding: 8px 8px 12px;
+      border: 2px solid var(--hairline);
+      border-radius: 18px;
+      background: var(--surface);
+      color: var(--ink);
+      font: inherit;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      cursor: pointer;
+    }
+
+    .theme[aria-pressed='true'] {
+      border-color: var(--ink);
+    }
+
+    .theme:disabled {
+      cursor: default;
+    }
+
+    .theme .preview {
+      margin-bottom: 8px;
+    }
+
+    .theme-name {
+      display: block;
+      padding: 0 4px;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .theme-about {
+      display: block;
+      padding: 0 4px;
+      font-size: 13px;
+      line-height: 1.3;
+      color: var(--muted);
+    }
+
+    .night {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .night .preview {
+      flex: 0 0 132px;
+    }
+
+    .night-choice {
+      flex: 1;
+      min-width: 0;
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+    }
+
+    .night-choice input {
+      flex-shrink: 0;
+      width: 22px;
+      height: 22px;
+      margin: 0;
+      accent-color: var(--ink);
+    }
+
+    .night-choice .theme-name,
+    .night-choice .theme-about {
+      padding: 0;
+    }
+
+    /* Each preview carries its own data-theme, so everything inside it takes that theme's tokens. */
+    .preview {
+      box-sizing: border-box;
+      height: 124px;
+      padding: 8px;
+      border-radius: 12px;
+      background: var(--ground);
+      color: var(--ink);
+      font-family: var(--font-body);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      overflow: hidden;
+    }
+
+    .mini {
+      flex: 1;
+      min-height: 0;
+      padding: 5px 6px;
+      border: var(--card-border);
+      border-radius: min(12px, var(--card-radius));
+      background: var(--surface);
+      /* The card's own shadow, at this size: only the bolder themes' offset survives. */
+      box-shadow: var(--bar-lift);
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .mini-head {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--today-dow);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .mini-num {
+      box-sizing: border-box;
+      width: 18px;
+      height: 18px;
+      border: var(--today-num-border);
+      border-radius: var(--today-num-radius);
+      background: var(--today-num);
+      color: var(--on-today-num);
+      font: var(--display-weight) 11px var(--font-display);
+      font-variation-settings: var(--display-variation);
+      letter-spacing: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .mini-event {
+      flex-shrink: 0;
+      box-sizing: border-box;
+      height: 20px;
+      padding: 0 6px;
+      border: var(--event-border);
+      border-radius: min(6px, var(--event-radius));
+      background: var(--member-bg);
+      box-shadow: var(--bar-outline);
+      color: var(--event-ink);
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .mini-time {
+      font-family: var(--font-time);
+      font-weight: 700;
+      color: var(--member-time);
+    }
+
+    .mini-title {
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .mini-add {
+      align-self: flex-end;
+      box-sizing: border-box;
+      height: 20px;
+      padding: 0 9px;
+      border: var(--primary-border);
+      border-radius: var(--pill);
+      background: var(--primary);
+      box-shadow: var(--primary-shadow);
+      color: var(--on-primary);
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 18px;
+    }
+
     .notice {
       margin: auto 0;
       text-align: center;
@@ -454,6 +689,23 @@ export class Settings {
   private readonly clock = inject(Clock);
   private readonly router = inject(Router);
 
+  protected readonly themes = THEMES;
+  protected readonly savingTheme = signal(false);
+  protected readonly themeMessage = signal('');
+  protected readonly chosenTheme = computed(() => this.family.family()?.theme ?? 'Daylight');
+  protected readonly autoNight = computed(() => this.family.family()?.autoNight ?? true);
+
+  /** The previews draw the family's own first two colors, so a parent sees their calendar. */
+  protected readonly previewColors = computed(() => {
+    const colors = this.family.members().map((member) => member.color);
+    return [colors[0] ?? MEMBER_COLORS[0].value, colors[1] ?? MEMBER_COLORS[2].value];
+  });
+
+  protected readonly nightHours = computed(() => {
+    const family = this.family.family();
+    return family ? `${clockTime(family.nightModeFrom)} to ${clockTime(family.nightModeTo)}` : '';
+  });
+
   protected readonly form = inject(FormBuilder).nonNullable.group({
     name: ['', [Validators.required, Validators.maxLength(100)]],
     timeZone: ['', Validators.required],
@@ -467,6 +719,10 @@ export class Settings {
     if (this.family.state().status === 'loading') {
       this.family.load();
     }
+
+    // The previews draw every theme, so every theme's fonts are needed here.
+    const look = inject(ThemeService);
+    for (const theme of THEMES) look.loadFonts(theme.value);
 
     // Always fresh: a display may have signed in since this screen was last open.
     this.displays.load();
@@ -512,6 +768,27 @@ export class Settings {
       error: (error: unknown) => {
         this.saving.set(false);
         this.message.set(refusalMessage(error, 'Could not save. Try again in a moment.'));
+      },
+    });
+  }
+
+  protected chooseTheme(theme: Theme): void {
+    if (theme !== this.chosenTheme()) this.saveTheme(theme, this.autoNight());
+  }
+
+  protected chooseNight(on: boolean): void {
+    this.saveTheme(this.chosenTheme(), on);
+  }
+
+  /** Saves at once, so the screen and the wall change as soon as the server accepts it. */
+  private saveTheme(theme: Theme, autoNight: boolean): void {
+    this.savingTheme.set(true);
+    this.themeMessage.set('');
+    this.family.saveTheme(theme, autoNight).subscribe({
+      next: () => this.savingTheme.set(false),
+      error: (error: unknown) => {
+        this.savingTheme.set(false);
+        this.themeMessage.set(refusalMessage(error, 'Could not change the look. Try again in a moment.'));
       },
     });
   }
@@ -611,6 +888,12 @@ export class Settings {
       error: () => this.signingOut.set(false),
     });
   }
+}
+
+/** A time of day for people, such as "9:30 PM". */
+function clockTime(time: string): string {
+  const [hours, minutes] = time.split(':').map(Number);
+  return `${((hours + 11) % 12) + 1}:${String(minutes).padStart(2, '0')} ${hours < 12 ? 'AM' : 'PM'}`;
 }
 
 /** The server speaks HH:mm:ss; a time input speaks HH:mm. */

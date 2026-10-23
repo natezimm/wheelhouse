@@ -112,8 +112,10 @@ import { StatusLine } from './status-line';
     }
 
     .dot {
+      box-sizing: border-box;
       width: 8px;
       height: 8px;
+      border: var(--live-border);
       border-radius: 50%;
       background: var(--live);
     }
@@ -267,8 +269,8 @@ import { StatusLine } from './status-line';
     }
 
     :host(.wall) .dot {
-      width: 10px;
-      height: 10px;
+      width: 12px;
+      height: 12px;
     }
 
     :host(.wall) .pill {

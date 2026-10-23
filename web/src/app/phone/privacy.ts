@@ -93,7 +93,8 @@ import { RouterLink } from '@angular/router';
       margin: 0;
       font-family: var(--font-display);
       font-size: 30px;
-      font-weight: 600;
+      font-weight: var(--display-weight);
+      font-variation-settings: var(--display-variation);
       letter-spacing: -0.02em;
     }
 
@@ -119,7 +120,8 @@ import { RouterLink } from '@angular/router';
       margin: 8px 0 0;
       font-family: var(--font-display);
       font-size: 18px;
-      font-weight: 600;
+      font-weight: var(--display-weight);
+      font-variation-settings: var(--display-variation);
     }
 
     p {

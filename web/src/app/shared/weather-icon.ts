@@ -61,7 +61,7 @@ import { WeatherIcon as Icon } from '../core/weather';
     }
 
     .cloud {
-      stroke: #4a4f57;
+      stroke: var(--quiet);
     }
 
     .wet {

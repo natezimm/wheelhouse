@@ -153,8 +153,9 @@ export class CalendarLive {
     this.connectionState.set(restart ? 'reconnecting' : 'connecting');
     this.check = setInterval(() => {
       this.refreshSnapshot();
-      // An offline revocation check may have failed; retry it even while SignalR keeps reconnecting.
-      if (this.connectionState() === 'reconnecting') this.family.refresh();
+      // The family itself has no live notification: this picks up a theme, a name or a member
+      // changed on another device, and retries an offline revocation check while SignalR reconnects.
+      this.family.refresh();
     }, CALENDAR_EVERY_MS);
     void connect();
   }
