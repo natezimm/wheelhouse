@@ -19,7 +19,7 @@ import { StatusLine } from './status-line';
   host: { '[class]': 'layout()' },
   template: `
     @if (show() === 'live') {
-      @if (live.available() && !offline() && !calendar.refreshFailed()) {
+      @if (live.available() && live.state() !== 'connecting' && !offline() && !calendar.refreshFailed()) {
         <span class="state" role="status" aria-live="polite"
           ><span class="dot" aria-hidden="true"></span><span class="sr-only">{{ live.recovering() ? 'Refreshing' : 'Live' }}</span></span
         >

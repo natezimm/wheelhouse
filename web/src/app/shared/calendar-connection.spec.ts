@@ -83,6 +83,11 @@ describe('calendar connection controls', () => {
     fixture.componentRef.setInput('show', 'problems');
     await settle();
     expect(page().textContent?.trim()).toBe('');
+
+    // Nor does the phone's header claim Live before the first connection.
+    fixture.componentRef.setInput('show', 'live');
+    await settle();
+    expect(page().querySelector('.dot')).toBeNull();
   });
 
   it('shows Reconnecting immediately and retains the accepted calendar', async () => {
