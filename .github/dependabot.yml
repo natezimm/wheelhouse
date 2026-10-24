@@ -33,3 +33,9 @@ updates:
     groups:
       docker:
         patterns: ["*"]
+    # Node's even-numbered releases are the long-term-support ones, and the Dockerfile's version
+    # is kept in step with the Node version CI and the web app use. Move it by hand, to the next
+    # LTS release, rather than to whatever the newest release is.
+    ignore:
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
