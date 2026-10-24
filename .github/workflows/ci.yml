@@ -24,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       # The deploy scripts' checks take seconds, so they ride along here rather than paying for
       # a job of their own.
       - name: Deploy scripts
@@ -32,7 +32,7 @@ jobs:
           for script in deploy/*.sh; do bash -n "$script"; done
           python3 -m unittest discover -s deploy -p 'test_*.py' -v
           node --check deploy/smoke.mjs
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
       - run: dotnet restore
@@ -48,8 +48,8 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -61,7 +61,7 @@ jobs:
       - name: Playwright version
         id: playwright
         run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
@@ -72,7 +72,7 @@ jobs:
         run: npx playwright install-deps chromium
       - run: node --test ../deploy/test-smoke.mjs
       - run: npm run test:e2e
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: calendar-browser-checks

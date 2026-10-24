@@ -34,7 +34,7 @@ jobs:
     steps:
       - name: Validate and pin the release
         id: release
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
         with:
@@ -92,16 +92,16 @@ jobs:
           - name: web
             dockerfile: web/Dockerfile
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.sha }}
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: .
           file: ${{ matrix.dockerfile }}
@@ -121,7 +121,7 @@ jobs:
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.prepare.outputs.sha }}
 
@@ -151,7 +151,7 @@ jobs:
             StrictHostKeyChecking yes
           EOF
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -199,7 +199,7 @@ jobs:
       - name: Expire old backups and unused Wheelhouse images
         run: ssh server 'python3 ~/wheelhouse/storage.py cleanup'
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: release-demo-smoke
