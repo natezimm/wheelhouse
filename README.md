@@ -91,3 +91,7 @@ npm test -- --watch=false
 Nothing secret belongs in this repository. The only password in it is the local development database default, which exists only on your machine. Real credentials live in the server's environment, outside git.
 
 
+
+## License
+
+MIT; see [LICENSE](LICENSE).
