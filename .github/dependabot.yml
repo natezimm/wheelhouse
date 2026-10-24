@@ -25,6 +25,12 @@ updates:
     groups:
       npm:
         patterns: ["*"]
+    # A major release can break the install (TypeScript 7 conflicts with the Angular build's
+    # peer range, for one) and arrives bundled with routine updates. Take major upgrades by hand,
+    # such as with `ng update`, when the framework supports them.
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: docker
     directories: [/src/Wheelhouse.Api, /web]
