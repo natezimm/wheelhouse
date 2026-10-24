@@ -1,7 +1,10 @@
 name: CI
 
 on:
-  # Each change is tested once, on its pull request; merging to main does not test it again.
+  # Pull requests are tested, and main is tested again after each merge, so a broken merge
+  # result shows up before a release tag is cut.
+  push:
+    branches: [main]
   pull_request:
   # The release workflow runs these same jobs before it publishes anything.
   workflow_call:
