@@ -134,7 +134,7 @@ public sealed class PairingTests(ApiFactory factory)
             $"/api/family/members/{member.Id}", new MemberRequest("Renamed", member.Color, member.Role), ApiFactory.Json);
         var list = await display.GetAsync("/api/devices");
         var pair = await EnterCodeAsync(display, "123456");
-        var theme = await display.PutAsJsonAsync("/api/family/theme", new FamilyThemeRequest(Theme.Bold, false), ApiFactory.Json);
+        var theme = await display.PutAsJsonAsync("/api/family/theme", new FamilyThemeRequest(Theme.Bold, NightMode.Off), ApiFactory.Json);
 
         Assert.Equal(HttpStatusCode.Forbidden, rename.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, theme.StatusCode);

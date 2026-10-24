@@ -14,18 +14,26 @@ function block(selector: string): Map<string, string> {
 }
 
 const daylight = block(':root,\n[data-theme]');
-const themes = {
-  Daylight: daylight,
-  Groovy: block("[data-theme='groovy']"),
-  Classic: block("[data-theme='classic']"),
-  Bold: block("[data-theme='bold']"),
-  Night: block(':root[data-night]'),
+const night = block('[data-night]');
+const groovy = block("[data-theme='groovy']");
+const classic = block("[data-theme='classic']");
+const bold = block("[data-theme='bold']");
+/** Each look's rules, most specific first, as the cascade applies them; Daylight's always comes last. */
+const themes: Record<string, Theme> = {
+  Daylight: [],
+  Groovy: [groovy],
+  Classic: [classic],
+  Bold: [bold],
+  'Daylight at night': [night],
+  'Groovy at night': [block("[data-theme='groovy'][data-night]"), night, groovy],
+  'Classic at night': [block("[data-theme='classic'][data-night]"), night, classic],
+  'Bold at night': [block("[data-theme='bold'][data-night]"), night, bold],
 };
 
-type Theme = Map<string, string>;
-/** A token's value in a theme, falling back to Daylight's as the cascade does, with var() resolved. */
+type Theme = Map<string, string>[];
+/** A token's value in a look: from its first rule that sets it, falling back to Daylight's, with var() resolved. */
 function token(theme: Theme, name: string): string {
-  const value = theme.get(name) ?? daylight.get(name);
+  const value = [...theme, daylight].find((rule) => rule.has(name))?.get(name);
   if (value === undefined) throw new Error(`No --${name} token`);
   const reference = value.match(/^var\(--([\w-]+)\)$/);
   return reference ? token(theme, reference[1]) : value;

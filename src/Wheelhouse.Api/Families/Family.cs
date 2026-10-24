@@ -33,8 +33,8 @@ public sealed class Family
     public DayOfWeek WeekStartsOn { get; set; } = DayOfWeek.Monday;
 
     /// <summary>
-    /// Between these two local times every screen turns to the Night look, unless
-    /// <see cref="AutoNight"/> is off.
+    /// Between these two local times every screen turns to its theme's dark look, when
+    /// <see cref="NightMode"/> is <see cref="NightMode.AtNight"/>.
     /// </summary>
     public TimeOnly NightModeFrom { get; set; } = new(21, 30);
 
@@ -43,8 +43,8 @@ public sealed class Family
     /// <summary>How every screen of the family looks, wall and phones alike.</summary>
     public Theme Theme { get; set; } = Theme.Daylight;
 
-    /// <summary>Whether screens turn dark during the night hours, whatever the theme.</summary>
-    public bool AutoNight { get; set; } = true;
+    /// <summary>When screens use their theme's dark look: never, during the night hours, or always.</summary>
+    public NightMode NightMode { get; set; } = NightMode.AtNight;
 
     /// <summary>Where the weather is for. Null until a parent sets it.</summary>
     public double? Latitude { get; set; }
@@ -74,6 +74,14 @@ public enum Theme
     Groovy,
     Classic,
     Bold,
+}
+
+/// <summary>When every screen turns to its theme's dark look.</summary>
+public enum NightMode
+{
+    Off,
+    AtNight,
+    Always,
 }
 
 public enum Units

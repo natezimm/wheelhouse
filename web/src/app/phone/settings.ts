@@ -4,10 +4,10 @@ import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Clock } from '../core/clock';
 import { Display, DisplayStore, ONLINE_WITHIN_MS } from '../core/displays';
-import { Family, FamilySettings, FamilyStore, MEMBER_COLORS, Theme, refusalMessage } from '../core/family';
+import { Family, FamilySettings, FamilyStore, MEMBER_COLORS, NightMode, Theme, refusalMessage } from '../core/family';
 import { GOOGLE_CONNECT_URL, GoogleStore } from '../core/google';
 import { SessionStore } from '../core/session';
-import { THEMES, ThemeService } from '../core/theme';
+import { NIGHT_MODES, THEMES, ThemeService } from '../core/theme';
 import { MemberAvatar } from '../shared/member-avatar';
 import { SignIn } from './sign-in';
 
@@ -149,22 +149,31 @@ import { SignIn } from './sign-in';
               }
             </div>
             <div class="night">
-              <ng-container *ngTemplateOutlet="preview; context: { look: 'night' }" />
-              <label class="night-choice">
-                <input type="checkbox" [checked]="autoNight()" [disabled]="savingTheme()" (change)="chooseNight($any($event.target).checked)" />
-                <span>
-                  <span class="theme-name">Night</span>
-                  <span class="theme-about">Dark from {{ nightHours() }}, whatever the theme. The hours are under Details.</span>
-                </span>
-              </label>
+              <ng-container *ngTemplateOutlet="preview; context: { look: chosenTheme().toLowerCase(), dark: true }" />
+              <span>
+                <span class="theme-name" id="night-heading">Night mode</span>
+                <span class="theme-about">{{ nightAbout() }}</span>
+              </span>
+            </div>
+            <div class="view-switch night-modes" role="group" aria-labelledby="night-heading">
+              @for (mode of nightModes; track mode.value) {
+                <button
+                  type="button"
+                  [attr.aria-pressed]="mode.value === nightMode()"
+                  [disabled]="savingTheme()"
+                  (click)="chooseNight(mode.value)"
+                >
+                  {{ mode.name }}
+                </button>
+              }
             </div>
             <p class="message" role="status">{{ themeMessage() }}</p>
           </div>
         </section>
 
-        <!-- A small calendar drawn in one look, with the family's own colors. -->
-        <ng-template #preview let-look="look">
-          <span class="preview" [attr.data-theme]="look" aria-hidden="true">
+        <!-- A small calendar drawn in one look, light or dark, with the family's own colors. -->
+        <ng-template #preview let-look="look" let-dark="dark">
+          <span class="preview" [attr.data-theme]="look" [attr.data-night]="dark ? '' : null" aria-hidden="true">
             <span class="mini">
               <span class="mini-head"><span class="mini-dow">Thu</span><span class="mini-num">22</span></span>
               <span class="mini-event" [style.--member]="previewColors()[0]">
@@ -515,30 +524,22 @@ import { SignIn } from './sign-in';
       flex: 0 0 132px;
     }
 
-    .night-choice {
-      flex: 1;
-      min-width: 0;
-      min-height: 44px;
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      cursor: pointer;
-    }
-
-    .night-choice input {
-      flex-shrink: 0;
-      width: 22px;
-      height: 22px;
-      margin: 0;
-      accent-color: var(--ink);
-    }
-
-    .night-choice .theme-name,
-    .night-choice .theme-about {
+    .night .theme-name,
+    .night .theme-about {
       padding: 0;
     }
 
-    /* Each preview carries its own data-theme, so everything inside it takes that theme's tokens. */
+    .night-modes button {
+      flex: 1;
+      min-width: 0;
+      padding: 0 8px;
+    }
+
+    .night-modes button:disabled {
+      cursor: default;
+    }
+
+    /* Each preview carries its own data-theme and data-night, so everything inside it takes that look's tokens. */
     .preview {
       box-sizing: border-box;
       height: 124px;
@@ -695,7 +696,8 @@ export class Settings {
   protected readonly savingTheme = signal(false);
   protected readonly themeMessage = signal('');
   protected readonly chosenTheme = computed(() => this.family.family()?.theme ?? 'Daylight');
-  protected readonly autoNight = computed(() => this.family.family()?.autoNight ?? true);
+  protected readonly nightModes = NIGHT_MODES;
+  protected readonly nightMode = computed(() => this.family.family()?.nightMode ?? 'AtNight');
 
   /** The previews draw the family's own first two colors, so a parent sees their calendar. */
   protected readonly previewColors = computed(() => {
@@ -703,9 +705,20 @@ export class Settings {
     return [colors[0] ?? MEMBER_COLORS[0].value, colors[1] ?? MEMBER_COLORS[2].value];
   });
 
-  protected readonly nightHours = computed(() => {
+  /** What the chosen night mode does, in the chosen theme's name. */
+  protected readonly nightAbout = computed(() => {
     const family = this.family.family();
-    return family ? `${clockTime(family.nightModeFrom)} to ${clockTime(family.nightModeTo)}` : '';
+    const theme = THEMES.find((theme) => theme.value === this.chosenTheme())!.name;
+    switch (this.nightMode()) {
+      case 'Off':
+        return `${theme} stays light, day and night.`;
+      case 'Always':
+        return `${theme}'s dark look, day and night.`;
+      default:
+        return family
+          ? `${theme} turns dark from ${clockTime(family.nightModeFrom)} to ${clockTime(family.nightModeTo)}. The hours are under Details.`
+          : '';
+    }
   });
 
   protected readonly form = inject(FormBuilder).nonNullable.group({
@@ -775,18 +788,18 @@ export class Settings {
   }
 
   protected chooseTheme(theme: Theme): void {
-    if (theme !== this.chosenTheme()) this.saveTheme(theme, this.autoNight());
+    if (theme !== this.chosenTheme()) this.saveTheme(theme, this.nightMode());
   }
 
-  protected chooseNight(on: boolean): void {
-    this.saveTheme(this.chosenTheme(), on);
+  protected chooseNight(mode: NightMode): void {
+    if (mode !== this.nightMode()) this.saveTheme(this.chosenTheme(), mode);
   }
 
   /** Saves at once, so the screen and the wall change as soon as the server accepts it. */
-  private saveTheme(theme: Theme, autoNight: boolean): void {
+  private saveTheme(theme: Theme, nightMode: NightMode): void {
     this.savingTheme.set(true);
     this.themeMessage.set('');
-    this.family.saveTheme(theme, autoNight).subscribe({
+    this.family.saveTheme(theme, nightMode).subscribe({
       next: () => this.savingTheme.set(false),
       error: (error: unknown) => {
         this.savingTheme.set(false);

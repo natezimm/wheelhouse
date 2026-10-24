@@ -8,7 +8,7 @@ const family = {
   nightModeFrom: '22:00:00',
   nightModeTo: '06:00:00',
   theme: 'Daylight',
-  autoNight: true,
+  nightMode: 'AtNight',
   units: 'Imperial',
   latitude: null,
   longitude: null,
@@ -89,14 +89,16 @@ test('a theme chosen on a phone reaches the wall without a reload', async ({ pag
 test.describe('in a browser whose zone is not the family’s', () => {
   test.use({ timezoneId: 'Asia/Tokyo' });
 
-  test('Night turns on at the family’s night hours on its own clock, and off in the morning', async ({ page }) => {
+  test('Night mode turns on the theme’s dark look at the family’s night hours on its own clock, and off in the morning', async ({ page }) => {
     // 9:59:30 PM in New York, 10:59:30 AM in Tokyo.
     const current = await stub(page, '2026-10-13T01:59:30Z', '/');
     current.theme = 'Bold';
     await page.clock.runFor(31_000);
     await expect(html(page)).toHaveAttribute('data-theme', 'bold');
     await expect(html(page)).toHaveAttribute('data-night', '');
-    expect(await ground(page)).toBe('rgb(20, 22, 26)');
+    // Bold's own dark look: its charcoal ground and its black outlines turned white.
+    expect(await ground(page)).toBe('rgb(38, 38, 38)');
+    await expect(page.locator('app-calendar-filter button').first()).toHaveCSS('border-top-color', 'rgb(245, 245, 240)');
 
     // 6:00 AM in New York.
     await page.clock.setSystemTime(new Date('2026-10-13T10:00:05Z'));
@@ -106,13 +108,15 @@ test.describe('in a browser whose zone is not the family’s', () => {
   });
 });
 
-for (const theme of ['Daylight', 'Groovy', 'Classic', 'Bold']) {
-  test(`${theme} keeps every control finger-sized`, async ({ page }, info) => {
+for (const [theme, nightMode] of ['Daylight', 'Groovy', 'Classic', 'Bold'].flatMap((t) => [[t, 'Off'], [t, 'Always']])) {
+  test(`${theme}${nightMode === 'Always' ? ' at night' : ''} keeps every control finger-sized`, async ({ page }, info) => {
     const wall = info.project.name === 'wall';
     const current = await stub(page, '2026-10-12T21:22:00Z', wall ? '/wall' : '/');
     current.theme = theme;
+    current.nightMode = nightMode;
     await page.clock.runFor(31_000);
     await expect(html(page)).toHaveAttribute('data-theme', theme.toLowerCase());
+    if (nightMode === 'Always') await expect(html(page)).toHaveAttribute('data-night', '');
 
     const smallest = wall ? 56 : 44;
     const controls = wall

@@ -38,7 +38,7 @@ Where this document and the canvas disagree about appearance, the canvas wins; w
 - The phone has two tabs: Today ([`phone/phone-shell.ts`](../web/src/app/phone/phone-shell.ts) with [`today-events.ts`](../web/src/app/phone/today-events.ts)) and Calendar ([`phone/calendar.ts`](../web/src/app/phone/calendar.ts), a month picker with a dot per person and the chosen day's agenda). There is no desktop layout: a laptop browser gets the phone layout stretched across the screen.
 - The wall has no settings by design ([AGENTS.md](../AGENTS.md)). That stays: this plan does not add settings, even display-only ones, to the wall.
 - Member colors are saturated (`MEMBER_COLORS`, demo seeds use similar shades). White initials on the brighter ones, such as amber, fall below 4.5:1. The redesign derives a darker shade for avatars and time labels instead of changing stored colors.
-- `Family.nightModeFrom/To` are settable but nothing uses them yet. The Night theme (see Themes) will; dimming the wall to a clock stays outside this redesign.
+- `Family.nightModeFrom/To` are settable but nothing uses them yet. Night mode (see Themes) will; dimming the wall to a clock stays outside this redesign.
 - [`deploy/smoke.mjs`](../deploy/smoke.mjs) expects a "Today" heading, a two-link Sections nav and `/calendar` rendering `app-phone-calendar .month`. Milestone 1 must update it with the new phone entry and navigation.
 - Preserve the Angular stores, Google Calendar integration, family isolation, pairing, optimistic saves, conflict handling and live recovery. This is a presentation and navigation change, not a new calendar backend. No API change is expected for the redesign itself; the one candidate (repeat rule and notes in details) is deferred, see Event details.
 
@@ -56,7 +56,7 @@ These values are the **Daylight** theme. Write every color, font, radius, border
 
 ## Themes
 
-The family chooses one of four themes, and a fifth look, Night, turns on automatically at night. All themes share the same layouts, sizes, behavior and touch targets; only tokens change. Themes are named for how they feel, never for the product that inspired them.
+The family chooses one of four themes, and each has a dark look that Night mode turns on at night, always, or never. All themes share the same layouts, sizes, behavior and touch targets; only tokens change. Themes are named for how they feel, never for the product that inspired them.
 
 | Theme | Look | Canvas board | Tokens it sets |
 | --- | --- | --- | --- |
@@ -64,11 +64,14 @@ The family chooses one of four themes, and a fifth look, Night, turns on automat
 | **Groovy** | Warm 70s paper: cream ground, ink outlines, hard offset shadows, three-stripe band under the header | Theme · Groovy | Ground `#F3E7D3`, card `#FFF8EC`, ink `#2B1D14`, accents orange `#D9622B`, mustard `#E3A72F`, teal `#2F7F7A`; Fraunces display and DM Sans body; events are a 38% member fill with a 2 px ink border and 3 px offset shadow |
 | **Classic** | Clean office calendar: white page, a calendar list with checkboxes on the side, solid event blocks with white text | Theme · Classic | White ground, rules `#DADCE0`, text `#3C4043`, today blue `#1A73E8`, now line `#EA4335`; Roboto and Roboto Flex; events are the member color darkened 16% with white text and 6 px corners |
 | **Bold** | Brutalist, from the author's Sudoku app: black outlines, yellow highlights, mono times | Theme · Bold | Ground `#EFEFE6`, white card, ink `#000000`, yellow `#FFDB3B`, lime `#C2FF66`, mint `#3BFF9D`; Space Grotesk and IBM Plex Mono; 2 px black borders, 4 to 6 px corners, 3 px event and 8 px card offset shadows |
-| **Night** (automatic) | Dark, low glare for a dark room; member colors become deep tinted fills with light text | Theme · Night | Ground `#14161A`, card `#1C1F25`, text `#ECEEF1`, secondary `#A3A9B2`, rules `#2A2E35`, hour lines `#262A31`, today tint `#20242B`; selected view `#3A3F48`; primary buttons and today's number are light (`#ECEEF1` on `#14161A`); event fill is the member color at about 30% over the card, time labels are the color lightened 48%, avatars darkened 22%; now line `#FF6B6F`, Live `#4FD1A0`; status pills use dark tinted backgrounds with light text; Outfit and Figtree as in Daylight |
+| **Daylight at night** | Dark, low glare for a dark room; member colors become deep tinted fills with light text | Theme · Night | Ground `#14161A`, card `#1C1F25`, text `#ECEEF1`, secondary `#A3A9B2`, rules `#2A2E35`, hour lines `#262A31`, today tint `#20242B`; selected view `#3A3F48`; primary buttons and today's number are light (`#ECEEF1` on `#14161A`); event fill is the member color at about 30% over the card, time labels are the color lightened 48%, avatars darkened 22%; now line `#FF6B6F`, Live `#4FD1A0`; status pills use dark tinted backgrounds with light text; Outfit and Figtree as in Daylight |
+| **Groovy at night** | A wood-panelled den: dark cards on a warmer brown, cream outlines, black offset shadows | None; built in code from Groovy | Ground `#2A1F17`, card `#1C140F`, ink `#F6E7CF`; orange `#EF8A52`, mustard `#E3A72F` and teal `#6CC5BD` kept for today, the selected view and Live; events are a 36% member fill over the card with cream text |
+| **Classic at night** | The office calendar's dark mode: near-black page, grey rules, solid events | None; built in code from Classic | Ground `#131314`, card `#1B1B1D`, text `#E3E3E3`, rules `#444746`; today and accents light blue `#A8C7FA`, now line `#F28B82`; events stay solid (72% over black) with white text |
+| **Bold at night** | Black cards on charcoal with white outlines, black offset shadows and the same yellow | None; built in code from Bold | Ground `#262626`, card `#141414`, ink `#F5F5F0`; yellow `#FFDB3B` for today, the now line and Add event, lime `#C2FF66` for the selected view; events are a 40% member fill over the card with light text |
 
 - **Choosing.** The theme is a family setting, so the wall and every phone match. A parent picks it in Settings with a live preview card per theme. This needs a `Theme` column on `Family` (migration) and the field in the family settings API; default Daylight. Each device also follows the family setting without a reload when it changes, through the existing family refresh.
-- **Night.** One dark look, drawn on the canvas, used whatever theme the family chose; Groovy, Classic and Bold have no dark variants of their own. Between `nightModeFrom` and `nightModeTo` (already family settings) every device switches to Night, on the family clock, and back in the morning. A family setting turns automatic Night off. Dimming the wall to a clock remains separate, deferred work.
-- **Mechanics.** `<html data-theme="daylight|groovy|classic|bold">` plus `data-night` selects token sets in `styles.css`. Components never use raw colors, fonts or shadows. Load only the active theme's fonts. Member colors stay recognizable in every theme: a theme may change how a color is rendered (pastel, flat, solid) but never the hue.
+- **Night mode.** Every theme has a dark look of its own that keeps its shapes, outlines and fonts and changes only its colors; Daylight's is the Night board on the canvas. A family setting, Night mode, chooses Off, At night or Always. At night, every device turns dark between `nightModeFrom` and `nightModeTo` (already family settings) on the family clock, and back in the morning. Dimming the wall to a clock remains separate, deferred work.
+- **Mechanics.** `<html data-theme="daylight|groovy|classic|bold">` plus `data-night` selects token sets in `styles.css`: `[data-night]` sets Daylight's dark colors, and `[data-theme='…'][data-night]` sets each other theme's on top. Components never use raw colors, fonts or shadows. Load only the active theme's fonts. Member colors stay recognizable in every theme: a theme may change how a color is rendered (pastel, flat, solid) but never the hue.
 - **Accessibility.** Every theme meets the same contrast rules for text, initials and time labels on its event fills, verified per theme and member color. `prefers-reduced-motion` and focus outlines work in every theme.
 
 ## Target experience
@@ -200,7 +203,7 @@ Run CI, review rendered screenshots, then release a version. After deploying, ch
 | Editing and recovery | Details for writable and read-only events; add, edit, delete; occurrence and series; optimistic state; lost response; conflict; reconnect and resync with an open draft |
 | Visuals | Screenshots compared with the canvas at 1920 × 1080, 1440 × 900, 1024 × 768, 390 × 844 and 320 × 568; busy and empty calendars; long titles; zoom |
 | State accuracy | Loading or failure never claims no events; stale data says what time it shows; disconnected and Google reauthorization stay separate |
-| Themes | Screenshots of Week, Day, Month and phone Day in each theme; Night switching across the family's night hours in a zone that differs from the browser's; contrast per member color per theme; theme change reaching another signed-in device; reduced motion |
+| Themes | Screenshots of Week, Day, Month and phone Day in each theme, light and dark; Night mode switching across the family's night hours in a zone that differs from the browser's; contrast per member color per theme; theme change reaching another signed-in device; reduced motion |
 | Release | Updated smoke checks; fresh demo data shown; private instance denies anonymous access; deployed version checked |
 
 Use the repository's commands: `npm run build`, `npm test -- --watch=false`, `npm run test:e2e`, and `dotnet test` when CI requires it. Unit tests alone do not prove the visual result.
@@ -256,6 +259,14 @@ Decisions made while building milestone 5:
 - The whole family's slate is too dark to see at night, so `FAMILY_COLOR` became the `--family` token, lighter in Night (#8B929C).
 - Every device re-reads the family on the shared 30-second check, so a theme chosen on one phone reaches the wall and other phones within half a minute without a reload, and an unchanged family is not replaced.
 - Settings loads every theme's fonts for its previews; everywhere else only the active theme's load.
+
+Decisions made after milestone 6, replacing the Night theme with Night mode:
+
+- Night is no longer a fifth look shared by every theme. Each of the four themes has its own dark look, so a Groovy family stays Groovy at night: the same outlines, shadows and fonts, in dark colors. Daylight's dark look is the old Night, unchanged.
+- `Family.AutoNight` became `Family.NightMode` (`Off`, `AtNight`, `Always`), sent as `{ theme, nightMode }` to `PUT /api/family/theme`. Night was never a stored theme value, so the migration only carries the checkbox over: families with automatic Night on get At night, families with it off get Off.
+- Settings shows the chosen theme's dark look beside a three-way Night mode switch, in place of the Night checkbox, and says what the choice does in the theme's name.
+- The dark looks keep each theme's member mix where it works (Groovy and Bold tinted fills with light text, Classic solid blocks with white text), and `core/contrast.spec.ts` checks every dark look for every member color.
+- Groovy and Bold outline in their light ink at night and keep black offset shadows, which read as depth on their lighter grounds without adding glare. The wall's Pair with a phone button now uses `--on-segment`, which Bold at night needs.
 
 Decisions made while preparing milestone 6:
 

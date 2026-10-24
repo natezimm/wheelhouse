@@ -117,7 +117,7 @@ public static class FamilyEndpoints
         }
 
         family.Theme = request.Theme;
-        family.AutoNight = request.AutoNight;
+        family.NightMode = request.NightMode;
         await db.SaveChangesAsync(cancellationToken);
 
         return TypedResults.Ok(FamilyResponse.From(family));

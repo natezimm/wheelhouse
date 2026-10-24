@@ -10,7 +10,7 @@ public sealed record FamilyResponse(
     TimeOnly NightModeFrom,
     TimeOnly NightModeTo,
     Theme Theme,
-    bool AutoNight,
+    NightMode NightMode,
     Units Units,
     double? Latitude,
     double? Longitude,
@@ -24,7 +24,7 @@ public sealed record FamilyResponse(
         family.NightModeFrom,
         family.NightModeTo,
         family.Theme,
-        family.AutoNight,
+        family.NightMode,
         family.Units,
         family.Latitude,
         family.Longitude,
@@ -79,8 +79,8 @@ public sealed record FamilySettingsRequest(
     }
 }
 
-/// <summary>The family's theme, and whether screens turn dark at night.</summary>
-public sealed record FamilyThemeRequest(Theme Theme, bool AutoNight)
+/// <summary>The family's theme, and when screens use its dark look.</summary>
+public sealed record FamilyThemeRequest(Theme Theme, NightMode NightMode)
 {
     public Dictionary<string, string[]> Validate()
     {
@@ -89,6 +89,11 @@ public sealed record FamilyThemeRequest(Theme Theme, bool AutoNight)
         if (!Enum.IsDefined(Theme))
         {
             errors["theme"] = ["Choose Daylight, Groovy, Classic or Bold."];
+        }
+
+        if (!Enum.IsDefined(NightMode))
+        {
+            errors["nightMode"] = ["Choose Off, AtNight or Always."];
         }
 
         return errors;
