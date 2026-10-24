@@ -10,7 +10,7 @@ import { RouterLink } from '@angular/router';
   imports: [RouterLink],
   template: `
     <header>
-      <a class="back" routerLink="/" aria-label="Back to Today">
+      <a class="back" routerLink="/" aria-label="Back to the calendar">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
           <path d="M15 6l-6 6 6 6" />
         </svg>

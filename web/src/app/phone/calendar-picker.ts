@@ -68,6 +68,8 @@ import { CalendarChoice, GoogleStore } from '../core/google';
       display: flex;
       flex-direction: column;
       gap: 16px;
+      max-width: 720px;
+      margin: 0 auto;
     }
 
     header {

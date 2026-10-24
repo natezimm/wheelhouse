@@ -4,6 +4,7 @@ import { TimedSegment, arrange, hourLabel, hourRange } from '../core/calendar-gr
 import { Clock } from '../core/clock';
 import { Day, dayIn, formatDay, minutesIn, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
+import { ThemeService } from '../core/theme';
 
 /** Room above the first hour line and below the last, so their labels are not cut off. */
 const PAD = 10;
@@ -530,6 +531,7 @@ export class HourGrid {
   private readonly calendar = inject(CalendarStore);
   private readonly family = inject(FamilyStore);
   private readonly clock = inject(Clock);
+  private readonly theme = inject(ThemeService);
 
   readonly columns = input.required<readonly GridColumn[]>();
 
@@ -603,6 +605,9 @@ export class HourGrid {
     const y = (minutes: number) => PAD + (minutes - first * 60) * perMinute;
     const writable = new Set(this.calendar.calendars().filter((c) => c.canWrite).map((c) => c.id));
     const today = this.today();
+    // A title's last line stays clear of the block's bottom edge, and of the outline Groovy and Bold draw.
+    const outlined = !this.theme.night() && (this.theme.theme() === 'Groovy' || this.theme.theme() === 'Bold');
+    const titleBottom = outlined ? 7 : 2;
 
     const now = this.clock.now();
     const nowMinutes = minutesIn(zone, now);
@@ -657,7 +662,7 @@ export class HourGrid {
                   ? Math.max(1, Math.floor((height - 18 - layout.dayTime - (place ? layout.dayLine : 0)) / layout.dayLine))
                   : short
                     ? Math.max(1, Math.floor((height - 4) / layout.lineHeight))
-                    : Math.max(1, Math.floor((height - layout.titleTop) / layout.lineHeight)),
+                    : Math.max(1, Math.floor((height - layout.titleTop - titleBottom) / layout.lineHeight)),
               time: segment.continuesBefore ? `Until ${shortTime(timeIn(zone, event.endsAt!))}` : shortTime(timeIn(zone, event.startsAt!)),
               range: timeRange(event, zone),
               place,
