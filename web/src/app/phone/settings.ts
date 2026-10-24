@@ -20,7 +20,7 @@ import { SignIn } from './sign-in';
   imports: [DatePipe, MemberAvatar, NgTemplateOutlet, ReactiveFormsModule, RouterLink, SignIn],
   template: `
     <header>
-      <a class="back" routerLink="/" aria-label="Back to Today">
+      <a class="back" routerLink="/" aria-label="Back to the calendar">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
           <path d="M15 6l-6 6 6 6" />
         </svg>
@@ -267,6 +267,8 @@ import { SignIn } from './sign-in';
       display: flex;
       flex-direction: column;
       gap: 16px;
+      max-width: 720px;
+      margin: 0 auto;
     }
 
     header {

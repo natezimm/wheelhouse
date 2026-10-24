@@ -78,6 +78,8 @@ import { FamilyStore, MEMBER_COLORS, Member, MemberDraft, refusalMessage } from 
       display: flex;
       flex-direction: column;
       gap: 16px;
+      max-width: 720px;
+      margin: 0 auto;
     }
 
     header {

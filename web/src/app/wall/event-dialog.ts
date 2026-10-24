@@ -297,6 +297,11 @@ import { ModalFocus } from '../shared/modal-focus';
       gap: 10px;
     }
 
+    /* A long calendar name takes the room it needs, and the chips wrap onto another row. */
+    .calendars {
+      flex-wrap: wrap;
+    }
+
     .stepper {
       flex: 1;
       min-width: 0;
@@ -345,9 +350,11 @@ import { ModalFocus } from '../shared/modal-focus';
     }
 
     .chip {
-      flex: 1;
+      flex: 1 1 auto;
       min-width: 0;
+      max-width: 100%;
       height: 64px;
+      white-space: nowrap;
       padding: 0 14px;
       border: 1px solid var(--line);
       border-radius: var(--pill);
