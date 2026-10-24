@@ -180,7 +180,9 @@ describe('Settings', () => {
       [...page.querySelectorAll<HTMLButtonElement>('.themes button')].find((button) =>
         button.textContent?.includes(name),
       )!;
-    const nightBox = (page: HTMLElement) => page.querySelector<HTMLInputElement>('.night input')!;
+    const nightButton = (page: HTMLElement, name: string) =>
+      [...page.querySelectorAll<HTMLButtonElement>('.night-modes button')].find((button) => button.textContent?.trim() === name)!;
+    const nightPreview = (page: HTMLElement) => page.querySelector('.night .preview')!;
 
     it('previews every theme, each in its own look, with the family’s one pressed', async () => {
       const { page } = await open();
@@ -199,33 +201,55 @@ describe('Settings', () => {
         'bold',
       ]);
       expect(themeButton(page, 'Daylight').getAttribute('aria-pressed')).toBe('true');
-      expect(page.querySelector('.night .preview')?.getAttribute('data-theme')).toBe('night');
-      expect(nightBox(page).checked).toBe(true);
-      expect(page.querySelector('.night')?.textContent).toContain('Dark from 9:30 PM to 6:30 AM');
+      expect(buttons.every((button) => !button.querySelector('.preview')!.hasAttribute('data-night'))).toBe(true);
     });
 
-    it('saves a chosen theme at once, keeping Night as it was', async () => {
+    it('previews the chosen theme’s dark look, with the family’s night mode pressed', async () => {
+      const { page } = await open();
+
+      expect(nightPreview(page).getAttribute('data-theme')).toBe('daylight');
+      expect(nightPreview(page).hasAttribute('data-night')).toBe(true);
+      expect([...page.querySelectorAll('.night-modes button')].map((button) => button.textContent?.trim())).toEqual([
+        'Off',
+        'At night',
+        'Always',
+      ]);
+      expect(nightButton(page, 'At night').getAttribute('aria-pressed')).toBe('true');
+      expect(page.querySelector('.night')?.textContent).toContain('Daylight turns dark from 9:30 PM to 6:30 AM');
+    });
+
+    it('saves a chosen theme at once, keeping the night mode as it was', async () => {
       const { page, settle } = await open();
 
       themeButton(page, 'Groovy').click();
       const request = http.expectOne({ method: 'PUT', url: '/api/family/theme' });
-      expect(request.request.body).toEqual({ theme: 'Groovy', autoNight: true });
+      expect(request.request.body).toEqual({ theme: 'Groovy', nightMode: 'AtNight' });
       request.flush({ ...marlowes, theme: 'Groovy' });
       await settle();
 
+      expect(nightPreview(page).getAttribute('data-theme')).toBe('groovy');
       expect(themeButton(page, 'Groovy').getAttribute('aria-pressed')).toBe('true');
       expect(themeButton(page, 'Daylight').getAttribute('aria-pressed')).toBe('false');
     });
 
-    it('turns automatic Night off, and keeps the theme when the server refuses a change', async () => {
+    it('turns night mode on for good or off, and keeps the theme when the server refuses a change', async () => {
       const { page, settle } = await open();
 
-      nightBox(page).click();
-      const request = http.expectOne({ method: 'PUT', url: '/api/family/theme' });
-      expect(request.request.body).toEqual({ theme: 'Daylight', autoNight: false });
-      request.flush({ ...marlowes, autoNight: false });
+      nightButton(page, 'Always').click();
+      let request = http.expectOne({ method: 'PUT', url: '/api/family/theme' });
+      expect(request.request.body).toEqual({ theme: 'Daylight', nightMode: 'Always' });
+      request.flush({ ...marlowes, nightMode: 'Always' });
       await settle();
-      expect(nightBox(page).checked).toBe(false);
+      expect(nightButton(page, 'Always').getAttribute('aria-pressed')).toBe('true');
+      expect(page.querySelector('.night')?.textContent).toContain('dark look, day and night');
+
+      nightButton(page, 'Off').click();
+      request = http.expectOne({ method: 'PUT', url: '/api/family/theme' });
+      expect(request.request.body).toEqual({ theme: 'Daylight', nightMode: 'Off' });
+      request.flush({ ...marlowes, nightMode: 'Off' });
+      await settle();
+      expect(nightButton(page, 'Off').getAttribute('aria-pressed')).toBe('true');
+      expect(page.querySelector('.night')?.textContent).toContain('Daylight stays light');
 
       themeButton(page, 'Bold').click();
       http

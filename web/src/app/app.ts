@@ -9,7 +9,7 @@ import { ThemeService } from './core/theme';
 })
 export class App {
   constructor() {
-    // Every screen wears the family's theme, and Night at night.
+    // Every screen wears the family's theme, dark at night if the family chose so.
     inject(ThemeService);
   }
 }

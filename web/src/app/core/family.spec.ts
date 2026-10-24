@@ -110,7 +110,7 @@ describe('FamilyStore', () => {
 
     it('ignores a check-in that started before a change was accepted', () => {
       store.refresh();
-      store.saveTheme('Bold', true).subscribe();
+      store.saveTheme('Bold', 'AtNight').subscribe();
       http.expectOne({ method: 'PUT', url: '/api/family/theme' }).flush({ ...marlowes, theme: 'Bold' });
       http.expectOne({ method: 'GET', url: '/api/family' }).flush(marlowes);
 

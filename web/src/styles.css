@@ -1,6 +1,6 @@
 /* Design tokens, taken from the mockups. Components use these instead of raw values.
-   The family's theme is <html data-theme="…">, and data-night turns any of them into Night.
-   A preview of one theme inside another page carries data-theme itself. */
+   The family's theme is <html data-theme="…">, and data-night turns on that theme's dark look.
+   A preview of one look inside another page carries data-theme, and data-night, itself. */
 :root,
 [data-theme] {
   /* Daylight, the default theme. Every other theme starts from these and changes some of them. */
@@ -357,10 +357,11 @@
   --display-weight: 700;
 }
 
-/* Night: one dark, low-glare look for the family's night hours, whatever theme it chose. It sets
-   every token a theme may change, so nothing of the day's theme shows through. */
-:root[data-night],
-[data-theme='night'] {
+/* Night: every theme's dark, low-glare look, on with data-night always or during the family's
+   night hours. This block is Daylight's dark look and sets every color a theme may change, so no
+   light color shows through; each theme's own dark block below then sets its colors on top. Shapes,
+   outlines and fonts stay the theme's own. */
+[data-night] {
   --ground: #14161a;
   --surface: #1c1f25;
   --ink: #eceef1;
@@ -377,43 +378,29 @@
   --field: #23272e;
   --dialog-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
 
-  --card-radius: 28px;
-  --card-border: none;
   --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.3);
   --card-shadow-small: var(--card-shadow);
   --rule: #2a2e35;
   --hour-rule: #262a31;
-  --head-rule: 1px solid var(--rule);
   --today-tint: #20242b;
   --today-head: #20242b;
   --today-dow: var(--ink);
   --today-num: #eceef1;
   --on-today-num: #14161a;
-  --today-num-border: none;
-  --today-num-radius: 50%;
   --month-outside: #181b20;
   --now: #ff6b6f;
   --now-edge: transparent;
   --now-label: #ff6b6f;
   --on-now: #14161a;
-  --now-label-border: none;
-  --now-label-radius: 8px;
   --now-text: #ff8a80;
   --live: #4fd1a0;
-  --live-border: none;
 
-  --pill: 999px;
-  --control-border: 1px solid #3a3f48;
-  --control-shadow: 0 0 0 transparent;
   --primary: #eceef1;
   --on-primary: #14161a;
-  --primary-border: none;
-  --primary-edge: var(--primary);
   --primary-shadow: 0 0 0 transparent;
   --primary-icon: currentColor;
 
   --track: #262a31;
-  --track-border: none;
   --segment: #3a3f48;
   --on-segment: #ffffff;
   --raised: 0 1px 3px rgba(0, 0, 0, 0.4);
@@ -441,14 +428,7 @@
   --event-time-mix: 52%;
   --event-time-base: white;
   --event-quiet: #c4c9d0;
-  --event-radius: 10px;
-  --event-radius-small: 8px;
-  --event-border: none;
-  --event-lift: 0 0 0 transparent;
-  --bar-lift: 0 0 0 transparent;
   --on-avatar: #ffffff;
-  --avatar-border: none;
-  --chip-border: none;
   --toast-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 
   --scrim: rgba(0, 0, 0, 0.5);
@@ -459,14 +439,191 @@
   --danger-line: #6b3a36;
   --danger-text: #ff8a80;
 
-  --font-display: 'Outfit', system-ui, sans-serif;
-  --font-body: 'Figtree', system-ui, sans-serif;
-  --font-time: var(--font-body);
-  --display-weight: 600;
-  --display-variation: normal;
-  --band-display: none;
-
   color-scheme: dark;
+}
+
+/* Groovy at night: a wood-panelled den. Dark cards sit on a warmer brown, outlined in cream, with
+   black offset shadows. */
+[data-theme='groovy'][data-night] {
+  --ground: #2a1f17;
+  --surface: #1c140f;
+  --ink: #f6e7cf;
+  --on-ink: #1c140f;
+  --muted: #d0b694;
+  --faint: #c9ad8a;
+  --line: #4d3a2a;
+  --hairline: #33261c;
+  --accent: #6cc5bd;
+  --ok: #6cc5bd;
+  --field: #261c15;
+  --dialog-shadow: 8px 8px 0 #000000;
+
+  --card-shadow: 6px 6px 0 #000000;
+  --card-shadow-small: 4px 4px 0 #000000;
+  --rule: #3a2c20;
+  --hour-rule: #2c2119;
+  --today-tint: #251a12;
+  --today-head: #4a3418;
+  --today-num: #ef8a52;
+  --on-today-num: #1c140f;
+  --month-outside: #20170f;
+  --now: #ef7a42;
+  --now-label: #ef8a52;
+  --on-now: #1c140f;
+  --now-text: #f29a68;
+  --live: #6cc5bd;
+
+  --control-shadow: 3px 3px 0 #000000;
+  --primary: #ef8a52;
+  --on-primary: #1c140f;
+  --primary-shadow: 3px 3px 0 #000000;
+
+  --track: #1c140f;
+  --segment: #e3a72f;
+  --on-segment: #1c140f;
+  --raised: none;
+  --quiet: #dcc4a4;
+
+  --notice: #33261c;
+  --notice-ink: #dcc4a4;
+
+  --member-fill: 36%;
+  --member-chip: 36%;
+  --member-ring: 0%;
+  --member-ring-base: transparent;
+  --member-shade: 70%;
+  --event-ink: #f6e7cf;
+  --event-time-mix: 0%;
+  --event-time-base: #f6e7cf;
+  --event-quiet: #e6d2b6;
+  --event-lift: 3px 3px 0 #000000;
+  --bar-lift: 2px 2px 0 #000000;
+  --toast-shadow: 4px 4px 0 #000000;
+
+  --scrim: rgba(0, 0, 0, 0.5);
+  --drawer-shadow: -6px 0 0 #000000;
+  --sheet-shadow: 0 -4px 0 #000000;
+  --soft: #2a1f17;
+  --band-1: #c4552a;
+  --band-2: #c9922a;
+  --band-3: #2f7f7a;
+}
+
+/* Classic at night: the office calendar's dark mode. Near-black page, grey rules, solid events. */
+[data-theme='classic'][data-night] {
+  --ground: #131314;
+  --surface: #1b1b1d;
+  --ink: #e3e3e3;
+  --on-ink: #131314;
+  --muted: #c4c7c5;
+  --faint: #a9acaf;
+  --line: #444746;
+  --hairline: #2d2f31;
+  --accent: #a8c7fa;
+  --ok: #6dd58c;
+  --field: #28292b;
+  --dialog-shadow: 0 24px 38px 3px rgba(0, 0, 0, 0.5), 0 9px 46px 8px rgba(0, 0, 0, 0.4);
+
+  --card-border: 1px solid #444746;
+  --card-shadow: none;
+  --card-shadow-small: none;
+  --rule: #3a3c3e;
+  --hour-rule: #2d2f31;
+  --today-tint: #1b1b1d;
+  --today-head: #1b1b1d;
+  --today-dow: #a8c7fa;
+  --today-num: #a8c7fa;
+  --on-today-num: #062e6f;
+  --month-outside: #171718;
+  --now: #f28b82;
+  --now-label: #f28b82;
+  --on-now: #131314;
+  --now-text: #f28b82;
+  --live: #6dd58c;
+
+  --control-border: 1px solid #444746;
+  --primary: #303134;
+  --on-primary: #e3e3e3;
+  --primary-icon: #a8c7fa;
+  --primary-shadow: 0 1px 3px rgba(0, 0, 0, 0.5), 0 4px 8px 3px rgba(0, 0, 0, 0.3);
+
+  --track: #1b1b1d;
+  --track-border: 1px solid #444746;
+  --segment: #004a77;
+  --on-segment: #c2e7ff;
+  --raised: none;
+  --quiet: #c4c7c5;
+
+  --member-fill: 72%;
+  --member-fill-base: black;
+  --member-ring: 0%;
+  --member-ring-base: #1b1b1d;
+  --member-chip: 24%;
+  --event-ink: #ffffff;
+  --event-time-mix: 0%;
+  --event-time-base: #ffffff;
+  --event-quiet: #ffffff;
+  --avatar-border: 1.5px solid #1b1b1d;
+  --chip-border: 1px solid #444746;
+}
+
+/* Bold at night: black cards on charcoal, white outlines, black offset shadows, the same yellow. */
+[data-theme='bold'][data-night] {
+  --ground: #262626;
+  --surface: #141414;
+  --ink: #f5f5f0;
+  --on-ink: #141414;
+  --muted: #bdbdb5;
+  --faint: #b3b3ab;
+  --line: #3d3d3d;
+  --hairline: #2a2a2a;
+  --accent: #8fb0ff;
+  --field: #1e1e1e;
+  --dialog-shadow: 8px 8px 0 #000000;
+
+  --card-shadow: 8px 8px 0 #000000;
+  --card-shadow-small: 4px 4px 0 #000000;
+  --rule: #333333;
+  --hour-rule: #262626;
+  --today-tint: #1d1b10;
+  --today-head: #3a3312;
+  --today-num: #ffdb3b;
+  --on-today-num: #000000;
+  --month-outside: #1a1a1a;
+  --now: #ffdb3b;
+  --now-label: #ffdb3b;
+  --on-now: #000000;
+  --now-text: #ffdb3b;
+  --live: #3bff9d;
+
+  --control-shadow: 3px 3px 0 #000000;
+  --primary: #ffdb3b;
+  --on-primary: #000000;
+  --primary-shadow: 3px 3px 0 #000000;
+
+  --track: #141414;
+  --segment: #c2ff66;
+  --on-segment: #000000;
+  --raised: none;
+  --quiet: #d4d4cc;
+
+  --member-fill: 40%;
+  --member-chip: 40%;
+  --member-ring: 0%;
+  --member-ring-base: transparent;
+  --member-shade: 70%;
+  --event-ink: #f5f5f0;
+  --event-time-mix: 0%;
+  --event-time-base: #f5f5f0;
+  --event-quiet: #dcdcd4;
+  --event-lift: 3px 3px 0 #000000;
+  --bar-lift: 2px 2px 0 #000000;
+  --toast-shadow: 4px 4px 0 #000000;
+
+  --scrim: rgba(0, 0, 0, 0.55);
+  --drawer-shadow: -6px 0 0 #000000;
+  --sheet-shadow: 0 -4px 0 #000000;
+  --soft: #262626;
 }
 
 /* Wherever a member's color is set, the colors drawn from it, mixed as the theme says. */

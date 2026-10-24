@@ -238,7 +238,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
       border-radius: var(--pill);
       background: var(--segment);
       box-shadow: var(--raised);
-      color: var(--ink);
+      color: var(--on-segment);
       font: 700 16px var(--font-body);
       cursor: pointer;
     }

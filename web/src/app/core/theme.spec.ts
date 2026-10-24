@@ -26,8 +26,9 @@ describe('isNight', () => {
     expect(isNight(early, at('2026-10-23T09:00:00Z'))).toBe(false); // 5 AM
   });
 
-  it('never turns on when the family turned automatic Night off', () => {
-    expect(isNight({ ...marlowes, autoNight: false }, at('2026-10-23T04:00:00Z'))).toBe(false);
+  it('never turns on when the family turned night mode off, and is always on when it chose Always', () => {
+    expect(isNight({ ...marlowes, nightMode: 'Off' }, at('2026-10-23T04:00:00Z'))).toBe(false);
+    expect(isNight({ ...marlowes, nightMode: 'Always' }, at('2026-10-23T16:00:00Z'))).toBe(true); // noon
   });
 });
 
@@ -83,7 +84,9 @@ describe('ThemeService', () => {
     await vi.advanceTimersByTimeAsync(31_000);
     TestBed.tick();
     expect(root.hasAttribute('data-night')).toBe(true);
+    // The theme stays: data-night turns on its own dark look, in its own fonts.
     expect(root.dataset['theme']).toBe('bold');
+    expect([...document.querySelectorAll<HTMLLinkElement>('link[data-fonts]')].map((l) => l.dataset['fonts'])).toEqual(['bold']);
 
     vi.setSystemTime(new Date('2026-10-23T10:30:30Z')); // 6:30:30 AM
     await vi.advanceTimersByTimeAsync(1_000);

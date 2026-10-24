@@ -16,12 +16,13 @@ export interface Family {
   name: string;
   timeZone: string;
   weekStartsOn: 'Sunday' | 'Monday';
-  /** Local times as HH:mm:ss. Every screen turns to Night between them, unless autoNight is off. */
+  /** Local times as HH:mm:ss. Every screen turns dark between them when nightMode is AtNight. */
   nightModeFrom: string;
   nightModeTo: string;
   /** How every screen of the family looks. */
   theme: Theme;
-  autoNight: boolean;
+  /** When every screen uses its theme's dark look. */
+  nightMode: NightMode;
   units: 'Imperial' | 'Metric';
   /** Where the weather is for, to about a kilometre. Null until a parent sets it. */
   latitude: number | null;
@@ -31,8 +32,10 @@ export interface Family {
 
 export type Theme = 'Daylight' | 'Groovy' | 'Classic' | 'Bold';
 
+export type NightMode = 'Off' | 'AtNight' | 'Always';
+
 /** What a parent can change about the family itself. The theme has its own save. */
-export type FamilySettings = Omit<Family, 'id' | 'members' | 'latitude' | 'longitude' | 'theme' | 'autoNight'>;
+export type FamilySettings = Omit<Family, 'id' | 'members' | 'latitude' | 'longitude' | 'theme' | 'nightMode'>;
 
 /** What a parent enters for a member; the server assigns the rest. */
 export type MemberDraft = Pick<Member, 'displayName' | 'color' | 'role'>;
@@ -130,9 +133,9 @@ export class FamilyStore {
   }
 
   /** Chooses the family's theme, and whether screens turn dark at night. */
-  saveTheme(theme: Theme, autoNight: boolean): Observable<Family> {
+  saveTheme(theme: Theme, nightMode: NightMode): Observable<Family> {
     return this.http
-      .put<Family>('/api/family/theme', { theme, autoNight })
+      .put<Family>('/api/family/theme', { theme, nightMode })
       .pipe(tap((family) => this.accept(family)));
   }
 

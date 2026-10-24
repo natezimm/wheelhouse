@@ -2,7 +2,7 @@ import { DOCUMENT } from '@angular/common';
 import { Injectable, computed, effect, inject } from '@angular/core';
 import { Clock } from './clock';
 import { minutesIn } from './days';
-import { Family, FamilyStore, Theme } from './family';
+import { Family, FamilyStore, NightMode, Theme } from './family';
 
 /** The themes a family can choose, in the order Settings offers them. */
 export const THEMES: readonly { value: Theme; name: string; about: string }[] = [
@@ -12,9 +12,16 @@ export const THEMES: readonly { value: Theme; name: string; about: string }[] = 
   { value: 'Bold', name: 'Bold', about: 'Black outlines, yellow highlights, mono times' },
 ];
 
+/** When screens turn dark, in the order Settings offers them. */
+export const NIGHT_MODES: readonly { value: NightMode; name: string }[] = [
+  { value: 'Off', name: 'Off' },
+  { value: 'AtNight', name: 'At night' },
+  { value: 'Always', name: 'Always' },
+];
+
 /**
- * The fonts each theme needs beyond Outfit and Figtree, which index.html loads for Daylight and
- * Night. A theme's fonts load only once it is in use, or previewed.
+ * The fonts each theme needs beyond Outfit and Figtree, which index.html loads for Daylight.
+ * A theme's fonts load only once it is in use, or previewed. Its dark look uses the same fonts.
  */
 const FONTS: Partial<Record<Theme, string>> = {
   Groovy: 'family=Fraunces:opsz,wght,SOFT@9..144,500..800,100&family=DM+Sans:wght@400;500;600;700',
@@ -22,13 +29,12 @@ const FONTS: Partial<Record<Theme, string>> = {
   Bold: 'family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600;700',
 };
 
-/** The browser's own color around the page, such as a phone's status bar: each look's ground. */
-const GROUNDS: Record<Theme | 'Night', string> = {
-  Daylight: '#f4f2ee',
-  Groovy: '#f3e7d3',
-  Classic: '#ffffff',
-  Bold: '#efefe6',
-  Night: '#14161a',
+/** The browser's own color around the page, such as a phone's status bar: each look's ground, light and dark. */
+const GROUNDS: Record<Theme, [light: string, dark: string]> = {
+  Daylight: ['#f4f2ee', '#14161a'],
+  Groovy: ['#f3e7d3', '#1e1611'],
+  Classic: ['#ffffff', '#131314'],
+  Bold: ['#efefe6', '#161616'],
 };
 
 /** Minutes since midnight of a time written HH:mm or HH:mm:ss. */
@@ -37,9 +43,12 @@ function minutesOf(time: string): number {
   return hours * 60 + minutes;
 }
 
-/** Whether it is night on the family's clock: from nightModeFrom up to, not including, nightModeTo. */
+/**
+ * Whether screens are dark now: always, never, or at night on the family's clock, from
+ * nightModeFrom up to, not including, nightModeTo.
+ */
 export function isNight(family: Family, now: Date): boolean {
-  if (!family.autoNight) return false;
+  if (family.nightMode !== 'AtNight') return family.nightMode === 'Always';
   const from = minutesOf(family.nightModeFrom);
   const to = minutesOf(family.nightModeTo);
   const minute = minutesIn(family.timeZone, now);
@@ -48,8 +57,9 @@ export function isNight(family: Family, now: Date): boolean {
 
 /**
  * Dresses every screen in the family's theme: <html data-theme> picks its tokens in styles.css,
- * and data-night turns on Night during the family's night hours. It follows the family store,
- * so a theme a parent picks on their phone reaches the wall at its next family check.
+ * and data-night turns on that theme's dark look, always or during the family's night hours, as
+ * the family chose. It follows the family store, so a theme a parent picks on their phone reaches
+ * the wall at its next family check.
  */
 @Injectable({ providedIn: 'root' })
 export class ThemeService {
@@ -61,7 +71,7 @@ export class ThemeService {
   /** The family's chosen theme; Daylight until a family is known. */
   readonly theme = computed<Theme>(() => this.family.family()?.theme ?? 'Daylight');
 
-  /** Whether the Night look is on now. It changes only as the family's clock crosses its night hours. */
+  /** Whether the dark look is on now. At night it changes only as the family's clock crosses its night hours. */
   readonly night = computed(() => {
     const family = this.family.family();
     return !!family && isNight(family, this.clock.now());
@@ -74,9 +84,8 @@ export class ThemeService {
       const root = this.document.documentElement;
       root.dataset['theme'] = theme.toLowerCase();
       root.toggleAttribute('data-night', night);
-      // At night only Night's own fonts are drawn, and those are always loaded.
-      if (!night) this.loadFonts(theme);
-      this.document.querySelector('meta[name="theme-color"]')?.setAttribute('content', GROUNDS[night ? 'Night' : theme]);
+      this.loadFonts(theme);
+      this.document.querySelector('meta[name="theme-color"]')?.setAttribute('content', GROUNDS[theme][night ? 1 : 0]);
     });
   }
 
