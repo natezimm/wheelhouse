@@ -31,10 +31,10 @@ public sealed record FamilyResponse(
         [.. family.Members.Select(MemberResponse.From)]);
 }
 
-public sealed record MemberResponse(Guid Id, string DisplayName, string Color, string Initial, MemberRole Role)
+public sealed record MemberResponse(Guid Id, string DisplayName, string Color, string Initial, MemberRole Role, string? Avatar = null)
 {
     public static MemberResponse From(Member member) =>
-        new(member.Id, member.DisplayName, member.Color, member.Initial, member.Role);
+        new(member.Id, member.DisplayName, member.Color, member.Initial, member.Role, member.Avatar);
 }
 
 public sealed record FamilySettingsRequest(
@@ -126,7 +126,8 @@ public sealed record FamilyLocationRequest(double? Latitude, double? Longitude)
     }
 }
 
-public sealed partial record MemberRequest(string DisplayName, string Color, MemberRole Role)
+/// <summary>A member's name, color and role, and the built-in picture they chose; no avatar shows their initial.</summary>
+public sealed partial record MemberRequest(string DisplayName, string Color, MemberRole Role, string? Avatar = null)
 {
     public Dictionary<string, string[]> Validate()
     {
@@ -145,6 +146,11 @@ public sealed partial record MemberRequest(string DisplayName, string Color, Mem
         if (!Enum.IsDefined(Role))
         {
             errors["role"] = ["Choose Parent or Kid."];
+        }
+
+        if (Avatar is not null && !MemberAvatars.All.Contains(Avatar))
+        {
+            errors["avatar"] = ["Choose one of the pictures, or the initial."];
         }
 
         return errors;

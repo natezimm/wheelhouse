@@ -469,6 +469,10 @@ namespace Wheelhouse.Api.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Avatar")
+                        .HasMaxLength(16)
+                        .HasColumnType("character varying(16)");
+
                     b.Property<string>("Color")
                         .IsRequired()
                         .HasMaxLength(7)

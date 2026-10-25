@@ -5,6 +5,7 @@ import { Clock } from '../core/clock';
 import { Day, dayIn, formatDay, minutesIn, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { ThemeService } from '../core/theme';
+import { AvatarFace } from '../shared/avatar-face';
 
 /** Room above the first hour line and below the last, so their labels are not cut off. */
 const PAD = 10;
@@ -52,6 +53,7 @@ export interface GridMore {
  */
 @Component({
   selector: 'app-hour-grid',
+  imports: [AvatarFace],
   host: { '[class]': 'layout() + " " + variant()', '[style.--hour.px]': 'scale().hour', '[style.--pad.px]': 'pad', '[style.--columns]': 'columns().length' },
   template: `
     <div class="body" #body [class.scrolls]="scale().scrolls">
@@ -102,7 +104,7 @@ export interface GridMore {
                   } @else {
                     <span class="top">
                       <span class="time">{{ block.time }}</span>
-                      <span class="mark" aria-hidden="true">{{ block.initial }}</span>
+                      <span class="mark" aria-hidden="true"><app-avatar-face [initial]="block.initial" [avatar]="block.avatar" /></span>
                     </span>
                     <span class="title clamp" [style.--lines]="block.lines">{{ block.title }}</span>
                   }
@@ -651,6 +653,7 @@ export class HourGrid {
               title: event.title,
               color: colorOf(event, members),
               initial: member?.initial ?? 'F',
+              avatar: member?.avatar ?? null,
               pending: !!event.pending,
               top: y(segment.start) + 1,
               height,

@@ -124,6 +124,39 @@ public sealed class FamilySettingsTests(ApiFactory factory) : IAsyncLifetime
     }
 
     [Fact]
+    public async Task A_parent_can_give_a_member_a_picture_or_go_back_to_their_initial()
+    {
+        var milo = (await GetFamily()).Members.Single(member => member.DisplayName == "Milo");
+        Assert.Equal("dino", milo.Avatar);
+
+        var picked = await _parent.PutAsJsonAsync(
+            $"/api/family/members/{milo.Id}", new MemberRequest("Milo", milo.Color, MemberRole.Kid, "owl"), ApiFactory.Json);
+        Assert.Equal(HttpStatusCode.OK, picked.StatusCode);
+        Assert.Equal("owl", (await GetFamily()).Members[2].Avatar);
+
+        var cleared = await _parent.PutAsJsonAsync(
+            $"/api/family/members/{milo.Id}", new MemberRequest("Milo", milo.Color, MemberRole.Kid), ApiFactory.Json);
+        Assert.Equal(HttpStatusCode.OK, cleared.StatusCode);
+        Assert.Null((await GetFamily()).Members[2].Avatar);
+    }
+
+    [Theory]
+    [InlineData("Owl")]
+    [InlineData("dragon")]
+    [InlineData("")]
+    [InlineData("../favicon")]
+    public async Task A_member_picture_must_be_one_of_the_built_in_ones(string avatar)
+    {
+        var response = await _parent.PostAsJsonAsync(
+            "/api/family/members", new MemberRequest("Ada", "#2F5FC4", MemberRole.Kid, avatar), ApiFactory.Json);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        Assert.Equal(["avatar"], problem!.Errors.Keys);
+        Assert.Equal(4, (await GetFamily()).Members.Count);
+    }
+
+    [Fact]
     public async Task A_parent_can_rename_and_recolor_a_member_without_moving_them()
     {
         var milo = (await GetFamily()).Members.Single(member => member.DisplayName == "Milo");

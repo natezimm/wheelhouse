@@ -3,6 +3,7 @@ import { CalendarEvent, CalendarStore, colorOf, spanOf, timeRange } from '../cor
 import { formatDay, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { ModalFocus } from './modal-focus';
+import { AvatarFace } from './avatar-face';
 
 /**
  * What an event is, before anyone changes it: whose it is, when, where, whether it repeats and
@@ -12,7 +13,7 @@ import { ModalFocus } from './modal-focus';
  */
 @Component({
   selector: 'app-event-details',
-  imports: [ModalFocus],
+  imports: [AvatarFace, ModalFocus],
   host: { '[class]': 'layout()', '(keydown.escape)': 'closed.emit()' },
   template: `
     @if (shown(); as event) {
@@ -22,7 +23,7 @@ import { ModalFocus } from './modal-focus';
           <span class="grip" aria-hidden="true"></span>
         }
         <div class="owner">
-          <span class="who"><span class="mark" aria-hidden="true">{{ event.initial }}</span>{{ event.who }}</span>
+          <span class="who"><span class="mark" aria-hidden="true"><app-avatar-face [initial]="event.initial" [avatar]="event.avatar" /></span>{{ event.who }}</span>
           <button #close type="button" class="close" aria-label="Close" (click)="closed.emit()">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
           </button>
@@ -388,6 +389,7 @@ export class EventDetails {
       color: colorOf(event, family.members),
       who: member?.displayName ?? 'Family',
       initial: member?.initial ?? 'F',
+      avatar: member?.avatar ?? null,
       location: event.location,
       repeats: event.recurring,
       calendar: source?.name ?? 'Unknown',

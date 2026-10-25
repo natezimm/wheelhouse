@@ -6,6 +6,7 @@ import { Day, addDays, dayIn, formatDay } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { GridColumn, GridNote, GridSlot, HourGrid } from './hour-grid';
 import { spanLabel } from './week-view';
+import { AvatarFace } from '../shared/avatar-face';
 
 /**
  * One day with a column per person: each headed by their avatar, name and how many events they
@@ -14,7 +15,7 @@ import { spanLabel } from './week-view';
  */
 @Component({
   selector: 'app-day-view',
-  imports: [HourGrid],
+  imports: [AvatarFace, HourGrid],
   host: { '[class]': 'layout()', '[style.--columns]': 'columns().length' },
   template: `
     @if (day(); as day) {
@@ -22,7 +23,7 @@ import { spanLabel } from './week-view';
         <span></span>
         @for (person of day.people; track person.owner) {
           <div class="head" [style.--member]="person.color">
-            <span class="avatar" aria-hidden="true">{{ person.initial }}</span>
+            <span class="avatar" aria-hidden="true"><app-avatar-face [initial]="person.initial" [avatar]="person.avatar" /></span>
             <span class="who">
               <span class="name">{{ person.name }}</span>
               <span class="count">{{ person.count }}</span>
@@ -300,8 +301,8 @@ export class DayView {
     }
     const hidden = this.calendar.hidden();
     return [
-      ...family.members.map((m) => ({ owner: m.id, name: m.displayName, initial: m.initial, color: m.color })),
-      ...(this.calendar.hasFamilyCalendar() ? [{ owner: FAMILY, name: 'Family', initial: 'F', color: FAMILY_COLOR }] : []),
+      ...family.members.map((m) => ({ owner: m.id, name: m.displayName, initial: m.initial, avatar: m.avatar ?? null, color: m.color })),
+      ...(this.calendar.hasFamilyCalendar() ? [{ owner: FAMILY, name: 'Family', initial: 'F', avatar: null, color: FAMILY_COLOR }] : []),
     ].filter((person) => !hidden.has(person.owner));
   });
 

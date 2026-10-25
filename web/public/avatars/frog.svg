@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 64 64">
+<defs><g id="s"><circle cx="20.5" cy="21" r="8.5" fill="#6FBF5A"/><circle cx="43.5" cy="21" r="8.5" fill="#6FBF5A"/>
+<ellipse cx="32" cy="38" rx="22.5" ry="16.5" fill="#6FBF5A"/></g></defs>
+<use href="#s" xlink:href="#s" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
+<use href="#s" xlink:href="#s"/>
+<circle cx="20.5" cy="21" r="5.6" fill="#fff"/><circle cx="43.5" cy="21" r="5.6" fill="#fff"/>
+<circle cx="21" cy="21.5" r="2.9" fill="#2B2320"/><circle cx="22.015" cy="20.34" r="0.9279999999999999" fill="#fff"/><circle cx="43" cy="21.5" r="2.9" fill="#2B2320"/><circle cx="44.015" cy="20.34" r="0.9279999999999999" fill="#fff"/>
+<ellipse cx="32" cy="44.5" rx="15" ry="6.5" fill="#A6DB8C"/>
+<circle cx="29" cy="34.5" r="1.1" fill="#2B2320"/><circle cx="35" cy="34.5" r="1.1" fill="#2B2320"/>
+<path d="M19 40 Q32 51 45 40" fill="none" stroke="#2B2320" stroke-width="2" stroke-linecap="round"/>
+<circle cx="15" cy="40" r="3" fill="#F29BB0" opacity=".55"/><circle cx="49" cy="40" r="3" fill="#F29BB0" opacity=".55"/>
+</svg>

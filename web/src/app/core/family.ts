@@ -9,6 +9,8 @@ export interface Member {
   color: string;
   initial: string;
   role: 'Parent' | 'Kid';
+  /** A built-in picture (`core/avatars.ts`) shown instead of the initial. */
+  avatar?: string | null;
 }
 
 export interface Family {
@@ -38,7 +40,7 @@ export type NightMode = 'Off' | 'AtNight' | 'Always';
 export type FamilySettings = Omit<Family, 'id' | 'members' | 'latitude' | 'longitude' | 'theme' | 'nightMode'>;
 
 /** What a parent enters for a member; the server assigns the rest. */
-export type MemberDraft = Pick<Member, 'displayName' | 'color' | 'role'>;
+export type MemberDraft = Pick<Member, 'displayName' | 'color' | 'role' | 'avatar'>;
 
 /**
  * The colors a member can have. White text reads clearly on every one of them, which the

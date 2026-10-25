@@ -17,6 +17,9 @@ public sealed class Member : IFamilyOwned
     /// <summary>The letter shown in the member's avatar.</summary>
     public required string Initial { get; set; }
 
+    /// <summary>A built-in picture from <see cref="MemberAvatars"/> shown instead of the initial, or null.</summary>
+    public string? Avatar { get; set; }
+
     public MemberRole Role { get; set; }
 
     public int SortOrder { get; set; }
