@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import tarfile
 import tempfile
 import unittest
 
@@ -37,6 +38,25 @@ elif cmd[0]=='cp':
   p=pathlib.Path(cmd[-1]);p.mkdir();(p/'key.xml').write_text('encrypted-key-material')
 elif cmd[0]=='up' and '--detach' in cmd and os.environ.get('FAIL_START')==project:sys.exit(1)
 '''
+# Health checks succeed; the metadata server hands out a token; uploads land in UPLOADS.
+CURL = r'''#!/usr/bin/env python3
+import os, pathlib, sys, urllib.parse
+a=sys.argv[1:]
+url=a[-1]
+with open(os.environ['COMMAND_LOG'],'a') as f:f.write(__import__('json').dumps({'project':'curl','version':'','cmd':a})+'\n')
+if 'metadata.google.internal' in url:
+ print('{"access_token":"secret-token","expires_in":3599,"token_type":"Bearer"}')
+elif url.startswith('https://storage.googleapis.com/upload/'):
+ if os.environ.get('FAIL_UPLOAD'):sys.exit(22)
+ header=sys.stdin.read()
+ assert header=='Authorization: Bearer secret-token\n', header
+ query=urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+ assert query['ifGenerationMatch']==['0']
+ source=next(x[1:] for x in a if x.startswith('@/'))
+ target=pathlib.Path(os.environ['UPLOADS'])/query['name'][0]
+ target.parent.mkdir(parents=True,exist_ok=True)
+ target.write_bytes(pathlib.Path(source).read_bytes())
+'''
 
 class OperationsTests(unittest.TestCase):
     def setUp(self):
@@ -45,12 +65,13 @@ class OperationsTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         self.bin = self.root / 'bin'
         self.bin.mkdir()
-        for name, content in [('docker', DOCKER), ('curl', '#!/bin/sh\nexit 0\n'), ('sleep', '#!/bin/sh\nexit 0\n')]:
+        for name, content in [('docker', DOCKER), ('curl', CURL), ('sleep', '#!/bin/sh\nexit 0\n')]:
             p = self.bin / name
             p.write_text(content)
             p.chmod(0o755)
         self.log = self.root / 'commands.jsonl'
-        self.env = dict(os.environ, PATH=f'{self.bin}:{os.environ["PATH"]}', WHEELHOUSE_ROOT=str(self.root), COMMAND_LOG=str(self.log))
+        self.uploads = self.root / 'uploads'
+        self.env = dict(os.environ, PATH=f'{self.bin}:{os.environ["PATH"]}', WHEELHOUSE_ROOT=str(self.root), COMMAND_LOG=str(self.log), UPLOADS=str(self.uploads))
         (self.root / 'compose.yaml').write_text('old-compose')
         (self.root / 'compose.candidate.yaml').write_text('new-compose')
         self.env['WHEELHOUSE_COMPOSE'] = str(self.root / 'compose.candidate.yaml')
@@ -65,13 +86,16 @@ class OperationsTests(unittest.TestCase):
     def commands(self):
         return [json.loads(x) for x in self.log.read_text().splitlines()] if self.log.exists() else []
 
+    def docker_commands(self):
+        return [c for c in self.commands() if c['project'] != 'curl']
+
     def backup(self, name='a'):
         return next((self.root / 'backups').glob(f'*/{name}'))
 
     def test_all_backups_precede_any_migration(self):
         result = self.run_script('deploy.sh', 'v0.2.0')
         self.assertEqual(result.returncode, 0, result.stderr)
-        commands = self.commands()
+        commands = self.docker_commands()
         dumps = [i for i,c in enumerate(commands) if 'pg_dump' in c['cmd']]
         starts = [i for i,c in enumerate(commands) if c['cmd'][0]=='up' and '--detach' in c['cmd']]
         self.assertEqual(len(dumps), 2)
@@ -92,14 +116,14 @@ class OperationsTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual((self.root/'compose.yaml').read_text(), 'old-compose')
         self.assertFalse((self.backup('b')/'COMPLETE').exists())
-        starts = [c for c in self.commands() if c['cmd'][0]=='up']
+        starts = [c for c in self.docker_commands() if c['cmd'][0]=='up']
         self.assertEqual(len(starts), 2)
         self.assertTrue(all(c['version']=='v0.1.1' for c in starts))
 
     def test_startup_failure_never_restarts_old_api_on_new_database(self):
         result = self.run_script('deploy.sh', 'v0.2.0', FAIL_START='wheelhouse-a')
         self.assertNotEqual(result.returncode, 0)
-        commands = self.commands()
+        commands = self.docker_commands()
         a = [c for c in commands if c['project']=='wheelhouse-a']
         self.assertEqual(a[-1]['cmd'], ['stop','web','api'])
         self.assertFalse(any(c['cmd'][0]=='up' and c['version']=='v0.1.1' for c in a))
@@ -116,18 +140,18 @@ class OperationsTests(unittest.TestCase):
         self.log.unlink()
         result = self.run_script('restore.sh','a',str(self.backup()))
         self.assertNotEqual(result.returncode, 0)
-        self.assertFalse(self.commands())
+        self.assertFalse(self.docker_commands())
         (self.backup()/'database.dump').write_text('corrupted')
         result = self.run_script('restore.sh','a',str(self.backup()),'--confirm-data-loss')
         self.assertNotEqual(result.returncode, 0)
-        self.assertFalse(self.commands())
+        self.assertFalse(self.docker_commands())
 
     def test_restore_replaces_database_before_starting_old_api(self):
         self.assertEqual(self.run_script('deploy.sh','v0.2.0').returncode, 0)
         self.log.unlink()
         result = self.run_script('restore.sh','a',str(self.backup()),'--confirm-data-loss')
         self.assertEqual(result.returncode, 0, result.stderr)
-        commands = [c['cmd'] for c in self.commands()]
+        commands = [c['cmd'] for c in self.docker_commands()]
         drop = next(i for i,c in enumerate(commands) if 'dropdb' in c)
         restore = next(i for i,c in enumerate(commands) if 'pg_restore' in c)
         api = next(i for i,c in enumerate(commands) if c[0]=='up' and '--detach' in c)
@@ -139,14 +163,69 @@ class OperationsTests(unittest.TestCase):
 
     def test_invalid_version_never_calls_docker(self):
         self.assertNotEqual(self.run_script('deploy.sh','bad-version').returncode,0)
-        self.assertFalse(self.commands())
+        self.assertFalse(self.docker_commands())
 
     def test_low_space_never_pulls_images_or_stops_writers(self):
         (self.root/'storage-policy.json').write_text('{"minimum_free_gib":10000}')
         result = self.run_script('deploy.sh','v0.2.0')
         self.assertNotEqual(result.returncode,0)
         self.assertIn('Insufficient disk space',result.stderr)
-        self.assertFalse(any(c['cmd'][0] in ['pull','stop','up'] for c in self.commands()))
+        self.assertFalse(any(c['cmd'][0] in ['pull','stop','up'] for c in self.docker_commands()))
+
+    def configure_backups(self):
+        (self.root/'backup.env').write_text('WHEELHOUSE_BACKUP_BUCKET=example-wheelhouse-backups\n')
+
+    def test_nightly_backup_uploads_a_restorable_snapshot_without_stopping_writers(self):
+        self.configure_backups()
+        result = self.run_script('nightly-backup.sh')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        archives = sorted(p.relative_to(self.uploads).as_posix() for p in self.uploads.rglob('*.tar'))
+        self.assertEqual([a.split('/')[0] for a in archives], ['a', 'b'])
+        self.assertFalse(any(c['cmd'][0] in ['stop', 'up'] for c in self.docker_commands()))
+        extracted = self.root/'restore'
+        extracted.mkdir()
+        with tarfile.open(self.uploads/archives[0]) as archive:
+            archive.extractall(extracted, filter='data')
+        snapshot = extracted/'a'
+        self.assertTrue((snapshot/'COMPLETE').exists())
+        self.assertEqual((snapshot/'compose.yaml').read_text(), 'old-compose')
+        self.assertEqual(subprocess.run(['sha256sum', '--check', '--quiet', 'SHA256SUMS'], cwd=snapshot).returncode, 0)
+        self.assertTrue((self.root/'offsite-backup.last').exists())
+        self.assertFalse(list(self.root.glob('.nightly-*')))
+        self.assertNotIn('secret-token', result.stdout+result.stderr+self.log.read_text())
+        self.assertNotIn('never-print-this', result.stdout+result.stderr)
+        # The downloaded snapshot restores through the same script as a release snapshot.
+        self.log.unlink()
+        restored = self.run_script('restore.sh', 'a', str(snapshot), '--confirm-data-loss')
+        self.assertEqual(restored.returncode, 0, restored.stderr)
+
+    def test_nightly_backup_without_a_bucket_does_nothing(self):
+        result = self.run_script('nightly-backup.sh')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('not configured', result.stderr)
+        self.assertFalse(self.commands())
+
+    def test_one_failed_instance_still_backs_up_the_others(self):
+        self.configure_backups()
+        result = self.run_script('nightly-backup.sh', FAIL_DUMP='wheelhouse-a')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual([p.parent.name for p in self.uploads.rglob('*.tar')], ['b'])
+        self.assertFalse((self.root/'offsite-backup.last').exists())
+
+    def test_failed_upload_fails_the_backup(self):
+        self.configure_backups()
+        result = self.run_script('nightly-backup.sh', FAIL_UPLOAD='1')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse((self.root/'offsite-backup.last').exists())
+
+    def test_release_warns_without_off_server_backups(self):
+        result = self.run_script('deploy.sh', 'v0.2.0')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('off-server backups are not configured', result.stderr)
+        self.configure_backups()
+        self.assertEqual(self.run_script('nightly-backup.sh').returncode, 0)
+        result = self.run_script('deploy.sh', 'v0.2.1')
+        self.assertNotIn('off-server', result.stderr)
 
 if __name__ == '__main__':
     unittest.main()

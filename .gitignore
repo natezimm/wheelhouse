@@ -4,6 +4,9 @@ obj/
 *.user
 TestResults/
 
+# Python
+__pycache__/
+
 # Node / Angular
 node_modules/
 web/dist/

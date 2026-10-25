@@ -165,7 +165,7 @@ jobs:
         run: |
           ssh server 'mkdir -p ~/wheelhouse'
           scp deploy/compose.yaml server:wheelhouse/compose.candidate.yaml
-          scp deploy/deploy.sh deploy/restore.sh deploy/storage.py deploy/install-maintenance.sh server:wheelhouse/
+          scp deploy/deploy.sh deploy/restore.sh deploy/storage.py deploy/install-maintenance.sh deploy/nightly-backup.sh server:wheelhouse/
           ssh server 'bash ~/wheelhouse/install-maintenance.sh'
 
       # The images are private, so the server signs in to the registry with this job's
