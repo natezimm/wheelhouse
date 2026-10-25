@@ -70,15 +70,16 @@ public sealed class AccessTests(ApiFactory factory)
     [Fact]
     public async Task Every_request_is_rate_limited_by_family_or_by_address()
     {
-        Task<HttpContext> Session(string address) => factory.Demo.Server.SendAsync(context =>
+        // Signed out, so each read is turned away, and still counts.
+        Task<HttpContext> Read(string address) => factory.Demo.Server.SendAsync(context =>
         {
-            context.Request.Path = "/api/session";
+            context.Request.Path = "/api/calendar";
             context.Connection.RemoteIpAddress = IPAddress.Parse(address);
         });
         var reads = new List<int>();
         for (var i = 0; i <= RateLimits.RequestsPerMinute; i++)
         {
-            reads.Add((await Session("198.51.100.20")).Response.StatusCode);
+            reads.Add((await Read("198.51.100.20")).Response.StatusCode);
         }
 
         using var visitor = await factory.DemoVisitorAsync();
@@ -89,9 +90,9 @@ public sealed class AccessTests(ApiFactory factory)
             changes.Add((await visitor.PutAsJsonAsync("/api/family/theme", theme, ApiFactory.Json)).StatusCode);
         }
 
-        Assert.All(reads[..^1], status => Assert.Equal(StatusCodes.Status200OK, status));
+        Assert.All(reads[..^1], status => Assert.Equal(StatusCodes.Status401Unauthorized, status));
         Assert.Equal(StatusCodes.Status429TooManyRequests, reads[^1]);
-        Assert.Equal(StatusCodes.Status200OK, (await Session("198.51.100.21")).Response.StatusCode);
+        Assert.Equal(StatusCodes.Status401Unauthorized, (await Read("198.51.100.21")).Response.StatusCode);
         Assert.All(changes[..^1], status => Assert.Equal(HttpStatusCode.OK, status));
         Assert.Equal(HttpStatusCode.TooManyRequests, changes[^1]);
         // Reading goes on: only changes ran out.
