@@ -43,7 +43,7 @@ import { ModalFocus } from '../shared/modal-focus';
           </select>
         </label>
 
-        @if (!event()) {
+        @if (!event()?.recurring) {
           <label class="field">
             Repeat
             <select (change)="set({ repeat: $any($event.target).value })">
@@ -52,7 +52,7 @@ import { ModalFocus } from '../shared/modal-focus';
               }
             </select>
           </label>
-        } @else if (event()!.recurring) {
+        } @else {
           <label class="field">
             Change
             <select (change)="setSeries($any($event.target).value === 'all')">

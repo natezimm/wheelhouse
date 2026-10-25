@@ -219,6 +219,36 @@ describe('optimistic calendar operations', () => {
     expect(store.events().find((e) => e.id === first.id)!.title).toBe('Edited elsewhere');
   });
 
+  it('shows an event that starts to repeat as its new series until a snapshot replaces it', () => {
+    const daily: EventRequest = { ...draft('Reading time'), allDay: true, calendarId: 'c4', startDate: '2026-10-13', startTime: null, endDate: '2026-10-14', endTime: null, repeat: 'Daily' };
+    store.update(unrelated.id, daily).subscribe();
+    const put = http.expectOne((r) => r.method === 'PUT');
+    expect(put.request.body).toMatchObject({ repeat: 'Daily' });
+    const shown = store.events().filter((e) => e.title === 'Reading time');
+    expect(shown.map((e) => e.startDate)).toEqual(['2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18']);
+    expect(shown.every((e) => e.pending && e.recurring)).toBe(true);
+    expect(store.events().some((e) => e.id === unrelated.id)).toBe(false);
+    expect(store.isPending(shown[2].id)).toBe(true);
+    const stored = shown.map((e, n) => ({ ...e, id: `stored-${n}`, seriesId: 'series-new', creationId: null, pending: undefined }));
+    put.flush(stored[0]);
+    expect(store.events().filter((e) => e.title === 'Reading time')).toHaveLength(6);
+    read().flush(snapshot([first, second, ...stored], 2));
+    expect(store.pending()).toHaveLength(0);
+    expect(store.events().filter((e) => e.title === 'Reading time').map((e) => e.id)).toEqual(stored.map((e) => e.id));
+  });
+
+  it('finds an uncertain change that started a series by its content, since its occurrences have new ids', () => {
+    const weekly: EventRequest = { ...draft('Piano'), calendarId: 'c4', repeat: 'Weekly' };
+    store.update(unrelated.id, weekly, false, 'operation').subscribe({ error: () => {} });
+    http.expectOne((r) => r.method === 'PUT').error(new ProgressEvent('error'));
+    store.retry('operation').subscribe();
+    const started = { ...timed('Piano', null, '2026-10-12T22:00:00Z', '2026-10-12T23:00:00Z'), id: 'occurrence', recurring: true, seriesId: 'series-new' };
+    read().flush(snapshot([first, started], 2));
+    http.expectNone((r) => r.method === 'PUT');
+    read().flush(snapshot([first, second, started], 2));
+    expect(store.pending()).toHaveLength(0);
+  });
+
   it('does not apply a late successful write to another family', () => {
     store.update(first.id, draft()).subscribe();
     const put = http.expectOne((r) => r.method === 'PUT');

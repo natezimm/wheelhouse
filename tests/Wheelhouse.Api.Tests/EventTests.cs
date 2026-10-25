@@ -337,6 +337,35 @@ public sealed class EventTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task A_visitor_makes_an_event_repeat_and_it_keeps_its_place_as_the_first_of_the_series()
+    {
+        using var visitor = await factory.DemoVisitorAsync();
+        var zone = TimeZoneInfo.FindSystemTimeZoneById((await FamilyOf(visitor)).TimeZone);
+        var milos = await CalendarIdAsync(visitor, "Milo — School & Sports");
+        var julians = await CalendarIdAsync(visitor, "Julian");
+        var added = await AddAsync(visitor, Timed(milos, "Piano", new(16, 0), new(16, 45)) with { CreationId = Guid.NewGuid() });
+
+        var changed = await ChangeAsync(visitor, added.Id, Timed(julians, "Piano lesson", new(16, 30), new(17, 15)) with { Repeat = EventRepeat.Weekly });
+
+        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+        var answer = (await changed.Content.ReadFromJsonAsync<EventResponse>(ApiFactory.Json))!;
+        Assert.Equal((added.Id, true, added.CreationId), (answer.Id, answer.Recurring, answer.CreationId));
+        var lessons = (await CalendarOf(visitor, Day, 21)).Events.Where(e => e.Title == "Piano lesson").ToList();
+        Assert.Equal([Day, Day.AddDays(7), Day.AddDays(14)], lessons.Select(e => Local(e, zone).Day));
+        Assert.Equal(added.Id, lessons[0].Id);
+        Assert.All(lessons, e => Assert.Equal((true, answer.SeriesId, julians, new TimeOnly(16, 30)), (e.Recurring, e.SeriesId, e.CalendarId, Local(e, zone).Time)));
+        Assert.DoesNotContain((await CalendarOf(visitor, Day, 21)).Events, e => e.Title == "Piano");
+
+        // An event that already repeats keeps its rule.
+        var again = await ChangeAsync(visitor, lessons[1].Id,
+            Timed(julians, "Piano lesson", new(17, 0), new(17, 45)) with { StartDate = Day.AddDays(7), EndDate = Day.AddDays(7), Repeat = EventRepeat.Daily });
+        Assert.Equal(HttpStatusCode.OK, again.StatusCode);
+        Assert.Equal(3, (await CalendarOf(visitor, Day, 21)).Events.Count(e => e.Title == "Piano lesson"));
+        Assert.Equal(HttpStatusCode.NoContent, (await visitor.DeleteAsync($"/api/calendar/events/{lessons[1].Id}?series=true")).StatusCode);
+        Assert.DoesNotContain((await CalendarOf(visitor, Day, 21)).Events, e => e.Title == "Piano lesson");
+    }
+
+    [Fact]
     public async Task Deleting_one_event_of_a_series_leaves_the_rest()
     {
         using var visitor = await factory.DemoVisitorAsync();
@@ -429,6 +458,33 @@ public sealed class EventTests(ApiFactory factory)
         var inFamily = (await CalendarOf(family.Parent, Day, 21)).Events.Where(e => e.Title.StartsWith("Practice")).ToList();
         Assert.Equal(3, inFamily.Count);
         Assert.All(inFamily, e => Assert.Equal(everyone, e.CalendarId));
+    }
+
+    [Fact]
+    public async Task Making_an_event_repeat_gives_it_a_rule_in_google_and_every_event_shows_at_once()
+    {
+        await using var family = await ConnectedAsync();
+        var synced = await SyncedAsync(family, "alex-cal", "swim", "Swim");
+        var etag = family.Google.Find("alex-cal", "swim")!.ETag;
+        var everyone = await CalendarIdAsync(family.Parent, "Family");
+
+        var changed = await ChangeAsync(family.Parent, synced.Id, Timed(everyone, "Swim team", new(15, 0), new(16, 0)) with { Repeat = EventRepeat.Weekly });
+
+        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+        Assert.Equal(["patch", "move"], family.Google.Writes.Select(w => w.Change));
+        Assert.Equal(("swim", etag), (family.Google.Writes[0].EventId, family.Google.Writes[0].IfMatch));
+        Assert.Equal("RRULE:FREQ=WEEKLY", family.Google.RuleOf("swim"));
+        var answer = (await changed.Content.ReadFromJsonAsync<EventResponse>(ApiFactory.Json))!;
+        Assert.Equal((Day, true, everyone), (Local(answer, TimeZoneInfo.Utc).Day, answer.Recurring, answer.CalendarId));
+        var shown = (await CalendarOf(family.Parent, Day, 21)).Events.Where(e => e.Title == "Swim team").ToList();
+        Assert.Equal([Day, Day.AddDays(7), Day.AddDays(14)], shown.Select(e => Local(e, TimeZoneInfo.Utc).Day));
+        Assert.All(shown, e => Assert.Equal((true, everyone), (e.Recurring, e.CalendarId)));
+        Assert.Equal(answer.Id, shown[0].Id);
+        Assert.DoesNotContain((await CalendarOf(family.Parent, Day, 21)).Events, e => e.Title == "Swim");
+
+        // The next sync finds the same events, not a second series.
+        await family.SyncAsync();
+        Assert.Equal(shown.Select(e => e.Id), (await CalendarOf(family.Parent, Day, 21)).Events.Where(e => e.Title == "Swim team").Select(e => e.Id));
     }
 
     [Fact]

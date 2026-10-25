@@ -1,6 +1,6 @@
 namespace Wheelhouse.Api.Calendar;
 
-/// <summary>How often a new event repeats, as the wall's Repeat row offers it.</summary>
+/// <summary>How often an event repeats, as the Repeat row of a new event, or of one that does not repeat yet, offers it.</summary>
 public enum EventRepeat
 {
     Never,
@@ -27,7 +27,7 @@ public static class EventSeries
     };
 
     /// <summary>
-    /// A new series' occurrences up to <paramref name="until"/>, as Google would expand them, for
+    /// A new series' occurrences, from its first event, up to <paramref name="until"/>, as Google would expand them, for
     /// the demo, which never calls Google. A monthly event on the 31st skips the shorter months, as
     /// the rule does.
     /// </summary>
