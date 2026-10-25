@@ -25,6 +25,9 @@ public static class EventEndpoints
 
     public const int MaxLocation = 255;
 
+    /// <summary>The longest an event may run, in days: about five years, which catches a mistyped year.</summary>
+    public const int MaxDays = 5 * 366;
+
     public static IEndpointRouteBuilder MapCalendarEvents(this IEndpointRouteBuilder app)
     {
         var events = app.MapGroup("/api/calendar/events").RequireAuthorization(Policies.Family);
@@ -481,7 +484,11 @@ public static class EventEndpoints
 
         var timeZone = await db.Families.Select(f => f.TimeZone).SingleAsync(cancellationToken);
         GoogleEventDraft? draft = null;
-        if (request.AllDay)
+        if (request.EndDate.DayNumber - request.StartDate.DayNumber > MaxDays)
+        {
+            errors["endDate"] = ["Keep an event to five years or less."];
+        }
+        else if (request.AllDay)
         {
             if (request.EndDate <= request.StartDate)
             {

@@ -37,6 +37,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 });
 
 builder.Services.AddWheelhouseAuth();
+builder.Services.AddRateLimits();
 builder.Services.AddPairing();
 builder.Services.AddWeather();
 builder.Services.AddGoogleCalendar();
