@@ -8,13 +8,15 @@ export interface Session {
   signedIn: boolean;
   /** A family instance with Google sign-in set up, so a parent can sign in here. */
   canSignIn: boolean;
+  /** Signed in as a paired display, which reads the family but is not a parent. */
+  isDisplay?: boolean;
 }
 
 type SessionState =
   | { status: 'unknown' }
-  | { status: 'family'; signedIn: boolean; canSignIn: boolean }
+  | { status: 'family'; signedIn: boolean; canSignIn: boolean; isDisplay: boolean }
   /** A demo visitor with their own private copy of the demo family. */
-  | { status: 'demo' }
+  | { status: 'demo'; isDisplay: boolean }
   /** A demo that has no room for another visitor right now. */
   | { status: 'demo-full' };
 
@@ -31,7 +33,12 @@ export class SessionStore {
     const state = this.current();
     return state.status === 'family' && state.canSignIn && !state.signedIn;
   });
-  /** A parent signed in with Google, who can sign out. Demo visitors cannot. */
+  /** This browser is paired as a display: it shows the family, but only a parent changes settings. */
+  readonly isDisplay = computed(() => {
+    const state = this.current();
+    return (state.status === 'family' || state.status === 'demo') && state.isDisplay;
+  });
+  /** A parent signed in with Google, or a paired display, who can sign out. Demo visitors cannot. */
   readonly canSignOut = computed(() => {
     const state = this.current();
     return state.status === 'family' && state.signedIn;
@@ -47,13 +54,18 @@ export class SessionStore {
     try {
       const session = await firstValueFrom(this.http.get<Session>('/api/session'));
       if (session.mode !== 'Demo') {
-        this.current.set({ status: 'family', signedIn: session.signedIn, canSignIn: session.canSignIn });
+        this.current.set({
+          status: 'family',
+          signedIn: session.signedIn,
+          canSignIn: session.canSignIn,
+          isDisplay: session.signedIn && !!session.isDisplay,
+        });
         return;
       }
 
       try {
         await firstValueFrom(this.http.post('/api/demo/visit', null));
-        this.current.set({ status: 'demo' });
+        this.current.set({ status: 'demo', isDisplay: !!session.isDisplay });
       } catch {
         this.current.set({ status: 'demo-full' });
       }
@@ -62,11 +74,11 @@ export class SessionStore {
     }
   }
 
-  /** Ends a parent's sign-in. The session changes only once the server has signed them out. */
+  /** Ends a parent's or a display's sign-in. The session changes only once the server has signed them out. */
   signOut(): Observable<void> {
     return this.http.post<void>('/api/auth/sign-out', null).pipe(
       tap(() =>
-        this.current.update((state) => (state.status === 'family' ? { ...state, signedIn: false } : state)),
+        this.current.update((state) => (state.status === 'family' ? { ...state, signedIn: false, isDisplay: false } : state)),
       ),
     );
   }

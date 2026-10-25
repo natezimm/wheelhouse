@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Wheelhouse.Api.Devices;
 using Wheelhouse.Api.Families;
+using Wheelhouse.Api.Sessions;
 
 namespace Wheelhouse.Api.Tests;
 
@@ -140,6 +141,23 @@ public sealed class PairingTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.Forbidden, theme.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, list.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, pair.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_display_knows_it_is_a_display_and_can_sign_out()
+    {
+        using var parent = await factory.DemoVisitorAsync();
+        var (display, device) = await PairedDisplayAsync(parent);
+        using var _ = display;
+
+        var session = (await display.GetFromJsonAsync<SessionResponse>("/api/session", ApiFactory.Json))!;
+        Assert.True(session.SignedIn);
+        Assert.True(session.IsDisplay);
+        Assert.False((await parent.GetFromJsonAsync<SessionResponse>("/api/session", ApiFactory.Json))!.IsDisplay);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await display.PostAsync("/api/auth/sign-out", content: null)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await display.GetAsync("/api/family")).StatusCode);
+        Assert.Contains(await DevicesOf(parent), d => d.Id == device.Id);
     }
 
     [Fact]
