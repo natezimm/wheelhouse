@@ -55,7 +55,7 @@ var app = builder.Build();
 await app.PrepareDatabaseAsync();
 
 app.UseForwardedHeaders();
-app.UseCalendarHubOrigin();
+app.UseSameOrigin();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseRateLimiter();

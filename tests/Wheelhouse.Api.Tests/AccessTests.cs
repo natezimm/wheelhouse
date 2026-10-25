@@ -1,8 +1,10 @@
 using System.Net;
+using System.Net.Http.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Wheelhouse.Api.Families;
 
 namespace Wheelhouse.Api.Tests;
 
@@ -32,6 +34,36 @@ public sealed class AccessTests(ApiFactory factory)
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await stranger.GetAsync(unnamed)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await visitor.GetAsync(unnamed)).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_browser_on_another_origin_cannot_make_changes_even_with_the_cookie()
+    {
+        using var visitor = await factory.DemoVisitorAsync();
+        HttpRequestMessage SetTheme(string? origin)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Put, "/api/family/theme")
+            {
+                Content = JsonContent.Create(new FamilyThemeRequest(Theme.Groovy, NightMode.Off), options: ApiFactory.Json),
+            };
+            if (origin is not null)
+            {
+                request.Headers.TryAddWithoutValidation("Origin", origin);
+            }
+            return request;
+        }
+
+        // A sibling subdomain is the same site to SameSite=Lax, so the browser sends the cookie.
+        foreach (var origin in new[] { "http://calendar.localhost", "https://unrelated.example", "null" })
+        {
+            Assert.Equal(HttpStatusCode.Forbidden, (await visitor.SendAsync(SetTheme(origin))).StatusCode);
+        }
+        using var foreignRead = new HttpRequestMessage(HttpMethod.Get, "/api/family");
+        foreignRead.Headers.Add("Origin", "https://unrelated.example");
+        Assert.Equal(HttpStatusCode.OK, (await visitor.SendAsync(foreignRead)).StatusCode);
+
+        Assert.Equal(HttpStatusCode.OK, (await visitor.SendAsync(SetTheme("http://localhost"))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await visitor.SendAsync(SetTheme(null))).StatusCode);
     }
 
     [Fact]

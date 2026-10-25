@@ -195,6 +195,27 @@ public sealed class GoogleSignInTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task The_last_parent_who_can_sign_in_cannot_step_down_until_another_has()
+    {
+        using var instance = factory.NewFamilyInstance(Parents);
+        using var alex = await ParentAsync(instance, Alex);
+        (await alex.PostAsJsonAsync("/api/family/members", new MemberRequest("Sam", "#137A6D", MemberRole.Parent), ApiFactory.Json)).EnsureSuccessStatusCode();
+        var alexMember = (await FamilyOf(alex)).Members.Single(member => member.DisplayName == "Alex");
+        var asKid = new MemberRequest("Alex", alexMember.Color, MemberRole.Kid);
+
+        // Sam is a parent only by name so far: nobody could sign in to manage the family.
+        var demoted = await alex.PutAsJsonAsync($"/api/family/members/{alexMember.Id}", asKid, ApiFactory.Json);
+        var removed = await alex.DeleteAsync($"/api/family/members/{alexMember.Id}");
+        using var sam = await ParentAsync(instance, Sam);
+        var afterSam = await alex.PutAsJsonAsync($"/api/family/members/{alexMember.Id}", asKid, ApiFactory.Json);
+
+        Assert.Equal(HttpStatusCode.BadRequest, demoted.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, removed.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, afterSam.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await sam.GetAsync("/api/family")).StatusCode);
+    }
+
+    [Fact]
     public async Task A_returning_parent_keeps_their_account()
     {
         using var instance = factory.NewFamilyInstance(Parents);
