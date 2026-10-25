@@ -13,6 +13,12 @@ read_value() { sed -n "s/^$2=//p" "$1" | tail -n 1; }
 shopt -s nullglob
 env_files=("$root"/*/.env)
 ((${#env_files[@]})) || { echo 'No instances configured' >&2; exit 1; }
+# Release snapshots stay on this server; only the nightly backup leaves it.
+if [[ ! -f "$root/backup.env" ]]; then
+  echo 'Warning: off-server backups are not configured. See "Nightly off-server backups" in deploy/README.md.' >&2
+elif [[ -z "$(find "$root/offsite-backup.last" -mmin -2880 2>/dev/null)" ]]; then
+  echo 'Warning: no off-server backup has succeeded in the last two days. Check wheelhouse-backup.service.' >&2
+fi
 run="$root/backups/$(date -u +%Y%m%dT%H%M%SZ)-$version-$$"
 mkdir -p "$run"
 echo "Recovery files: $run"

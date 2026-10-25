@@ -147,8 +147,8 @@ has a subfolder with checksums and a `COMPLETE` marker. A first deployment witho
 existing database has `FIRST_DEPLOY` instead and is not restorable.
 These files contain credentials and family data: permissions are private, they stay on
 the server, and they are never uploaded as Actions artifacts. Backups and old images
-are subject to the retention policy below. These local snapshots do not replace
-off-server disaster-recovery backups.
+are subject to the retention policy below. These local snapshots do not survive losing
+the server; [nightly off-server backups](#nightly-off-server-backups) do.
 
 A startup or health failure stops the affected API/web so migration retries cannot
 continue. Instances that have not yet attempted migration resume their old versions.
@@ -182,6 +182,137 @@ Run the browser check again and manually verify private sign-in/calendar access.
 Automatic database restoration is intentionally excluded: it could silently erase new
 family edits or compound a partial migration. Recovery always requires the explicit
 `--confirm-data-loss` flag.
+
+## Nightly off-server backups
+
+Every night at about 10:00 UTC, `wheelhouse-backup.timer` dumps each running instance's
+database with `pg_dump`, takes its Data Protection keys (without them the stored Google
+Calendar connection cannot be read), its `.env` and its Compose file, and uploads one
+archive per instance to a private Cloud Storage bucket as `<instance>/<UTC time>.tar`.
+Nothing stops: `pg_dump` reads one consistent snapshot while the instance keeps running.
+It waits for a release or restore that holds the operations lock, and one failed
+instance does not stop the others from being backed up.
+
+The server can only add objects to the bucket. It cannot read, replace or delete a
+backup, so a compromised server cannot reach old backups or destroy them. A lifecycle
+rule on the bucket deletes backups after 30 days. Each archive holds family data and
+credentials, so keep the bucket private.
+
+Each release installs the timer, and warns in its log while backups are not set up or
+when none has succeeded for two days.
+
+### Set it up once
+
+Run these in [Cloud Shell](https://console.cloud.google.com/?cloudshell=true), in the
+project that holds the server. Fill in the first three lines: the bucket name must be
+unique across all of Cloud Storage, and the region should be the server's, so uploads
+cost nothing.
+
+```bash
+BUCKET=<project id>-wheelhouse-backups
+VM=<server's VM name>
+ZONE=<server's zone, such as us-central1-a>
+```
+
+```bash
+PROJECT="$(gcloud config get-value project)"
+REGION="${ZONE%-*}"
+ACCOUNT="wheelhouse-backup@$PROJECT.iam.gserviceaccount.com"
+gcloud storage buckets create "gs://$BUCKET" --location="$REGION" --uniform-bucket-level-access --public-access-prevention
+printf '{"rule":[{"action":{"type":"Delete"},"condition":{"age":30}}]}' > lifecycle.json
+gcloud storage buckets update "gs://$BUCKET" --lifecycle-file=lifecycle.json
+gcloud iam service-accounts create wheelhouse-backup --display-name="Wheelhouse backups"
+gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" --member="serviceAccount:$ACCOUNT" --role=roles/storage.objectCreator
+```
+
+The server uploads as its VM's service account. Check which one it has now:
+
+```bash
+gcloud compute instances describe "$VM" --zone="$ZONE" --format='value(serviceAccounts[].email,serviceAccounts[].scopes)'
+```
+
+Give it the new account instead. This stops the VM for about a minute, so every site on
+it is briefly down; its static address stays the same. If anything else on the VM used
+the old account, such as the Ops Agent, grant the new account those roles too (for the
+Ops Agent, `roles/logging.logWriter` and `roles/monitoring.metricWriter`).
+
+```bash
+gcloud compute instances stop "$VM" --zone="$ZONE"
+gcloud compute instances set-service-account "$VM" --zone="$ZONE" --service-account="$ACCOUNT" --scopes=cloud-platform
+gcloud compute instances start "$VM" --zone="$ZONE"
+```
+
+The broad scope is safe here: the new account's only permission is adding objects to
+this one bucket.
+
+Then, on the server, name the bucket:
+
+```bash
+echo 'WHEELHOUSE_BACKUP_BUCKET=<bucket>' > ~/wheelhouse/backup.env
+```
+
+The next release installs the backup script and timer. After it, take the first backup
+at once and check that it reached the bucket:
+
+```bash
+sudo systemctl start wheelhouse-backup.service
+sudo journalctl -u wheelhouse-backup.service --no-pager -n 20
+```
+
+```bash
+gcloud storage ls "gs://$BUCKET/*/"
+```
+
+### Restore from the bucket
+
+Restoring discards every change made after the backup, as with
+[a release snapshot](#restore-one-instance). From Cloud Shell or any machine signed in to
+Google Cloud as you, download the backup you want and copy it to the server:
+
+```bash
+gcloud storage ls "gs://$BUCKET/family/"
+gcloud storage cp "gs://$BUCKET/family/<UTC time>.tar" .
+scp "<UTC time>.tar" <server>:
+```
+
+On the server, unpack it. It makes a folder named after the instance, which `restore.sh`
+checks:
+
+```bash
+mkdir -p ~/restore && tar -xf ~/"<UTC time>.tar" -C ~/restore
+```
+
+The images are private, and the server only signs in to the registry during a release.
+Create a GitHub [personal access token (classic)](https://github.com/settings/tokens/new)
+with only `read:packages`, sign the server in with it, restore, then sign out:
+
+```bash
+docker login ghcr.io --username <GitHub user>
+bash ~/wheelhouse/restore.sh family ~/restore/family --confirm-data-loss
+docker logout ghcr.io
+```
+
+Delete `~/restore` and the downloaded archive afterwards, and the token on GitHub.
+
+**On a new server**, set it up as in [Once per server](#once-per-server) and point the
+domain at it, then copy the operations scripts across from a checkout of the release the
+backup came from, and create the instance under the same name before restoring it:
+
+```bash
+ssh <server> 'mkdir -p ~/wheelhouse'
+scp deploy/restore.sh <server>:wheelhouse/
+ssh <server> 'bash -s' -- family family.example.com Family < deploy/new-instance.sh
+```
+
+Restore before the first release on the new server. The backup's `.env` brings back the
+original database password, Google client and parents, and a database a release had
+already created would have a different password. `new-instance.sh` prints the port it
+gave the site; if the backup's port (`grep WHEELHOUSE_HTTP_PORT ~/restore/family/instance.env`)
+differs, change `proxy_pass` to it in `/etc/nginx/sites-available/<domain>` and run
+`sudo systemctl reload nginx`. Then add HTTPS with `certbot` as for a
+new instance, run `restore.sh` as above, and re-run the latest release so the timers and
+scripts are installed again. Phones and the wall stay signed in, because the keys that
+sign their cookies are part of the backup.
 
 ## Post-deployment browser smoke checks
 
@@ -227,8 +358,8 @@ both success and rejection of missing content; the release itself uses the live 
 The next release installs `wheelhouse-storage.timer` on the VM using the deploy user's
 existing passwordless sudo access. It runs daily (with up to 15 minutes of jitter),
 including after reboot, as that user rather than root. Cleanup also runs after a
-successful release's browser checks. No cron installation or cloud storage bucket is
-needed. If timer installation fails, the release stops before interrupting services.
+successful release's browser checks. No cron installation is needed. If timer
+installation fails, the release stops before interrupting services.
 
 Defaults:
 
@@ -247,7 +378,8 @@ Defaults:
 
 Cleanup shares deployment/recovery's lock and defers while either is running. Unknown
 backup-directory names and symlinked directories are left untouched. Daily cleanup
-does not create backups: backups are still made only before a release.
+does not create backups and never touches the off-server bucket, whose own lifecycle rule
+expires nightly backups.
 
 To change the limits, create/edit `~/wheelhouse/storage-policy.json` on the VM:
 
