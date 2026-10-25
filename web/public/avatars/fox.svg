@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 64 64">
+<defs><g id="s"><path d="M11 9 L27 20 L13 31 Z" fill="#EE8434" stroke-linejoin="round"/><g transform="matrix(-1 0 0 1 64 0)"><path d="M11 9 L27 20 L13 31 Z" fill="#EE8434" stroke-linejoin="round"/></g>
+<path d="M9 31 Q10 19 32 19 Q54 19 55 31 Q55 45 32 56 Q9 45 9 31 Z" fill="#EE8434"/></g></defs>
+<use href="#s" xlink:href="#s" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
+<use href="#s" xlink:href="#s"/>
+<path d="M14 14 L23 21 L15 27 Z" fill="#8A3B17"/><g transform="matrix(-1 0 0 1 64 0)"><path d="M14 14 L23 21 L15 27 Z" fill="#8A3B17"/></g>
+<path d="M32 56 Q16 47 13.5 36 Q24 38 32 45 Q40 38 50.5 36 Q48 47 32 56 Z" fill="#FFF4E6"/>
+<circle cx="24" cy="33" r="2.6" fill="#2B2320"/><circle cx="24.91" cy="31.96" r="0.8320000000000001" fill="#fff"/><circle cx="40" cy="33" r="2.6" fill="#2B2320"/><circle cx="40.91" cy="31.96" r="0.8320000000000001" fill="#fff"/><ellipse cx="32" cy="49" rx="3.2" ry="2.3" fill="#2B2320"/>
+</svg>

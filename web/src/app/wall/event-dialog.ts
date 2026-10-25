@@ -21,6 +21,7 @@ import {
 import { FamilyStore } from '../core/family';
 import { SessionStore } from '../core/session';
 import { ModalFocus } from '../shared/modal-focus';
+import { AvatarFace } from '../shared/avatar-face';
 
 /**
  * The wall's dialog for adding an event, or changing or deleting one. Everything works by touch:
@@ -28,7 +29,7 @@ import { ModalFocus } from '../shared/modal-focus';
  */
 @Component({
   selector: 'app-event-dialog',
-  imports: [ModalFocus],
+  imports: [AvatarFace, ModalFocus],
   template: `
     <div class="scrim" aria-hidden="true" (click)="!busy() && closed.emit()"></div>
     @if (draft(); as draft) {
@@ -123,7 +124,7 @@ import { ModalFocus } from '../shared/modal-focus';
                   [disabled]="event()?.recurring && !series() && choice.id !== draft.calendarId"
                   (click)="set({ calendarId: choice.id })"
                 >
-                  <span class="mark" aria-hidden="true">{{ choice.initial }}</span>{{ choice.label }}
+                  <span class="mark" aria-hidden="true"><app-avatar-face [initial]="choice.initial" [avatar]="choice.avatar" /></span>{{ choice.label }}
                 </button>
               }
             </div>

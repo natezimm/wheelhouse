@@ -147,6 +147,7 @@ public static class FamilyEndpoints
             DisplayName = request.DisplayName.Trim(),
             Color = request.Color.ToUpperInvariant(),
             Initial = MemberRequest.InitialOf(request.DisplayName),
+            Avatar = request.Avatar,
             Role = request.Role,
             // New members go last.
             SortOrder = (await db.Members.MaxAsync(m => (int?)m.SortOrder, cancellationToken) ?? 0) + 1,
@@ -184,6 +185,7 @@ public static class FamilyEndpoints
         member.DisplayName = request.DisplayName.Trim();
         member.Color = request.Color.ToUpperInvariant();
         member.Initial = MemberRequest.InitialOf(request.DisplayName);
+        member.Avatar = request.Avatar;
         member.Role = request.Role;
         await db.SaveChangesAsync(cancellationToken);
         await calendar.PublishAsync();

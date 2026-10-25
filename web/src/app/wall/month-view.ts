@@ -4,6 +4,7 @@ import { compactTime, monthWeek } from '../core/calendar-grid';
 import { Clock } from '../core/clock';
 import { Day, addDays, addMonths, dayIn, formatDay, startOfMonth, startOfWeek, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
+import { AvatarFace } from '../shared/avatar-face';
 
 /** How each layout sizes a week's row: the date, a row of bars, and a line of a day's events. */
 const LAYOUTS = {
@@ -19,6 +20,7 @@ const LAYOUTS = {
  */
 @Component({
   selector: 'app-month-view',
+  imports: [AvatarFace],
   host: { '[class]': 'layout()' },
   template: `
     @if (month(); as month) {
@@ -65,7 +67,7 @@ const LAYOUTS = {
                 [class.after]="bar.after"
                 [class.calendar-pending]="bar.pending"
               >
-                <span class="mark">{{ bar.initial }}</span>
+                <span class="mark"><app-avatar-face [initial]="bar.initial" [avatar]="bar.avatar" /></span>
                 <span class="title">{{ bar.title }}</span>
               </span>
             }
@@ -458,7 +460,7 @@ export class MonthView {
     }
     const describe = (event: (typeof events)[number]) => {
       const member = family.members.find((m) => m.id === event.memberId);
-      return { title: event.title, color: colorOf(event, family.members), initial: member?.initial ?? 'F', pending: !!event.pending };
+      return { title: event.title, color: colorOf(event, family.members), initial: member?.initial ?? 'F', avatar: member?.avatar ?? null, pending: !!event.pending };
     };
 
     const weeks = [];

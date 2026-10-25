@@ -77,6 +77,7 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
             member.Property(m => m.DisplayName).HasMaxLength(50);
             member.Property(m => m.Color).HasMaxLength(7);
             member.Property(m => m.Initial).HasMaxLength(2);
+            member.Property(m => m.Avatar).HasMaxLength(16);
             member.Property(m => m.Role).HasConversion<string>().HasMaxLength(16);
             member.HasIndex(m => new { m.FamilyId, m.SortOrder });
         });

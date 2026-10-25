@@ -3,6 +3,7 @@ import { CalendarEvent, CalendarStore, colorOf, daysOf } from '../core/calendar'
 import { Clock } from '../core/clock';
 import { Day, dayIn, formatDay, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
+import { AvatarFace } from '../shared/avatar-face';
 
 /** Events that ended longer ago than this fold away on today, behind "N earlier events". */
 const EARLIER_THAN_MS = 60 * 60_000;
@@ -13,6 +14,7 @@ const EARLIER_THAN_MS = 60 * 60_000;
  */
 @Component({
   selector: 'app-agenda-list',
+  imports: [AvatarFace],
   template: `
     @if (agenda(); as agenda) {
       @if (agenda.allDay.length) {
@@ -27,7 +29,7 @@ const EARLIER_THAN_MS = 60 * 60_000;
               [attr.aria-busy]="event.pending"
               (click)="inspect.emit(event.id)"
             >
-              <span class="mark" role="img" [attr.aria-label]="event.who">{{ event.initial }}</span>
+              <span class="mark" role="img" [attr.aria-label]="event.who"><app-avatar-face [initial]="event.initial" [avatar]="event.avatar" /></span>
               <span class="title">{{ event.title }}</span>
             </button>
           }
@@ -55,7 +57,7 @@ const EARLIER_THAN_MS = 60 * 60_000;
               <button type="button" (click)="inspect.emit(row.id)">
                 <span class="title">{{ row.title }}</span>
                 <span class="meta">
-                  <span class="mark" role="img" [attr.aria-label]="row.who">{{ row.initial }}</span>
+                  <span class="mark" role="img" [attr.aria-label]="row.who"><app-avatar-face [initial]="row.initial" [avatar]="row.avatar" /></span>
                   <span class="detail">{{ row.detail }}</span>
                 </span>
               </button>
@@ -369,6 +371,7 @@ export class AgendaList {
         color: colorOf(event, family.members),
         who: member?.displayName ?? 'Family',
         initial: member?.initial ?? 'F',
+        avatar: member?.avatar ?? null,
       };
     };
 
@@ -421,7 +424,7 @@ export class AgendaList {
   });
 
   private nowRow(zone: string, now: Date) {
-    return { id: 'now', title: '', pending: false, color: '', who: '', initial: '', start: short(timeIn(zone, now)), end: '', detail: '', folded: false, now: true };
+    return { id: 'now', title: '', pending: false, color: '', who: '', initial: '', avatar: null, start: short(timeIn(zone, now)), end: '', detail: '', folded: false, now: true };
   }
 }
 

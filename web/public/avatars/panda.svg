@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 64 64">
+<defs><g id="s"><circle cx="15.5" cy="18" r="7.5" fill="#2E2A2B"/><circle cx="48.5" cy="18" r="7.5" fill="#2E2A2B"/>
+<ellipse cx="32" cy="36" rx="21.5" ry="19.5" fill="#FBFBF8"/></g></defs>
+<use href="#s" xlink:href="#s" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
+<use href="#s" xlink:href="#s"/>
+<ellipse cx="23.5" cy="35" rx="5.3" ry="7" transform="rotate(28 23.5 35)" fill="#2E2A2B"/>
+<ellipse cx="40.5" cy="35" rx="5.3" ry="7" transform="rotate(-28 40.5 35)" fill="#2E2A2B"/>
+<circle cx="24.5" cy="34" r="2.2" fill="#fff"/><circle cx="39.5" cy="34" r="2.2" fill="#fff"/>
+<circle cx="24.8" cy="34.2" r="1.2" fill="#2B2320"/><circle cx="39.2" cy="34.2" r="1.2" fill="#2B2320"/>
+<ellipse cx="32" cy="42.5" rx="3.2" ry="2.2" fill="#2B2320"/><path d="M29.2 45.5q2.8 2.2399999999999998 5.6 0" fill="none" stroke="#2B2320" stroke-width="1.6" stroke-linecap="round"/><circle cx="18" cy="44" r="2.6" fill="#F29BB0" opacity=".55"/><circle cx="46" cy="44" r="2.6" fill="#F29BB0" opacity=".55"/>
+</svg>

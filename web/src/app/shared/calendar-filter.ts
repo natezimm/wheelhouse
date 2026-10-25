@@ -1,6 +1,7 @@
 import { Component, computed, inject, input } from '@angular/core';
 import { CalendarStore, FAMILY, FAMILY_COLOR } from '../core/calendar';
 import { FamilyStore } from '../core/family';
+import { AvatarFace } from './avatar-face';
 
 /**
  * A chip per person, plus one for the whole family's calendar, that shows or hides their
@@ -9,6 +10,7 @@ import { FamilyStore } from '../core/family';
  */
 @Component({
   selector: 'app-calendar-filter',
+  imports: [AvatarFace],
   template: `
     @for (chip of chips(); track chip.owner) {
       <button
@@ -19,7 +21,9 @@ import { FamilyStore } from '../core/family';
         [attr.title]="avatars() ? chip.name : null"
         (click)="calendar.toggle(chip.owner)"
       >
-        <span class="mark" aria-hidden="true">{{ chip.initial }}</span>
+        <span class="mark" [class.art]="!!chip.avatar" aria-hidden="true"
+          ><app-avatar-face [initial]="chip.initial" [avatar]="chip.avatar" [muted]="calendar.hidden().has(chip.owner)"
+        /></span>
         @if (!avatars()) {
           {{ chip.name }}
         }
@@ -79,6 +83,11 @@ import { FamilyStore } from '../core/family';
       border: 0;
       box-shadow: inset 0 0 0 2px var(--member-text);
       color: var(--member-text);
+    }
+
+    /* A hidden member's picture fades to grey inside their ring. */
+    button[aria-pressed='false'] .mark.art {
+      padding: 3px;
     }
 
     /* The phone: one row that scrolls sideways. */
@@ -141,8 +150,9 @@ export class CalendarFilter {
       owner: member.id,
       name: member.displayName,
       initial: member.initial,
+      avatar: member.avatar ?? null,
       color: member.color,
     })),
-    ...(this.calendar.hasFamilyCalendar() ? [{ owner: FAMILY, name: 'Family', initial: 'F', color: FAMILY_COLOR }] : []),
+    ...(this.calendar.hasFamilyCalendar() ? [{ owner: FAMILY, name: 'Family', initial: 'F', avatar: null, color: FAMILY_COLOR }] : []),
   ]);
 }

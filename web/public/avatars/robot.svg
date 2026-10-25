@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 64 64">
+<defs><g id="s"><path d="M32 21 V12" stroke="#7D90A8" stroke-width="2.6" stroke-linecap="round"/>
+<rect x="8.5" y="30" width="7" height="12" rx="2.5" fill="#7D90A8"/><rect x="48.5" y="30" width="7" height="12" rx="2.5" fill="#7D90A8"/>
+<rect x="13" y="20" width="38" height="32" rx="9" fill="#B5C6D9"/>
+<circle cx="32" cy="10.5" r="3.8" fill="#F25F5C"/></g></defs>
+<use href="#s" xlink:href="#s" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
+<use href="#s" xlink:href="#s"/>
+<circle cx="31" cy="9.5" r="1.1" fill="#fff" opacity=".7"/>
+<rect x="18" y="26" width="28" height="14" rx="7" fill="#2E3441"/>
+<circle cx="25.5" cy="33" r="3" fill="#6EE7F2"/><circle cx="38.5" cy="33" r="3" fill="#6EE7F2"/>
+<circle cx="26.5" cy="32" r="1" fill="#fff"/><circle cx="39.5" cy="32" r="1" fill="#fff"/>
+<rect x="25" y="44" width="14" height="3.6" rx="1.8" fill="#2E3441"/>
+<path d="M29.6 44 v3.6 M34.4 44 v3.6" stroke="#B5C6D9" stroke-width="1"/>
+<circle cx="19.5" cy="45" r="2.4" fill="#F29BB0" opacity=".55"/><circle cx="44.5" cy="45" r="2.4" fill="#F29BB0" opacity=".55"/>
+</svg>

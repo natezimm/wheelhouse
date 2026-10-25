@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 64 64">
+<defs><g id="s"><ellipse cx="24" cy="17" rx="5.6" ry="13" transform="rotate(-10 24 17)" fill="#F8F2EA"/>
+<ellipse cx="40" cy="17" rx="5.6" ry="13" transform="rotate(10 40 17)" fill="#F8F2EA"/>
+<ellipse cx="32" cy="41" rx="17.5" ry="15.5" fill="#F8F2EA"/></g></defs>
+<use href="#s" xlink:href="#s" stroke="#fff" stroke-width="4" stroke-linejoin="round"/>
+<use href="#s" xlink:href="#s"/>
+<ellipse cx="24" cy="18" rx="2.6" ry="9" transform="rotate(-10 24 18)" fill="#F4B3C2"/>
+<ellipse cx="40" cy="18" rx="2.6" ry="9" transform="rotate(10 40 18)" fill="#F4B3C2"/>
+<circle cx="25.5" cy="39" r="2.4" fill="#2B2320"/><circle cx="26.34" cy="38.04" r="0.768" fill="#fff"/><circle cx="38.5" cy="39" r="2.4" fill="#2B2320"/><circle cx="39.34" cy="38.04" r="0.768" fill="#fff"/><path d="M30 44 h4 l-2 2.3 z" fill="#E57C93" stroke="#E57C93" stroke-linejoin="round"/>
+<path d="M32 46.3v1.6M32 47.9q-1.6 2.2-3.8 1.2M32 47.9q1.6 2.2 3.8 1.2" fill="none" stroke="#2B2320" stroke-width="1.5" stroke-linecap="round"/><circle cx="20.5" cy="45.5" r="3" fill="#F29BB0" opacity=".55"/><circle cx="43.5" cy="45.5" r="3" fill="#F29BB0" opacity=".55"/>
+</svg>
