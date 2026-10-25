@@ -152,17 +152,17 @@ import { CompactAgenda } from './compact-agenda';
       display: flex;
       align-items: center;
       justify-content: space-between;
+      gap: 8px;
       padding: 0 2px;
     }
 
+    /* Wraps rather than cutting the date off on a narrow phone. */
     h2 {
       min-width: 0;
       margin: 0;
       font-size: 16px;
       font-weight: 700;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
+      line-height: 1.3;
     }
 
     .open {

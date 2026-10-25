@@ -406,8 +406,18 @@ export interface GridMore {
       font-weight: 700;
     }
 
+    /* On one line the title gives way to the times, so "12:15 – 1:00 PM" is never cut. */
     :host(.day) .short .title {
+      flex-shrink: 1;
+      min-width: 0;
       font-size: 15px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    :host(.day) .short .time {
+      flex-shrink: 0;
     }
 
     :host(.day) .time {
@@ -630,7 +640,8 @@ export class HourGrid {
       })),
       now: showsNow ? { top: y(nowMinutes), label: timeIn(zone, now).replace(/\s?[AP]M$/, '') } : null,
       columns: columns.map((column) => {
-        const { placed, more } = arrange(column.segments);
+        // A Week day is narrow: past two side by side the rest fold into "+N", so titles stay readable.
+        const { placed, more } = arrange(column.segments, this.variant() === 'week' ? 2 : 3);
         const weekday = formatDay(column.day, { weekday: 'long' });
         return {
           key: column.key,
