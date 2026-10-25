@@ -1,6 +1,6 @@
 import { marloweCalendars, allDay, timed } from '../testing/calendar';
 import { marlowes } from '../testing/marlowes';
-import { clockLabel, draftOf, moveEnd, moveStart, newDraft, onDayOf, problemWith, requestOf, writableCalendars } from './event-draft';
+import { clockLabel, draftOf, moveEnd, moveStart, moveTo, newDraft, onDayOf, problemWith, requestOf, writableCalendars } from './event-draft';
 
 describe('event drafts', () => {
   const zone = 'America/New_York';
@@ -58,6 +58,13 @@ describe('event drafts', () => {
     expect(moveEnd(late, -120)).toMatchObject({ endDate: '2026-10-14', endTime: '22:45' });
     expect(clockLabel('00:30')).toBe('12:30 AM');
     expect(clockLabel('17:05')).toBe('5:05 PM');
+  });
+
+  it('keep the length when moved to another day and time, past midnight too', () => {
+    const swim = draftOf(timed('Swim', 'm3', '2026-10-14T21:30:00Z', '2026-10-14T22:15:00Z'), zone);
+
+    expect(moveTo(swim, '2026-10-16', '09:00')).toMatchObject({ startDate: '2026-10-16', startTime: '09:00', endDate: '2026-10-16', endTime: '09:45' });
+    expect(moveTo(swim, '2026-10-16', '23:45')).toMatchObject({ endDate: '2026-10-17', endTime: '00:30' });
   });
 
   it('go back to their own day for a change to a whole series, keeping the new times', () => {

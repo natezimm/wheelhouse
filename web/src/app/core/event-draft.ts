@@ -121,6 +121,12 @@ export function moveDays(draft: EventDraft, days: number): EventDraft {
   return { ...draft, startDate: addDays(draft.startDate, days), endDate: addDays(draft.endDate, days) };
 }
 
+/** Moves the event to start at <code>time</code> ('HH:mm') on <code>day</code>, keeping its length on the family's clock. */
+export function moveTo(draft: EventDraft, day: Day, time: string): EventDraft {
+  const [endDate, endTime] = split(minutesOf(day, time) + endOf(draft) - startOf(draft));
+  return { ...draft, startDate: day, startTime: time, endDate, endTime };
+}
+
 /** Moves an all-day event's last day, never before its first. */
 export function moveLastDay(draft: EventDraft, days: number): EventDraft {
   const endDate = addDays(draft.endDate, days);
