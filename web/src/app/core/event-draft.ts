@@ -174,7 +174,7 @@ export function writableCalendars(calendars: readonly CalendarSource[], members:
     }
   }
   for (const calendar of writable.filter((c) => !choices.some((choice) => choice.id === c.id))) {
-    choices.push({ id: calendar.id, label: calendar.name, initial: calendar.name.charAt(0).toUpperCase(), color: FAMILY_COLOR });
+    choices.push({ id: calendar.id, label: calendar.name, initial: 'F', color: FAMILY_COLOR });
   }
   return choices;
 }

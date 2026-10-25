@@ -45,7 +45,8 @@ import { CompactAgenda } from './compact-agenda';
       display: flex;
       flex-direction: column;
       gap: 6px;
-      scroll-margin-top: 12px;
+      /* Clear of the sticky view switch above. */
+      scroll-margin-top: 76px;
     }
 
     .day.is-today {

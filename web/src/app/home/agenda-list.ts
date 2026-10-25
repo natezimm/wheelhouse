@@ -259,6 +259,8 @@ const EARLIER_THAN_MS = 60 * 60_000;
       flex: 1;
       height: 2px;
       background: var(--now);
+      /* As on the hour grid: a theme whose now color is pale outlines it so it reads on its ground. */
+      box-shadow: 0 0 0 1px var(--now-edge);
     }
 
     .line::before {
@@ -270,6 +272,7 @@ const EARLIER_THAN_MS = 60 * 60_000;
       height: 10px;
       border-radius: 5px;
       background: var(--now);
+      box-shadow: 0 0 0 1px var(--now-edge);
     }
 
     .empty {
