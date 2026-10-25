@@ -678,9 +678,28 @@ body {
   padding: 0 12px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: var(--surface);
+  background-color: var(--surface);
   color: var(--ink);
   font: 400 16px var(--font-body);
+}
+
+/* Every dropdown draws its own chevron in the theme's muted color, inset from the border,
+   instead of the browser's arrow that sits against it. */
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--muted) 50%),
+    linear-gradient(135deg, var(--muted) 50%, transparent 50%);
+  background-position:
+    right 21px center,
+    right 16px center;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+}
+
+.field select {
+  padding-right: 42px;
 }
 
 /* iOS Safari gives date and time inputs a wide built-in minimum width and centers their

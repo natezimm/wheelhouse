@@ -30,6 +30,18 @@ import { SignIn } from './sign-in';
 
     @switch (family.state().status) {
       @case ('ready') {
+        @if (session.isDisplay()) {
+        <section aria-labelledby="display-heading">
+          <h2 id="display-heading">This browser</h2>
+          <div class="card">
+            <p class="place">
+              This browser is paired as a display for {{ family.family()?.name }}. It shows the calendar, and a parent changes
+              settings from their own phone.
+              @if (session.canSignOut()) { To sign in here as a parent, sign out, then sign in with Google. }
+            </p>
+          </div>
+        </section>
+        } @else {
         <section aria-labelledby="members-heading">
           <h2 id="members-heading">Family</h2>
           <ul class="card rows">
@@ -254,6 +266,8 @@ import { SignIn } from './sign-in';
             <p class="message" role="status">{{ placeMessage() }}</p>
           </div>
         </section>
+
+        }
 
         @if (session.canSignOut()) {
           <button class="button sign-out" type="button" [disabled]="signingOut()" (click)="signOut()">Sign out</button>
@@ -739,9 +753,12 @@ export class Settings {
     const look = inject(ThemeService);
     for (const theme of THEMES) look.loadFonts(theme.value);
 
-    // Always fresh: a display may have signed in since this screen was last open.
-    this.displays.load();
-    this.google.load();
+    // Always fresh: a display may have signed in since this screen was last open. A display
+    // itself may not see either.
+    if (!this.session.isDisplay()) {
+      this.displays.load();
+      this.google.load();
+    }
 
     // Fill the form from the family once it arrives, but never over edits in progress.
     effect(() => {

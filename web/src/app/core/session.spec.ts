@@ -86,6 +86,20 @@ describe('SessionStore', () => {
     expect(session.canSignIn()).toBe(true);
   });
 
+  it('knows a paired display, which can sign out to let a parent sign in', async () => {
+    const starting = session.start();
+    http.expectOne('/api/session').flush({ mode: 'Family', signedIn: true, canSignIn: true, isDisplay: true });
+    await starting;
+    expect(session.isDisplay()).toBe(true);
+    expect(session.canSignOut()).toBe(true);
+
+    session.signOut().subscribe();
+    http.expectOne({ method: 'POST', url: '/api/auth/sign-out' }).flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(session.isDisplay()).toBe(false);
+    expect(session.canSignIn()).toBe(true);
+  });
+
   it('never offers sign-in or sign-out to a demo visitor', async () => {
     const starting = session.start();
     http.expectOne('/api/session').flush({ mode: 'Demo', signedIn: false, canSignIn: false });

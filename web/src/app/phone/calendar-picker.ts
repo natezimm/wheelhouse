@@ -162,10 +162,10 @@ import { CalendarChoice, GoogleStore } from '../core/google';
 
     .whose select {
       min-height: 44px;
-      padding: 0 10px;
+      padding: 0 40px 0 10px;
       border: 1px solid var(--line);
       border-radius: 10px;
-      background: var(--surface);
+      background-color: var(--surface);
       color: var(--ink);
       font: 600 14px var(--font-body);
     }

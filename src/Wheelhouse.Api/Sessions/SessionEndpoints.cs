@@ -10,7 +10,8 @@ public static class SessionEndpoints
     /// <summary>
     /// Open to everyone: tells the web app what kind of instance this is, whether the visitor
     /// is signed in, and whether a parent can sign in with Google here, so it can show the demo
-    /// notice, the sign-in button or the private screen.
+    /// notice, the sign-in button or the private screen. A paired display is signed in but is not
+    /// a parent, so Settings says so instead of offering what only a parent may change.
     /// </summary>
     public static IEndpointRouteBuilder MapSession(this IEndpointRouteBuilder app)
     {
@@ -18,11 +19,12 @@ public static class SessionEndpoints
             new SessionResponse(
                 instance.Value.Mode,
                 SignedIn: user.HasClaim(claim => claim.Type == WheelhouseClaims.Family),
-                CanSignIn: instance.Value.Mode == InstanceMode.Family && google.Value.IsConfigured))
+                CanSignIn: instance.Value.Mode == InstanceMode.Family && google.Value.IsConfigured,
+                IsDisplay: user.HasClaim(claim => claim.Type == WheelhouseClaims.Device)))
             .AllowAnonymous();
 
         return app;
     }
 }
 
-public sealed record SessionResponse(InstanceMode Mode, bool SignedIn, bool CanSignIn);
+public sealed record SessionResponse(InstanceMode Mode, bool SignedIn, bool CanSignIn, bool IsDisplay = false);
