@@ -196,6 +196,11 @@ internal sealed class FakeGoogle : IGoogleCalendar
     {
         Writes.Add(("patch", calendarId, eventId, etag));
         var current = Current(calendarId, eventId, etag);
+        if (draft.Recurrence is { } rule)
+        {
+            _series[eventId] = (rule, draft.TimeZone);
+        }
+
         Put(calendarId, From(draft, eventId, current.RecurringEventId));
         return Task.FromResult(Find(calendarId, eventId)!);
     }

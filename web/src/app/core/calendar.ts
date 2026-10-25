@@ -38,13 +38,14 @@ export interface CalendarEvent {
   pending?: boolean;
 }
 
-/** How often a new event repeats. */
+/** How often a new event, or one that does not repeat yet, repeats. */
 export type Repeat = 'Never' | 'Daily' | 'Weekly' | 'Monthly';
 
 /**
  * An event as a screen sets it, in the family's days and clock. A timed event runs from
  * startTime on startDate to endTime on endDate, as 'HH:mm:ss'; an all-day one has no times and
- * an exclusive endDate. Repeat makes a new event a series; a change leaves how an event repeats alone.
+ * an exclusive endDate. Repeat makes a new event, or a change to one that does not repeat yet, the
+ * first of a series; a change to an event that already repeats leaves its rule alone.
  */
 export interface EventRequest {
   calendarId: string;
@@ -373,20 +374,23 @@ export class CalendarStore {
 
   private reconcile(op: PendingCalendarChange): Observable<{ resolved: boolean; event?: CalendarEvent }> {
     const day = op.request?.startDate ?? op.original!.startDate ?? dayIn(op.zone, op.original!.startsAt!);
+    const starts = startsSeries(op);
     return this.http.get<CalendarResponse>('/api/calendar', { params: { from: day, to: addDays(day, 1) } }).pipe(
       timeout(15_000), switchMap((snapshot) => {
+        const expected = op.kind === 'remove' ? undefined : op.series && op.original
+          ? previewSeries(op.request!, op.source, op.original, op.zone)
+          : previewEvent(op.request!, op.source, '', op.zone);
+        // Google gives an event that starts to repeat new occurrence ids, so its first occurrence is found by content.
         const matching = snapshot.events.filter((e) => op.kind === 'add' ? e.creationId === op.id
-          : e.id === op.original?.id || (op.series && !!op.original?.seriesId && e.seriesId === op.original.seriesId));
+          : e.id === op.original?.id || (op.series && !!op.original?.seriesId && e.seriesId === op.original.seriesId)
+            || (starts && e.recurring && sameContent(e, expected!)));
         if (op.kind === 'remove') {
           if (!matching.length) return of({ resolved: true });
           const current = matching.find((e) => e.id === op.original!.id) ?? matching[0];
           if (!sameContent(current, op.original!)) return throwError(() => new HttpErrorResponse({ status: 409, error: current }));
           return of({ resolved: false });
         }
-        const expected = op.series && op.original
-          ? previewSeries(op.request!, op.source, op.original, op.zone)
-          : previewEvent(op.request!, op.source, '', op.zone);
-        const found = matching.find((e) => sameContent(e, expected));
+        const found = matching.find((e) => sameContent(e, expected!) && (!starts || e.recurring));
         if (op.kind === 'update' && !found && matching.length) {
           const current = matching.find((e) => e.id === op.original!.id) ?? matching[0];
           if (!sameContent(current, op.original!)) return throwError(() => new HttpErrorResponse({ status: 409, error: current }));
@@ -411,6 +415,10 @@ export class CalendarStore {
         const shown = previews.map((preview) => ({ ...(known.find((e) => dayOf(e) === dayOf(preview)) ?? preview), pending: true }));
         events = [...events.filter((e) => !known.includes(e)), ...shown,
           ...known.filter((e) => !previews.some((p) => dayOf(e) === dayOf(p))).map((e) => ({ ...e, pending: true }))];
+      } else if (startsSeries(op)) {
+        // An event that starts to repeat shows as the new series across the loaded days, in place of itself.
+        events = [...events.filter((e) => !matches(e) && e.id !== op.result?.id && !(op.result?.seriesId && e.seriesId === op.result.seriesId)),
+          ...previewOccurrences(op.request!, op.source, op.id, op.zone, state.from, state.to)];
       } else {
         const loaded = events.filter(matches);
         const originals = loaded.length ? loaded : op.originals;
@@ -478,6 +486,11 @@ function sameContent(a: CalendarEvent, b: CalendarEvent): boolean {
   return a.title === b.title && a.location === b.location && a.calendarId === b.calendarId && a.allDay === b.allDay
     && (a.allDay ? a.startDate === b.startDate && a.endDate === b.endDate
       : Date.parse(a.startsAt!) === Date.parse(b.startsAt!) && Date.parse(a.endsAt!) === Date.parse(b.endsAt!));
+}
+
+/** A change that makes an event that does not repeat yet the first of a series. */
+function startsSeries(op: PendingCalendarChange): boolean {
+  return op.kind === 'update' && !op.series && !op.original?.recurring && !!op.request && op.request.repeat !== 'Never';
 }
 
 function seriesParams(series: boolean): Record<string, string> {
