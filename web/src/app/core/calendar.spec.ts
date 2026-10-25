@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { allDay, marloweCalendars, timed } from '../testing/calendar';
 import { marlowes } from '../testing/marlowes';
-import { CalendarStore, FAMILY, FAMILY_COLOR, colorOf, daysOf, whenOn } from './calendar';
+import { CalendarStore, FAMILY, FAMILY_COLOR, colorOf, daysOf, showsOn, spanOf, whenOn } from './calendar';
 
 const zone = 'America/New_York';
 
@@ -21,6 +21,15 @@ describe('calendar events', () => {
   it('do not spill into the next day when they end at midnight', () => {
     // 8 PM to midnight in New York.
     expect(daysOf(timed('Late', 'm1', '2026-10-13T00:00:00Z', '2026-10-13T04:00:00Z'), zone)).toEqual(['2026-10-12']);
+  });
+
+  it('list only the days asked for, however long they run', () => {
+    const forever = allDay('Forever', null, '0001-01-01', '9999-12-31');
+
+    expect(daysOf(forever, zone, { from: '2026-10-12', to: '2026-10-15' })).toEqual(['2026-10-12', '2026-10-13', '2026-10-14']);
+    expect(daysOf(allDay('Trash', null, '2026-10-13', '2026-10-14'), zone, { from: '2026-10-14', to: '2026-10-21' })).toEqual([]);
+    expect(spanOf(forever, zone)).toEqual({ first: '0001-01-01', last: '9999-12-30' });
+    expect(showsOn(forever, '2026-10-12', zone)).toBe(true);
   });
 
   it('say when they happen on each day they cover', () => {

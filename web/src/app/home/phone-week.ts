@@ -45,7 +45,8 @@ import { CompactAgenda } from './compact-agenda';
       display: flex;
       flex-direction: column;
       gap: 6px;
-      scroll-margin-top: 12px;
+      /* Clear of the sticky view switch above. */
+      scroll-margin-top: 76px;
     }
 
     .day.is-today {
@@ -123,7 +124,7 @@ export class PhoneWeek {
     const ready = this.calendar.state().status === 'ready';
     const counts = new Map<Day, number>();
     for (const event of this.calendar.events()) {
-      for (const day of daysOf(event, family.timeZone)) {
+      for (const day of daysOf(event, family.timeZone, { from: start, to: addDays(start, 7) })) {
         counts.set(day, (counts.get(day) ?? 0) + 1);
       }
     }

@@ -55,25 +55,4 @@ public static class CalendarLiveSetup
             .RequireAuthorization(Policies.Family);
         return app;
     }
-
-    /// <summary>Cookie-authenticated WebSockets need an Origin check in addition to HTTP CORS.</summary>
-    public static IApplicationBuilder UseCalendarHubOrigin(this IApplicationBuilder app) => app.Use(async (http, next) =>
-    {
-        if (http.Request.Path.StartsWithSegments(CalendarHub.Path) && http.Request.Headers.Origin.Count > 0)
-        {
-            var origins = http.Request.Headers.Origin;
-            if (origins.Count != 1
-                || !Uri.TryCreate(origins[0], UriKind.Absolute, out var origin)
-                || origin.PathAndQuery != "/" || origin.Fragment.Length > 0 || origin.UserInfo.Length > 0
-                || !Uri.TryCreate($"{http.Request.Scheme}://{http.Request.Host}", UriKind.Absolute, out var site)
-                || !string.Equals(origin.GetLeftPart(UriPartial.Authority), site.GetLeftPart(UriPartial.Authority), StringComparison.OrdinalIgnoreCase))
-            {
-                http.Response.StatusCode = StatusCodes.Status403Forbidden;
-                return;
-            }
-        }
-
-        // Nonbrowser clients may omit Origin; they still need the authenticated family cookie.
-        await next(http);
-    });
 }

@@ -156,10 +156,12 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
         <app-calendar-connection layout="phone" show="problems" />
 
         @if (shown(); as day) {
-          <div class="view-switch" role="group" aria-label="View">
-            @for (option of views; track option.view) {
-              <button type="button" [attr.aria-pressed]="view() === option.view" (click)="choose(option.view)">{{ option.label }}</button>
-            }
+          <div class="switch-bar">
+            <div class="view-switch" role="group" aria-label="View">
+              @for (option of views; track option.view) {
+                <button type="button" [attr.aria-pressed]="view() === option.view" (click)="choose(option.view)">{{ option.label }}</button>
+              }
+            </div>
           </div>
           @switch (view()) {
             @case ('day') {
@@ -291,6 +293,16 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
       background: var(--primary) !important;
       box-shadow: var(--primary-shadow);
       color: var(--on-primary) !important;
+    }
+
+    /* The switch stays at the top while a long week or month scrolls under it. */
+    .switch-bar {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      margin: -8px -16px;
+      padding: 8px 16px;
+      background: var(--ground);
     }
 
     .view-switch {

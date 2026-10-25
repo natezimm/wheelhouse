@@ -37,6 +37,7 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
 });
 
 builder.Services.AddWheelhouseAuth();
+builder.Services.AddRateLimits();
 builder.Services.AddPairing();
 builder.Services.AddWeather();
 builder.Services.AddGoogleCalendar();
@@ -55,10 +56,11 @@ var app = builder.Build();
 await app.PrepareDatabaseAsync();
 
 app.UseForwardedHeaders();
-app.UseCalendarHubOrigin();
+app.UseSameOrigin();
 app.UseAuthentication();
-app.UseAuthorization();
+// Before authorization, so a request it turns away still counts.
 app.UseRateLimiter();
+app.UseAuthorization();
 
 app.MapHealth();
 app.MapSession();

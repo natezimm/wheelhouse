@@ -118,6 +118,24 @@ describe('event screens', () => {
       expect(dialog.querySelector<HTMLInputElement>('#event-title')!.value).toBe('Swim lesson, indoor pool');
     });
 
+    it('makes an event that does not repeat yet into a weekly series', async () => {
+      const { page, settle } = await open('/wall');
+
+      await edit(page, settle, 'Monday, October 12');
+      const dialog = page.querySelector<HTMLElement>('app-event-dialog form')!;
+      expect(button(dialog, 'Never').getAttribute('aria-pressed')).toBe('true');
+      button(dialog, 'Weekly').click();
+      await settle();
+      expect(button(dialog, 'Weekly').getAttribute('aria-pressed')).toBe('true');
+      button(dialog, 'Save changes').click();
+
+      const request = http.expectOne({ method: 'PUT', url: `/api/calendar/events/${swim.id}` });
+      expect(request.request.body).toMatchObject({ title: 'Swim lesson', startDate: '2026-10-12', repeat: 'Weekly' });
+      await settle();
+      const swims = page.querySelectorAll('.event[aria-busy="true"] .title');
+      expect(Array.from(swims, (t) => t.textContent)).toEqual(['Swim lesson']);
+    });
+
     it('changes every event of a series, keeping each on its own day', async () => {
       const { page, settle } = await open('/wall');
 
@@ -125,6 +143,7 @@ describe('event screens', () => {
       const dialog = page.querySelector<HTMLElement>('app-event-dialog form')!;
       const tess = () => Array.from(dialog.querySelectorAll<HTMLButtonElement>('.chip')).find((chip) => chip.textContent?.trim().endsWith('Tess'))!;
       expect(button(dialog, 'This event').getAttribute('aria-pressed')).toBe('true');
+      expect(button(dialog, 'Weekly')).toBeUndefined();
       expect(tess().disabled).toBe(true);
 
       button(dialog, 'A day later').click();
@@ -208,6 +227,23 @@ describe('event screens', () => {
       http.expectOne((r) => r.url === '/api/calendar');
       await settle();
       expect(page.querySelector('app-event-sheet')).toBeNull();
+    });
+
+    it('makes an existing event repeat from its Repeat choice', async () => {
+      const { page, settle } = await open('/');
+
+      page.querySelector<HTMLButtonElement>('app-agenda-list li button')!.click();
+      await settle();
+      button(page.querySelector('app-event-details')!, 'Edit event').click();
+      await settle();
+      const sheet = page.querySelector<HTMLElement>('app-event-sheet form')!;
+      const repeat = Array.from(sheet.querySelectorAll('select')).find((select) => select.parentElement?.textContent?.includes('Repeat'))!;
+      repeat.value = 'Monthly';
+      repeat.dispatchEvent(new Event('change'));
+      await settle();
+      button(sheet, 'Save').click();
+
+      expect(http.expectOne({ method: 'PUT', url: `/api/calendar/events/${swim.id}` }).request.body).toMatchObject({ repeat: 'Monthly' });
     });
 
     it('keeps a refused event open with the server’s reason', async () => {

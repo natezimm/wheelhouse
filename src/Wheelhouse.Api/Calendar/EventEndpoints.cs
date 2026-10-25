@@ -25,6 +25,9 @@ public static class EventEndpoints
 
     public const int MaxLocation = 255;
 
+    /// <summary>The longest an event may run, in days: about five years, which catches a mistyped year.</summary>
+    public const int MaxDays = 5 * 366;
+
     public static IEndpointRouteBuilder MapCalendarEvents(this IEndpointRouteBuilder app)
     {
         var events = app.MapGroup("/api/calendar/events").RequireAuthorization(Policies.Family);
@@ -169,7 +172,9 @@ public static class EventEndpoints
     /// <summary>
     /// Changes an event, or one occurrence of a repeating one, or with <paramref name="series"/>
     /// every event of its series. A different calendar moves it, which Google allows only for a
-    /// whole event or series, so an occurrence on its own stays in its calendar. Answers 409 with
+    /// whole event or series, so an occurrence on its own stays in its calendar. A Repeat on an
+    /// event that does not repeat yet makes it the first event of a new series; an event that
+    /// already repeats keeps its rule, which is left to Google Calendar. Answers 409 with
     /// the event as Google has it now when it changed there first.
     /// </summary>
     private static async Task<Results<Ok<EventResponse>, Conflict<EventResponse>, ValidationProblem, ProblemHttpResult, NotFound>> Change(
@@ -180,6 +185,7 @@ public static class EventEndpoints
         IGoogleCalendar google,
         CalendarSync sync,
         CalendarSyncTrigger syncSoon,
+        TimeProvider time,
         IOptions<InstanceOptions> instance,
         ILogger<GoogleConnection> logger,
         CancellationToken cancellationToken,
@@ -192,7 +198,13 @@ public static class EventEndpoints
         }
 
         series &= row.RecurringEventId is not null;
+        var startsSeries = row.RecurringEventId is null && request.Repeat != EventRepeat.Never;
         var (draft, errors) = await DraftAsync(request, db, cancellationToken);
+        if (startsSeries)
+        {
+            draft = draft! with { Recurrence = EventSeries.RuleFor(request.Repeat) };
+        }
+
         var sources = await db.CalendarSources
             .Where(s => s.Id == row.CalendarSourceId || s.Id == request.CalendarId)
             .ToDictionaryAsync(s => s.Id, cancellationToken);
@@ -219,6 +231,25 @@ public static class EventEndpoints
             {
                 EventSeries.Apply(await SeriesOf(row, db, cancellationToken), draft!, Zone(draft!));
                 await MoveSeriesAsync(row, to!, db, cancellationToken);
+            }
+            else if (startsSeries)
+            {
+                // The event becomes the series' first occurrence and keeps its id, so the screen's event stays put.
+                var newSeries = EventSeries.Occurrences(draft!, request.Repeat, row.GoogleEventId,
+                    Today(time, Zone(draft!)).AddDays(CalendarSync.Ahead.Days), Zone(draft!)).ToList();
+                for (var n = 0; n < newSeries.Count; n++)
+                {
+                    var occurrenceRow = row;
+                    if (n > 0)
+                    {
+                        occurrenceRow = new EventInstance { Id = Guid.CreateVersion7(), FamilyId = row.FamilyId, GoogleEventId = "", Title = "" };
+                        db.EventInstances.Add(occurrenceRow);
+                    }
+
+                    occurrenceRow.GoogleEventId = newSeries[n].Id;
+                    occurrenceRow.CalendarSourceId = to!.Id;
+                    CalendarSync.CopyTo(occurrenceRow, newSeries[n]);
+                }
             }
             else
             {
@@ -266,10 +297,13 @@ public static class EventEndpoints
                     stored = await google.MoveEventAsync(write.AccessToken!, from.GoogleCalendarId, row.GoogleEventId, to!.GoogleCalendarId, cancellationToken);
                 }
 
-                CalendarSync.CopyTo(row, stored);
+                CalendarSync.CopyTo(row, startsSeries ? stored with { RecurringEventId = stored.Id } : stored);
                 row.CalendarSourceId = to!.Id;
-                await db.SaveChangesAsync(cancellationToken);
-                return TypedResults.Ok(EventResponse.From(row, to));
+                if (!startsSeries)
+                {
+                    await db.SaveChangesAsync(cancellationToken);
+                    return TypedResults.Ok(EventResponse.From(row, to));
+                }
             }
         }
         catch (GoogleEventChangedException)
@@ -290,9 +324,10 @@ public static class EventEndpoints
         }
 
         // Google gives every occurrence a new version, and new ids when the times changed, so the
-        // calendars are read again. The answer is the occurrence on the day that was on screen.
+        // calendars are read again; a new series is read for its occurrences. The answer is the
+        // occurrence on the day that was on screen.
         var zone = Zone(draft!);
-        var (seriesId, day) = (row.RecurringEventId!, EventSeries.DayOf(row, zone));
+        var (seriesId, day) = (row.RecurringEventId!, startsSeries ? request.StartDate : EventSeries.DayOf(row, zone));
         try
         {
             await sync.ListAsync(from, write.AccessToken!, cancellationToken);
@@ -307,10 +342,22 @@ public static class EventEndpoints
         {
             logger.LogWarning(exception, "Google could not be reached to read a changed series; the next sync brings it in.");
             syncSoon.SyncSoon(row.FamilyId);
+            var startedAs = startsSeries ? row : null;
             db.ChangeTracker.Clear();
             row = await db.EventInstances.SingleAsync(e => e.Id == id, cancellationToken);
-            EventSeries.Apply(await SeriesOf(row, db, cancellationToken), draft!, zone);
-            await MoveSeriesAsync(row, to!, db, cancellationToken);
+            if (startedAs is not null)
+            {
+                // Until the next sync brings in its occurrences, the new series shows as its first event.
+                CalendarSync.CopyTo(row, new GoogleEvent(row.GoogleEventId, seriesId, startedAs.Title, startedAs.Location,
+                    startedAs.StartsAt, startedAs.EndsAt, startedAs.StartDate, startedAs.EndDate, startedAs.ETag));
+                row.CalendarSourceId = to!.Id;
+            }
+            else
+            {
+                EventSeries.Apply(await SeriesOf(row, db, cancellationToken), draft!, zone);
+                await MoveSeriesAsync(row, to!, db, cancellationToken);
+            }
+
             await db.SaveChangesAsync(cancellationToken);
         }
 
@@ -437,7 +484,11 @@ public static class EventEndpoints
 
         var timeZone = await db.Families.Select(f => f.TimeZone).SingleAsync(cancellationToken);
         GoogleEventDraft? draft = null;
-        if (request.AllDay)
+        if (request.EndDate.DayNumber - request.StartDate.DayNumber > MaxDays)
+        {
+            errors["endDate"] = ["Keep an event to five years or less."];
+        }
+        else if (request.AllDay)
         {
             if (request.EndDate <= request.StartDate)
             {

@@ -1,3 +1,4 @@
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -10,6 +11,16 @@ namespace Wheelhouse.Api.Demo;
 
 public static class DemoEndpoints
 {
+    /// <summary>New copies per address. Requests with no address, such as the tests', are not limited.</summary>
+    private static readonly PartitionedRateLimiter<string> NewCopies = PartitionedRateLimiter.Create<string, string>(address =>
+        address.Length == 0
+            ? RateLimitPartition.GetNoLimiter(address)
+            : RateLimitPartition.GetFixedWindowLimiter(address, _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 20,
+                Window = TimeSpan.FromHours(1),
+            }));
+
     public static IEndpointRouteBuilder MapDemo(this IEndpointRouteBuilder app)
     {
         app.MapPost("/api/demo/visit", Visit).AllowAnonymous();
@@ -39,6 +50,16 @@ public static class DemoEndpoints
         if (current.Id is { } existing && await copies.ExistsAsync(existing, cancellationToken))
         {
             return TypedResults.NoContent();
+        }
+
+        // A returning visitor costs nothing, but each new copy is a family's worth of rows, so one
+        // address cannot fill the demo for everyone else.
+        using var lease = NewCopies.AttemptAcquire(http.Connection.RemoteIpAddress?.ToString() ?? "");
+        if (!lease.IsAcquired)
+        {
+            return TypedResults.Problem(
+                "Too many new demo visits from your network. Try again later.",
+                statusCode: StatusCodes.Status429TooManyRequests);
         }
 
         if (await copies.CreateAsync(cancellationToken) is not { } familyId)

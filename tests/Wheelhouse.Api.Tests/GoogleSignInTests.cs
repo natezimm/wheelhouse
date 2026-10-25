@@ -85,20 +85,36 @@ public sealed class GoogleSignInTests(ApiFactory factory)
     /// Goes to Google and back as a browser would, with Google itself replaced by a stub that
     /// accepts any code and says the account is <paramref name="userInfo"/>.
     /// </summary>
-    private static async Task<HttpResponseMessage> RoundTripAsync(WebApplicationFactory<Program> instance, string userInfo)
+    private static async Task<HttpResponseMessage> RoundTripAsync(WebApplicationFactory<Program> instance, string userInfo, string returnUrl = "/settings")
     {
         using var stubbed = instance.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
             services.Configure<GoogleOptions>(GoogleDefaults.AuthenticationScheme, options =>
                 options.BackchannelHttpHandler = new StubGoogle(userInfo))));
         using var browser = stubbed.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = false });
 
-        var toGoogle = await browser.GetAsync("/api/auth/google?returnUrl=/settings&timeZone=America/Chicago");
+        var toGoogle = await browser.GetAsync($"/api/auth/google?returnUrl={Uri.EscapeDataString(returnUrl)}&timeZone=America/Chicago");
         var state = HttpUtility.ParseQueryString(toGoogle.Headers.Location!.Query)["state"];
         var correlation = toGoogle.Headers.GetValues("Set-Cookie").Select(value => value.Split(';')[0]);
 
         using var back = new HttpRequestMessage(HttpMethod.Get, $"/api/auth/google/callback?code=any&state={Uri.EscapeDataString(state!)}");
         back.Headers.Add("Cookie", string.Join("; ", correlation));
         return await browser.SendAsync(back);
+    }
+
+    [Theory]
+    [InlineData("https://evil.example/")]
+    [InlineData("//evil.example/")]
+    [InlineData("/\\evil.example/")]
+    // Browsers drop tabs and line breaks from a URL, which would turn these into //evil.example/.
+    [InlineData("/\t/evil.example/")]
+    [InlineData("/\n/evil.example/")]
+    public async Task Sign_in_returns_only_to_a_page_on_this_site(string returnUrl)
+    {
+        using var instance = factory.NewFamilyInstance(Parents);
+
+        var alex = await RoundTripAsync(instance, """{"sub":"google-alex","email":"alex@example.com","email_verified":true,"given_name":"Alex"}""", returnUrl);
+
+        Assert.Equal("/", alex.Headers.Location!.ToString());
     }
 
     private sealed class StubGoogle(string userInfo) : HttpMessageHandler
@@ -176,6 +192,27 @@ public sealed class GoogleSignInTests(ApiFactory factory)
         Assert.Equal((await FamilyOf(alex)).Id, family.Id);
         Assert.Equal(["Alex", "Sam"], family.Members.Select(member => member.DisplayName));
         Assert.Contains(family.Members, member => member.Id == samMember.Id);
+    }
+
+    [Fact]
+    public async Task The_last_parent_who_can_sign_in_cannot_step_down_until_another_has()
+    {
+        using var instance = factory.NewFamilyInstance(Parents);
+        using var alex = await ParentAsync(instance, Alex);
+        (await alex.PostAsJsonAsync("/api/family/members", new MemberRequest("Sam", "#137A6D", MemberRole.Parent), ApiFactory.Json)).EnsureSuccessStatusCode();
+        var alexMember = (await FamilyOf(alex)).Members.Single(member => member.DisplayName == "Alex");
+        var asKid = new MemberRequest("Alex", alexMember.Color, MemberRole.Kid);
+
+        // Sam is a parent only by name so far: nobody could sign in to manage the family.
+        var demoted = await alex.PutAsJsonAsync($"/api/family/members/{alexMember.Id}", asKid, ApiFactory.Json);
+        var removed = await alex.DeleteAsync($"/api/family/members/{alexMember.Id}");
+        using var sam = await ParentAsync(instance, Sam);
+        var afterSam = await alex.PutAsJsonAsync($"/api/family/members/{alexMember.Id}", asKid, ApiFactory.Json);
+
+        Assert.Equal(HttpStatusCode.BadRequest, demoted.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, removed.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, afterSam.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await sam.GetAsync("/api/family")).StatusCode);
     }
 
     [Fact]

@@ -1,4 +1,5 @@
 import { CalendarEvent, CalendarSource, EventRequest, FAMILY_COLOR, Repeat } from './calendar';
+import { instantAt } from './calendar-preview';
 import { Day, addDays, dayIn, minutesIn } from './days';
 import { Member } from './family';
 
@@ -16,7 +17,7 @@ export interface EventDraft {
   startTime: string;
   endDate: Day;
   endTime: string;
-  /** How a new event repeats. */
+  /** How a new event, or one that does not repeat yet, is to repeat. */
   repeat: Repeat;
 }
 
@@ -121,6 +122,15 @@ export function moveDays(draft: EventDraft, days: number): EventDraft {
   return { ...draft, startDate: addDays(draft.startDate, days), endDate: addDays(draft.endDate, days) };
 }
 
+/**
+ * A timed event moved to start at <code>time</code> ('HH:mm') on <code>day</code>, keeping how long
+ * it really lasts: an event that spans a clock change keeps its elapsed length, not its clock times.
+ */
+export function movedTo(event: CalendarEvent, day: Day, time: string, timeZone: string): EventDraft {
+  const end = new Date(Date.parse(instantAt(day, time, timeZone)) + Date.parse(event.endsAt!) - Date.parse(event.startsAt!));
+  return { ...draftOf(event, timeZone), startDate: day, startTime: time, endDate: dayIn(timeZone, end), endTime: clock(minutesIn(timeZone, end)) };
+}
+
 /** Moves an all-day event's last day, never before its first. */
 export function moveLastDay(draft: EventDraft, days: number): EventDraft {
   const endDate = addDays(draft.endDate, days);
@@ -174,7 +184,7 @@ export function writableCalendars(calendars: readonly CalendarSource[], members:
     }
   }
   for (const calendar of writable.filter((c) => !choices.some((choice) => choice.id === c.id))) {
-    choices.push({ id: calendar.id, label: calendar.name, initial: calendar.name.charAt(0).toUpperCase(), color: FAMILY_COLOR });
+    choices.push({ id: calendar.id, label: calendar.name, initial: 'F', color: FAMILY_COLOR });
   }
   return choices;
 }

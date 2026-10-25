@@ -1,8 +1,11 @@
 using System.Net;
+using System.Net.Http.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Wheelhouse.Api.Auth;
+using Wheelhouse.Api.Families;
 
 namespace Wheelhouse.Api.Tests;
 
@@ -32,6 +35,68 @@ public sealed class AccessTests(ApiFactory factory)
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await stranger.GetAsync(unnamed)).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await visitor.GetAsync(unnamed)).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_browser_on_another_origin_cannot_make_changes_even_with_the_cookie()
+    {
+        using var visitor = await factory.DemoVisitorAsync();
+        HttpRequestMessage SetTheme(string? origin)
+        {
+            var request = new HttpRequestMessage(HttpMethod.Put, "/api/family/theme")
+            {
+                Content = JsonContent.Create(new FamilyThemeRequest(Theme.Groovy, NightMode.Off), options: ApiFactory.Json),
+            };
+            if (origin is not null)
+            {
+                request.Headers.TryAddWithoutValidation("Origin", origin);
+            }
+            return request;
+        }
+
+        // A sibling subdomain is the same site to SameSite=Lax, so the browser sends the cookie.
+        foreach (var origin in new[] { "http://calendar.localhost", "https://unrelated.example", "null" })
+        {
+            Assert.Equal(HttpStatusCode.Forbidden, (await visitor.SendAsync(SetTheme(origin))).StatusCode);
+        }
+        using var foreignRead = new HttpRequestMessage(HttpMethod.Get, "/api/family");
+        foreignRead.Headers.Add("Origin", "https://unrelated.example");
+        Assert.Equal(HttpStatusCode.OK, (await visitor.SendAsync(foreignRead)).StatusCode);
+
+        Assert.Equal(HttpStatusCode.OK, (await visitor.SendAsync(SetTheme("http://localhost"))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await visitor.SendAsync(SetTheme(null))).StatusCode);
+    }
+
+    [Fact]
+    public async Task Every_request_is_rate_limited_by_family_or_by_address()
+    {
+        // Signed out, so each read is turned away, and still counts.
+        Task<HttpContext> Read(string address) => factory.Demo.Server.SendAsync(context =>
+        {
+            context.Request.Path = "/api/calendar";
+            context.Connection.RemoteIpAddress = IPAddress.Parse(address);
+        });
+        var reads = new List<int>();
+        for (var i = 0; i <= RateLimits.RequestsPerMinute; i++)
+        {
+            reads.Add((await Read("198.51.100.20")).Response.StatusCode);
+        }
+
+        using var visitor = await factory.DemoVisitorAsync();
+        var theme = new FamilyThemeRequest(Theme.Bold, NightMode.Off);
+        var changes = new List<HttpStatusCode>();
+        for (var i = 0; i <= RateLimits.ChangesPerMinute; i++)
+        {
+            changes.Add((await visitor.PutAsJsonAsync("/api/family/theme", theme, ApiFactory.Json)).StatusCode);
+        }
+
+        Assert.All(reads[..^1], status => Assert.Equal(StatusCodes.Status401Unauthorized, status));
+        Assert.Equal(StatusCodes.Status429TooManyRequests, reads[^1]);
+        Assert.Equal(StatusCodes.Status401Unauthorized, (await Read("198.51.100.21")).Response.StatusCode);
+        Assert.All(changes[..^1], status => Assert.Equal(HttpStatusCode.OK, status));
+        Assert.Equal(HttpStatusCode.TooManyRequests, changes[^1]);
+        // Reading goes on: only changes ran out.
+        Assert.Equal(HttpStatusCode.OK, (await visitor.GetAsync("/api/family")).StatusCode);
     }
 
     [Fact]

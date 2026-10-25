@@ -1,5 +1,5 @@
 import { Component, computed, inject, input, linkedSignal, output } from '@angular/core';
-import { CalendarEvent, CalendarStore, colorOf, daysOf } from '../core/calendar';
+import { CalendarEvent, CalendarStore, colorOf, showsOn, spanOf } from '../core/calendar';
 import { Clock } from '../core/clock';
 import { Day, dayIn, formatDay, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
@@ -259,6 +259,8 @@ const EARLIER_THAN_MS = 60 * 60_000;
       flex: 1;
       height: 2px;
       background: var(--now);
+      /* As on the hour grid: a theme whose now color is pale outlines it so it reads on its ground. */
+      box-shadow: 0 0 0 1px var(--now-edge);
     }
 
     .line::before {
@@ -270,6 +272,7 @@ const EARLIER_THAN_MS = 60 * 60_000;
       height: 10px;
       border-radius: 5px;
       background: var(--now);
+      box-shadow: 0 0 0 1px var(--now-edge);
     }
 
     .empty {
@@ -361,7 +364,7 @@ export class AgendaList {
     const now = this.clock.now();
     const isToday = day === dayIn(zone, now);
 
-    const events = this.calendar.events().filter((event) => daysOf(event, zone).includes(day));
+    const events = this.calendar.events().filter((event) => showsOn(event, day, zone));
     const describe = (event: CalendarEvent) => {
       const member = family.members.find((m) => m.id === event.memberId);
       return {
@@ -376,7 +379,10 @@ export class AgendaList {
     };
 
     // A timed event that runs all through this day reads as all-day here.
-    const spans = (event: CalendarEvent) => !event.allDay && daysOf(event, zone)[0] !== day && daysOf(event, zone).at(-1) !== day;
+    const spans = (event: CalendarEvent) => {
+      const { first, last } = spanOf(event, zone);
+      return !event.allDay && first !== day && last !== day;
+    };
     const allDay = events.filter((event) => event.allDay || spans(event)).map(describe);
 
     type Row = ReturnType<typeof describe> & { start: string; end: string; detail: string; folded: boolean; now: boolean };
@@ -391,7 +397,7 @@ export class AgendaList {
       }
       const folded = isToday && ends < now.getTime() - EARLIER_THAN_MS;
       earlier += folded ? 1 : 0;
-      const startsToday = daysOf(event, zone)[0] === day;
+      const startsToday = spanOf(event, zone).first === day;
       const shown = describe(event);
       rows.push({
         ...shown,

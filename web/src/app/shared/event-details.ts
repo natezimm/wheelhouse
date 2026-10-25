@@ -1,6 +1,6 @@
 import { Component, ElementRef, computed, effect, inject, input, output, viewChild } from '@angular/core';
-import { CalendarEvent, CalendarStore, colorOf, daysOf, timeRange } from '../core/calendar';
-import { addDays, dayIn, formatDay, timeIn } from '../core/days';
+import { CalendarEvent, CalendarStore, colorOf, spanOf, timeRange } from '../core/calendar';
+import { formatDay, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { ModalFocus } from './modal-focus';
 import { AvatarFace } from './avatar-face';
@@ -422,19 +422,18 @@ function whenOf(event: CalendarEvent, zone: string): { day: string; when: string
   const long = { weekday: 'long', month: 'long', day: 'numeric' } as const;
   const brief = { weekday: 'short', month: 'short', day: 'numeric' } as const;
   if (event.allDay) {
-    const last = addDays(event.endDate!, -1);
-    const count = daysOf(event, zone).length;
+    const { last } = spanOf(event, zone);
+    const count = (Date.parse(last) - Date.parse(event.startDate!)) / 86_400_000 + 1;
     return last === event.startDate
       ? { day: formatDay(event.startDate!, long), when: 'All day' }
       : { day: `${formatDay(event.startDate!, brief)} – ${formatDay(last, brief)}`, when: `All day · ${count} days` };
   }
-  const first = dayIn(zone, event.startsAt!);
-  const days = daysOf(event, zone);
-  if (days.length === 1) {
+  const { first, last } = spanOf(event, zone);
+  if (first === last) {
     return { day: formatDay(first, long), when: timeRange(event, zone) };
   }
   return {
-    day: `${formatDay(first, brief)} – ${formatDay(days.at(-1)!, brief)}`,
-    when: `${formatDay(first, { weekday: 'short' })} ${timeIn(zone, event.startsAt!)} – ${formatDay(days.at(-1)!, { weekday: 'short' })} ${timeIn(zone, event.endsAt!)}`,
+    day: `${formatDay(first, brief)} – ${formatDay(last, brief)}`,
+    when: `${formatDay(first, { weekday: 'short' })} ${timeIn(zone, event.startsAt!)} – ${formatDay(last, { weekday: 'short' })} ${timeIn(zone, event.endsAt!)}`,
   };
 }
