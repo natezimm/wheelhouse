@@ -48,8 +48,9 @@ public sealed record EventResponse(
 /// An event as a screen sets it, in the family's own days and clock. A timed event runs from
 /// <paramref name="StartTime"/> on <paramref name="StartDate"/> to <paramref name="EndTime"/> on
 /// <paramref name="EndDate"/>; an all-day one has no times, and its <paramref name="EndDate"/> is
-/// exclusive, as in <see cref="EventResponse"/>. <paramref name="Repeat"/> makes a new event a
-/// series; a change to an existing event leaves how it repeats as it is.
+/// exclusive, as in <see cref="EventResponse"/>. <paramref name="Repeat"/> makes a new event, or
+/// a change to one that does not repeat yet, the first of a series; a change to an event that
+/// already repeats leaves its rule as it is.
 /// </summary>
 public sealed record EventRequest(
     Guid CalendarId,

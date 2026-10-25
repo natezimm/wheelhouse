@@ -131,21 +131,19 @@ import { AvatarFace } from '../shared/avatar-face';
           </fieldset>
 
           <fieldset class="field" [disabled]="busy() || uncertain()">
-            @if (!event()) {
+            @if (!event()?.recurring) {
               <span id="event-repeat">REPEAT</span>
-            } @else if (event()!.recurring) {
-              <span id="event-repeat">CHANGE</span>
             } @else {
-              <span aria-hidden="true">&nbsp;</span>
+              <span id="event-repeat">CHANGE</span>
             }
             <div class="options">
-              @if (!event()) {
+              @if (!event()?.recurring) {
                 <div class="segments" role="group" aria-labelledby="event-repeat">
                   @for (repeat of repeats; track repeat) {
                     <button type="button" [attr.aria-pressed]="draft.repeat === repeat" (click)="set({ repeat })">{{ repeat }}</button>
                   }
                 </div>
-              } @else if (event()!.recurring) {
+              } @else {
                 <div class="segments" role="group" aria-labelledby="event-repeat">
                   <button type="button" [attr.aria-pressed]="!series()" (click)="setSeries(false)">This event</button>
                   <button type="button" [attr.aria-pressed]="series()" (click)="setSeries(true)">All events</button>

@@ -16,7 +16,7 @@ export interface EventDraft {
   startTime: string;
   endDate: Day;
   endTime: string;
-  /** How a new event repeats. */
+  /** How a new event, or one that does not repeat yet, is to repeat. */
   repeat: Repeat;
 }
 
