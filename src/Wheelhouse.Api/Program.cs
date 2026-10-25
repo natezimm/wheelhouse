@@ -58,8 +58,9 @@ await app.PrepareDatabaseAsync();
 app.UseForwardedHeaders();
 app.UseSameOrigin();
 app.UseAuthentication();
-app.UseAuthorization();
+// Before authorization, so a request it turns away still counts.
 app.UseRateLimiter();
+app.UseAuthorization();
 
 app.MapHealth();
 app.MapSession();
