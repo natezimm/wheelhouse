@@ -1,5 +1,5 @@
 import { Component, computed, effect, inject, input, output, viewChild } from '@angular/core';
-import { CalendarStore, FAMILY, FAMILY_COLOR, colorOf, daysOf, ownerOf } from '../core/calendar';
+import { CalendarStore, FAMILY, FAMILY_COLOR, colorOf, ownerOf, showsOn } from '../core/calendar';
 import { inAllDayLane, timedSegments } from '../core/calendar-grid';
 import { Clock } from '../core/clock';
 import { Day, addDays, dayIn, formatDay } from '../core/days';
@@ -310,7 +310,7 @@ export class DayView {
   private readonly events = computed(() => {
     const family = this.family.family();
     const day = this.shown();
-    return family && day ? this.calendar.events().filter((event) => daysOf(event, family.timeZone).includes(day)) : [];
+    return family && day ? this.calendar.events().filter((event) => showsOn(event, day, family.timeZone)) : [];
   });
 
   protected readonly columns = computed<GridColumn[]>(() => {

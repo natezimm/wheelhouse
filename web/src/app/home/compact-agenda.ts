@@ -1,5 +1,5 @@
 import { Component, computed, inject, input, output } from '@angular/core';
-import { CalendarStore, colorOf, daysOf } from '../core/calendar';
+import { CalendarStore, colorOf, showsOn, spanOf } from '../core/calendar';
 import { inAllDayLane } from '../core/calendar-grid';
 import { Day, dayIn, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
@@ -119,9 +119,12 @@ export class CompactAgenda {
       return null;
     }
     const zone = family.timeZone;
-    const events = this.calendar.events().filter((event) => daysOf(event, zone).includes(day));
+    const events = this.calendar.events().filter((event) => showsOn(event, day, zone));
     // A timed event that runs all through this day reads as all-day here, as on the Day agenda.
-    const allDay = (event: (typeof events)[number]) => inAllDayLane(event) || (daysOf(event, zone)[0] !== day && daysOf(event, zone).at(-1) !== day);
+    const allDay = (event: (typeof events)[number]) => {
+      const { first, last } = spanOf(event, zone);
+      return inAllDayLane(event) || (first !== day && last !== day);
+    };
     const ordered = [...events.filter(allDay), ...events.filter((event) => !allDay(event))];
     return ordered.map((event) => {
       const member = family.members.find((m) => m.id === event.memberId);

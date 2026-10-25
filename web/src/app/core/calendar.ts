@@ -104,17 +104,35 @@ export function colorOf(event: CalendarEvent, members: readonly Member[]): strin
   return members.find((member) => member.id === event.memberId)?.color ?? FAMILY_COLOR;
 }
 
-/** The family's days an event shows on. A timed event that ends at midnight does not reach the next day. */
-export function daysOf(event: CalendarEvent, timeZone: string): Day[] {
+/** The first and last of the family's days an event shows on. A timed event that ends at midnight does not reach the next day. */
+export function spanOf(event: CalendarEvent, timeZone: string): { first: Day; last: Day } {
   const first = event.allDay ? event.startDate! : dayIn(timeZone, event.startsAt!);
   const last = event.allDay
     ? addDays(event.endDate!, -1)
     : dayIn(timeZone, new Date(new Date(event.endsAt!).getTime() - 1));
+  return { first, last: last < first ? first : last };
+}
+
+/** Whether an event shows on one of the family's days, without listing the days of a long one. */
+export function showsOn(event: CalendarEvent, day: Day, timeZone: string): boolean {
+  const { first, last } = spanOf(event, timeZone);
+  return first <= day && day <= last;
+}
+
+/**
+ * The family's days an event shows on. With <code>within</code>, only those from its
+ * <code>from</code> up to, not including, its <code>to</code>, so an event that runs for years
+ * costs only the days on screen.
+ */
+export function daysOf(event: CalendarEvent, timeZone: string, within?: { from: Day; to: Day }): Day[] {
+  const { first, last } = spanOf(event, timeZone);
+  const from = within && within.from > first ? within.from : first;
+  const to = within && within.to <= last ? addDays(within.to, -1) : last;
   const days: Day[] = [];
-  for (let day = first; day <= last; day = addDays(day, 1)) {
+  for (let day = from; day <= to; day = addDays(day, 1)) {
     days.push(day);
   }
-  return days.length > 0 ? days : [first];
+  return days;
 }
 
 /** When an event happens, as a short label for one of the days it shows on. */

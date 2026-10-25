@@ -85,20 +85,36 @@ public sealed class GoogleSignInTests(ApiFactory factory)
     /// Goes to Google and back as a browser would, with Google itself replaced by a stub that
     /// accepts any code and says the account is <paramref name="userInfo"/>.
     /// </summary>
-    private static async Task<HttpResponseMessage> RoundTripAsync(WebApplicationFactory<Program> instance, string userInfo)
+    private static async Task<HttpResponseMessage> RoundTripAsync(WebApplicationFactory<Program> instance, string userInfo, string returnUrl = "/settings")
     {
         using var stubbed = instance.WithWebHostBuilder(builder => builder.ConfigureServices(services =>
             services.Configure<GoogleOptions>(GoogleDefaults.AuthenticationScheme, options =>
                 options.BackchannelHttpHandler = new StubGoogle(userInfo))));
         using var browser = stubbed.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false, HandleCookies = false });
 
-        var toGoogle = await browser.GetAsync("/api/auth/google?returnUrl=/settings&timeZone=America/Chicago");
+        var toGoogle = await browser.GetAsync($"/api/auth/google?returnUrl={Uri.EscapeDataString(returnUrl)}&timeZone=America/Chicago");
         var state = HttpUtility.ParseQueryString(toGoogle.Headers.Location!.Query)["state"];
         var correlation = toGoogle.Headers.GetValues("Set-Cookie").Select(value => value.Split(';')[0]);
 
         using var back = new HttpRequestMessage(HttpMethod.Get, $"/api/auth/google/callback?code=any&state={Uri.EscapeDataString(state!)}");
         back.Headers.Add("Cookie", string.Join("; ", correlation));
         return await browser.SendAsync(back);
+    }
+
+    [Theory]
+    [InlineData("https://evil.example/")]
+    [InlineData("//evil.example/")]
+    [InlineData("/\\evil.example/")]
+    // Browsers drop tabs and line breaks from a URL, which would turn these into //evil.example/.
+    [InlineData("/\t/evil.example/")]
+    [InlineData("/\n/evil.example/")]
+    public async Task Sign_in_returns_only_to_a_page_on_this_site(string returnUrl)
+    {
+        using var instance = factory.NewFamilyInstance(Parents);
+
+        var alex = await RoundTripAsync(instance, """{"sub":"google-alex","email":"alex@example.com","email_verified":true,"given_name":"Alex"}""", returnUrl);
+
+        Assert.Equal("/", alex.Headers.Location!.ToString());
     }
 
     private sealed class StubGoogle(string userInfo) : HttpMessageHandler
