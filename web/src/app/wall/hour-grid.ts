@@ -1,5 +1,6 @@
-import { Component, DestroyRef, ElementRef, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { CalendarEvent, CalendarStore, colorOf, timeRange } from '../core/calendar';
+import { STEP_MINUTES, clockLabel, movedTo, requestOf } from '../core/event-draft';
 import { TimedSegment, arrange, hourLabel, hourRange } from '../core/calendar-grid';
 import { Clock } from '../core/clock';
 import { Day, dayIn, formatDay, minutesIn, timeIn } from '../core/days';
@@ -17,6 +18,40 @@ const LAYOUTS = {
   /** A desktop window always scrolls the whole day at a fixed height. */
   desktop: { gap: 3, minHour: 48, fallbackHour: 48, shortBelow: 42, minBlock: 18, lineHeight: 16, titleTop: 25, reach: 0, dayLine: 18, dayTime: 17 },
 };
+
+/** How far a mouse or pen moves before a press becomes a drag, and a finger before a long press gives way to scrolling. */
+const DRAG_SLOP = 6;
+const TOUCH_SLOP = 10;
+
+/** A finger holds an event this long to pick it up, so a tap still opens it and a swipe still scrolls. */
+const LONG_PRESS = 350;
+
+/** How close to the top or bottom of a scrolling grid a dragged event scrolls it, and how fast. */
+const EDGE = 48;
+const EDGE_SPEED = 14;
+
+/** An event being dragged to another time or day: where it was picked up and where it would land. */
+interface Drag {
+  event: CalendarEvent;
+  pointerId: number;
+  touch: boolean;
+  /** Where the press began, and where the pointer is now, in the window. */
+  x: number;
+  y: number;
+  lastX: number;
+  lastY: number;
+  /** Minutes between the event's start and the point it was picked up by. */
+  grab: number;
+  /** The column and minute of the day it started in. */
+  fromColumn: string;
+  fromDay: Day;
+  fromStart: number;
+  /** Whether the press has become a drag; until then it may still be a tap. */
+  moving: boolean;
+  column: string;
+  day: Day;
+  start: number;
+}
 
 /** A new event on the grid, from tapping an empty half hour: its day and 'HH:mm'. */
 export interface GridSlot {
@@ -54,7 +89,14 @@ export interface GridMore {
 @Component({
   selector: 'app-hour-grid',
   imports: [AvatarFace],
-  host: { '[class]': 'layout() + " " + variant()', '[style.--hour.px]': 'scale().hour', '[style.--pad.px]': 'pad', '[style.--columns]': 'columns().length' },
+  host: {
+    '[class]': 'layout() + " " + variant()',
+    '[class.dragging]': '!!drag()?.moving',
+    '[style.--hour.px]': 'scale().hour',
+    '[style.--pad.px]': 'pad',
+    '[style.--gap.px]': 'gap()',
+    '[style.--columns]': 'columns().length',
+  },
   template: `
     <div class="body" #body [class.scrolls]="scale().scrolls">
       <div class="grid" [style.height.px]="scale().height">
@@ -76,6 +118,8 @@ export interface GridMore {
                 [class.narrow]="block.narrow"
                 [class.selected]="block.id === selected()"
                 [class.calendar-pending]="block.pending"
+                [class.movable]="block.movable"
+                [class.lifted]="block.id === lifted()"
                 [attr.aria-busy]="block.pending"
                 [style.--member]="block.color"
                 [style.top.px]="block.top"
@@ -85,6 +129,7 @@ export interface GridMore {
                 [style.width]="block.width"
                 [attr.aria-label]="block.label"
                 (click)="inspect.emit(block.id)"
+                (pointerdown)="press($event, block.segment, column.source, block.movable)"
               >
                 <span class="content">
                   @if (variant() === 'day') {
@@ -125,6 +170,34 @@ export interface GridMore {
               >
                 +{{ more.count }}
               </button>
+            }
+            @if (preview(); as preview) {
+              @if (preview.column === column.key) {
+                <div class="event preview" [class.short]="preview.short" [style.--member]="preview.color" [style.top.px]="preview.top" [style.height.px]="preview.height" aria-hidden="true">
+                  <span class="content">
+                    <span class="time">{{ preview.range }}</span>
+                    <span class="title">{{ preview.title }}</span>
+                  </span>
+                </div>
+                @if (choosing()) {
+                  <div
+                    class="chooser"
+                    role="dialog"
+                    aria-label="Move a repeating event"
+                    [class.end]="preview.end"
+                    [class.above]="preview.above"
+                    [style.top.px]="preview.above ? preview.top - 8 : preview.top + preview.height + 8"
+                    (pointerdown)="$event.stopPropagation()"
+                  >
+                    <span class="ask">Move {{ preview.sameDay ? 'which events' : 'this event' }} to {{ preview.when }}?</span>
+                    <button type="button" (click)="drop(false)">This event</button>
+                    @if (preview.sameDay) {
+                      <button type="button" (click)="drop(true)">All events</button>
+                    }
+                    <button type="button" class="cancel" (click)="cancel()">Cancel</button>
+                  </div>
+                }
+              }
             }
             @if (column.isToday && grid().now; as now) {
               <span class="now-line" [style.top.px]="now.top" aria-hidden="true"></span>
@@ -228,6 +301,8 @@ export interface GridMore {
     }
 
     .event {
+      -webkit-touch-callout: none;
+      user-select: none;
       padding: 0;
       background: var(--member-bg);
       box-shadow: var(--event-outline);
@@ -462,6 +537,100 @@ export interface GridMore {
       text-align: center;
     }
 
+    /* While an event is dragged it stays faintly where it was, and a lifted copy shows where it lands. */
+    .lifted {
+      opacity: 0.35;
+    }
+
+    :host(.dragging),
+    :host(.dragging) .event {
+      cursor: grabbing;
+      user-select: none;
+    }
+
+    .preview {
+      left: var(--gap);
+      right: var(--gap);
+      outline: 2px solid var(--member-strong);
+      box-shadow: var(--event-lift), var(--event-outline);
+      pointer-events: none;
+      z-index: 3;
+    }
+
+    .preview .content {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .preview.short .content {
+      flex-direction: row;
+    }
+
+    /* A repeating event asks whether the move is for it alone or for every event of its series. */
+    .chooser {
+      position: absolute;
+      left: var(--gap);
+      z-index: 4;
+      width: max-content;
+      max-width: 300px;
+      box-sizing: border-box;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background: var(--surface);
+      border: var(--card-border);
+      border-radius: var(--card-radius);
+      box-shadow: var(--dialog-shadow);
+      color: var(--ink);
+    }
+
+    .chooser.end {
+      left: auto;
+      right: var(--gap);
+    }
+
+    .chooser.above {
+      transform: translateY(-100%);
+    }
+
+    .ask {
+      font-size: 15px;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+
+    .chooser button {
+      min-height: 56px;
+      padding: 0 18px;
+      border: 0;
+      border-radius: 28px;
+      background: var(--primary);
+      color: var(--on-primary);
+      font: 700 16px var(--font-body);
+      cursor: pointer;
+    }
+
+    .chooser .cancel {
+      background: var(--soft);
+      color: var(--ink);
+    }
+
+    :host(.desktop) .chooser {
+      padding: 10px;
+    }
+
+    :host(.desktop) .ask {
+      font-size: 13px;
+    }
+
+    :host(.desktop) .chooser button {
+      min-height: 44px;
+      border-radius: 22px;
+      font-size: 14px;
+    }
+
     .selected {
       outline: 3px solid var(--ink);
       outline-offset: 1px;
@@ -578,6 +747,60 @@ export class HourGrid {
   readonly create = output<GridSlot>();
 
   protected readonly pad = PAD;
+  protected readonly gap = computed(() => LAYOUTS[this.layout()].gap);
+
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+
+  /** The event being dragged, from the press that may become a drag until it is dropped. */
+  protected readonly drag = signal<Drag | null>(null);
+
+  /** A repeating event was dropped somewhere new, and asks whether the move is for it alone or its series. */
+  protected readonly choosing = signal(false);
+
+  /** The event left faintly in place while it is dragged. */
+  protected readonly lifted = computed(() => (this.drag()?.moving ? this.drag()!.event.id : null));
+
+  /** Where a dragged event would land, drawn over the grid with its new times. */
+  protected readonly preview = computed(() => {
+    const drag = this.drag();
+    if (!drag?.moving) {
+      return null;
+    }
+    const layout = LAYOUTS[this.layout()];
+    const { first, hour, height: gridHeight } = this.scale();
+    const perMinute = hour / 60;
+    const length = (Date.parse(drag.event.endsAt!) - Date.parse(drag.event.startsAt!)) / 60_000;
+    const top = PAD + (drag.start - first * 60) * perMinute + 1;
+    const height = Math.max(length * perMinute - 3, layout.minBlock);
+    const draft = movedTo(drag.event, drag.day, clock(drag.start), this.zone());
+    const range = `${clockLabel(draft.startTime)} – ${clockLabel(draft.endTime)}`;
+    const columns = this.columns();
+    const index = columns.findIndex((column) => column.key === drag.column);
+    return {
+      column: drag.column,
+      top,
+      height,
+      short: height < layout.shortBelow,
+      title: drag.event.title,
+      color: colorOf(drag.event, this.family.family()?.members ?? []),
+      range,
+      when: `${drag.day === drag.fromDay ? '' : formatDay(drag.day, { weekday: 'long' }) + ' '}${clockLabel(draft.startTime)}`,
+      sameDay: drag.day === drag.fromDay,
+      // The question opens toward the room it has: leftward from the last columns, upward near the bottom.
+      end: columns.length > 2 && index >= columns.length - 2,
+      above: top + height + 260 > gridHeight,
+    };
+  });
+
+  private readonly zone = computed(() => this.family.family()?.timeZone ?? 'UTC');
+
+  /** Listeners for the press in progress, removed when it ends. */
+  private release: (() => void) | null = null;
+  private longPress = 0;
+  private edgeFrame = 0;
+  /** Set when a drag ends, so the click that follows the release does not open the event or start a new one. */
+  private swallowClick = false;
 
   private readonly body = viewChild<ElementRef<HTMLElement>>('body');
   private readonly bodyHeight = signal(0);
@@ -661,6 +884,9 @@ export class HourGrid {
               ...across(segment.lane, segment.lanes),
               id: event.id,
               key: `${event.id}@${column.key}`,
+              segment,
+              // An event is picked up by the part on the day it starts; one still saving waits.
+              movable: !readOnly && !event.pending && !segment.continuesBefore,
               title: event.title,
               color: colorOf(event, members),
               initial: member?.initial ?? 'F',
@@ -734,7 +960,237 @@ export class HourGrid {
         });
       });
     });
-    inject(DestroyRef).onDestroy(() => cancelAnimationFrame(frame));
+    inject(DestroyRef).onDestroy(() => {
+      cancelAnimationFrame(frame);
+      this.cancel();
+    });
+
+    const host = this.host.nativeElement;
+    // Once a finger has picked an event up, its moves drag the event instead of scrolling the grid.
+    host.addEventListener('touchmove', (event) => this.drag()?.moving && event.preventDefault(), { passive: false });
+    host.addEventListener('contextmenu', (event) => this.drag() && event.preventDefault());
+    host.addEventListener(
+      'click',
+      (event) => {
+        if (this.swallowClick) {
+          this.swallowClick = false;
+          event.stopPropagation();
+          event.preventDefault();
+        }
+      },
+      true,
+    );
+  }
+
+  /**
+   * A press on an event: a mouse or pen that moves drags it, and a finger picks it up by holding
+   * still for a moment. A press that never becomes a drag stays a tap and opens the event.
+   */
+  protected press(event: PointerEvent, segment: TimedSegment, column: GridColumn, movable: boolean): void {
+    if (this.choosing()) {
+      this.cancel();
+    }
+    if (!movable || this.drag() || (event.pointerType === 'mouse' && event.button !== 0)) {
+      return;
+    }
+    const minute = this.minuteAt(event.clientY);
+    if (minute === null) {
+      return;
+    }
+    this.swallowClick = false;
+    const touch = event.pointerType === 'touch';
+    this.drag.set({
+      event: segment.event,
+      pointerId: event.pointerId,
+      touch,
+      x: event.clientX,
+      y: event.clientY,
+      lastX: event.clientX,
+      lastY: event.clientY,
+      grab: minute - segment.start,
+      fromColumn: column.key,
+      fromDay: column.day,
+      fromStart: segment.start,
+      moving: false,
+      column: column.key,
+      day: column.day,
+      start: segment.start,
+    });
+    if (touch) {
+      this.longPress = window.setTimeout(() => this.pickUp(), LONG_PRESS);
+    }
+    const move = (e: PointerEvent) => e.pointerId === event.pointerId && this.moved(e.clientX, e.clientY);
+    const up = (e: PointerEvent) => e.pointerId === event.pointerId && this.released();
+    const cancel = (e: PointerEvent) => e.pointerId === event.pointerId && this.cancel();
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && this.cancel();
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+    window.addEventListener('keydown', key);
+    this.release = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+      window.removeEventListener('keydown', key);
+    };
+  }
+
+  /** Puts down a dragged repeating event: for it alone, or for every event of its series at the same time of day. */
+  protected drop(series: boolean): void {
+    const drag = this.drag();
+    this.stop();
+    if (!drag) {
+      return;
+    }
+    const draft = movedTo(drag.event, drag.day, clock(drag.start), this.zone());
+    // The calendar shows the move at once and says if it could not be saved, putting the event back.
+    this.calendar.update(drag.event.id, requestOf(draft), series).subscribe({ error: () => undefined });
+  }
+
+  /** Lets go of a drag, or of a question about one, leaving the event where it was. */
+  protected cancel(): void {
+    if (this.drag()?.moving && !this.choosing()) {
+      // Let go mid-drag, the release that follows lands somewhere on the grid without adding an event there.
+      this.swallowNextClick();
+    }
+    this.stop();
+  }
+
+  /** Swallows the click that follows the pointer's next release. */
+  private swallowNextClick(): void {
+    this.swallowClick = true;
+    window.addEventListener('pointerup', () => setTimeout(() => (this.swallowClick = false)), { once: true });
+  }
+
+  private stop(): void {
+    clearTimeout(this.longPress);
+    cancelAnimationFrame(this.edgeFrame);
+    this.release?.();
+    this.release = null;
+    this.drag.set(null);
+    this.choosing.set(false);
+  }
+
+  /** A held finger picks the event up. */
+  private pickUp(): void {
+    const drag = this.drag();
+    if (!drag || drag.moving) {
+      return;
+    }
+    navigator.vibrate?.(10);
+    this.drag.set({ ...drag, moving: true });
+    this.follow(drag.lastX, drag.lastY);
+  }
+
+  private moved(x: number, y: number): void {
+    const drag = this.drag();
+    if (!drag || this.choosing()) {
+      return;
+    }
+    if (!drag.moving) {
+      const far = Math.hypot(x - drag.x, y - drag.y);
+      if (drag.touch) {
+        // A finger that moves before the long press is scrolling or swiping, not dragging.
+        if (far > TOUCH_SLOP) {
+          this.stop();
+        } else {
+          this.drag.set({ ...drag, lastX: x, lastY: y });
+        }
+        return;
+      }
+      if (far < DRAG_SLOP) {
+        return;
+      }
+      this.drag.set({ ...drag, moving: true });
+    }
+    this.follow(x, y);
+  }
+
+  /** Puts the preview under the pointer: the column it is over and its start, snapped to the editor's steps. */
+  private follow(x: number, y: number): void {
+    const drag = this.drag();
+    const minute = this.minuteAt(y);
+    if (!drag || minute === null) {
+      return;
+    }
+    const { first, last } = this.scale();
+    const columns = this.columns();
+    const elements = Array.from(this.host.nativeElement.querySelectorAll<HTMLElement>('.column'));
+    let index = elements.findIndex((element) => x < element.getBoundingClientRect().right);
+    index = index < 0 ? elements.length - 1 : index;
+    const over = columns[index];
+    // A Day view's columns are people, not days: an event moves in time there, and stays with its person.
+    const column = !over || over.day === drag.fromDay ? { key: drag.fromColumn, day: drag.fromDay } : over;
+    const snapped = Math.round((minute - drag.grab) / STEP_MINUTES) * STEP_MINUTES;
+    const start = Math.min(Math.max(snapped, first * 60), Math.min(last * 60, 24 * 60) - STEP_MINUTES);
+    this.drag.set({ ...drag, lastX: x, lastY: y, column: column.key, day: column.day, start });
+    this.scrollAtEdge();
+  }
+
+  private released(): void {
+    const drag = this.drag();
+    if (!drag?.moving) {
+      this.stop();
+      return;
+    }
+    this.swallowClick = true;
+    setTimeout(() => (this.swallowClick = false));
+    clearTimeout(this.longPress);
+    cancelAnimationFrame(this.edgeFrame);
+    if (drag.day === drag.fromDay && drag.start === drag.fromStart) {
+      this.stop();
+    } else if (drag.event.recurring) {
+      // Keep the preview where it was dropped while the question is open.
+      this.release?.();
+      const key = (e: KeyboardEvent) => e.key === 'Escape' && this.cancel();
+      // A tap elsewhere only puts the question away; it does not also open or add an event.
+      const away = () => {
+        this.swallowNextClick();
+        this.cancel();
+      };
+      window.addEventListener('keydown', key);
+      window.addEventListener('pointerdown', away);
+      this.release = () => {
+        window.removeEventListener('keydown', key);
+        window.removeEventListener('pointerdown', away);
+      };
+      this.choosing.set(true);
+      afterNextRender(() => this.host.nativeElement.querySelector<HTMLElement>('.chooser button')?.focus(), { injector: this.injector });
+    } else {
+      this.drop(false);
+    }
+  }
+
+  /** Near the top or bottom of a scrolling grid, a dragged event scrolls it to reach earlier or later hours. */
+  private scrollAtEdge(): void {
+    cancelAnimationFrame(this.edgeFrame);
+    const body = this.body()?.nativeElement;
+    const drag = this.drag();
+    if (!body || !drag?.moving || !this.scale().scrolls) {
+      return;
+    }
+    const rect = body.getBoundingClientRect();
+    const speed = drag.lastY < rect.top + EDGE ? -EDGE_SPEED : drag.lastY > rect.bottom - EDGE ? EDGE_SPEED : 0;
+    if (!speed) {
+      return;
+    }
+    this.edgeFrame = requestAnimationFrame(() => {
+      const before = body.scrollTop;
+      body.scrollTop += speed;
+      if (body.scrollTop !== before) {
+        this.follow(drag.lastX, drag.lastY);
+      }
+    });
+  }
+
+  /** The minute of the day at a point in the window, on the grid's clock. */
+  private minuteAt(clientY: number): number | null {
+    const grid = this.host.nativeElement.querySelector('.grid');
+    if (!grid) {
+      return null;
+    }
+    const { first, hour } = this.scale();
+    return first * 60 + ((clientY - grid.getBoundingClientRect().top - PAD) / hour) * 60;
   }
 
   /** Scrolls the grid back to the current hour, as when it opens. */
@@ -770,6 +1226,11 @@ export class HourGrid {
     const slot = Math.min(Math.max(Math.floor(minutes / 30) * 30, 0), 23 * 60 + 30);
     this.create.emit({ day: column.day, time: `${String(Math.floor(slot / 60)).padStart(2, '0')}:${String(slot % 60).padStart(2, '0')}` });
   }
+}
+
+/** Minutes since midnight as 'HH:mm'. */
+function clock(minutes: number): string {
+  return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 }
 
 /** "3:15 PM" as "3:15 pm", and "3:00 PM" as "3 pm", to fit a narrow block. */

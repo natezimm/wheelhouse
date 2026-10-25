@@ -1,4 +1,5 @@
 import { CalendarEvent, CalendarSource, EventRequest, FAMILY_COLOR, Repeat } from './calendar';
+import { instantAt } from './calendar-preview';
 import { Day, addDays, dayIn, minutesIn } from './days';
 import { Member } from './family';
 
@@ -119,6 +120,15 @@ export function problemWith(draft: EventDraft): string | null {
 /** Moves the whole event by whole days. */
 export function moveDays(draft: EventDraft, days: number): EventDraft {
   return { ...draft, startDate: addDays(draft.startDate, days), endDate: addDays(draft.endDate, days) };
+}
+
+/**
+ * A timed event moved to start at <code>time</code> ('HH:mm') on <code>day</code>, keeping how long
+ * it really lasts: an event that spans a clock change keeps its elapsed length, not its clock times.
+ */
+export function movedTo(event: CalendarEvent, day: Day, time: string, timeZone: string): EventDraft {
+  const end = new Date(Date.parse(instantAt(day, time, timeZone)) + Date.parse(event.endsAt!) - Date.parse(event.startsAt!));
+  return { ...draftOf(event, timeZone), startDate: day, startTime: time, endDate: dayIn(timeZone, end), endTime: clock(minutesIn(timeZone, end)) };
 }
 
 /** Moves an all-day event's last day, never before its first. */
