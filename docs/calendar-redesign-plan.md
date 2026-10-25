@@ -1,6 +1,6 @@
 # Wheelhouse calendar redesign plan
 
-Created October 21, 2026; reviewed against the code and given a visual direction on October 22, 2026. Status: milestones 1 to 5 are merged; milestone 6 (release) is in review. Repository baseline: `18e4afb` (after the calendar-only cleanup in PR #39).
+Created October 21, 2026; reviewed against the code and given a visual direction on October 22, 2026. Status: all six milestones are done; the redesign shipped in v0.4.0 and v0.4.1. Repository baseline: `18e4afb` (after the calendar-only cleanup in PR #39).
 
 ## Product decision
 
@@ -222,7 +222,7 @@ Household features stay in the [household roadmap](household-roadmap.md). Also d
 | 3. Day, Month, phone | Done | [PR #44](https://github.com/natezimm/wheelhouse/pull/44), merged October 23, 2026; screenshots in `docs/screenshots/m3-*.png` |
 | 4. Hardening | Done | [PR #45](https://github.com/natezimm/wheelhouse/pull/45), merged October 23, 2026, with two review fixes after it; loading and failed states on every view, keyboard focus in details and editors, contrast checks per member color, the narrow desktop toolbar; screenshots in `docs/screenshots/m4-*.png` |
 | 5. Themes | Done | [PR #47](https://github.com/natezimm/wheelhouse/pull/47), merged October 23, 2026; Daylight, Groovy, Classic, Bold and automatic Night on every view, the Settings picker, contrast per theme and member color; screenshots in `docs/screenshots/m5-*.png` |
-| 6. Release | In review | Pre-release review of every view in every theme; demo seeds and desktop opening scroll fixed, smoke checks the remembered view; screenshots in `docs/screenshots/m6-*.png`. Done once a version is released and checked live |
+| 6. Release | Done | PR #48; v0.4.0 and v0.4.1 released with green live smoke checks. Checked live October 25, 2026: a demo edit survives a reload, Live recovers after the network drops, and a parent signs in and out with Google on the family instance. Screenshots in `docs/screenshots/m6-*.png` |
 
 Decisions made while building milestone 2:
 
