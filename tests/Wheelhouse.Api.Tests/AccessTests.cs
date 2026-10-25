@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+using Wheelhouse.Api.Auth;
 using Wheelhouse.Api.Families;
 
 namespace Wheelhouse.Api.Tests;
@@ -64,6 +65,37 @@ public sealed class AccessTests(ApiFactory factory)
 
         Assert.Equal(HttpStatusCode.OK, (await visitor.SendAsync(SetTheme("http://localhost"))).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await visitor.SendAsync(SetTheme(null))).StatusCode);
+    }
+
+    [Fact]
+    public async Task Every_request_is_rate_limited_by_family_or_by_address()
+    {
+        Task<HttpContext> Session(string address) => factory.Demo.Server.SendAsync(context =>
+        {
+            context.Request.Path = "/api/session";
+            context.Connection.RemoteIpAddress = IPAddress.Parse(address);
+        });
+        var reads = new List<int>();
+        for (var i = 0; i <= RateLimits.RequestsPerMinute; i++)
+        {
+            reads.Add((await Session("198.51.100.20")).Response.StatusCode);
+        }
+
+        using var visitor = await factory.DemoVisitorAsync();
+        var theme = new FamilyThemeRequest(Theme.Bold, NightMode.Off);
+        var changes = new List<HttpStatusCode>();
+        for (var i = 0; i <= RateLimits.ChangesPerMinute; i++)
+        {
+            changes.Add((await visitor.PutAsJsonAsync("/api/family/theme", theme, ApiFactory.Json)).StatusCode);
+        }
+
+        Assert.All(reads[..^1], status => Assert.Equal(StatusCodes.Status200OK, status));
+        Assert.Equal(StatusCodes.Status429TooManyRequests, reads[^1]);
+        Assert.Equal(StatusCodes.Status200OK, (await Session("198.51.100.21")).Response.StatusCode);
+        Assert.All(changes[..^1], status => Assert.Equal(HttpStatusCode.OK, status));
+        Assert.Equal(HttpStatusCode.TooManyRequests, changes[^1]);
+        // Reading goes on: only changes ran out.
+        Assert.Equal(HttpStatusCode.OK, (await visitor.GetAsync("/api/family")).StatusCode);
     }
 
     [Fact]

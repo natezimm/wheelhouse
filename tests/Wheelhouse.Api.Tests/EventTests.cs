@@ -141,6 +141,21 @@ public sealed class EventTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task An_event_lasts_five_years_at_most()
+    {
+        using var visitor = await factory.DemoVisitorAsync();
+        var claras = await CalendarIdAsync(visitor, "Clara");
+
+        var typo = await visitor.PostAsJsonAsync(
+            "/api/calendar/events", new EventRequest(claras, "Trip", null, true, Day, null, Day.AddYears(36), null), ApiFactory.Json);
+        var schoolYear = await visitor.PostAsJsonAsync(
+            "/api/calendar/events", new EventRequest(claras, "School year", null, true, Day, null, Day.AddMonths(10), null), ApiFactory.Json);
+
+        Assert.Equal(HttpStatusCode.BadRequest, typo.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, schoolYear.StatusCode);
+    }
+
+    [Fact]
     public async Task A_family_cannot_add_to_or_change_another_familys_calendar()
     {
         using var visitor = await factory.DemoVisitorAsync();

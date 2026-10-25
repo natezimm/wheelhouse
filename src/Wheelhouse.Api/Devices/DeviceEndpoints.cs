@@ -17,7 +17,7 @@ public static class DeviceEndpoints
 
     /// <summary>
     /// Anyone can ask for a code, so codes are limited per address; a parent's guesses at a
-    /// code are limited per family, so nobody can try all million of them.
+    /// code are limited per address (per family without one), so nobody can try all million of them.
     /// </summary>
     public static IServiceCollection AddPairing(this IServiceCollection services)
     {
@@ -34,8 +34,9 @@ public static class DeviceEndpoints
                     Window = TimeSpan.FromMinutes(10),
                 })
                 : RateLimitPartition.GetNoLimiter(""));
+            // By address where there is one: on the demo anyone can make a new family to guess from.
             options.AddPolicy(ClaimLimit, http => RateLimitPartition.GetFixedWindowLimiter(
-                http.User.FindFirstValue(WheelhouseClaims.Family) ?? "",
+                http.Connection.RemoteIpAddress?.ToString() ?? http.User.FindFirstValue(WheelhouseClaims.Family) ?? "",
                 _ => new FixedWindowRateLimiterOptions { PermitLimit = 10, Window = TimeSpan.FromMinutes(1) }));
         });
 
