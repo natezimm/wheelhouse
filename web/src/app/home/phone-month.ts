@@ -213,7 +213,7 @@ export class PhoneMonth {
 
     const ownersByDay = new Map<Day, Set<string>>();
     for (const event of this.calendar.events()) {
-      const days = daysOf(event, family.timeZone);
+      const days = daysOf(event, family.timeZone, { from: start, to: end });
       for (const day of days) {
         ownersByDay.set(day, (ownersByDay.get(day) ?? new Set()).add(ownerOf(event)));
       }

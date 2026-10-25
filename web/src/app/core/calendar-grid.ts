@@ -1,5 +1,5 @@
-import { CalendarEvent, daysOf } from './calendar';
-import { Day, dayIn, minutesIn } from './days';
+import { CalendarEvent, daysOf, spanOf } from './calendar';
+import { Day, addDays, dayIn, minutesIn } from './days';
 
 /**
  * Where events sit on an hour grid, worked out without any screen: which family days each
@@ -167,15 +167,15 @@ export function dayBars(
   const items = events
     .filter(inAllDayLane)
     .map((event) => {
-      const covers = daysOf(event, timeZone);
-      const shown = covers.filter((day) => columns.has(day));
+      const span = spanOf(event, timeZone);
+      const shown = days.length ? daysOf(event, timeZone, { from: days[0], to: addDays(days.at(-1)!, 1) }).filter((day) => columns.has(day)) : [];
       return shown.length
         ? {
             event,
             first: columns.get(shown[0])!,
             last: columns.get(shown.at(-1)!)!,
-            continuesBefore: covers[0] < shown[0],
-            continuesAfter: covers.at(-1)! > shown.at(-1)!,
+            continuesBefore: span.first < shown[0],
+            continuesAfter: span.last > shown.at(-1)!,
           }
         : null;
     })

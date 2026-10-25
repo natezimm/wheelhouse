@@ -51,9 +51,12 @@ public static class AuthEndpoints
         return TypedResults.Challenge(properties, [GoogleDefaults.AuthenticationScheme]);
     }
 
-    /// <summary>A path on this site, so sign-in can never be used to send someone elsewhere.</summary>
+    /// <summary>
+    /// A path on this site, so sign-in can never be used to send someone elsewhere. Browsers drop
+    /// tabs and line breaks from a URL, so "/&lt;tab&gt;/evil.example" would read as "//evil.example".
+    /// </summary>
     private static bool IsLocal(string? url) =>
-        url is ['/', ..] && !url.StartsWith("//") && !url.StartsWith("/\\");
+        url is ['/', ..] && !url.StartsWith("//") && !url.StartsWith("/\\") && !url.Any(char.IsControl);
 }
 
 public static class GoogleSignIn

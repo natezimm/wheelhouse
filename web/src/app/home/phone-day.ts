@@ -128,7 +128,8 @@ export class PhoneDay {
       return null;
     }
     const today = dayIn(family.timeZone, this.clock.now());
-    const busy = new Set(this.calendar.events().flatMap((event) => daysOf(event, family.timeZone)));
+    const week = { from: start, to: addDays(start, 7) };
+    const busy = new Set(this.calendar.events().flatMap((event) => daysOf(event, family.timeZone, week)));
     return Array.from({ length: 7 }, (_, i) => {
       const day = addDays(start, i);
       return {

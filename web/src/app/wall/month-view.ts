@@ -452,7 +452,7 @@ export class MonthView {
     // Every event a day holds, for the day's name read aloud.
     const counts = new Map<Day, number>();
     for (const event of events) {
-      for (const day of daysOf(event, zone)) {
+      for (const day of daysOf(event, zone, { from: start, to: end })) {
         counts.set(day, (counts.get(day) ?? 0) + 1);
       }
     }

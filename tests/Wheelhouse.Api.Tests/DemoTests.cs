@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Wheelhouse.Api.Demo;
@@ -120,6 +121,37 @@ public sealed class DemoTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.ServiceUnavailable, turnedAway.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await second.GetAsync("/api/family")).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await first.GetAsync("/api/family")).StatusCode);
+    }
+
+    [Fact]
+    public async Task One_address_cannot_fill_the_demo_with_new_copies()
+    {
+        Task<HttpContext> Visit(string address, string? cookie = null) => factory.Demo.Server.SendAsync(context =>
+        {
+            context.Request.Method = HttpMethods.Post;
+            context.Request.Path = "/api/demo/visit";
+            context.Connection.RemoteIpAddress = IPAddress.Parse(address);
+            if (cookie is not null)
+            {
+                context.Request.Headers.Cookie = cookie;
+            }
+        });
+
+        var admitted = new List<HttpContext>();
+        for (var i = 0; i < 20; i++)
+        {
+            admitted.Add(await Visit("198.51.100.1"));
+        }
+        var turnedAway = await Visit("198.51.100.1");
+        var cookie = admitted[0].Response.Headers.SetCookie.ToString().Split(';')[0];
+        var returning = await Visit("198.51.100.1", cookie);
+        var elsewhere = await Visit("198.51.100.2");
+
+        Assert.All(admitted, visit => Assert.Equal(StatusCodes.Status204NoContent, visit.Response.StatusCode));
+        Assert.Equal(StatusCodes.Status429TooManyRequests, turnedAway.Response.StatusCode);
+        Assert.Equal(StatusCodes.Status204NoContent, returning.Response.StatusCode);
+        Assert.Equal(0, returning.Response.Headers.SetCookie.Count);
+        Assert.Equal(StatusCodes.Status204NoContent, elsewhere.Response.StatusCode);
     }
 
     [Fact]
