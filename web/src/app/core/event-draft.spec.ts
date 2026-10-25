@@ -1,6 +1,6 @@
 import { marloweCalendars, allDay, timed } from '../testing/calendar';
 import { marlowes } from '../testing/marlowes';
-import { clockLabel, draftOf, moveEnd, moveStart, moveTo, newDraft, onDayOf, problemWith, requestOf, writableCalendars } from './event-draft';
+import { clockLabel, draftOf, moveEnd, moveStart, movedTo, newDraft, onDayOf, problemWith, requestOf, writableCalendars } from './event-draft';
 
 describe('event drafts', () => {
   const zone = 'America/New_York';
@@ -60,11 +60,17 @@ describe('event drafts', () => {
     expect(clockLabel('17:05')).toBe('5:05 PM');
   });
 
-  it('keep the length when moved to another day and time, past midnight too', () => {
-    const swim = draftOf(timed('Swim', 'm3', '2026-10-14T21:30:00Z', '2026-10-14T22:15:00Z'), zone);
+  it('keep the length when moved to another day and time, past midnight and across clock changes', () => {
+    const swim = timed('Swim', 'm3', '2026-10-14T21:30:00Z', '2026-10-14T22:15:00Z');
 
-    expect(moveTo(swim, '2026-10-16', '09:00')).toMatchObject({ startDate: '2026-10-16', startTime: '09:00', endDate: '2026-10-16', endTime: '09:45' });
-    expect(moveTo(swim, '2026-10-16', '23:45')).toMatchObject({ endDate: '2026-10-17', endTime: '00:30' });
+    expect(movedTo(swim, '2026-10-16', '09:00', zone)).toMatchObject({ startDate: '2026-10-16', startTime: '09:00', endDate: '2026-10-16', endTime: '09:45' });
+    expect(movedTo(swim, '2026-10-16', '23:45', zone)).toMatchObject({ endDate: '2026-10-17', endTime: '00:30' });
+    // 1:30 to 3:30 AM on the spring-forward day lasts an hour, and stays an hour.
+    const early = timed('Early', 'm1', '2026-03-08T06:30:00Z', '2026-03-08T07:30:00Z');
+    expect(movedTo(early, '2026-03-09', '09:00', zone)).toMatchObject({ startTime: '09:00', endDate: '2026-03-09', endTime: '10:00' });
+    // 1:45 EDT to 1:15 EST on the fall-back day lasts half an hour.
+    const late = timed('Late', 'm1', '2026-11-01T05:45:00Z', '2026-11-01T06:15:00Z');
+    expect(movedTo(late, '2026-11-02', '09:00', zone)).toMatchObject({ startTime: '09:00', endDate: '2026-11-02', endTime: '09:30' });
   });
 
   it('go back to their own day for a change to a whole series, keeping the new times', () => {

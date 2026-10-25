@@ -1,6 +1,6 @@
 import { Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { CalendarEvent, CalendarStore, colorOf, timeRange } from '../core/calendar';
-import { STEP_MINUTES, clockLabel, draftOf, moveTo, requestOf } from '../core/event-draft';
+import { STEP_MINUTES, clockLabel, movedTo, requestOf } from '../core/event-draft';
 import { TimedSegment, arrange, hourLabel, hourRange } from '../core/calendar-grid';
 import { Clock } from '../core/clock';
 import { Day, dayIn, formatDay, minutesIn, timeIn } from '../core/days';
@@ -773,7 +773,7 @@ export class HourGrid {
     const length = (Date.parse(drag.event.endsAt!) - Date.parse(drag.event.startsAt!)) / 60_000;
     const top = PAD + (drag.start - first * 60) * perMinute + 1;
     const height = Math.max(length * perMinute - 3, layout.minBlock);
-    const draft = moveTo(draftOf(drag.event, this.zone()), drag.day, clock(drag.start));
+    const draft = movedTo(drag.event, drag.day, clock(drag.start), this.zone());
     const range = `${clockLabel(draft.startTime)} – ${clockLabel(draft.endTime)}`;
     const columns = this.columns();
     const index = columns.findIndex((column) => column.key === drag.column);
@@ -1042,7 +1042,7 @@ export class HourGrid {
     if (!drag) {
       return;
     }
-    const draft = moveTo(draftOf(drag.event, this.zone()), drag.day, clock(drag.start));
+    const draft = movedTo(drag.event, drag.day, clock(drag.start), this.zone());
     // The calendar shows the move at once and says if it could not be saved, putting the event back.
     this.calendar.update(drag.event.id, requestOf(draft), series).subscribe({ error: () => undefined });
   }
