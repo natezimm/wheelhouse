@@ -3,6 +3,7 @@ import { CalendarStore, colorOf, daysOf } from '../core/calendar';
 import { inAllDayLane } from '../core/calendar-grid';
 import { Day, dayIn, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
+import { AvatarFace } from '../shared/avatar-face';
 
 /**
  * A day's events as one tinted row each, for the phone's week and month: the start time (or
@@ -11,6 +12,7 @@ import { FamilyStore } from '../core/family';
  */
 @Component({
   selector: 'app-compact-agenda',
+  imports: [AvatarFace],
   template: `
     @if (rows(); as rows) {
       @for (row of rows; track row.id) {
@@ -24,7 +26,7 @@ import { FamilyStore } from '../core/family';
           (click)="inspect.emit(row.id)"
         >
           <span class="time">{{ row.time }}</span>
-          <span class="mark" aria-hidden="true">{{ row.initial }}</span>
+          <span class="mark" aria-hidden="true"><app-avatar-face [initial]="row.initial" [avatar]="row.avatar" /></span>
           <span class="title">{{ row.title }}</span>
         </button>
       } @empty {
@@ -131,6 +133,7 @@ export class CompactAgenda {
         title: event.title,
         color: colorOf(event, family.members),
         initial: member?.initial ?? 'F',
+        avatar: member?.avatar ?? null,
         pending: !!event.pending,
         allDay: whole,
         time,

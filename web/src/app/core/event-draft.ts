@@ -153,6 +153,8 @@ export interface CalendarChoice {
   id: string;
   label: string;
   initial: string;
+  /** The owner's picture, if they chose one. */
+  avatar?: string | null;
   color: string;
 }
 
@@ -168,7 +170,7 @@ export function writableCalendars(calendars: readonly CalendarSource[], members:
     const theirs = owned(member.id);
     for (const calendar of theirs) {
       const label = theirs.length === 1 ? member.displayName : calendar.name;
-      choices.push({ id: calendar.id, label, initial: member.initial, color: member.color });
+      choices.push({ id: calendar.id, label, initial: member.initial, avatar: member.avatar, color: member.color });
     }
   }
   for (const calendar of writable.filter((c) => !choices.some((choice) => choice.id === c.id))) {

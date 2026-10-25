@@ -43,6 +43,11 @@ describe('MemberEditor', () => {
       .querySelector<HTMLInputElement>('input')!;
   const role = (page: HTMLElement, value: string) =>
     page.querySelector<HTMLInputElement>(`input[type=radio][value=${value}]`)!;
+  const picture = (page: HTMLElement, name: string) =>
+    Array.from(page.querySelectorAll('.picture'))
+      .find((label) => label.textContent?.trim().endsWith(name))!
+      .querySelector<HTMLInputElement>('input')!;
+  const preview = (page: HTMLElement) => page.querySelector('.preview')!;
   const submit = (page: HTMLElement) => page.querySelector<HTMLButtonElement>('button[type=submit]')!;
   const button = (page: HTMLElement, label: string) =>
     Array.from(page.querySelectorAll<HTMLButtonElement>('button')).find((b) => b.textContent?.trim() === label)!;
@@ -76,7 +81,7 @@ describe('MemberEditor', () => {
 
       submit(page).click();
       const request = http.expectOne({ method: 'POST', url: '/api/family/members' });
-      expect(request.request.body).toEqual({ displayName: 'Ada', color: '#7243B8', role: 'Kid' });
+      expect(request.request.body).toEqual({ displayName: 'Ada', color: '#7243B8', role: 'Kid', avatar: null });
       request.flush({ id: 'm4', displayName: 'Ada', color: '#7243B8', initial: 'A', role: 'Kid' });
       await settle();
 
@@ -102,11 +107,47 @@ describe('MemberEditor', () => {
 
       submit(page).click();
       const request = http.expectOne({ method: 'PUT', url: '/api/family/members/m3' });
-      expect(request.request.body).toEqual({ displayName: 'Miles', color: '#A8326E', role: 'Parent' });
+      expect(request.request.body).toEqual({ displayName: 'Miles', color: '#A8326E', role: 'Parent', avatar: null });
       request.flush({ id: 'm3', displayName: 'Miles', color: '#A8326E', initial: 'M', role: 'Parent' });
       await settle();
 
       expect(router.url).toBe('/settings');
+    });
+
+    it('gives the member a picture, previewed on their color', async () => {
+      const { page, settle } = await open('/settings/members/m3');
+      expect(picture(page, 'Initial').checked).toBe(true);
+      expect(preview(page).textContent?.trim()).toBe('M');
+
+      picture(page, 'Owl').click();
+      await settle();
+      expect(preview(page).querySelector('img')?.getAttribute('src')).toBe('/avatars/owl.svg');
+
+      submit(page).click();
+      const request = http.expectOne({ method: 'PUT', url: '/api/family/members/m3' });
+      expect(request.request.body).toEqual({ displayName: 'Milo', color: '#137A6D', role: 'Kid', avatar: 'owl' });
+      request.flush({ ...marlowes.members[2], avatar: 'owl' });
+      await settle();
+
+      expect(router.url).toBe('/settings');
+    });
+
+    it('starts from the picture the member has, and can go back to the initial', async () => {
+      const harness = await RouterTestingHarness.create('/settings/members/m3');
+      http
+        .expectOne('/api/family')
+        .flush({ ...marlowes, members: marlowes.members.map((m) => (m.id === 'm3' ? { ...m, avatar: 'frog' } : m)) });
+      await harness.fixture.whenStable();
+      const page = harness.routeNativeElement as HTMLElement;
+      expect(picture(page, 'Frog').checked).toBe(true);
+
+      picture(page, 'Initial').click();
+      await harness.fixture.whenStable();
+      submit(page).click();
+      const request = http.expectOne({ method: 'PUT', url: '/api/family/members/m3' });
+      expect(request.request.body.avatar).toBeNull();
+      request.flush(marlowes.members[2]);
+      await harness.fixture.whenStable();
     });
 
     it('removes the member only after a second, explicit tap', async () => {

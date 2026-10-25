@@ -1,10 +1,12 @@
 import { Component, input } from '@angular/core';
 import { Member } from '../core/family';
+import { AvatarFace } from './avatar-face';
 
-/** A member's initial on a circle of their color. Size it with the --avatar-size property. */
+/** A member's picture, or their initial, on a circle of their color. Size it with the --avatar-size property. */
 @Component({
   selector: 'app-member-avatar',
-  template: '{{ member().initial }}',
+  imports: [AvatarFace],
+  template: '<app-avatar-face [initial]="member().initial" [avatar]="member().avatar" />',
   host: {
     '[style.--member]': 'member().color',
     'aria-hidden': 'true',

@@ -5,6 +5,7 @@ import { Clock } from '../core/clock';
 import { Day, addDays, dayIn, formatDay, startOfWeek, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { GridColumn, GridNote, GridSlot, HourGrid } from './hour-grid';
+import { AvatarFace } from '../shared/avatar-face';
 
 export type { GridSlot } from './hour-grid';
 
@@ -15,7 +16,7 @@ export type { GridSlot } from './hour-grid';
  */
 @Component({
   selector: 'app-week-view',
-  imports: [HourGrid],
+  imports: [AvatarFace, HourGrid],
   host: { '[class]': 'layout()' },
   template: `
     @if (week(); as week) {
@@ -47,7 +48,7 @@ export type { GridSlot } from './hour-grid';
               [attr.aria-label]="bar.label"
               (click)="inspect.emit(bar.id)"
             >
-              <span class="mark" aria-hidden="true">{{ bar.initial }}</span>
+              <span class="mark" aria-hidden="true"><app-avatar-face [initial]="bar.initial" [avatar]="bar.avatar" /></span>
               <span class="title">{{ bar.title }}</span>
             </button>
           }
@@ -401,6 +402,7 @@ export class WeekView {
         title: event.title,
         color: colorOf(event, family.members),
         initial: member?.initial ?? 'F',
+        avatar: member?.avatar ?? null,
         pending: !!event.pending,
         key: event.id,
         column: `${bar.first + 1} / span ${bar.span}`,

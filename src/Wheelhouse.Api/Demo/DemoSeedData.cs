@@ -49,10 +49,10 @@ public static class DemoSeedData
 
     private static IReadOnlyList<DemoMemberSeed> BuildMembers(Guid familyId) =>
     [
-        new(Guid.NewGuid(), familyId, "Clara",  Role: "Parent", ColorHex: "#2563eb", SortOrder: 1),
-        new(Guid.NewGuid(), familyId, "Julian", Role: "Parent", ColorHex: "#0d9488", SortOrder: 2),
-        new(Guid.NewGuid(), familyId, "Milo",   Role: "Child",  ColorHex: "#d97706", SortOrder: 3),
-        new(Guid.NewGuid(), familyId, "Nora",   Role: "Child",  ColorHex: "#db2777", SortOrder: 4)
+        new(Guid.NewGuid(), familyId, "Clara",  Role: "Parent", ColorHex: "#2563eb", Avatar: "fox",     SortOrder: 1),
+        new(Guid.NewGuid(), familyId, "Julian", Role: "Parent", ColorHex: "#0d9488", Avatar: "bear",    SortOrder: 2),
+        new(Guid.NewGuid(), familyId, "Milo",   Role: "Child",  ColorHex: "#d97706", Avatar: "dino",    SortOrder: 3),
+        new(Guid.NewGuid(), familyId, "Nora",   Role: "Child",  ColorHex: "#db2777", Avatar: "unicorn", SortOrder: 4)
     ];
 
     // -------------------------------------------------------------------------
@@ -460,6 +460,7 @@ public sealed record DemoMemberSeed(
     string Name,
     string Role,
     string ColorHex,
+    string? Avatar,
     int SortOrder);
 
 public sealed record DemoCalendarSourceSeed(

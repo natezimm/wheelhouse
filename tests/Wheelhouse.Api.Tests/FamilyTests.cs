@@ -18,7 +18,7 @@ public sealed class FamilyTests(ApiFactory factory)
         Assert.NotNull(family);
         Assert.Equal("The Marlowe Family", family.Name);
         Assert.Equal(["Clara", "Julian", "Milo", "Nora"], family.Members.Select(member => member.DisplayName));
-        Assert.Equal(new MemberResponse(family.Members[0].Id, "Clara", "#2563eb", "C", MemberRole.Parent), family.Members[0]);
+        Assert.Equal(new MemberResponse(family.Members[0].Id, "Clara", "#2563eb", "C", MemberRole.Parent, "fox"), family.Members[0]);
         Assert.Equal(MemberRole.Kid, family.Members[2].Role);
     }
 

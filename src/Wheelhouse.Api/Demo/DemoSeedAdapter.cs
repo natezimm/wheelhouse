@@ -22,7 +22,7 @@ internal static class DemoSeedAdapter
         family.Members.AddRange(seed.Members.Select(m => new Member
         {
             Id = m.Id, FamilyId = family.Id, DisplayName = m.Name, Initial = m.Name[..1],
-            Color = m.ColorHex, Role = m.Role == "Parent" ? MemberRole.Parent : MemberRole.Kid,
+            Color = m.ColorHex, Avatar = m.Avatar, Role = m.Role == "Parent" ? MemberRole.Parent : MemberRole.Kid,
             SortOrder = m.SortOrder,
         }));
         family.Devices.Add(new Device

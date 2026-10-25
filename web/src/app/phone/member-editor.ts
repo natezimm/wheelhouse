@@ -2,12 +2,15 @@ import { Component, computed, effect, inject, input, signal } from '@angular/cor
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { AVATARS } from '../core/avatars';
 import { FamilyStore, MEMBER_COLORS, Member, MemberDraft, refusalMessage } from '../core/family';
+import { AvatarFace } from '../shared/avatar-face';
 
 /** Phone-only: add a family member, or change or remove one. Opened from Settings. */
 @Component({
   selector: 'app-member-editor',
-  imports: [ReactiveFormsModule, RouterLink],
+  imports: [AvatarFace, ReactiveFormsModule, RouterLink],
   template: `
     <header>
       <a class="back" routerLink="/settings" aria-label="Back to Settings">
@@ -22,10 +25,32 @@ import { FamilyStore, MEMBER_COLORS, Member, MemberDraft, refusalMessage } from 
       <p class="notice">That family member is no longer here.</p>
     } @else {
       <form class="card" [formGroup]="form" (ngSubmit)="save()">
+        <div class="preview" [style.--member]="value().color || null" aria-hidden="true">
+          <span class="face big"><app-avatar-face [initial]="initial()" [avatar]="value().avatar" /></span>
+        </div>
+
         <label class="field">
           Name
           <input type="text" formControlName="displayName" maxlength="50" autocomplete="off" />
         </label>
+
+        <fieldset>
+          <legend>Picture</legend>
+          <div class="pictures" [style.--member]="value().color || null">
+            <label class="picture">
+              <input type="radio" formControlName="avatar" value="" />
+              <span class="face"><app-avatar-face [initial]="initial()" /></span>
+              <span class="sr-only">Initial</span>
+            </label>
+            @for (avatar of avatars; track avatar.id) {
+              <label class="picture">
+                <input type="radio" formControlName="avatar" [value]="avatar.id" />
+                <span class="face"><app-avatar-face [initial]="initial()" [avatar]="avatar.id" /></span>
+                <span class="sr-only">{{ avatar.name }}</span>
+              </label>
+            }
+          </div>
+        </fieldset>
 
         <fieldset>
           <legend>Color</legend>
@@ -158,6 +183,63 @@ import { FamilyStore, MEMBER_COLORS, Member, MemberDraft, refusalMessage } from 
       outline-offset: 7px;
     }
 
+    .preview {
+      display: flex;
+      justify-content: center;
+    }
+
+    /* A picture or initial on the chosen color, drawn the way every screen draws an avatar. */
+    .face {
+      width: 100%;
+      aspect-ratio: 1;
+      box-sizing: border-box;
+      border: var(--avatar-border);
+      border-radius: 50%;
+      background: var(--member-strong, var(--muted));
+      color: var(--on-avatar);
+      font-size: 22px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .face.big {
+      width: 88px;
+      font-size: 40px;
+    }
+
+    .pictures {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+      gap: 12px;
+      padding: 6px;
+    }
+
+    .picture {
+      position: relative;
+      display: block;
+      min-height: 44px;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    .picture input {
+      position: absolute;
+      opacity: 0;
+    }
+
+    .picture:has(input:checked) {
+      box-shadow:
+        0 0 0 3px var(--surface),
+        0 0 0 6px var(--ink);
+    }
+
+    .picture:has(input:focus-visible) {
+      outline: 3px solid var(--accent);
+      outline-offset: 7px;
+    }
+
     .roles {
       display: flex;
       gap: 24px;
@@ -232,7 +314,14 @@ export class MemberEditor {
     displayName: ['', [Validators.required, Validators.pattern(/\S/), Validators.maxLength(50)]],
     color: ['', Validators.required],
     role: ['Kid' as Member['role'], Validators.required],
+    /** A picture's id, or empty for the initial. */
+    avatar: [''],
   });
+
+  protected readonly avatars = AVATARS;
+  protected readonly value = toSignal(this.form.valueChanges, { initialValue: this.form.getRawValue() });
+  /** The initial the server will give the name, for the previews. */
+  protected readonly initial = computed(() => [...(this.value().displayName ?? '').trim()][0]?.toUpperCase() || '?');
 
   constructor() {
     if (this.family.state().status === 'loading') {
@@ -243,7 +332,7 @@ export class MemberEditor {
     effect(() => {
       const member = this.existing();
       if (member && !this.form.dirty) {
-        this.form.reset({ displayName: member.displayName, color: member.color, role: member.role });
+        this.form.reset({ displayName: member.displayName, color: member.color, role: member.role, avatar: member.avatar ?? '' });
       }
     });
   }
@@ -254,7 +343,7 @@ export class MemberEditor {
     }
 
     const value = this.form.getRawValue();
-    const draft: MemberDraft = { ...value, displayName: value.displayName.trim() };
+    const draft: MemberDraft = { ...value, displayName: value.displayName.trim(), avatar: value.avatar || null };
     const id = this.id();
     this.finish(id ? this.family.updateMember(id, draft) : this.family.addMember(draft));
   }
