@@ -358,8 +358,9 @@ public sealed class EventTests(ApiFactory factory)
         var zone = TimeZoneInfo.FindSystemTimeZoneById((await FamilyOf(visitor)).TimeZone);
         var milos = await CalendarIdAsync(visitor, "Milo — School & Sports");
         var julians = await CalendarIdAsync(visitor, "Julian");
-        var added = await AddAsync(visitor, Timed(milos, "Piano", new(16, 0), new(16, 45)) with { CreationId = Guid.NewGuid() });
+        var added = await AddAsync(visitor, Timed(milos, "Piano", new(16, 0), new(16, 45)) with { CreationId = Guid.NewGuid(), Description = "Bring the blue book" });
 
+        // The request leaves the notes out, as the editors do when they are unchanged.
         var changed = await ChangeAsync(visitor, added.Id, Timed(julians, "Piano lesson", new(16, 30), new(17, 15)) with { Repeat = EventRepeat.Weekly });
 
         Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
@@ -368,7 +369,8 @@ public sealed class EventTests(ApiFactory factory)
         var lessons = (await CalendarOf(visitor, Day, 21)).Events.Where(e => e.Title == "Piano lesson").ToList();
         Assert.Equal([Day, Day.AddDays(7), Day.AddDays(14)], lessons.Select(e => Local(e, zone).Day));
         Assert.Equal(added.Id, lessons[0].Id);
-        Assert.All(lessons, e => Assert.Equal((true, answer.SeriesId, julians, new TimeOnly(16, 30)), (e.Recurring, e.SeriesId, e.CalendarId, Local(e, zone).Time)));
+        Assert.All(lessons, e => Assert.Equal((true, answer.SeriesId, julians, new TimeOnly(16, 30), "Bring the blue book"),
+            (e.Recurring, e.SeriesId, e.CalendarId, Local(e, zone).Time, e.Description)));
         Assert.DoesNotContain((await CalendarOf(visitor, Day, 21)).Events, e => e.Title == "Piano");
 
         // An event that already repeats keeps its rule.
@@ -634,8 +636,9 @@ public sealed class EventTests(ApiFactory factory)
         using var visitor = await factory.DemoVisitorAsync();
         var noras = await CalendarIdAsync(visitor, "Nora — Activities");
         var zone = TimeZoneInfo.FindSystemTimeZoneById((await FamilyOf(visitor)).TimeZone);
-        var added = await AddAsync(visitor, Timed(noras, "Reading", new(19, 0), new(19, 30)) with { Repeat = EventRepeat.Weekly });
+        var added = await AddAsync(visitor, Timed(noras, "Reading", new(19, 0), new(19, 30)) with { Repeat = EventRepeat.Weekly, Description = "Chapter 4" });
 
+        // The notes are left out, so the new events of the series take the series' notes.
         var changed = await ChangeAsync(visitor, added.Id, Timed(noras, "Reading", new(19, 0), new(19, 30)) with { Recurrence = "RRULE:FREQ=DAILY;COUNT=3" }, series: true);
 
         Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
@@ -643,7 +646,7 @@ public sealed class EventTests(ApiFactory factory)
         Assert.Equal((added.Id, "RRULE:FREQ=DAILY;COUNT=3"), (answer.Id, answer.Recurrence));
         var shown = (await CalendarOf(visitor, Day, 21)).Events.Where(e => e.Title == "Reading").ToList();
         Assert.Equal([Day, Day.AddDays(1), Day.AddDays(2)], shown.Select(e => Local(e, zone).Day));
-        Assert.All(shown, e => Assert.Equal("RRULE:FREQ=DAILY;COUNT=3", e.Recurrence));
+        Assert.All(shown, e => Assert.Equal(("RRULE:FREQ=DAILY;COUNT=3", "Chapter 4"), (e.Recurrence, e.Description)));
     }
 
     [Fact]
@@ -690,7 +693,7 @@ public sealed class EventTests(ApiFactory factory)
         using var visitor = await factory.DemoVisitorAsync();
         var noras = await CalendarIdAsync(visitor, "Nora — Activities");
         var zone = TimeZoneInfo.FindSystemTimeZoneById((await FamilyOf(visitor)).TimeZone);
-        await AddAsync(visitor, Timed(noras, "Ballet", new(16, 0), new(17, 0)) with { Recurrence = "RRULE:FREQ=WEEKLY;COUNT=4" });
+        await AddAsync(visitor, Timed(noras, "Ballet", new(16, 0), new(17, 0)) with { Recurrence = "RRULE:FREQ=WEEKLY;COUNT=4", Description = "Bring water" });
         var ballet = (await CalendarOf(visitor, Day, 28)).Events.Where(e => e.Title == "Ballet").ToList();
         var third = Day.AddDays(14);
 
@@ -705,6 +708,7 @@ public sealed class EventTests(ApiFactory factory)
         Assert.All(shown.Take(2), e => Assert.StartsWith("RRULE:FREQ=WEEKLY;UNTIL=", e.Recurrence));
         Assert.NotEqual(shown[0].SeriesId, shown[2].SeriesId);
         Assert.Equal(shown[2].SeriesId, shown[3].SeriesId);
+        Assert.All(shown, e => Assert.Equal("Bring water", e.Description));
     }
 
     [Fact]

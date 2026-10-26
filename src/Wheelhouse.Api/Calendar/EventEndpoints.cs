@@ -268,7 +268,8 @@ public static class EventEndpoints
             else if (startsSeries)
             {
                 // The event becomes the series' first occurrence and keeps its id, so the screen's event stays put.
-                var newSeries = EventSeries.Occurrences(draft!, row.GoogleEventId,
+                // Notes left out of the request stay the event's notes, in every occurrence.
+                var newSeries = EventSeries.Occurrences(draft! with { Description = draft.Description ?? row.Description }, row.GoogleEventId,
                     Today(time, Zone(draft!)).AddDays(CalendarSync.Ahead.Days), Zone(draft!)).ToList();
                 for (var n = 0; n < newSeries.Count; n++)
                 {
@@ -509,6 +510,8 @@ public static class EventEndpoints
         ILogger logger,
         CancellationToken cancellationToken)
     {
+        // Notes left out of the request stay the event's notes in the new series.
+        draft = draft with { Description = draft.Description ?? row.Description };
         var zone = Zone(draft);
         var day = EventSeries.DayOf(row, zone);
         if (IsDemo(instance))
@@ -770,7 +773,8 @@ public static class EventEndpoints
             var day = occurrence.StartDate ?? EventSeries.DayOf(occurrence.StartsAt!.Value, zone);
             if (!byDay.Remove(day, out var occurrenceRow))
             {
-                occurrenceRow = new EventInstance { Id = Guid.CreateVersion7(), FamilyId = row.FamilyId, GoogleEventId = occurrence.Id, Title = "" };
+                // A new event of the series takes the changed event's notes unless the change gives new ones.
+                occurrenceRow = new EventInstance { Id = Guid.CreateVersion7(), FamilyId = row.FamilyId, GoogleEventId = occurrence.Id, Title = "", Description = row.Description };
                 db.EventInstances.Add(occurrenceRow);
             }
 

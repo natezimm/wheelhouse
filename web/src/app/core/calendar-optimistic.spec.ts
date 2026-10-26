@@ -254,6 +254,39 @@ describe('optimistic calendar operations', () => {
     expect(store.events().find((e) => e.id === first.id)!.title).toBe('Edited elsewhere');
   });
 
+  it('repeats an uncertain change to only the notes when the snapshot still has the old notes', () => {
+    const notes: EventRequest = { ...draft('Practice'), startTime: '17:00:00', endTime: '18:00:00', description: 'Bring cleats' };
+    store.update(first.id, notes, false, 'operation').subscribe({ error: () => {} });
+    http.expectOne((r) => r.method === 'PUT').error(new ProgressEvent('error'));
+    store.retry('operation').subscribe();
+    read().flush(snapshot([first], 2));
+    const again = http.expectOne((r) => r.method === 'PUT');
+    expect(again.request.body).toMatchObject({ description: 'Bring cleats' });
+    again.flush({ ...first, description: 'Bring cleats' });
+    read().flush(snapshot([{ ...first, description: 'Bring cleats' }, second, unrelated], 3));
+    expect(store.pending()).toHaveLength(0);
+  });
+
+  it('repeats an uncertain new rule for a series when the snapshot still has the old rule', () => {
+    store.update(first.id, { ...draft('Practice'), startTime: '17:00:00', endTime: '18:00:00', recurrence: 'RRULE:FREQ=DAILY;UNTIL=20261030' }, true, 'operation').subscribe({ error: () => {} });
+    http.expectOne((r) => r.method === 'PUT').error(new ProgressEvent('error'));
+    store.retry('operation').subscribe();
+    read().flush(snapshot([first], 2));
+    http.expectOne((r) => r.method === 'PUT').flush({ ...first, recurrence: 'RRULE:FREQ=DAILY;UNTIL=20261031T035959Z' });
+    read().flush(snapshot([first, second, unrelated], 3));
+    expect(store.pending()).toHaveLength(0);
+  });
+
+  it('finds an uncertain new rule already saved, though Google ends it at an instant', () => {
+    store.update(first.id, { ...draft('Practice'), startTime: '17:00:00', endTime: '18:00:00', recurrence: 'RRULE:FREQ=DAILY;UNTIL=20261030' }, true, 'operation').subscribe({ error: () => {} });
+    http.expectOne((r) => r.method === 'PUT').error(new ProgressEvent('error'));
+    store.retry('operation').subscribe();
+    read().flush(snapshot([{ ...first, recurrence: 'RRULE:FREQ=DAILY;UNTIL=20261031T035959Z' }], 2));
+    http.expectNone((r) => r.method === 'PUT');
+    read().flush(snapshot([first, second, unrelated], 3));
+    expect(store.pending()).toHaveLength(0);
+  });
+
   it('shows an event that starts to repeat as its new series until a snapshot replaces it', () => {
     const daily: EventRequest = { ...draft('Reading time'), allDay: true, calendarId: 'c4', startDate: '2026-10-13', startTime: null, endDate: '2026-10-14', endTime: null, recurrence: 'RRULE:FREQ=DAILY' };
     store.update(unrelated.id, daily).subscribe();
@@ -277,7 +310,7 @@ describe('optimistic calendar operations', () => {
     store.update(unrelated.id, weekly, false, 'operation').subscribe({ error: () => {} });
     http.expectOne((r) => r.method === 'PUT').error(new ProgressEvent('error'));
     store.retry('operation').subscribe();
-    const started = { ...timed('Piano', null, '2026-10-12T22:00:00Z', '2026-10-12T23:00:00Z'), id: 'occurrence', recurring: true, seriesId: 'series-new' };
+    const started = { ...timed('Piano', null, '2026-10-12T22:00:00Z', '2026-10-12T23:00:00Z'), id: 'occurrence', recurring: true, seriesId: 'series-new', recurrence: 'RRULE:FREQ=WEEKLY;BYDAY=MO' };
     read().flush(snapshot([first, started], 2));
     http.expectNone((r) => r.method === 'PUT');
     read().flush(snapshot([first, second, started], 2));

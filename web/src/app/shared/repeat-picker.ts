@@ -203,7 +203,7 @@ const WEEKDAY_LETTERS: Record<Weekday, [string, string]> = {
       gap: 10px;
       padding: 14px;
       border: 1px solid var(--line);
-      border-radius: 16px;
+      border-radius: min(16px, var(--pill));
       background: var(--field);
     }
     .row {
@@ -246,7 +246,7 @@ const WEEKDAY_LETTERS: Record<Weekday, [string, string]> = {
       box-sizing: border-box;
       padding: 0 42px 0 12px;
       border: 1px solid var(--line);
-      border-radius: 12px;
+      border-radius: min(12px, var(--pill));
       background-color: var(--surface);
       color: var(--ink);
       font: 400 16px var(--font-body);
@@ -266,7 +266,7 @@ const WEEKDAY_LETTERS: Record<Weekday, [string, string]> = {
       height: calc(var(--control) + 4px);
       box-sizing: border-box;
       border: 1px solid var(--line);
-      border-radius: 14px;
+      border-radius: min(14px, var(--pill));
       background: var(--surface);
       display: flex;
       align-items: center;
@@ -309,7 +309,7 @@ const WEEKDAY_LETTERS: Record<Weekday, [string, string]> = {
       min-width: var(--control);
       height: var(--control);
       border: 1px solid var(--line);
-      border-radius: var(--control);
+      border-radius: min(var(--control), var(--pill));
       background: var(--surface);
       color: var(--ink);
       font: 700 16px var(--font-body);
@@ -327,7 +327,7 @@ const WEEKDAY_LETTERS: Record<Weekday, [string, string]> = {
       box-sizing: border-box;
       padding: 0 12px;
       border: 1px solid var(--line);
-      border-radius: 12px;
+      border-radius: min(12px, var(--pill));
       background: var(--surface);
       color: var(--ink);
       font: 400 16px var(--font-body);

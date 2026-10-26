@@ -4,7 +4,7 @@ import { Observable, catchError, defer, of, shareReplay, switchMap, tap, throwEr
 import { Day, addDays, dayIn, timeIn } from './days';
 import { FamilyStore, Member, refusalMessage } from './family';
 import { overlaps, previewEvent, previewOccurrences, previewSeries } from './calendar-preview';
-import { parseRule } from './repeat-rule';
+import { RepeatRule, parseRule } from './repeat-rule';
 
 /** One of the family's Google calendars. A null member means it is the whole family's. */
 export interface CalendarSource {
@@ -392,20 +392,22 @@ export class CalendarStore {
       timeout(15_000), switchMap((snapshot) => {
         const expected = op.kind === 'remove' ? undefined : op.series && op.original
           ? previewSeries(op.request!, op.source, op.original, op.zone)
-          : previewEvent(op.request!, op.source, '', op.zone);
+          : previewEvent(op.request!, op.source, '', op.zone, op.original);
+        // A split series counts down what is left of its rule, so without a new rule only its content is compared.
+        const rules = !(op.following && !op.request?.recurrence);
         const matching = snapshot.events.filter((e) => op.kind === 'add' ? e.creationId === op.id
           : e.id === op.original?.id || (op.series && !!op.original?.seriesId && e.seriesId === op.original.seriesId)
-            || (starts && e.recurring && sameContent(e, expected!)));
+            || (starts && e.recurring && sameContent(e, expected!, op.zone, rules)));
         if (op.kind === 'remove') {
           if (!matching.length) return of({ resolved: true });
           const current = matching.find((e) => e.id === op.original!.id) ?? matching[0];
-          if (!sameContent(current, op.original!)) return throwError(() => new HttpErrorResponse({ status: 409, error: current }));
+          if (!sameContent(current, op.original!, op.zone)) return throwError(() => new HttpErrorResponse({ status: 409, error: current }));
           return of({ resolved: false });
         }
-        const found = matching.find((e) => sameContent(e, expected!) && (!starts || e.recurring));
+        const found = matching.find((e) => sameContent(e, expected!, op.zone, rules) && (!starts || e.recurring));
         if (op.kind === 'update' && !found && matching.length) {
           const current = matching.find((e) => e.id === op.original!.id) ?? matching[0];
-          if (!sameContent(current, op.original!)) return throwError(() => new HttpErrorResponse({ status: 409, error: current }));
+          if (!sameContent(current, op.original!, op.zone)) return throwError(() => new HttpErrorResponse({ status: 409, error: current }));
         }
         // A known create is never repeated, even if someone changed it after our lost response.
         return of({ resolved: op.kind === 'add' ? matching.length > 0 : !!found, event: op.kind === 'add' ? matching[0] : found });
@@ -500,10 +502,19 @@ export class CalendarStore {
   }
 }
 
-function sameContent(a: CalendarEvent, b: CalendarEvent): boolean {
+function sameContent(a: CalendarEvent, b: CalendarEvent, zone: string, rules = true): boolean {
   return a.title === b.title && a.location === b.location && a.calendarId === b.calendarId && a.allDay === b.allDay
+    && (a.description ?? null) === (b.description ?? null) && (!rules || sameRule(a.recurrence, b.recurrence, zone))
     && (a.allDay ? a.startDate === b.startDate && a.endDate === b.endDate
       : Date.parse(a.startsAt!) === Date.parse(b.startsAt!) && Date.parse(a.endsAt!) === Date.parse(b.endsAt!));
+}
+
+/** Two repeat rules mean the same, though one may end on a day and the other at an instant, or list its parts in another order. */
+function sameRule(a: string | null | undefined, b: string | null | undefined, zone: string): boolean {
+  const [first, second] = [parseRule(a, zone), parseRule(b, zone)];
+  if (!first || !second) return !first && !second && (a ?? null) === (b ?? null);
+  const parts = (rule: RepeatRule) => JSON.stringify({ ...rule, byDay: [...rule.byDay].sort(), byMonthDay: [...rule.byMonthDay].sort(), byMonth: [...rule.byMonth].sort() });
+  return parts(first) === parts(second);
 }
 
 /** A change that makes an event that does not repeat yet the first of a series. */
