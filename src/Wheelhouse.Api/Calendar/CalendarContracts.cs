@@ -24,7 +24,10 @@ public sealed record CalendarSourceResponse(Guid Id, string Name, Guid? MemberId
 /// <summary>
 /// A timed event carries <paramref name="StartsAt"/> and <paramref name="EndsAt"/>; an all-day
 /// event carries <paramref name="StartDate"/> and an exclusive <paramref name="EndDate"/>.
-/// <paramref name="Recurring"/> marks one occurrence of a repeating event.
+/// <paramref name="Recurring"/> marks one occurrence of a repeating event. The event is for
+/// its calendar's owner (<paramref name="MemberId"/>) and <paramref name="MemberIds"/>.
+/// <paramref name="Private"/> marks a private event; a paired display gets it <paramref name="Hidden"/>,
+/// as only a busy time (<see cref="AsBusy"/>).
 /// </summary>
 public sealed record EventResponse(
     Guid Id,
@@ -41,11 +44,21 @@ public sealed record EventResponse(
     string? SeriesId = null,
     Guid? CreationId = null,
     string? Description = null,
-    string? Recurrence = null)
+    string? Recurrence = null,
+    IReadOnlyList<Guid>? MemberIds = null,
+    bool Private = false,
+    bool Hidden = false)
 {
+    /// <summary>The event as a paired display sees it when it is private: its time, whose it is, and nothing more.</summary>
+    public EventResponse AsBusy() => this with { Title = "Busy", Location = null, Description = null, Hidden = true };
+
+    /// <summary>The event as <paramref name="display"/> may see it.</summary>
+    public EventResponse For(bool display) => display && Private ? AsBusy() : this;
+
     public static EventResponse From(EventInstance e, CalendarSource source) => new(
         e.Id, source.Id, source.MemberId, e.Title, e.Location, e.StartDate != null, e.StartsAt, e.EndsAt, e.StartDate, e.EndDate,
-        e.RecurringEventId != null, EventIdentity.Series(e), EventIdentity.Creation(e), e.Description, e.Recurrence);
+        e.RecurringEventId != null, EventIdentity.Series(e), EventIdentity.Creation(e), e.Description, e.Recurrence,
+        e.MemberIds.Where(id => id != source.MemberId).ToList(), e.IsPrivate);
 }
 
 /// <summary>
@@ -56,7 +69,9 @@ public sealed record EventResponse(
 /// <c>RRULE:FREQ=WEEKLY;BYDAY=TU,TH</c> (<see cref="RepeatRules"/>), or else the simpler
 /// <paramref name="Repeat"/>, makes a new event, or a change to one that does not repeat yet, the
 /// first of a series, and with a change to a whole series gives it that rule. Left out, a change
-/// to an event that already repeats leaves its rule as it is.
+/// to an event that already repeats leaves its rule as it is. <paramref name="MemberIds"/> are the
+/// members it is for besides its calendar's owner; left out, a change leaves them as they are, and
+/// so does <paramref name="Private"/>, which only a parent may set.
 /// </summary>
 public sealed record EventRequest(
     Guid CalendarId,
@@ -70,4 +85,6 @@ public sealed record EventRequest(
     EventRepeat Repeat = EventRepeat.Never,
     Guid? CreationId = null,
     string? Description = null,
-    string? Recurrence = null);
+    string? Recurrence = null,
+    IReadOnlyList<Guid>? MemberIds = null,
+    bool? Private = null);

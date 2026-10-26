@@ -1,4 +1,4 @@
-import { CalendarEvent, CalendarSource, EventRequest, FAMILY_COLOR } from './calendar';
+import { CalendarEvent, CalendarSource, EventRequest, FAMILY_COLOR, sameMembers } from './calendar';
 import { instantAt } from './calendar-preview';
 import { Day, addDays, dayIn, minutesIn } from './days';
 import { notesText } from './notes';
@@ -33,6 +33,13 @@ export interface EventDraft {
    * rewrites notes kept as HTML into plain text.
    */
   notesFrom: string;
+  /** The members it is for besides its calendar's owner. */
+  people: string[];
+  /** The people as the event had them; they are sent only when they changed. */
+  peopleFrom: string[];
+  /** Private in Google, so displays show it only as busy. Sent only when it changed. */
+  isPrivate: boolean;
+  privateFrom: boolean;
 }
 
 /** How far one tap moves a time on the wall. */
@@ -65,6 +72,10 @@ export function newDraft(day: Day, calendarId: string, timeZone: string, now: Da
     recurrenceFrom: null,
     notes: '',
     notesFrom: '',
+    people: [],
+    peopleFrom: [],
+    isPrivate: false,
+    privateFrom: false,
   };
 }
 
@@ -74,6 +85,7 @@ export function draftOf(event: CalendarEvent, timeZone: string): EventDraft {
   const first = event.startDate ?? dayIn(timeZone, event.startsAt!);
   // A rule the screens do not understand is kept as Google wrote it, and is never sent back.
   const recurrence = event.recurring ? canonicalRule(event.recurrence, first, timeZone) ?? event.recurrence ?? null : null;
+  const people = event.memberIds ?? [];
   if (event.allDay) {
     return {
       calendarId: event.calendarId,
@@ -88,6 +100,10 @@ export function draftOf(event: CalendarEvent, timeZone: string): EventDraft {
       recurrenceFrom: recurrence,
       notes,
       notesFrom: notes,
+      people,
+      peopleFrom: people,
+      isPrivate: !!event.private,
+      privateFrom: !!event.private,
     };
   }
   return {
@@ -103,6 +119,10 @@ export function draftOf(event: CalendarEvent, timeZone: string): EventDraft {
     recurrenceFrom: recurrence,
     notes,
     notesFrom: notes,
+    people,
+    peopleFrom: people,
+    isPrivate: !!event.private,
+    privateFrom: !!event.private,
   };
 }
 
@@ -128,6 +148,8 @@ export function requestOf(draft: EventDraft): EventRequest {
     endTime: draft.allDay ? null : `${draft.endTime}:00`,
     ...(draft.recurrence && draft.recurrence !== draft.recurrenceFrom ? { recurrence: draft.recurrence } : {}),
     ...(draft.notes.trim() !== draft.notesFrom.trim() ? { description: draft.notes.trim() } : {}),
+    ...(!sameMembers(draft.people, draft.peopleFrom) ? { memberIds: draft.people } : {}),
+    ...(draft.isPrivate !== draft.privateFrom ? { private: draft.isPrivate } : {}),
   };
 }
 
@@ -223,6 +245,37 @@ export function writableCalendars(calendars: readonly CalendarSource[], members:
     choices.push({ id: calendar.id, label: calendar.name, initial: 'F', color: FAMILY_COLOR });
   }
   return choices;
+}
+
+/** A member an event can be for: always its calendar's owner, and anyone else who is chosen. */
+export interface PersonChoice {
+  id: string;
+  name: string;
+  initial: string;
+  avatar: string | null;
+  color: string;
+  /** The calendar's owner, whose event it is already. */
+  owner: boolean;
+  chosen: boolean;
+}
+
+/** Who the draft's event can be for, in the members' order. */
+export function peopleChoices(draft: EventDraft, calendars: readonly CalendarSource[], members: readonly Member[]): PersonChoice[] {
+  const owner = calendars.find((calendar) => calendar.id === draft.calendarId)?.memberId ?? null;
+  return members.map((member) => ({
+    id: member.id,
+    name: member.displayName,
+    initial: member.initial,
+    avatar: member.avatar ?? null,
+    color: member.color,
+    owner: member.id === owner,
+    chosen: member.id === owner || draft.people.includes(member.id),
+  }));
+}
+
+/** The draft's people with <code>id</code> added, or taken away when it was there. */
+export function togglePerson(draft: EventDraft, id: string): string[] {
+  return draft.people.includes(id) ? draft.people.filter((person) => person !== id) : [...draft.people, id];
 }
 
 function startOf(draft: EventDraft): number {

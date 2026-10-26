@@ -569,6 +569,130 @@ public sealed class EventTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task An_event_can_be_for_more_people_than_its_calendars_owner()
+    {
+        using var visitor = await factory.DemoVisitorAsync();
+        var members = (await FamilyOf(visitor)).Members;
+        var (clara, nora) = (members.Single(m => m.DisplayName == "Clara").Id, members.Single(m => m.DisplayName == "Nora").Id);
+        var claras = await CalendarIdAsync(visitor, "Clara");
+        Assert.Contains((await CalendarOf(visitor, Day.AddDays(-7), 21)).Events, e => e.MemberIds is { Count: > 0 });
+
+        // The calendar's owner is the event's already, so naming her again changes nothing.
+        var added = await AddAsync(visitor, Timed(claras, "Haircuts", new(10, 0), new(11, 0)) with { MemberIds = [nora, clara, nora] });
+        Assert.Equal(clara, added.MemberId);
+        Assert.Equal([nora], added.MemberIds!);
+
+        var request = Timed(claras, "Haircuts, both", new(10, 30), new(11, 30));
+        (await ChangeAsync(visitor, added.Id, request)).EnsureSuccessStatusCode();
+        Assert.Equal([nora], (await CalendarOf(visitor, Day, 1)).Events.Single(e => e.Id == added.Id).MemberIds!);
+
+        (await ChangeAsync(visitor, added.Id, request with { MemberIds = [] })).EnsureSuccessStatusCode();
+        Assert.Empty((await CalendarOf(visitor, Day, 1)).Events.Single(e => e.Id == added.Id).MemberIds!);
+
+        var stranger = await ChangeAsync(visitor, added.Id, request with { MemberIds = [Guid.NewGuid()] });
+        Assert.Equal(HttpStatusCode.BadRequest, stranger.StatusCode);
+        Assert.Contains("memberIds", await stranger.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task The_people_of_an_event_are_kept_in_google_and_read_back_by_a_sync()
+    {
+        await using var family = await ConnectedAsync();
+        var alex = (await family.FamilyAsync()).Members.Single().Id;
+        var everyone = (await CalendarOf(family.Parent, Day, 1)).Calendars.Single(c => c.MemberId is null && c.CanWrite).Id;
+
+        var added = await AddAsync(family.Parent, Timed(everyone, "Recital", new(18, 0), new(19, 0)) with { MemberIds = [alex] });
+        Assert.Equal([alex], added.MemberIds!);
+        var stored = family.Google.Occurrences("family-cal", DateTimeOffset.MinValue, DateTimeOffset.MaxValue).Single(e => e.Title == "Recital");
+        Assert.Equal([alex], stored.MemberIds!);
+
+        family.Google.Put("family-cal", stored with { MemberIds = [], ETag = "\"2\"" });
+        await family.SyncAsync();
+        Assert.Empty((await CalendarOf(family.Parent, Day, 1)).Events.Single(e => e.Title == "Recital").MemberIds!);
+    }
+
+    /// <summary>A wall display paired with <paramref name="parent"/>'s family.</summary>
+    private async Task<HttpClient> PairedDisplayAsync(HttpClient parent)
+    {
+        var display = factory.Demo.CreateClient();
+        var pairing = (await (await display.PostAsync("/api/pairing", content: null)).Content.ReadFromJsonAsync<PairingResponse>(ApiFactory.Json))!;
+        (await parent.PostAsJsonAsync("/api/devices", new PairDisplayRequest(pairing.Code, "Kitchen"), ApiFactory.Json)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.NoContent, (await display.PostAsync($"/api/pairing/{pairing.Id}/finish", content: null)).StatusCode);
+        return display;
+    }
+
+    [Fact]
+    public async Task A_display_shows_a_private_event_only_as_busy_and_cannot_change_it()
+    {
+        using var parent = await factory.DemoVisitorAsync();
+        using var display = await PairedDisplayAsync(parent);
+        var shown = (await CalendarOf(parent, Day.AddDays(-3), 14)).Events.Single(e => e.Private);
+        Assert.Equal(("Anniversary dinner reservation", false), (shown.Title, shown.Hidden));
+
+        var busy = (await CalendarOf(display, Day.AddDays(-3), 14)).Events.Single(e => e.Id == shown.Id);
+        Assert.Equal(("Busy", (string?)null, (string?)null, true, true), (busy.Title, busy.Location, busy.Description, busy.Private, busy.Hidden));
+        Assert.Equal((shown.StartsAt, shown.EndsAt, shown.MemberId), (busy.StartsAt, busy.EndsAt, busy.MemberId));
+        Assert.DoesNotContain((await CalendarOf(display, Day.AddDays(-3), 14)).Events, e => e.Title == "Anniversary dinner reservation");
+
+        var day = DateOnly.FromDateTime(shown.StartsAt!.Value.UtcDateTime);
+        var change = await ChangeAsync(display, shown.Id, Timed(shown.CalendarId, "Busy", new(10, 0), new(11, 0)) with { StartDate = day, EndDate = day });
+        Assert.Equal(HttpStatusCode.Forbidden, change.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await display.DeleteAsync($"/api/calendar/events/{shown.Id}")).StatusCode);
+        Assert.Equal("Anniversary dinner reservation", (await CalendarOf(parent, Day.AddDays(-3), 14)).Events.Single(e => e.Id == shown.Id).Title);
+
+        // Only a parent makes an event private; a display's say is ignored.
+        var claras = await CalendarIdAsync(parent, "Clara");
+        var added = await AddAsync(display, Timed(claras, "Groceries", new(9, 0), new(10, 0)) with { Private = true });
+        Assert.False(added.Private);
+        (await ChangeAsync(parent, added.Id, Timed(claras, "Groceries", new(9, 0), new(10, 0)) with { Private = true })).EnsureSuccessStatusCode();
+        Assert.True((await CalendarOf(parent, Day, 1)).Events.Single(e => e.Id == added.Id).Private);
+        Assert.Equal("Busy", (await CalendarOf(display, Day, 1)).Events.Single(e => e.Id == added.Id).Title);
+    }
+
+    [Fact]
+    public async Task A_display_cannot_reach_a_private_occurrence_through_its_series()
+    {
+        using var parent = await factory.DemoVisitorAsync();
+        using var display = await PairedDisplayAsync(parent);
+        var julians = await CalendarIdAsync(parent, "Julian");
+        await AddAsync(parent, Timed(julians, "Reading", new(19, 0), new(19, 30)) with { Recurrence = "RRULE:FREQ=DAILY;COUNT=3" });
+        var reading = (await CalendarOf(parent, Day, 3)).Events.Where(e => e.Title == "Reading").ToList();
+        Assert.Equal(3, reading.Count);
+        var last = Day.AddDays(2);
+        (await ChangeAsync(parent, reading[2].Id, Timed(julians, "Reading", new(19, 0), new(19, 30)) with { StartDate = last, EndDate = last, Private = true }))
+            .EnsureSuccessStatusCode();
+
+        var first = Timed(julians, "Reading", new(20, 0), new(20, 30));
+        Assert.Equal(HttpStatusCode.Forbidden, (await ChangeAsync(display, reading[0].Id, first, series: true)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await display.PutAsJsonAsync($"/api/calendar/events/{reading[1].Id}?following=true", first with { StartDate = Day.AddDays(1), EndDate = Day.AddDays(1) }, ApiFactory.Json)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await display.DeleteAsync($"/api/calendar/events/{reading[0].Id}?series=true")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await display.DeleteAsync($"/api/calendar/events/{reading[1].Id}?following=true")).StatusCode);
+        Assert.Equal(3, (await CalendarOf(parent, Day, 3)).Events.Count(e => e.Title == "Reading"));
+
+        // The occurrences that are not private still change one at a time.
+        Assert.Equal(HttpStatusCode.OK, (await ChangeAsync(display, reading[0].Id, first)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Privacy_is_google_s_visibility_and_a_change_leaves_it_unless_it_says()
+    {
+        await using var family = await ConnectedAsync();
+        var startsAt = new DateTimeOffset(Day.ToDateTime(new TimeOnly(9, 0)), TimeSpan.Zero);
+        family.Google.Put("alex-cal", new GoogleEvent("therapy", null, "Therapy", null, startsAt, startsAt.AddHours(1), null, null, Private: true));
+        await family.SyncAsync();
+        var therapy = (await CalendarOf(family.Parent, Day, 1)).Events.Single(e => e.Title == "Therapy");
+        Assert.True(therapy.Private);
+
+        var request = Timed(therapy.CalendarId, "Therapy", new(10, 0), new(11, 0));
+        (await ChangeAsync(family.Parent, therapy.Id, request)).EnsureSuccessStatusCode();
+        Assert.True(family.Google.Find("alex-cal", "therapy")!.Private);
+        (await ChangeAsync(family.Parent, therapy.Id, request with { Private = false })).EnsureSuccessStatusCode();
+        Assert.False(family.Google.Find("alex-cal", "therapy")!.Private);
+        Assert.False((await CalendarOf(family.Parent, Day, 1)).Events.Single(e => e.Id == therapy.Id).Private);
+    }
+
+    [Fact]
     public async Task The_demo_has_notes_and_rules_and_keeps_notes_a_visitor_writes()
     {
         using var visitor = await factory.DemoVisitorAsync();

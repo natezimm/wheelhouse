@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
@@ -35,6 +36,23 @@ public static class EventEndpoints
     public static IEndpointRouteBuilder MapCalendarEvents(this IEndpointRouteBuilder app)
     {
         var events = app.MapGroup("/api/calendar/events").RequireAuthorization(Policies.Family);
+        // Whatever event an answer carries, a conflict's included, a display sees a private one only as busy.
+        events.AddEndpointFilter(async (context, next) =>
+        {
+            var result = await next(context);
+            if (!context.HttpContext.User.IsDisplay())
+            {
+                return result;
+            }
+
+            return (result is INestedHttpResult nested ? nested.Result : result) switch
+            {
+                Ok<EventResponse> { Value: { } shown } => TypedResults.Ok(shown.For(display: true)),
+                Created<EventResponse> { Value: { } shown } created => TypedResults.Created(created.Location, shown.For(display: true)),
+                Conflict<EventResponse> { Value: { } shown } => TypedResults.Conflict(shown.For(display: true)),
+                _ => result,
+            };
+        });
         events.MapPost("", Add);
         events.MapPut("{id:guid}", Change);
         events.MapDelete("{id:guid}", Delete);
@@ -54,8 +72,11 @@ public static class EventEndpoints
         TimeProvider time,
         IOptions<InstanceOptions> instance,
         ILogger<GoogleConnection> logger,
+        ClaimsPrincipal user,
         CancellationToken cancellationToken)
     {
+        // Only a parent says what is private.
+        request = user.IsDisplay() ? request with { Private = null } : request;
         if (family.Id is not { } familyId)
         {
             return TypedResults.NotFound();
@@ -111,7 +132,7 @@ public static class EventEndpoints
             var zone = Zone(draft);
             var first = draft.Recurrence is null
                 ? RowFor(new GoogleEvent(id, null, draft.Title, draft.Location, draft.StartsAt, draft.EndsAt, draft.StartDate, draft.EndDate,
-                    Description: draft.Description))
+                    Description: draft.Description, MemberIds: draft.MemberIds, Private: draft.Private ?? false))
                 : EventSeries.Occurrences(draft, id, Today(time, zone).AddDays(CalendarSync.Ahead.Days), zone)
                     .Select(RowFor)
                     .ToList()[0];
@@ -193,6 +214,7 @@ public static class EventEndpoints
         TimeProvider time,
         IOptions<InstanceOptions> instance,
         ILogger<GoogleConnection> logger,
+        ClaimsPrincipal user,
         CancellationToken cancellationToken,
         bool series = false,
         bool following = false)
@@ -201,6 +223,16 @@ public static class EventEndpoints
         if (row is null)
         {
             return TypedResults.NotFound();
+        }
+
+        if (user.IsDisplay())
+        {
+            if (await TouchesPrivateAsync(row, series || following, db, cancellationToken))
+            {
+                return PrivateOnDisplay();
+            }
+
+            request = request with { Private = null };
         }
 
         series &= row.RecurringEventId is not null;
@@ -269,7 +301,9 @@ public static class EventEndpoints
             {
                 // The event becomes the series' first occurrence and keeps its id, so the screen's event stays put.
                 // Notes left out of the request stay the event's notes, in every occurrence.
-                var newSeries = EventSeries.Occurrences(draft! with { Description = draft.Description ?? row.Description }, row.GoogleEventId,
+                var newSeries = EventSeries.Occurrences(
+                    draft! with { Description = draft.Description ?? row.Description, MemberIds = draft.MemberIds ?? row.MemberIds, Private = draft.Private ?? row.IsPrivate },
+                    row.GoogleEventId,
                     Today(time, Zone(draft!)).AddDays(CalendarSync.Ahead.Days), Zone(draft!)).ToList();
                 for (var n = 0; n < newSeries.Count; n++)
                 {
@@ -288,7 +322,8 @@ public static class EventEndpoints
             else
             {
                 CalendarSync.CopyTo(row, new GoogleEvent(row.GoogleEventId, row.RecurringEventId, draft!.Title, draft.Location,
-                    draft.StartsAt, draft.EndsAt, draft.StartDate, draft.EndDate, Description: draft.Description ?? row.Description));
+                    draft.StartsAt, draft.EndsAt, draft.StartDate, draft.EndDate, Description: draft.Description ?? row.Description,
+                    MemberIds: draft.MemberIds ?? row.MemberIds, Private: draft.Private ?? row.IsPrivate));
                 row.CalendarSourceId = to!.Id;
             }
 
@@ -384,7 +419,7 @@ public static class EventEndpoints
                 // Until the next sync brings in its occurrences, the new series shows as its first event.
                 CalendarSync.CopyTo(row, new GoogleEvent(row.GoogleEventId, seriesId, startedAs.Title, startedAs.Location,
                     startedAs.StartsAt, startedAs.EndsAt, startedAs.StartDate, startedAs.EndDate, startedAs.ETag,
-                    startedAs.Description, draft!.Recurrence));
+                    startedAs.Description, draft!.Recurrence, startedAs.MemberIds, startedAs.IsPrivate));
                 row.CalendarSourceId = to!.Id;
             }
             else
@@ -416,6 +451,7 @@ public static class EventEndpoints
         IGoogleCalendar google,
         IOptions<InstanceOptions> instance,
         ILogger<GoogleConnection> logger,
+        ClaimsPrincipal user,
         CancellationToken cancellationToken,
         bool series = false,
         bool following = false)
@@ -424,6 +460,11 @@ public static class EventEndpoints
         if (row is null)
         {
             return TypedResults.NotFound();
+        }
+
+        if (user.IsDisplay() && await TouchesPrivateAsync(row, series || following, db, cancellationToken))
+        {
+            return PrivateOnDisplay();
         }
 
         series &= row.RecurringEventId is not null;
@@ -510,8 +551,8 @@ public static class EventEndpoints
         ILogger logger,
         CancellationToken cancellationToken)
     {
-        // Notes left out of the request stay the event's notes in the new series.
-        draft = draft with { Description = draft.Description ?? row.Description };
+        // Notes and people left out of the request stay the event's in the new series.
+        draft = draft with { Description = draft.Description ?? row.Description, MemberIds = draft.MemberIds ?? row.MemberIds, Private = draft.Private ?? row.IsPrivate };
         var zone = Zone(draft);
         var day = EventSeries.DayOf(row, zone);
         if (IsDemo(instance))
@@ -748,6 +789,18 @@ public static class EventEndpoints
     }
 
     /// <summary>The cached occurrences of <paramref name="row"/>'s series in its calendar, itself included.</summary>
+    /// <summary>
+    /// Whether a change to <paramref name="row"/>, or with <paramref name="wholeSeries"/> to its
+    /// series, would reach a private event. A series counts as a whole, so a display cannot reach
+    /// a private occurrence through another one.
+    /// </summary>
+    private static async Task<bool> TouchesPrivateAsync(
+        EventInstance row, bool wholeSeries, WheelhouseDbContext db, CancellationToken cancellationToken) =>
+        row.IsPrivate
+        || (wholeSeries && row.RecurringEventId is not null && await db.EventInstances.AnyAsync(
+            e => e.CalendarSourceId == row.CalendarSourceId && e.RecurringEventId == row.RecurringEventId && e.IsPrivate,
+            cancellationToken));
+
     private static Task<List<EventInstance>> SeriesOf(EventInstance row, WheelhouseDbContext db, CancellationToken cancellationToken) =>
         db.EventInstances
             .Where(e => e.CalendarSourceId == row.CalendarSourceId && e.RecurringEventId == row.RecurringEventId)
@@ -774,11 +827,15 @@ public static class EventEndpoints
             if (!byDay.Remove(day, out var occurrenceRow))
             {
                 // A new event of the series takes the changed event's notes unless the change gives new ones.
-                occurrenceRow = new EventInstance { Id = Guid.CreateVersion7(), FamilyId = row.FamilyId, GoogleEventId = occurrence.Id, Title = "", Description = row.Description };
+                occurrenceRow = new EventInstance { Id = Guid.CreateVersion7(), FamilyId = row.FamilyId, GoogleEventId = occurrence.Id, Title = "", Description = row.Description, MemberIds = row.MemberIds, IsPrivate = row.IsPrivate };
                 db.EventInstances.Add(occurrenceRow);
             }
 
-            CalendarSync.CopyTo(occurrenceRow, occurrence with { Id = occurrenceRow.GoogleEventId, Description = draft.Description ?? occurrenceRow.Description });
+            CalendarSync.CopyTo(occurrenceRow, occurrence with
+            {
+                Id = occurrenceRow.GoogleEventId, Description = draft.Description ?? occurrenceRow.Description, MemberIds = draft.MemberIds ?? occurrenceRow.MemberIds,
+                Private = draft.Private ?? occurrenceRow.IsPrivate,
+            });
             occurrenceRow.CalendarSourceId = to.Id;
             kept.Add(occurrenceRow);
         }
@@ -829,6 +886,17 @@ public static class EventEndpoints
         if (description is { Length: > MaxDescription })
         {
             errors["description"] = [$"Keep the notes to {MaxDescription} characters."];
+        }
+
+        // Null leaves the people as they are; the calendar's owner is the event's already.
+        var memberIds = request.MemberIds?.Distinct().ToList();
+        if (memberIds is { Count: > 0 })
+        {
+            var known = await db.Members.Where(m => memberIds.Contains(m.Id)).CountAsync(cancellationToken);
+            if (known != memberIds.Count)
+            {
+                errors["memberIds"] = ["Choose people from the family."];
+            }
         }
 
         var timeZone = await db.Families.Select(f => f.TimeZone).SingleAsync(cancellationToken);
@@ -885,8 +953,13 @@ public static class EventEndpoints
             }
         }
 
-        return errors.Count == 0 ? (draft! with { Description = description, Recurrence = rule }, null) : (null, errors);
+        return errors.Count == 0 ? (draft! with { Description = description, Recurrence = rule, MemberIds = memberIds, Private = request.Private }, null) : (null, errors);
     }
+
+    /// <summary>A display shows a private event only as busy, so it may not change or delete one.</summary>
+    private static ProblemHttpResult PrivateOnDisplay() => TypedResults.Problem(
+        statusCode: StatusCodes.Status403Forbidden, title: "Private event",
+        detail: "This event is private. Change it from a parent's phone.");
 
     /// <summary>Null when events can be added to and changed in the calendar.</summary>
     private static Dictionary<string, string[]>? WritableErrors(CalendarSource? source) => source switch

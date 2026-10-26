@@ -1,5 +1,5 @@
 import { Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
-import { CalendarEvent, CalendarStore, colorOf, timeRange } from '../core/calendar';
+import { CalendarEvent, CalendarStore, FAMILY_COLOR, colorOf, namesOf, peopleOf, timeRange } from '../core/calendar';
 import { STEP_MINUTES, clockLabel, movedTo, requestOf } from '../core/event-draft';
 import { TimedSegment, arrange, hourLabel, hourRange } from '../core/calendar-grid';
 import { Clock } from '../core/clock';
@@ -149,7 +149,12 @@ export interface GridMore {
                   } @else {
                     <span class="top">
                       <span class="time">{{ block.time }}</span>
-                      <span class="mark" aria-hidden="true"><app-avatar-face [initial]="block.initial" [avatar]="block.avatar" /></span>
+                      <span class="marks" aria-hidden="true">
+                        <span class="mark"><app-avatar-face [initial]="block.initial" [avatar]="block.avatar" /></span>
+                        @for (other of block.also; track other.id) {
+                          <span class="mark also" [style.--member]="other.color"><app-avatar-face [initial]="other.initial" [avatar]="other.avatar" /></span>
+                        }
+                      </span>
                     </span>
                     <span class="title clamp" [style.--lines]="block.lines">{{ block.title }}</span>
                   }
@@ -344,6 +349,21 @@ export interface GridMore {
       align-items: center;
       justify-content: space-between;
       gap: 6px;
+    }
+
+    /* An event for two people shows both faces, the second tucked under the first. */
+    .marks {
+      flex-shrink: 0;
+      display: flex;
+    }
+
+    .marks > .mark:first-child {
+      position: relative;
+      z-index: 1;
+    }
+
+    .mark.also {
+      margin-left: -6px;
     }
 
     /* Three side by side leave room for the time and title only; a short one keeps the title. */
@@ -873,9 +893,11 @@ export class HourGrid {
           isToday: column.day === today,
           blocks: placed.map((segment) => {
             const event = segment.event;
-            const member = members.find((m) => m.id === event.memberId);
-            const who = member?.displayName ?? 'Family';
-            const readOnly = !writable.has(event.calendarId);
+            // On Day an event shared by several people shows in each one's column, in that person's color.
+            const people = peopleOf(event, members);
+            const member = (this.variant() === 'day' ? people.find((m) => m.id === column.key) : undefined) ?? people[0];
+            const who = namesOf(event, members);
+            const readOnly = !writable.has(event.calendarId) || !!event.hidden;
             const height = Math.max((segment.end - segment.start) * perMinute - 3, layout.minBlock);
             const short = height < layout.shortBelow;
             // A Day block names its place only when the title, times and place all have a line.
@@ -888,9 +910,10 @@ export class HourGrid {
               // An event is picked up by the part on the day it starts; one still saving waits.
               movable: !readOnly && !event.pending && !segment.continuesBefore,
               title: event.title,
-              color: colorOf(event, members),
+              color: member?.color ?? FAMILY_COLOR,
               initial: member?.initial ?? 'F',
               avatar: member?.avatar ?? null,
+              also: people.filter((m) => m !== member).slice(0, 1).map((m) => ({ id: m.id, color: m.color, initial: m.initial, avatar: m.avatar ?? null })),
               pending: !!event.pending,
               top: y(segment.start) + 1,
               height,
