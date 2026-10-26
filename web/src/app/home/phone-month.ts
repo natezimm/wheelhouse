@@ -1,5 +1,5 @@
 import { Component, computed, effect, inject, input, output } from '@angular/core';
-import { CalendarStore, FAMILY, FAMILY_COLOR, daysOf, ownerOf } from '../core/calendar';
+import { CalendarStore, FAMILY, FAMILY_COLOR, daysOf, ownersOf } from '../core/calendar';
 import { Clock } from '../core/clock';
 import { Day, addDays, addMonths, dayIn, formatDay, startOfMonth, startOfWeek } from '../core/days';
 import { FamilyStore } from '../core/family';
@@ -215,7 +215,9 @@ export class PhoneMonth {
     for (const event of this.calendar.events()) {
       const days = daysOf(event, family.timeZone, { from: start, to: end });
       for (const day of days) {
-        ownersByDay.set(day, (ownersByDay.get(day) ?? new Set()).add(ownerOf(event)));
+        const owners = ownersByDay.get(day) ?? new Set<string>();
+        ownersOf(event).forEach((owner) => owners.add(owner));
+        ownersByDay.set(day, owners);
       }
     }
     // Dots keep the same order on every day: the members' own order, then the family's.

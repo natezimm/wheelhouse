@@ -186,6 +186,7 @@ public sealed class CalendarSync(
         row.Description = string.IsNullOrWhiteSpace(google.Description) ? null : Limit(google.Description, EventInstance.MaxDescription);
         // An occurrence Google sends back after a change carries no rule; it keeps its series' rule.
         row.Recurrence = google.Recurrence ?? (google.RecurringEventId is not null ? row.Recurrence : null);
+        row.MemberIds = google.MemberIds?.ToList() ?? [];
     }
 
     /// <summary>Google allows longer text than the cache's columns; the screens never show that much.</summary>

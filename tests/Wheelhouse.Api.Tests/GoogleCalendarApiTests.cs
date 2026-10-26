@@ -196,6 +196,28 @@ public sealed class GoogleCalendarApiTests
     }
 
     [Fact]
+    public async Task The_people_of_an_event_are_a_hidden_tag_read_back_and_sent_only_when_set()
+    {
+        var (nora, julian) = (Guid.NewGuid(), Guid.NewGuid());
+        var sent = new List<string>();
+        var api = ApiOver((_, _) => (HttpStatusCode.OK,
+            $$$"""{"id":"swim","etag":"\"1\"","status":"confirmed","summary":"Swim","extendedProperties":{"private":{"wheelhouseMembers":"{{{nora}}}, not-an-id,{{{julian}}}"},"shared":{"other":"x"}},"start":{"dateTime":"2026-10-20T22:30:00Z"},"end":{"dateTime":"2026-10-20T23:30:00Z"}}"""), sent);
+        var startsAt = new DateTimeOffset(2026, 10, 20, 22, 30, 0, TimeSpan.Zero);
+        var draft = new GoogleEventDraft("Swim", null, startsAt, startsAt.AddHours(1), null, null, "America/New_York");
+
+        var swim = await api.GetEventAsync("access", "cal", "swim", CancellationToken.None);
+        await api.PatchEventAsync("access", "cal", "swim", "\"1\"", draft, CancellationToken.None);
+        await api.PatchEventAsync("access", "cal", "swim", "\"1\"", draft with { MemberIds = [julian] }, CancellationToken.None);
+        await api.PatchEventAsync("access", "cal", "swim", "\"1\"", draft with { MemberIds = [] }, CancellationToken.None);
+
+        Assert.Equal([nora, julian], swim!.MemberIds!);
+        Assert.Equal(3, sent.Count);
+        Assert.DoesNotContain("extendedProperties", sent[0]);
+        Assert.Contains($"\"extendedProperties\":{{\"private\":{{\"wheelhouseMembers\":\"{julian}\"}}}}", sent[1]);
+        Assert.Contains("\"wheelhouseMembers\":\"\"", sent[2]);
+    }
+
+    [Fact]
     public async Task Google_refusing_a_stale_change_or_missing_the_event_is_told_apart()
     {
         var draft = new GoogleEventDraft("Swim", null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddHours(1), null, null, "UTC");

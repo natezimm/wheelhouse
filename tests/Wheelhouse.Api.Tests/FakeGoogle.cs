@@ -76,7 +76,7 @@ internal sealed class FakeGoogle : IGoogleCalendar
             var (rule, timeZone) = _series[first.Id];
             var zone = TimeZoneInfo.FindSystemTimeZoneById(timeZone);
             var draft = new GoogleEventDraft(first.Title, first.Location, first.StartsAt, first.EndsAt, first.StartDate, first.EndDate, timeZone,
-                Recurrence: rule, Description: first.Description);
+                Recurrence: rule, Description: first.Description, MemberIds: first.MemberIds);
             // Two years of occurrences is more than any test reads.
             var until = DateOnly.FromDateTime((first.StartsAt?.UtcDateTime ?? first.StartDate!.Value.ToDateTime(TimeOnly.MinValue)).AddYears(2));
             foreach (var occurrence in EventSeries.Occurrences(draft, first.Id, until, zone))
@@ -202,8 +202,12 @@ internal sealed class FakeGoogle : IGoogleCalendar
             _series[eventId] = (rule, draft.TimeZone);
         }
 
-        // A patch leaves out what it does not set, so notes not sent stay as they were.
-        Put(calendarId, From(draft, eventId, current.RecurringEventId) with { Description = draft.Description is null ? current.Description : draft.Description is "" ? null : draft.Description });
+        // A patch leaves out what it does not set, so notes and people not sent stay as they were.
+        Put(calendarId, From(draft, eventId, current.RecurringEventId) with
+        {
+            Description = draft.Description is null ? current.Description : draft.Description is "" ? null : draft.Description,
+            MemberIds = draft.MemberIds ?? current.MemberIds,
+        });
         return Task.FromResult(Find(calendarId, eventId)!);
     }
 
@@ -259,5 +263,5 @@ internal sealed class FakeGoogle : IGoogleCalendar
 
     private static GoogleEvent From(GoogleEventDraft draft, string id, string? recurringEventId) =>
         new(id, recurringEventId, draft.Title, draft.Location, draft.StartsAt, draft.EndsAt, draft.StartDate, draft.EndDate,
-            Description: string.IsNullOrEmpty(draft.Description) ? null : draft.Description);
+            Description: string.IsNullOrEmpty(draft.Description) ? null : draft.Description, MemberIds: draft.MemberIds ?? []);
 }

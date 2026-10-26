@@ -111,7 +111,7 @@ public static class EventEndpoints
             var zone = Zone(draft);
             var first = draft.Recurrence is null
                 ? RowFor(new GoogleEvent(id, null, draft.Title, draft.Location, draft.StartsAt, draft.EndsAt, draft.StartDate, draft.EndDate,
-                    Description: draft.Description))
+                    Description: draft.Description, MemberIds: draft.MemberIds))
                 : EventSeries.Occurrences(draft, id, Today(time, zone).AddDays(CalendarSync.Ahead.Days), zone)
                     .Select(RowFor)
                     .ToList()[0];
@@ -269,7 +269,7 @@ public static class EventEndpoints
             {
                 // The event becomes the series' first occurrence and keeps its id, so the screen's event stays put.
                 // Notes left out of the request stay the event's notes, in every occurrence.
-                var newSeries = EventSeries.Occurrences(draft! with { Description = draft.Description ?? row.Description }, row.GoogleEventId,
+                var newSeries = EventSeries.Occurrences(draft! with { Description = draft.Description ?? row.Description, MemberIds = draft.MemberIds ?? row.MemberIds }, row.GoogleEventId,
                     Today(time, Zone(draft!)).AddDays(CalendarSync.Ahead.Days), Zone(draft!)).ToList();
                 for (var n = 0; n < newSeries.Count; n++)
                 {
@@ -288,7 +288,8 @@ public static class EventEndpoints
             else
             {
                 CalendarSync.CopyTo(row, new GoogleEvent(row.GoogleEventId, row.RecurringEventId, draft!.Title, draft.Location,
-                    draft.StartsAt, draft.EndsAt, draft.StartDate, draft.EndDate, Description: draft.Description ?? row.Description));
+                    draft.StartsAt, draft.EndsAt, draft.StartDate, draft.EndDate, Description: draft.Description ?? row.Description,
+                    MemberIds: draft.MemberIds ?? row.MemberIds));
                 row.CalendarSourceId = to!.Id;
             }
 
@@ -384,7 +385,7 @@ public static class EventEndpoints
                 // Until the next sync brings in its occurrences, the new series shows as its first event.
                 CalendarSync.CopyTo(row, new GoogleEvent(row.GoogleEventId, seriesId, startedAs.Title, startedAs.Location,
                     startedAs.StartsAt, startedAs.EndsAt, startedAs.StartDate, startedAs.EndDate, startedAs.ETag,
-                    startedAs.Description, draft!.Recurrence));
+                    startedAs.Description, draft!.Recurrence, startedAs.MemberIds));
                 row.CalendarSourceId = to!.Id;
             }
             else
@@ -510,8 +511,8 @@ public static class EventEndpoints
         ILogger logger,
         CancellationToken cancellationToken)
     {
-        // Notes left out of the request stay the event's notes in the new series.
-        draft = draft with { Description = draft.Description ?? row.Description };
+        // Notes and people left out of the request stay the event's in the new series.
+        draft = draft with { Description = draft.Description ?? row.Description, MemberIds = draft.MemberIds ?? row.MemberIds };
         var zone = Zone(draft);
         var day = EventSeries.DayOf(row, zone);
         if (IsDemo(instance))
@@ -774,11 +775,14 @@ public static class EventEndpoints
             if (!byDay.Remove(day, out var occurrenceRow))
             {
                 // A new event of the series takes the changed event's notes unless the change gives new ones.
-                occurrenceRow = new EventInstance { Id = Guid.CreateVersion7(), FamilyId = row.FamilyId, GoogleEventId = occurrence.Id, Title = "", Description = row.Description };
+                occurrenceRow = new EventInstance { Id = Guid.CreateVersion7(), FamilyId = row.FamilyId, GoogleEventId = occurrence.Id, Title = "", Description = row.Description, MemberIds = row.MemberIds };
                 db.EventInstances.Add(occurrenceRow);
             }
 
-            CalendarSync.CopyTo(occurrenceRow, occurrence with { Id = occurrenceRow.GoogleEventId, Description = draft.Description ?? occurrenceRow.Description });
+            CalendarSync.CopyTo(occurrenceRow, occurrence with
+            {
+                Id = occurrenceRow.GoogleEventId, Description = draft.Description ?? occurrenceRow.Description, MemberIds = draft.MemberIds ?? occurrenceRow.MemberIds,
+            });
             occurrenceRow.CalendarSourceId = to.Id;
             kept.Add(occurrenceRow);
         }
@@ -829,6 +833,17 @@ public static class EventEndpoints
         if (description is { Length: > MaxDescription })
         {
             errors["description"] = [$"Keep the notes to {MaxDescription} characters."];
+        }
+
+        // Null leaves the people as they are; the calendar's owner is the event's already.
+        var memberIds = request.MemberIds?.Distinct().ToList();
+        if (memberIds is { Count: > 0 })
+        {
+            var known = await db.Members.Where(m => memberIds.Contains(m.Id)).CountAsync(cancellationToken);
+            if (known != memberIds.Count)
+            {
+                errors["memberIds"] = ["Choose people from the family."];
+            }
         }
 
         var timeZone = await db.Families.Select(f => f.TimeZone).SingleAsync(cancellationToken);
@@ -885,7 +900,7 @@ public static class EventEndpoints
             }
         }
 
-        return errors.Count == 0 ? (draft! with { Description = description, Recurrence = rule }, null) : (null, errors);
+        return errors.Count == 0 ? (draft! with { Description = description, Recurrence = rule, MemberIds = memberIds }, null) : (null, errors);
     }
 
     /// <summary>Null when events can be added to and changed in the calendar.</summary>
