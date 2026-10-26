@@ -104,6 +104,42 @@ describe('optimistic calendar operations', () => {
     expect(store.events().find((e) => e.id === first.id)!.title).toBe('External change');
   });
 
+  it('changes an event and those after it, leaving the earlier ones as they are', () => {
+    const wednesday = { ...draft('Later practice'), startDate: '2026-10-14', endDate: '2026-10-14' };
+    store.update(second.id, wednesday, 'following').subscribe();
+    const put = http.expectOne((r) => r.method === 'PUT');
+    expect(put.request.params.get('following')).toBe('true');
+    expect(put.request.params.has('series')).toBe(false);
+    expect(store.events().find((e) => e.id === first.id)!.title).toBe('Practice');
+    expect(store.events().find((e) => e.id === second.id)).toMatchObject({ title: 'Later practice', pending: true });
+    expect(store.isPending(first.id)).toBe(true);
+    put.flush({ ...second, id: 'split', seriesId: 'series-b', title: 'Later practice' });
+    read().flush(snapshot([first, { ...second, id: 'split', seriesId: 'series-b', title: 'Later practice' }, unrelated], 2));
+    expect(store.pending()).toHaveLength(0);
+  });
+
+  it('previews events that become a series of their own on the days their rule names', () => {
+    store.reset();
+    store.show('2026-10-12', '2026-10-19');
+    const daily = { recurrence: 'RRULE:FREQ=DAILY' };
+    read().flush(snapshot([{ ...first, ...daily }, { ...second, ...daily }, unrelated]));
+    store.update(second.id, { ...draft('Daily from Wednesday'), startDate: '2026-10-14', endDate: '2026-10-14' }, 'following').subscribe();
+    http.expectOne((r) => r.method === 'PUT');
+    expect(store.events().filter((e) => e.title === 'Daily from Wednesday').map((e) => e.startsAt!.slice(0, 10)))
+      .toEqual(['2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18']);
+    expect(store.events().find((e) => e.id === first.id)!.title).toBe('Practice');
+  });
+
+  it('deletes an event and those after it', () => {
+    store.remove(second.id, 'following').subscribe();
+    const remove = http.expectOne((r) => r.method === 'DELETE');
+    expect(remove.request.params.get('following')).toBe('true');
+    expect(store.events().some((e) => e.id === second.id)).toBe(false);
+    expect(store.events().some((e) => e.id === first.id)).toBe(true);
+    remove.flush(null);
+    read().flush(snapshot([first, unrelated], 2));
+  });
+
   it('previews a whole series across loaded occurrences, including regenerated ids', () => {
     store.update(first.id, { ...draft('New series'), calendarId: 'c2' }, true).subscribe();
     expect(

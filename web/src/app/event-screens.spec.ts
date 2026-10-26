@@ -185,6 +185,23 @@ describe('event screens', () => {
         .toMatchObject({ recurrence: 'RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;COUNT=9' });
     });
 
+    it('changes an event and those after it, which may move and take another calendar', async () => {
+      const { page, settle } = await open('/wall');
+
+      await edit(page, settle, 'Wednesday, October 14');
+      const dialog = page.querySelector<HTMLElement>('app-event-dialog form')!;
+      button(dialog, 'This and following').click();
+      await settle();
+      expect(button(dialog, 'A day later').disabled).toBe(false);
+      button(dialog, 'A day later').click();
+      Array.from(dialog.querySelectorAll<HTMLButtonElement>('.chip')).find((chip) => chip.textContent?.trim().endsWith('Tess'))!.click();
+      await settle();
+      button(dialog, 'Save changes').click();
+
+      const request = http.expectOne({ method: 'PUT', url: `/api/calendar/events/${soccer.id}?following=true` });
+      expect(request.request.body).toMatchObject({ calendarId: 'c2', startDate: '2026-10-15' });
+    });
+
     it('deletes an event only once it is confirmed', async () => {
       const { page, settle } = await open('/wall');
 
@@ -296,6 +313,28 @@ describe('event screens', () => {
 
       expect(http.expectOne({ method: 'PUT', url: `/api/calendar/events/${soccer.id}?series=true` }).request.body)
         .toMatchObject({ recurrence: 'RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR' });
+    });
+
+    it('deletes an event and those after it', async () => {
+      const { page, settle } = await open('/');
+
+      page.querySelector<HTMLButtonElement>('.strip button[aria-label="Wednesday, October 14"]')!.click();
+      await settle();
+      page.querySelector<HTMLButtonElement>('app-agenda-list li button')!.click();
+      await settle();
+      button(page.querySelector('app-event-details')!, 'Edit event').click();
+      await settle();
+      const sheet = page.querySelector<HTMLElement>('app-event-sheet form')!;
+      const change = Array.from(sheet.querySelectorAll('select')).find((select) => select.parentElement?.textContent?.includes('Change'))!;
+      change.value = 'following';
+      change.dispatchEvent(new Event('change'));
+      await settle();
+      button(sheet, 'Delete event').click();
+      await settle();
+      button(sheet, 'Delete this and later events').click();
+
+      http.expectOne({ method: 'DELETE', url: `/api/calendar/events/${soccer.id}?following=true` }).flush(null, { status: 204, statusText: 'No Content' });
+      http.expectOne((r) => r.url === '/api/calendar');
     });
 
     it('keeps a refused event open with the server’s reason', async () => {

@@ -122,7 +122,7 @@ import { RepeatPicker } from '../shared/repeat-picker';
                   class="chip"
                   [style.--member]="choice.color"
                   [attr.aria-pressed]="choice.id === draft.calendarId"
-                  [disabled]="event()?.recurring && !series() && choice.id !== draft.calendarId"
+                  [disabled]="event()?.recurring && scope() === 'this' && choice.id !== draft.calendarId"
                   (click)="set({ calendarId: choice.id })"
                 >
                   <span class="mark" aria-hidden="true"><app-avatar-face [initial]="choice.initial" [avatar]="choice.avatar" /></span>{{ choice.label }}
@@ -138,10 +138,11 @@ import { RepeatPicker } from '../shared/repeat-picker';
             } @else {
               <span id="event-repeat">CHANGE</span>
               <div class="segments" role="group" aria-labelledby="event-repeat">
-                <button type="button" [attr.aria-pressed]="!series()" (click)="setSeries(false)">This event</button>
-                <button type="button" [attr.aria-pressed]="series()" (click)="setSeries(true)">All events</button>
+                <button type="button" [attr.aria-pressed]="scope() === 'this'" (click)="setScope('this')">This event</button>
+                <button type="button" [attr.aria-pressed]="scope() === 'following'" (click)="setScope('following')">This and following</button>
+                <button type="button" [attr.aria-pressed]="scope() === 'all'" (click)="setScope('all')">All events</button>
               </div>
-              @if (series()) {
+              @if (scope() !== 'this') {
                 <app-repeat-picker layout="wall" [allowNever]="false" [rule]="draft.recurrence" [day]="draft.startDate" (ruleChange)="set({ recurrence: $event })" />
               }
             }
@@ -172,9 +173,9 @@ import { RepeatPicker } from '../shared/repeat-picker';
 
           <div class="actions">
             @if (confirmingDelete()) {
-              <span class="confirm">{{ series() ? 'Delete every event in this series?' : 'Delete this event?' }}</span>
+              <span class="confirm">{{ series() ? 'Delete every event in this series?' : following() ? 'Delete this and every later event?' : 'Delete this event?' }}</span>
               <button type="button" class="ghost" (click)="confirmingDelete.set(false)">Keep it</button>
-              <button type="button" class="danger" [disabled]="busy()" (click)="remove()">{{ series() ? 'Delete all events' : 'Delete event' }}</button>
+              <button type="button" class="danger" [disabled]="busy()" (click)="remove()">{{ series() ? 'Delete all events' : following() ? 'Delete these events' : 'Delete event' }}</button>
             } @else {
               @if (event()) {
                 <button type="button" class="quiet-danger" [disabled]="busy()" (click)="confirmingDelete.set(true)">Delete</button>
@@ -583,9 +584,10 @@ export class EventDialog {
   protected readonly heading = computed(() => (this.event() ? 'Edit event' : 'New event'));
   protected readonly savesTo = computed(() => (this.session.isDemo() ? 'Saves to the demo calendar' : 'Saves to Google Calendar'));
 
-  /** Whether a change to one event of a series goes to every event of it. */
-  private readonly wholeSeries = signal(false);
-  protected readonly series = computed(() => !!this.event()?.recurring && this.wholeSeries());
+  /** Which events of a series a change goes to: this one, it and every later one, or all of them. */
+  protected readonly scope = signal<'this' | 'following' | 'all'>('this');
+  protected readonly series = computed(() => !!this.event()?.recurring && this.scope() === 'all');
+  protected readonly following = computed(() => !!this.event()?.recurring && this.scope() === 'following');
 
   private readonly operationId = crypto.randomUUID();
   protected readonly uncertain = computed(() => this.calendar.isUncertain(this.operationId));
@@ -619,9 +621,10 @@ export class EventDialog {
 
   /**
    * Every event of a series stays on its own day and in one calendar, so choosing all of them
-   * puts the day back, and choosing one again puts its calendar back.
+   * puts the day back, and choosing one again puts its calendar and rule back. Events from this
+   * one on become a series of their own, so they can move and take a new calendar or rule.
    */
-  protected setSeries(series: boolean): void {
+  protected setScope(scope: 'this' | 'following' | 'all'): void {
     const draft = this.draft();
     const event = this.event();
     const family = this.family.family();
@@ -629,14 +632,15 @@ export class EventDialog {
       return;
     }
     const original = draftOf(event, family.timeZone);
-    this.wholeSeries.set(series);
-    this.change(series ? onDayOf(draft, original) : { ...draft, calendarId: original.calendarId, recurrence: original.recurrence });
+    this.scope.set(scope);
+    this.change(scope === 'all' ? onDayOf(draft, original)
+      : scope === 'this' ? { ...draft, calendarId: original.calendarId, recurrence: original.recurrence } : draft);
   }
 
   private change(draft: EventDraft): void {
     if (this.busy() || this.uncertain()) return;
     const before = this.draft();
-    this.edits.set(before ? revise(before, draft) : draft);
+    this.edits.set(before ? revise(before, draft, this.following()) : draft);
     this.message.set(null);
   }
 
@@ -667,7 +671,7 @@ export class EventDialog {
     const request = requestOf(draft);
     this.edits.set(draft);
     this.busy.set(true);
-    (event ? this.calendar.update(event.id, request, this.series(), this.operationId) : this.calendar.add(request, this.operationId)).subscribe({
+    (event ? this.calendar.update(event.id, request, this.following() ? 'following' : this.series(), this.operationId) : this.calendar.add(request, this.operationId)).subscribe({
       next: () => this.closed.emit(),
       error: (error: HttpErrorResponse) => this.refused(error),
     });
@@ -679,7 +683,7 @@ export class EventDialog {
       return;
     }
     this.busy.set(true);
-    this.calendar.remove(event.id, this.series(), this.operationId).subscribe({
+    this.calendar.remove(event.id, this.following() ? 'following' : this.series(), this.operationId).subscribe({
       next: () => this.closed.emit(),
       error: (error: HttpErrorResponse) => this.refused(error),
     });
