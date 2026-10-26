@@ -117,15 +117,17 @@ export const FAMILY_COLOR = 'var(--family)';
 /**
  * Whose an event is, for the filter and the Day view's columns: its calendar's owner and the
  * other members it is for, or FAMILY for an event on the family's calendar that names no one.
+ * A member who has left the family no longer counts, though Google's tag may still name them.
  */
-export function ownersOf(event: CalendarEvent): string[] {
-  const owners = [...new Set([...(event.memberId ? [event.memberId] : []), ...(event.memberIds ?? [])])];
+export function ownersOf(event: CalendarEvent, members: readonly Member[]): string[] {
+  const others = (event.memberIds ?? []).filter((id) => members.some((member) => member.id === id));
+  const owners = [...new Set([...(event.memberId ? [event.memberId] : []), ...others])];
   return owners.length ? owners : [FAMILY];
 }
 
 /** The members an event is for, its calendar's owner first, leaving out anyone no longer in the family. */
 export function peopleOf(event: CalendarEvent, members: readonly Member[]): Member[] {
-  return ownersOf(event).map((id) => members.find((member) => member.id === id)).filter((member): member is Member => !!member);
+  return ownersOf(event, members).map((id) => members.find((member) => member.id === id)).filter((member): member is Member => !!member);
 }
 
 /** The color an event takes: its first person's, or the family's. */
@@ -289,7 +291,8 @@ export class CalendarStore {
   /** The events in range that the filter lets through. */
   readonly events = computed(() => {
     const hidden = this.hiddenOwners();
-    return this.allEvents().filter((event) => ownersOf(event).some((owner) => !hidden.has(owner)));
+    const members = this.family.members();
+    return this.allEvents().filter((event) => ownersOf(event, members).some((owner) => !hidden.has(owner)));
   });
 
   /** Whether a parent has to connect Google again before the calendar updates. */
