@@ -317,6 +317,66 @@ describe('optimistic calendar operations', () => {
     expect(store.pending()).toHaveLength(0);
   });
 
+  it('offers Undo after deleting an event, which adds it back as it was', () => {
+    const dentist = { ...timed('Dentist', 'm3', '2026-10-13T14:00:00Z', '2026-10-13T15:00:00Z', 'Main St'), description: '<b>Card</b>', memberIds: ['m1'] };
+    store.reset();
+    store.show('2026-10-12', '2026-10-19');
+    read().flush(snapshot([dentist]));
+    store.remove(dentist.id).subscribe();
+    http.expectOne((r) => r.method === 'DELETE').flush(null);
+    read().flush(snapshot([], 2));
+    expect(store.undoable()).toEqual({ label: 'Event deleted', ready: true });
+
+    store.undo().subscribe();
+    expect(store.undoable()).toBeNull();
+    const post = http.expectOne((r) => r.method === 'POST');
+    expect(post.request.body).toMatchObject({
+      calendarId: 'c3', title: 'Dentist', location: 'Main St', allDay: false,
+      startDate: '2026-10-13', startTime: '10:00:00', endDate: '2026-10-13', endTime: '11:00:00',
+      description: '<b>Card</b>', memberIds: ['m1'], private: false,
+    });
+    post.flush({ ...dentist, id: 'again' });
+    read().flush(snapshot([{ ...dentist, id: 'again' }], 3));
+  });
+
+  it('offers Undo after moving an event, which puts back only its times', () => {
+    const dentist = { ...timed('Dentist', 'm3', '2026-10-13T14:00:00Z', '2026-10-13T15:00:00Z'), description: '<b>Card</b>' };
+    store.reset();
+    store.show('2026-10-12', '2026-10-19');
+    read().flush(snapshot([dentist]));
+    store.update(dentist.id, { ...draft('Dentist'), startDate: '2026-10-14', endDate: '2026-10-14' }).subscribe();
+    http.expectOne((r) => r.method === 'PUT').flush({ ...dentist, startsAt: '2026-10-14T22:00:00Z', endsAt: '2026-10-14T23:00:00Z' });
+    read().flush(snapshot([{ ...dentist, startsAt: '2026-10-14T22:00:00Z', endsAt: '2026-10-14T23:00:00Z' }], 2));
+    expect(store.undoable()).toEqual({ label: 'Event moved', ready: true });
+
+    store.undo().subscribe();
+    const put = http.expectOne((r) => r.method === 'PUT');
+    expect(put.request.url).toBe(`/api/calendar/events/${dentist.id}`);
+    expect(put.request.body).toMatchObject({ startDate: '2026-10-13', startTime: '10:00:00', endTime: '11:00:00' });
+    expect(put.request.body).not.toHaveProperty('description');
+    put.flush(dentist);
+    read().flush(snapshot([dentist], 3));
+  });
+
+  it('offers no Undo for a change to a whole series, and lets an offer lapse', () => {
+    vi.useFakeTimers();
+    try {
+      store.update(first.id, draft(), true).subscribe();
+      http.expectOne((r) => r.method === 'PUT').flush({ ...first, title: 'Changed' });
+      read().flush(snapshot([{ ...first, title: 'Changed' }, second, unrelated], 2));
+      expect(store.undoable()).toBeNull();
+
+      store.remove(unrelated.id).subscribe();
+      http.expectOne((r) => r.method === 'DELETE').flush(null);
+      read().flush(snapshot([first, second], 3));
+      expect(store.undoable()?.label).toBe('Event deleted');
+      vi.advanceTimersByTime(CalendarStore.UNDO_MS);
+      expect(store.undoable()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('does not apply a late successful write to another family', () => {
     store.update(first.id, draft()).subscribe();
     const put = http.expectOne((r) => r.method === 'PUT');

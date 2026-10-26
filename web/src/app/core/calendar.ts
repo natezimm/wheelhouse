@@ -1,7 +1,7 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal, untracked } from '@angular/core';
 import { Observable, catchError, defer, of, shareReplay, switchMap, tap, throwError, timeout } from 'rxjs';
-import { Day, addDays, dayIn, timeIn } from './days';
+import { Day, addDays, dayIn, minutesIn, timeIn } from './days';
 import { FamilyStore, Member, refusalMessage } from './family';
 import { overlaps, previewEvent, previewOccurrences, previewSeries } from './calendar-preview';
 import { RepeatRule, parseRule } from './repeat-rule';
@@ -213,6 +213,54 @@ export class CalendarStore {
   readonly saveFailure = this.failure.asReadonly();
 
   dismissFailure(): void { this.failure.set(null); }
+
+  /** The last change that can be taken back, for a few seconds after it saved. */
+  private readonly lastChange = signal<{ label: string; target: string | null; undo: () => Observable<unknown> } | null>(null);
+  private undoTimer: ReturnType<typeof setTimeout> | undefined;
+  /** How long Undo stays on offer after a change saves. */
+  static readonly UNDO_MS = 10_000;
+
+  /** What the last change was, while Undo is on offer, and whether it can run yet: a change still settling cannot be changed back. */
+  readonly undoable = computed(() => {
+    const change = this.lastChange();
+    return change ? { label: change.label, ready: !change.target || !this.isPending(change.target) } : null;
+  });
+
+  /** Takes back the last change: a deleted event comes back as it was, and a changed one goes back to how it was. */
+  undo(): Observable<unknown> {
+    const change = this.lastChange();
+    this.forgetUndo();
+    return change ? change.undo() : of(undefined);
+  }
+
+  dismissUndo(): void { this.forgetUndo(); }
+
+  private forgetUndo(): void {
+    clearTimeout(this.undoTimer);
+    this.lastChange.set(null);
+  }
+
+  /**
+   * Offers Undo for a change to one event that does not repeat, or to one occurrence: a delete is
+   * undone by adding the event again, a change by putting back what the change replaced. A series,
+   * its later events or a new series are left to their editors.
+   */
+  private offerUndo(op: PendingCalendarChange, result: CalendarEvent | void): void {
+    const original = op.original;
+    this.forgetUndo();
+    if (!original || op.kind === 'add' || op.series || op.following || startsSeries(op) || (op.kind === 'remove' && original.recurring)) return;
+    const back = requestFor(original, op.zone, op.request);
+    const target = op.kind === 'update' ? (result || undefined)?.id ?? original.id : null;
+    const moved = op.kind === 'update' && op.request!.title === original.title && (op.request!.location ?? null) === (original.location ?? null)
+      && op.request!.calendarId === original.calendarId && op.request!.description === undefined && op.request!.memberIds === undefined
+      && op.request!.private === undefined;
+    this.lastChange.set({
+      label: op.kind === 'remove' ? 'Event deleted' : moved ? 'Event moved' : 'Event changed',
+      target,
+      undo: () => target ? this.update(target, back) : this.add(back),
+    });
+    this.undoTimer = setTimeout(() => this.lastChange.set(null), CalendarStore.UNDO_MS);
+  }
   isUncertain(id: string): boolean { return this.operations().some((op) => op.id === id && op.status === 'uncertain'); }
   isPending(id: string, wholeSeries = false): boolean {
     const event = this.current().status === 'ready' ? this.allEvents().find((e) => e.id === id) : undefined;
@@ -248,6 +296,7 @@ export class CalendarStore {
   /** Forget another family's data and invalidate every outstanding response. */
   reset(): void {
     this.familyEpoch++;
+    this.forgetUndo();
     this.operations.set([]);
     this.failure.set(null);
     this.serial++;
@@ -394,6 +443,7 @@ export class CalendarStore {
         op.settleAfter = this.serial + 1;
         op.result = result || undefined;
         this.operations.update((ops) => ops.map((p) => p.id === op.id ? { ...op } : p));
+        this.offerUndo(op, result);
         if (result) this.current.update((state) => state.status === 'ready'
           ? { ...state, events: [...state.events.filter((e) => e.id !== result.id && e.id !== op.original?.id), result] } : state);
         this.refresh();
@@ -543,6 +593,30 @@ function sameContent(a: CalendarEvent, b: CalendarEvent, zone: string, rules = t
     && (a.description ?? null) === (b.description ?? null) && !!a.private === !!b.private && sameMembers(others(a), others(b)) && (!rules || sameRule(a.recurrence, b.recurrence, zone))
     && (a.allDay ? a.startDate === b.startDate && a.endDate === b.endDate
       : Date.parse(a.startsAt!) === Date.parse(b.startsAt!) && Date.parse(a.endsAt!) === Date.parse(b.endsAt!));
+}
+
+/**
+ * What puts an event back as it was. Notes, people and privacy go back only when <code>changed</code>
+ * changed them, so notes kept as HTML are never rewritten.
+ */
+function requestFor(event: CalendarEvent, zone: string, changed?: EventRequest): EventRequest {
+  const clock = (instant: string) => {
+    const minutes = minutesIn(zone, instant);
+    return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}:00`;
+  };
+  return {
+    calendarId: event.calendarId,
+    title: event.title,
+    location: event.location,
+    allDay: event.allDay,
+    startDate: event.allDay ? event.startDate! : dayIn(zone, event.startsAt!),
+    startTime: event.allDay ? null : clock(event.startsAt!),
+    endDate: event.allDay ? event.endDate! : dayIn(zone, event.endsAt!),
+    endTime: event.allDay ? null : clock(event.endsAt!),
+    ...(!changed || changed.description !== undefined ? { description: event.description ?? '' } : {}),
+    ...(!changed || changed.memberIds !== undefined ? { memberIds: others(event) } : {}),
+    ...(!changed || changed.private !== undefined ? { private: !!event.private } : {}),
+  };
 }
 
 /** The members an event is for besides its calendar's owner. */
