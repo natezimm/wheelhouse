@@ -75,8 +75,16 @@ public static class CalendarEndpoints
 
         var needsReconnect = await db.GoogleConnections.AnyAsync(c => c.Status == GoogleConnectionStatus.NeedsReauth, cancellationToken);
 
+        // Only Google calendars have a window; a demo copy's cache is all there is.
+        var listedAt = await db.CalendarSources
+            .Where(source => source.ListedAt != null)
+            .Select(source => source.ListedAt!.Value)
+            .ToListAsync(cancellationToken);
+        var window = CalendarSync.Window(listedAt, zone);
+
         await snapshot.CommitAsync(cancellationToken);
-        return TypedResults.Ok(new CalendarResponse(calendars, ordered, needsReconnect, family.CalendarChangeNumber));
+        return TypedResults.Ok(new CalendarResponse(
+            calendars, ordered, needsReconnect, family.CalendarChangeNumber, window?.From, window?.To));
     }
 
     /// <summary>The instant a local day begins in <paramref name="zone"/>, as UTC.</summary>

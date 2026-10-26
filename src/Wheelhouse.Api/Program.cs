@@ -6,6 +6,7 @@ using Wheelhouse.Api.Calendar;
 using Wheelhouse.Api.Data;
 using Wheelhouse.Api.Demo;
 using Wheelhouse.Api.Devices;
+using Wheelhouse.Api.Diagnostics;
 using Wheelhouse.Api.Families;
 using Wheelhouse.Api.Health;
 using Wheelhouse.Api.Instance;
@@ -73,6 +74,7 @@ app.MapCalendarLive();
 app.MapCalendarEvents();
 app.MapGoogleConnection();
 app.MapWeather();
+app.MapClientErrors();
 
 app.Run();
 
