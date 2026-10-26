@@ -140,4 +140,17 @@ describe('calendar connection controls', () => {
     await settle();
     expect(page().querySelector('app-status-line')?.textContent).toContain('Server connected');
   });
+
+  it('says which days are kept when the days on screen reach past them, instead of looking empty', async () => {
+    const kept = { syncedFrom: '2026-07-29', syncedTo: '2026-12-01' };
+    calendar.show('2026-11-16', '2026-11-23');
+    read().flush({ ...snapshot(), ...kept });
+    await settle();
+    expect(page().querySelector('.synced')).toBeNull();
+
+    calendar.show('2026-11-30', '2026-12-07');
+    read().flush({ ...snapshot(), ...kept });
+    await settle();
+    expect(page().querySelector('.synced')?.textContent).toContain('Synced through Nov 30, 2026');
+  });
 });

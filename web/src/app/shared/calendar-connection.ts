@@ -2,7 +2,7 @@ import { Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { CalendarStore } from '../core/calendar';
 import { CalendarLive } from '../core/calendar-live';
-import { timeIn } from '../core/days';
+import { formatDay, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { SessionStore } from '../core/session';
 import { StatusLine } from './status-line';
@@ -84,6 +84,14 @@ import { StatusLine } from './status-line';
           }
         </span>
       </p>
+    }
+    @if (syncedRange(); as range) {
+      @if (show() !== 'live') {
+        <p class="pill notice synced" role="status">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"></rect><path d="M4 10h16M9 3v4M15 3v4"></path></svg>
+          <span>{{ range }}</span>
+        </p>
+      }
     }
   `,
   styles: `
@@ -253,6 +261,10 @@ import { StatusLine } from './status-line';
       border-radius: 16px;
     }
 
+    :host(.phone) .notice {
+      justify-content: flex-start;
+    }
+
     :host(.phone) button {
       min-height: 44px;
     }
@@ -325,6 +337,14 @@ export class CalendarConnection {
     const at = this.calendar.shownAt();
     const family = this.family.family();
     return at && family ? ` · showing ${timeIn(family.timeZone, at)}` : '';
+  });
+
+  /** "Synced through Nov 30, 2027" when the days on screen reach past the days the server keeps. */
+  protected readonly syncedRange = computed(() => {
+    const kept = this.calendar.outsideSync();
+    if (!kept) return null;
+    const format = { month: 'short', day: 'numeric', year: 'numeric' } as const;
+    return kept.last ? `Synced through ${formatDay(kept.last, format)}` : `Synced from ${formatDay(kept.first!, format)}`;
   });
 
   protected readonly offlineLabel = computed(() => `Reconnecting${this.showing()}`);

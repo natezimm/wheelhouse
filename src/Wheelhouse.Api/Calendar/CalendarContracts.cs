@@ -11,7 +11,9 @@ public sealed record CalendarResponse(
     IReadOnlyList<CalendarSourceResponse> Calendars,
     IReadOnlyList<EventResponse> Events,
     bool NeedsReconnect,
-    long ChangeNumber);
+    long ChangeNumber,
+    DateOnly? SyncedFrom = null,
+    DateOnly? SyncedTo = null);
 
 /// <summary><paramref name="CanWrite"/> says whether the screens can add and change events in it.</summary>
 public sealed record CalendarSourceResponse(Guid Id, string Name, Guid? MemberId, bool CanWrite)

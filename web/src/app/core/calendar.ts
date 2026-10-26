@@ -79,6 +79,12 @@ interface CalendarResponse {
   events: CalendarEvent[];
   /** Google stopped accepting the family's connection, so the events have stopped updating. */
   needsReconnect: boolean;
+  /**
+   * The days the server keeps of the family's Google calendars, the last exclusive; absent when
+   * everything there is is kept, as on the demo. Days outside it are not empty, only unread.
+   */
+  syncedFrom?: Day | null;
+  syncedTo?: Day | null;
 }
 
 export type CalendarState =
@@ -256,6 +262,31 @@ export class CalendarStore {
     const state = this.current();
     return state.status === 'ready' && state.needsReconnect;
   });
+
+  /**
+   * Where the days on screen reach past the days the server keeps: the first day kept, when they
+   * start before it, and the last, when they end after it. Null when every day on screen is kept,
+   * so a screen can say why days look empty rather than claim nothing is planned.
+   */
+  readonly outsideSync = computed<{ first: Day | null; last: Day | null } | null>(() => {
+    const state = this.current();
+    if (state.status !== 'ready' || !state.syncedFrom || !state.syncedTo) return null;
+    const first = state.from < state.syncedFrom ? state.syncedFrom : null;
+    const last = state.to > state.syncedTo ? addDays(state.syncedTo, -1) : null;
+    return first || last ? { first, last } : null;
+  });
+
+  /** Whether the server keeps a day's events, so an empty day is known to be empty. */
+  isSynced(day: Day): boolean {
+    return this.unsyncedSide(day) === null;
+  }
+
+  /** Which side of the days kept a day falls on, or null when it is kept. */
+  unsyncedSide(day: Day): 'back' | 'ahead' | null {
+    const state = this.current();
+    if (state.status !== 'ready' || !state.syncedFrom || !state.syncedTo) return null;
+    return day < state.syncedFrom ? 'back' : day >= state.syncedTo ? 'ahead' : null;
+  }
 
   /** Whether any calendar is the whole family's, so the filter needs a chip for it. */
   readonly hasFamilyCalendar = computed(() => this.calendars().some((calendar) => calendar.memberId === null));

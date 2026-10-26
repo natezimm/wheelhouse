@@ -347,7 +347,7 @@ export class DayView {
       const count = mine.length;
       return {
         ...person,
-        count: !ready ? '' : count === 0 ? 'Nothing planned' : `${count} ${isToday ? 'today' : count === 1 ? 'event' : 'events'}`,
+        count: !ready ? '' : count === 0 ? (this.calendar.isSynced(day) ? 'Nothing planned' : 'Not synced') : `${count} ${isToday ? 'today' : count === 1 ? 'event' : 'events'}`,
         allDay: mine.filter(inAllDayLane).map((event) => ({
           id: event.id,
           title: event.title,
@@ -367,7 +367,7 @@ export class DayView {
           : people.length === 0
             ? { text: 'Choose someone above to see their day' }
             : events.length === 0
-              ? { text: `Nothing planned for ${isToday ? 'today' : weekday}` }
+              ? { text: this.calendar.isSynced(day) ? `Nothing planned for ${isToday ? 'today' : weekday}` : 'Not synced this far' }
               : null;
     return {
       people,

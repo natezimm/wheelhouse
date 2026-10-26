@@ -20,11 +20,11 @@ public sealed class CalendarSync(
     TimeProvider time,
     ILogger<CalendarSync> logger)
 {
-    /// <summary>How far back the cache reaches, enough for a month view of the weeks just gone.</summary>
-    public static readonly TimeSpan Behind = TimeSpan.FromDays(30);
+    /// <summary>How far back the cache reaches: the last three months, for looking back at what happened.</summary>
+    public static readonly TimeSpan Behind = TimeSpan.FromDays(90);
 
-    /// <summary>How far ahead the cache reaches.</summary>
-    public static readonly TimeSpan Ahead = TimeSpan.FromDays(180);
+    /// <summary>How far ahead the cache reaches: a little over a year, so next summer's trip is already there.</summary>
+    public static readonly TimeSpan Ahead = TimeSpan.FromDays(400);
 
     /// <summary>How often the window is read in full even when Google reports no change.</summary>
     public static readonly TimeSpan ListEvery = TimeSpan.FromDays(1);
@@ -129,6 +129,26 @@ public sealed class CalendarSync(
         var events = await google.ListEventsAsync(accessToken, source.GoogleCalendarId, now - Behind, now + Ahead, cancellationToken);
         await ReplaceEventsAsync(source, events, cancellationToken);
         source.ListedAt = now;
+    }
+
+    /// <summary>
+    /// The family's days the cache holds in full, from the first up to, not including, the last;
+    /// null when the family has no Google calendars that have been read, as on the demo. Each
+    /// calendar was read around its own <see cref="CalendarSource.ListedAt"/>, so the days are the
+    /// ones every calendar covers.
+    /// </summary>
+    public static (DateOnly From, DateOnly To)? Window(IEnumerable<DateTimeOffset> listedAt, TimeZoneInfo zone)
+    {
+        var listed = listedAt.ToList();
+        if (listed.Count == 0)
+        {
+            return null;
+        }
+
+        // The day the window starts in is only partly read, so it starts the next day; the day it ends in is the exclusive end.
+        var from = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(listed.Max() - Behind, zone).DateTime).AddDays(1);
+        var to = DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(listed.Min() + Ahead, zone).DateTime);
+        return (from, to);
     }
 
     /// <summary>Makes the calendar's cached events exactly <paramref name="events"/>, keeping the rows of those already there.</summary>

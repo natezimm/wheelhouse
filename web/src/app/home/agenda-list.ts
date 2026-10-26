@@ -70,7 +70,7 @@ const EARLIER_THAN_MS = 60 * 60_000;
           <span class="icon" aria-hidden="true">
             <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15" rx="2.5"></rect><path d="M3.5 10h17M8 3v4M16 3v4M9.5 15h5"></path></svg>
           </span>
-          <h2>Nothing planned for {{ agenda.name }}</h2>
+          <h2>{{ agenda.unsynced ? 'Not synced this far ' + agenda.unsynced : 'Nothing planned for ' + agenda.name }}</h2>
           <p>{{ agenda.empty }}</p>
           @if (canAdd()) {
             <button type="button" class="add" (click)="add.emit()">
@@ -420,12 +420,15 @@ export class AgendaList {
       empty:
         events.length > 0
           ? null
-          : this.calendar.refreshFailed()
+          : !this.calendar.isSynced(day)
+            ? 'Wheelhouse keeps a little over a year ahead and three months back. Google Calendar has the rest.'
+            : this.calendar.refreshFailed()
             ? 'This is from the last good refresh, so try again to be sure.'
             : this.calendar.hidden().size > 0
               ? 'Nothing on the calendars shown. Tap a name above to show more.'
               : 'No events on anyone’s calendar.',
       name: formatDay(day, { weekday: 'long' }),
+      unsynced: events.length > 0 ? null : this.calendar.unsyncedSide(day),
     };
   });
 

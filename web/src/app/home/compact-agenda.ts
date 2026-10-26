@@ -30,7 +30,7 @@ import { AvatarFace } from '../shared/avatar-face';
           <span class="title">{{ row.title }}</span>
         </button>
       } @empty {
-        <p class="empty">Nothing planned</p>
+        <p class="empty">{{ calendar.isSynced(day()) ? 'Nothing planned' : 'Not synced this far' }}</p>
       }
     }
   `,
@@ -103,7 +103,7 @@ import { AvatarFace } from '../shared/avatar-face';
   `,
 })
 export class CompactAgenda {
-  private readonly calendar = inject(CalendarStore);
+  protected readonly calendar = inject(CalendarStore);
   private readonly family = inject(FamilyStore);
 
   readonly day = input.required<Day>();

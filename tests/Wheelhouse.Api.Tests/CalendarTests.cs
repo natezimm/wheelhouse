@@ -26,6 +26,9 @@ public sealed class CalendarTests(ApiFactory factory)
         Assert.Equal(family!.Members.Single(member => member.DisplayName == "Milo").Id, owners["Milo — School & Sports"]);
         Assert.Null(owners["Marlowe Household"]);
         Assert.False(calendar.Calendars.Single(c => c.Name == "Maplewood School District").CanWrite);
+        // A demo copy is never read from Google, so it has no window to run out of.
+        Assert.Null(calendar.SyncedFrom);
+        Assert.Null(calendar.SyncedTo);
     }
 
     [Fact]

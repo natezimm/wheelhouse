@@ -64,6 +64,34 @@ public sealed class CalendarSyncTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task The_calendar_says_which_days_the_sync_window_holds()
+    {
+        await using var family = await ConnectedAsync();
+        Assert.Null((await CalendarOf(family.Parent)).SyncedTo);
+
+        await family.SyncAsync();
+
+        // The family's zone is UTC here; the partly read first day is left out.
+        var calendar = await CalendarOf(family.Parent);
+        Assert.Equal(Today.AddDays(-CalendarSync.Behind.Days + 1), calendar.SyncedFrom);
+        Assert.Equal(Today.AddDays(CalendarSync.Ahead.Days), calendar.SyncedTo);
+    }
+
+    [Fact]
+    public void The_window_is_the_days_every_calendar_has_read_in_the_familys_zone()
+    {
+        var zone = TimeZoneInfo.FindSystemTimeZoneById("America/New_York");
+        var early = new DateTimeOffset(2026, 3, 1, 3, 0, 0, TimeSpan.Zero); // Feb 28, 10 PM in New York
+        var late = early.AddDays(2);
+
+        var window = CalendarSync.Window([late, early], zone)!.Value;
+
+        Assert.Equal(DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(late - CalendarSync.Behind, zone).DateTime).AddDays(1), window.From);
+        Assert.Equal(DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(early + CalendarSync.Ahead, zone).DateTime), window.To);
+        Assert.Null(CalendarSync.Window([], zone));
+    }
+
+    [Fact]
     public async Task Changes_made_in_google_reach_the_screens_on_the_next_sync()
     {
         await using var family = await ConnectedAsync();
