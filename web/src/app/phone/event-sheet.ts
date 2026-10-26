@@ -2,15 +2,16 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, input, linkedSignal, output, signal } from '@angular/core';
 import { CalendarEvent, CalendarStore, eventRefusal } from '../core/calendar';
 import { Day } from '../core/days';
-import { EventDraft, REPEATS, draftOf, newDraft, onDayOf, problemWith, requestOf, writableCalendars } from '../core/event-draft';
+import { EventDraft, draftOf, newDraft, onDayOf, problemWith, requestOf, revise, writableCalendars } from '../core/event-draft';
 import { FamilyStore } from '../core/family';
 import { SessionStore } from '../core/session';
 import { ModalFocus } from '../shared/modal-focus';
+import { RepeatPicker } from '../shared/repeat-picker';
 
 /** The phone's sheet for adding an event, or changing or deleting one, over the calendar. */
 @Component({
   selector: 'app-event-sheet',
-  imports: [ModalFocus],
+  imports: [ModalFocus, RepeatPicker],
   template: `
     @if (draft(); as draft) {
       <form
@@ -44,14 +45,7 @@ import { ModalFocus } from '../shared/modal-focus';
         </label>
 
         @if (!event()?.recurring) {
-          <label class="field">
-            Repeat
-            <select (change)="set({ repeat: $any($event.target).value })">
-              @for (repeat of repeats; track repeat) {
-                <option [value]="repeat" [selected]="repeat === draft.repeat">{{ repeat }}</option>
-              }
-            </select>
-          </label>
+          <app-repeat-picker [rule]="draft.recurrence" [day]="draft.startDate" (ruleChange)="set({ recurrence: $event })" />
         } @else {
           <label class="field">
             Change
@@ -60,6 +54,9 @@ import { ModalFocus } from '../shared/modal-focus';
               <option value="all" [selected]="series()">All events in the series</option>
             </select>
           </label>
+          @if (series()) {
+            <app-repeat-picker [allowNever]="false" [rule]="draft.recurrence" [day]="draft.startDate" (ruleChange)="set({ recurrence: $event })" />
+          }
         }
 
         <label class="all-day">
@@ -255,8 +252,6 @@ export class EventSheet {
   protected readonly heading = computed(() => (this.event() ? 'Edit event' : 'New event'));
   protected readonly savesTo = computed(() => (this.session.isDemo() ? 'Saves to the demo calendar' : 'Saves to Google Calendar'));
 
-  protected readonly repeats = REPEATS;
-
   /** Whether a change to one event of a series goes to every event of it. */
   private readonly wholeSeries = signal(false);
   protected readonly series = computed(() => !!this.event()?.recurring && this.wholeSeries());
@@ -271,7 +266,7 @@ export class EventSheet {
     if (this.busy() || this.uncertain()) return;
     const draft = this.draft();
     if (draft) {
-      this.edits.set({ ...draft, ...change });
+      this.edits.set(revise(draft, { ...draft, ...change }));
       this.message.set(null);
     }
   }
@@ -286,7 +281,7 @@ export class EventSheet {
     }
     const original = draftOf(event, family.timeZone);
     this.wholeSeries.set(series);
-    this.set(series ? onDayOf(draft, original) : { calendarId: original.calendarId });
+    this.set(series ? onDayOf(draft, original) : { calendarId: original.calendarId, recurrence: original.recurrence });
   }
 
   /** A new first day moves the last day with it, so the event keeps its length. */

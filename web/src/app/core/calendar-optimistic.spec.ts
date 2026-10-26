@@ -29,7 +29,6 @@ const draft = (title = 'Changed'): EventRequest => ({
   startTime: '18:00:00',
   endDate: '2026-10-12',
   endTime: '19:00:00',
-  repeat: 'Never',
 });
 
 describe('optimistic calendar operations', () => {
@@ -172,7 +171,7 @@ describe('optimistic calendar operations', () => {
   });
 
   it('keeps a series preview when its first-event response arrives before the snapshot', () => {
-    store.add({ ...draft('Repeating'), repeat: 'Daily' }).subscribe();
+    store.add({ ...draft('Repeating'), recurrence: 'RRULE:FREQ=DAILY' }).subscribe();
     expect(store.events().filter((e) => e.title === 'Repeating')).toHaveLength(7);
     http
       .expectOne((r) => r.method === 'POST')
@@ -220,10 +219,10 @@ describe('optimistic calendar operations', () => {
   });
 
   it('shows an event that starts to repeat as its new series until a snapshot replaces it', () => {
-    const daily: EventRequest = { ...draft('Reading time'), allDay: true, calendarId: 'c4', startDate: '2026-10-13', startTime: null, endDate: '2026-10-14', endTime: null, repeat: 'Daily' };
+    const daily: EventRequest = { ...draft('Reading time'), allDay: true, calendarId: 'c4', startDate: '2026-10-13', startTime: null, endDate: '2026-10-14', endTime: null, recurrence: 'RRULE:FREQ=DAILY' };
     store.update(unrelated.id, daily).subscribe();
     const put = http.expectOne((r) => r.method === 'PUT');
-    expect(put.request.body).toMatchObject({ repeat: 'Daily' });
+    expect(put.request.body).toMatchObject({ recurrence: 'RRULE:FREQ=DAILY' });
     const shown = store.events().filter((e) => e.title === 'Reading time');
     expect(shown.map((e) => e.startDate)).toEqual(['2026-10-13', '2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18']);
     expect(shown.every((e) => e.pending && e.recurring)).toBe(true);
@@ -238,7 +237,7 @@ describe('optimistic calendar operations', () => {
   });
 
   it('finds an uncertain change that started a series by its content, since its occurrences have new ids', () => {
-    const weekly: EventRequest = { ...draft('Piano'), calendarId: 'c4', repeat: 'Weekly' };
+    const weekly: EventRequest = { ...draft('Piano'), calendarId: 'c4', recurrence: 'RRULE:FREQ=WEEKLY;BYDAY=MO' };
     store.update(unrelated.id, weekly, false, 'operation').subscribe({ error: () => {} });
     http.expectOne((r) => r.method === 'PUT').error(new ProgressEvent('error'));
     store.retry('operation').subscribe();
@@ -281,7 +280,7 @@ describe('calendar optimistic time previews', () => {
         allDay: true,
         startDate: '2026-01-31',
         endDate: '2026-02-01',
-        repeat: 'Monthly',
+        recurrence: 'RRULE:FREQ=MONTHLY',
       },
       marloweCalendars[0],
       'request',

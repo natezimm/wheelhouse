@@ -42,14 +42,12 @@ export interface CalendarEvent {
   pending?: boolean;
 }
 
-/** How often a new event, or one that does not repeat yet, repeats. */
-export type Repeat = 'Never' | 'Daily' | 'Weekly' | 'Monthly';
-
 /**
  * An event as a screen sets it, in the family's days and clock. A timed event runs from
  * startTime on startDate to endTime on endDate, as 'HH:mm:ss'; an all-day one has no times and
- * an exclusive endDate. Repeat makes a new event, or a change to one that does not repeat yet, the
- * first of a series; a change to an event that already repeats leaves its rule alone.
+ * an exclusive endDate. A recurrence rule makes a new event, or a change to one that does not repeat
+ * yet, the first of a series, and gives a change to a whole series a new rule; left out, a change
+ * leaves the rule alone.
  */
 export interface EventRequest {
   calendarId: string;
@@ -60,7 +58,8 @@ export interface EventRequest {
   startTime: string | null;
   endDate: Day;
   endTime: string | null;
-  repeat: Repeat;
+  /** A repeat rule such as "RRULE:FREQ=WEEKLY;BYDAY=TU,TH" (see repeat-rule.ts), sent only to set one. */
+  recurrence?: string | null;
   /** New notes, replacing the event's; left out, the notes stay as they are. Empty clears them. */
   description?: string | null;
 }
@@ -496,7 +495,7 @@ function sameContent(a: CalendarEvent, b: CalendarEvent): boolean {
 
 /** A change that makes an event that does not repeat yet the first of a series. */
 function startsSeries(op: PendingCalendarChange): boolean {
-  return op.kind === 'update' && !op.series && !op.original?.recurring && !!op.request && op.request.repeat !== 'Never';
+  return op.kind === 'update' && !op.series && !op.original?.recurring && !!op.request?.recurrence;
 }
 
 function seriesParams(series: boolean): Record<string, string> {

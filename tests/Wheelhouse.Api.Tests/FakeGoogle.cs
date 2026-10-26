@@ -76,11 +76,10 @@ internal sealed class FakeGoogle : IGoogleCalendar
             var (rule, timeZone) = _series[first.Id];
             var zone = TimeZoneInfo.FindSystemTimeZoneById(timeZone);
             var draft = new GoogleEventDraft(first.Title, first.Location, first.StartsAt, first.EndsAt, first.StartDate, first.EndDate, timeZone,
-                Description: first.Description);
-            var repeat = Enum.Parse<EventRepeat>(rule["RRULE:FREQ=".Length..], ignoreCase: true);
+                Recurrence: rule, Description: first.Description);
             // Two years of occurrences is more than any test reads.
             var until = DateOnly.FromDateTime((first.StartsAt?.UtcDateTime ?? first.StartDate!.Value.ToDateTime(TimeOnly.MinValue)).AddYears(2));
-            foreach (var occurrence in EventSeries.Occurrences(draft, repeat, first.Id, until, zone))
+            foreach (var occurrence in EventSeries.Occurrences(draft, first.Id, until, zone))
             {
                 var id = occurrence.StartsAt is { } startsAt ? $"{first.Id}_{startsAt.UtcDateTime:yyyyMMdd'T'HHmmss'Z'}" : occurrence.Id;
                 var start = occurrence.StartsAt ?? new DateTimeOffset(occurrence.StartDate!.Value.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);

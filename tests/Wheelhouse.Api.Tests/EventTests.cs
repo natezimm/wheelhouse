@@ -398,9 +398,9 @@ public sealed class EventTests(ApiFactory factory)
         var startsAt = CalendarEndpoints.At(new DateOnly(2027, 1, 31), new TimeOnly(19, 0), zone);
         var draft = new GoogleEventDraft("Book club", null, startsAt, startsAt.AddHours(2), null, null, zone.Id);
 
-        var monthly = EventSeries.Occurrences(draft, EventRepeat.Monthly, "s", new DateOnly(2027, 6, 30), zone).ToList();
-        var daily = EventSeries.Occurrences(draft with { StartsAt = null, EndsAt = null, StartDate = new(2027, 3, 13), EndDate = new(2027, 3, 15) },
-            EventRepeat.Daily, "d", new DateOnly(2027, 3, 15), zone).ToList();
+        var monthly = EventSeries.Occurrences(draft with { Recurrence = "RRULE:FREQ=MONTHLY" }, "s", new DateOnly(2027, 6, 30), zone).ToList();
+        var daily = EventSeries.Occurrences(draft with { StartsAt = null, EndsAt = null, StartDate = new(2027, 3, 13), EndDate = new(2027, 3, 15), Recurrence = "RRULE:FREQ=DAILY" },
+            "d", new DateOnly(2027, 3, 15), zone).ToList();
 
         Assert.Equal(["s_20270131", "s_20270331", "s_20270531"], monthly.Select(e => e.Id));
         // Across the change to summer time the clock stays at 7 PM.
@@ -591,5 +591,93 @@ public sealed class EventTests(ApiFactory factory)
         var added = await AddAsync(visitor, Timed(noras, "Swim", new(16, 0), new(17, 0)) with { Repeat = EventRepeat.Monthly });
 
         Assert.Equal("RRULE:FREQ=MONTHLY", added.Recurrence);
+    }
+
+    [Fact]
+    public async Task A_demo_series_takes_a_fuller_rule_and_ends_after_its_count()
+    {
+        using var visitor = await factory.DemoVisitorAsync();
+        var noras = await CalendarIdAsync(visitor, "Nora — Activities");
+        var family = await FamilyOf(visitor);
+        var zone = TimeZoneInfo.FindSystemTimeZoneById(family.TimeZone);
+        var monday = Day.AddDays(((int)DayOfWeek.Monday - (int)Day.DayOfWeek + 7) % 7);
+
+        var added = await AddAsync(visitor, Timed(noras, "Tutoring", new(16, 0), new(17, 0)) with
+        {
+            StartDate = monday, EndDate = monday, Recurrence = "RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=WE,MO;COUNT=4",
+        });
+
+        Assert.Equal("RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;COUNT=4", added.Recurrence);
+        var shown = (await CalendarOf(visitor, monday, 40)).Events.Where(e => e.Title == "Tutoring").ToList();
+        Assert.Equal([monday, monday.AddDays(2), monday.AddDays(14), monday.AddDays(16)], shown.Select(e => Local(e, zone).Day));
+        Assert.All(shown, e => Assert.Equal(new TimeOnly(16, 0), Local(e, zone).Time));
+    }
+
+    [Theory]
+    [InlineData("RRULE:FREQ=HOURLY")]
+    [InlineData("RRULE:FREQ=WEEKLY;BYSETPOS=2")]
+    [InlineData("RRULE:FREQ=DAILY;UNTIL=20000101")]
+    public async Task A_rule_the_screens_do_not_offer_or_that_ends_before_it_starts_is_refused(string rule)
+    {
+        using var visitor = await factory.DemoVisitorAsync();
+        var noras = await CalendarIdAsync(visitor, "Nora — Activities");
+
+        var response = await visitor.PostAsJsonAsync("/api/calendar/events", Timed(noras, "Swim", new(16, 0), new(17, 0)) with { Recurrence = rule }, ApiFactory.Json);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Contains("recurrence", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task A_new_rule_for_a_demo_series_repeats_it_again_from_its_first_event()
+    {
+        using var visitor = await factory.DemoVisitorAsync();
+        var noras = await CalendarIdAsync(visitor, "Nora — Activities");
+        var zone = TimeZoneInfo.FindSystemTimeZoneById((await FamilyOf(visitor)).TimeZone);
+        var added = await AddAsync(visitor, Timed(noras, "Reading", new(19, 0), new(19, 30)) with { Repeat = EventRepeat.Weekly });
+
+        var changed = await ChangeAsync(visitor, added.Id, Timed(noras, "Reading", new(19, 0), new(19, 30)) with { Recurrence = "RRULE:FREQ=DAILY;COUNT=3" }, series: true);
+
+        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+        var answer = (await changed.Content.ReadFromJsonAsync<EventResponse>(ApiFactory.Json))!;
+        Assert.Equal((added.Id, "RRULE:FREQ=DAILY;COUNT=3"), (answer.Id, answer.Recurrence));
+        var shown = (await CalendarOf(visitor, Day, 21)).Events.Where(e => e.Title == "Reading").ToList();
+        Assert.Equal([Day, Day.AddDays(1), Day.AddDays(2)], shown.Select(e => Local(e, zone).Day));
+        Assert.All(shown, e => Assert.Equal("RRULE:FREQ=DAILY;COUNT=3", e.Recurrence));
+    }
+
+    [Fact]
+    public async Task A_new_rule_for_a_series_is_written_to_its_first_event_in_google()
+    {
+        await using var family = await ConnectedAsync();
+        var practices = await SyncedSeriesAsync(family, "Practice");
+        var second = practices[1];
+        var day = Local(second, TimeZoneInfo.Utc).Day;
+
+        var changed = await ChangeAsync(family.Parent, second.Id,
+            new EventRequest(second.CalendarId, "Practice", null, false, day, new(15, 0), day, new(16, 0), Recurrence: "RRULE:FREQ=WEEKLY;INTERVAL=2"), series: true);
+
+        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+        Assert.Equal(("patch", "practice"), (family.Google.Writes[0].Change, family.Google.Writes[0].EventId));
+        Assert.Equal("RRULE:FREQ=WEEKLY;INTERVAL=2", family.Google.RuleOf("practice"));
+        var after = (await CalendarOf(family.Parent, Day, 21)).Events.Where(e => e.Title == "Practice").ToList();
+        Assert.Equal([Day, Day.AddDays(14)], after.Select(e => Local(e, TimeZoneInfo.Utc).Day));
+        Assert.All(after, e => Assert.Equal("RRULE:FREQ=WEEKLY;INTERVAL=2", e.Recurrence));
+        // The day on screen fell out of the series, so the answer is its first event.
+        Assert.Equal(Day, Local((await changed.Content.ReadFromJsonAsync<EventResponse>(ApiFactory.Json))!, TimeZoneInfo.Utc).Day);
+    }
+
+    [Fact]
+    public async Task A_rule_sent_with_a_change_to_one_event_of_a_series_leaves_the_rule_alone()
+    {
+        await using var family = await ConnectedAsync();
+        var practices = await SyncedSeriesAsync(family, "Practice");
+        var day = Local(practices[1], TimeZoneInfo.Utc).Day;
+
+        var changed = await ChangeAsync(family.Parent, practices[1].Id,
+            new EventRequest(practices[1].CalendarId, "Practice, late", null, false, day, new(17, 0), day, new(18, 0), Recurrence: "RRULE:FREQ=DAILY"));
+
+        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+        Assert.Equal("RRULE:FREQ=WEEKLY", family.Google.RuleOf("practice"));
     }
 }

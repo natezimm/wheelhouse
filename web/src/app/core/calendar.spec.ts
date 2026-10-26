@@ -247,7 +247,7 @@ describe('calendar snapshot recovery', () => {
     const old = read();
     const request = {
       calendarId: 'c1', title: 'Edited', location: null, allDay: true,
-      startDate: '2026-10-12', endDate: '2026-10-13', startTime: null, endTime: null, repeat: 'Never' as const,
+      startDate: '2026-10-12', endDate: '2026-10-13', startTime: null, endTime: null,
     };
     store.update(store.events()[0].id, request).subscribe();
     http.expectOne((r) => r.method === 'PUT').flush(snapshot(2, 'Edited').events[0]);

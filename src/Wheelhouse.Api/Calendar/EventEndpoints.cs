@@ -88,7 +88,7 @@ public static class EventEndpoints
             }
         }
 
-        draft = draft! with { Recurrence = EventSeries.RuleFor(request.Repeat), Id = creationId };
+        draft = draft! with { Id = creationId };
         EventInstance RowFor(GoogleEvent stored)
         {
             var row = new EventInstance
@@ -111,7 +111,7 @@ public static class EventEndpoints
             var first = draft.Recurrence is null
                 ? RowFor(new GoogleEvent(id, null, draft.Title, draft.Location, draft.StartsAt, draft.EndsAt, draft.StartDate, draft.EndDate,
                     Description: draft.Description))
-                : EventSeries.Occurrences(draft, request.Repeat, id, Today(time, zone).AddDays(CalendarSync.Ahead.Days), zone)
+                : EventSeries.Occurrences(draft, id, Today(time, zone).AddDays(CalendarSync.Ahead.Days), zone)
                     .Select(RowFor)
                     .ToList()[0];
             await db.SaveChangesAsync(cancellationToken);
@@ -176,10 +176,10 @@ public static class EventEndpoints
     /// <summary>
     /// Changes an event, or one occurrence of a repeating one, or with <paramref name="series"/>
     /// every event of its series. A different calendar moves it, which Google allows only for a
-    /// whole event or series, so an occurrence on its own stays in its calendar. A Repeat on an
-    /// event that does not repeat yet makes it the first event of a new series; an event that
-    /// already repeats keeps its rule, which is left to Google Calendar. Answers 409 with
-    /// the event as Google has it now when it changed there first.
+    /// whole event or series, so an occurrence on its own stays in its calendar. A rule on an
+    /// event that does not repeat yet makes it the first event of a new series; a new rule for a
+    /// whole series replaces its rule, and Google then expands it again from the series' first
+    /// event. Answers 409 with the event as Google has it now when it changed there first.
     /// </summary>
     private static async Task<Results<Ok<EventResponse>, Conflict<EventResponse>, ValidationProblem, ProblemHttpResult, NotFound>> Change(
         Guid id,
@@ -202,11 +202,14 @@ public static class EventEndpoints
         }
 
         series &= row.RecurringEventId is not null;
-        var startsSeries = row.RecurringEventId is null && request.Repeat != EventRepeat.Never;
         var (draft, errors) = await DraftAsync(request, db, cancellationToken);
-        if (startsSeries)
+        var rule = draft?.Recurrence;
+        var startsSeries = row.RecurringEventId is null && rule is not null;
+        // A rule sent with a change to one occurrence is ignored: an occurrence has no rule of its own.
+        var newRule = series && rule is not null && rule != row.Recurrence;
+        if (draft is not null)
         {
-            draft = draft! with { Recurrence = EventSeries.RuleFor(request.Repeat) };
+            draft = draft with { Recurrence = startsSeries || newRule ? rule : null };
         }
 
         var sources = await db.CalendarSources
@@ -231,6 +234,13 @@ public static class EventEndpoints
 
         if (IsDemo(instance))
         {
+            if (newRule)
+            {
+                var onDay = await RepeatAgainAsync(row, draft!, to!, Today(time, Zone(draft!)), db, cancellationToken);
+                await db.SaveChangesAsync(cancellationToken);
+                return TypedResults.Ok(EventResponse.From(onDay, to!));
+            }
+
             if (series)
             {
                 EventSeries.Apply(await SeriesOf(row, db, cancellationToken), draft!, Zone(draft!));
@@ -239,7 +249,7 @@ public static class EventEndpoints
             else if (startsSeries)
             {
                 // The event becomes the series' first occurrence and keeps its id, so the screen's event stays put.
-                var newSeries = EventSeries.Occurrences(draft!, request.Repeat, row.GoogleEventId,
+                var newSeries = EventSeries.Occurrences(draft!, row.GoogleEventId,
                     Today(time, Zone(draft!)).AddDays(CalendarSync.Ahead.Days), Zone(draft!)).ToList();
                 for (var n = 0; n < newSeries.Count; n++)
                 {
@@ -451,6 +461,40 @@ public static class EventEndpoints
             .Where(e => e.CalendarSourceId == row.CalendarSourceId && e.RecurringEventId == row.RecurringEventId)
             .ToListAsync(cancellationToken);
 
+    /// <summary>
+    /// Gives a demo series <paramref name="draft"/>'s new rule, expanded again from its first cached
+    /// event, keeping the rows of the days it still falls on. Answers the occurrence on
+    /// <paramref name="row"/>'s day, or the series' first when the new rule skips that day.
+    /// </summary>
+    private static async Task<EventInstance> RepeatAgainAsync(
+        EventInstance row, GoogleEventDraft draft, CalendarSource to, DateOnly today, WheelhouseDbContext db, CancellationToken cancellationToken)
+    {
+        var zone = Zone(draft);
+        var rows = await SeriesOf(row, db, cancellationToken);
+        var byDay = new Dictionary<DateOnly, EventInstance>();
+        var doubled = rows.Where(e => !byDay.TryAdd(EventSeries.DayOf(e, zone), e)).ToList();
+        var first = byDay.Keys.Min();
+        var master = EventSeries.MasterDraft(new GoogleEvent("", null, "", null, null, null, first, first), draft, zone);
+        var kept = new List<EventInstance>();
+        foreach (var occurrence in EventSeries.Occurrences(master, row.RecurringEventId!, today.AddDays(CalendarSync.Ahead.Days), zone))
+        {
+            var day = occurrence.StartDate ?? EventSeries.DayOf(occurrence.StartsAt!.Value, zone);
+            if (!byDay.Remove(day, out var occurrenceRow))
+            {
+                occurrenceRow = new EventInstance { Id = Guid.CreateVersion7(), FamilyId = row.FamilyId, GoogleEventId = occurrence.Id, Title = "" };
+                db.EventInstances.Add(occurrenceRow);
+            }
+
+            CalendarSync.CopyTo(occurrenceRow, occurrence with { Id = occurrenceRow.GoogleEventId, Description = draft.Description ?? occurrenceRow.Description });
+            occurrenceRow.CalendarSourceId = to.Id;
+            kept.Add(occurrenceRow);
+        }
+
+        db.EventInstances.RemoveRange([.. byDay.Values, .. doubled]);
+        var onDay = EventSeries.DayOf(row, zone);
+        return kept.FirstOrDefault(e => EventSeries.DayOf(e, zone) == onDay) ?? kept[0];
+    }
+
     private static async Task MoveSeriesAsync(EventInstance row, CalendarSource to, WheelhouseDbContext db, CancellationToken cancellationToken)
     {
         foreach (var occurrence in await SeriesOf(row, db, cancellationToken))
@@ -495,6 +539,25 @@ public static class EventEndpoints
         }
 
         var timeZone = await db.Families.Select(f => f.TimeZone).SingleAsync(cancellationToken);
+        var zone = TimeZoneInfo.FindSystemTimeZoneById(timeZone);
+        var rule = EventSeries.RuleFor(request.Repeat);
+        if (!string.IsNullOrWhiteSpace(request.Recurrence))
+        {
+            var parsed = RepeatRules.Parse(request.Recurrence, zone);
+            if (parsed is null)
+            {
+                errors["recurrence"] = ["Choose one of the repeats the calendar offers."];
+            }
+            else if (parsed.Until < request.StartDate)
+            {
+                errors["recurrence"] = ["End the repeat on or after the event's first day."];
+            }
+            else
+            {
+                rule = RepeatRules.Format(parsed, request.AllDay, zone);
+            }
+        }
+
         GoogleEventDraft? draft = null;
         if (request.EndDate.DayNumber - request.StartDate.DayNumber > MaxDays)
         {
@@ -517,7 +580,6 @@ public static class EventEndpoints
         }
         else
         {
-            var zone = TimeZoneInfo.FindSystemTimeZoneById(timeZone);
             var startsAt = CalendarEndpoints.At(request.StartDate, startTime, zone);
             var endsAt = CalendarEndpoints.At(request.EndDate, endTime, zone);
             if (endsAt <= startsAt)
@@ -530,7 +592,7 @@ public static class EventEndpoints
             }
         }
 
-        return errors.Count == 0 ? (draft! with { Description = description }, null) : (null, errors);
+        return errors.Count == 0 ? (draft! with { Description = description, Recurrence = rule }, null) : (null, errors);
     }
 
     /// <summary>Null when events can be added to and changed in the calendar.</summary>

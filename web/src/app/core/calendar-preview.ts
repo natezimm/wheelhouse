@@ -1,5 +1,6 @@
 import type { CalendarEvent, CalendarSource, EventRequest } from './calendar';
-import { Day, addDays, addMonths, dayIn } from './days';
+import { Day, addDays, dayIn } from './days';
+import { parseRule, ruleDays } from './repeat-rule';
 
 /** Local wall-clock time to UTC, matching the API's standard-time choice on a DST overlap. */
 export function instantAt(day: Day, time: string, zone: string): string {
@@ -51,11 +52,11 @@ export function previewEvent(
     endDate: request.allDay ? request.endDate : null,
     startsAt: request.allDay ? null : instantAt(request.startDate, request.startTime!, zone),
     endsAt: request.allDay ? null : instantAt(request.endDate, request.endTime!, zone),
-    recurring: original?.recurring ?? request.repeat !== 'Never',
+    recurring: original?.recurring ?? !!request.recurrence,
     seriesId: original?.seriesId ?? null,
     creationId: original?.creationId ?? null,
     description: request.description !== undefined ? request.description || null : original?.description ?? null,
-    recurrence: original?.recurrence ?? null,
+    recurrence: request.recurrence || original?.recurrence || null,
     pending: true,
   };
 }
@@ -79,6 +80,7 @@ export function previewSeries(
     memberId: source.memberId,
     title: request.title,
     location: request.location,
+    recurrence: request.recurrence || original.recurrence,
     pending: true,
     endDate: request.allDay ? addDays(day, length / 86_400_000) : null,
     startsAt,
@@ -86,7 +88,7 @@ export function previewSeries(
   };
 }
 
-/** Expand only the loaded range. Monthly dates skip short months, as Google and the demo do. */
+/** Expand only the loaded range, as Google and the demo expand the rule (see ruleDays). */
 export function previewOccurrences(
   request: EventRequest,
   source: CalendarSource,
@@ -95,10 +97,9 @@ export function previewOccurrences(
   from: Day,
   to: Day,
 ): CalendarEvent[] {
-  if (request.repeat === 'Never')
+  const rule = parseRule(request.recurrence);
+  if (!rule)
     return [{ ...previewEvent(request, source, `pending:${id}`, zone), creationId: id }];
-  const events: CalendarEvent[] = [];
-  const step = request.repeat === 'Weekly' ? 7 : 1;
   const durationDays = Math.max(
     1,
     Math.ceil(
@@ -106,33 +107,8 @@ export function previewOccurrences(
         86_400_000,
     ),
   );
-  const first =
-    request.repeat === 'Monthly'
-      ? Math.max(
-          0,
-          (Number(from.slice(0, 4)) - Number(request.startDate.slice(0, 4))) * 12 +
-            Number(from.slice(5, 7)) -
-            Number(request.startDate.slice(5, 7)) -
-            Math.ceil(durationDays / 28) -
-            1,
-        )
-      : Math.max(
-          0,
-          Math.floor((Date.parse(from) - Date.parse(request.startDate)) / 86_400_000 / step) -
-            durationDays,
-        );
-  for (let n = first; ; n++) {
-    const month = request.repeat === 'Monthly' ? addMonths(request.startDate, n) : '';
-    const day =
-      request.repeat === 'Monthly'
-        ? `${month.slice(0, 8)}${request.startDate.slice(8)}`
-        : addDays(request.startDate, n * step);
-    if (day >= to) break;
-    if (
-      request.repeat === 'Monthly' &&
-      new Date(`${day}T12:00:00Z`).toISOString().slice(0, 10) !== day
-    )
-      continue;
+  // An occurrence that started a few days before the range can still run into it.
+  return ruleDays(request.startDate, rule, addDays(from, -durationDays), to).map((day) => {
     const shift = (Date.parse(day) - Date.parse(request.startDate)) / 86_400_000;
     const occurrence = previewEvent(
       { ...request, startDate: day, endDate: addDays(request.endDate, shift) },
@@ -140,9 +116,8 @@ export function previewOccurrences(
       `pending:${id}:${day}`,
       zone,
     );
-    events.push({ ...occurrence, creationId: id, seriesId: `pending:${id}` });
-  }
-  return events;
+    return { ...occurrence, creationId: id, seriesId: `pending:${id}` };
+  });
 }
 
 export function overlaps(event: CalendarEvent, from: Day, to: Day, zone: string): boolean {
