@@ -18,12 +18,15 @@ Run these from the repository root unless a line says otherwise.
 | Web production build, in `web/` | `npm run build` |
 | Wall/phone browser checks, in `web/` (build first) | `npm run test:e2e` |
 | Whole app at http://localhost:8080 | `docker compose up --build -d` |
+| Edit, drag and series checks against the running app, in `web/` | `npx playwright test -c playwright.stack.config.mjs` (`STACK_URL` for another address) |
 | Database only, for running from source | `docker compose up db -d` |
 | API from source, port 5080 | `dotnet run --project src/Wheelhouse.Api` |
 | Web dev server, port 4200, in `web/` | `npm start` |
 | New migration | `dotnet tool restore`, then `dotnet ef migrations add <Name> --project src/Wheelhouse.Api --output-dir Data/Migrations` |
 
 The Playwright browser checks use stubbed API responses to hold and reject writes at wall and phone sizes; they verify immediate rendering, draft preservation and uncertain-response reconciliation. CI installs Chromium and retains screenshots/traces in `calendar-browser-checks`. Install the browser locally with `npx playwright install chromium` before running these checks.
+
+The `stack` CI job builds the whole app with `docker compose`, runs `deploy/smoke.mjs` against the demo, runs `web/e2e-stack` (add, reload and delete; drag on the wall; renaming a whole series) against the real API and database, then restarts the API as a family instance and smoke checks that it shows nothing signed out. Each browser in those checks gets its own demo copy.
 
 There is no linter. Prettier settings live in `web/.prettierrc` but are not enforced, and some files do not match them, so do not reformat files you are not otherwise changing.
 

@@ -47,3 +47,4 @@ Thumbs.db
 # Browser verification artifacts
 /test-results
 /playwright-report
+/stack-results
