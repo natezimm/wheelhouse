@@ -324,7 +324,7 @@ export class DayView {
       key: person.owner,
       day,
       name: person.name,
-      segments: segments.filter((segment) => ownersOf(segment.event).includes(person.owner)),
+      segments: segments.filter((segment) => ownersOf(segment.event, family.members).includes(person.owner)),
     }));
   });
 
@@ -343,7 +343,7 @@ export class DayView {
     const ready = status === 'ready';
 
     const people = this.people().map((person) => {
-      const mine = events.filter((event) => ownersOf(event).includes(person.owner));
+      const mine = events.filter((event) => ownersOf(event, family.members).includes(person.owner));
       const count = mine.length;
       return {
         ...person,

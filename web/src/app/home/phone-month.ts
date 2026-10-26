@@ -216,7 +216,7 @@ export class PhoneMonth {
       const days = daysOf(event, family.timeZone, { from: start, to: end });
       for (const day of days) {
         const owners = ownersByDay.get(day) ?? new Set<string>();
-        ownersOf(event).forEach((owner) => owners.add(owner));
+        ownersOf(event, family.members).forEach((owner) => owners.add(owner));
         ownersByDay.set(day, owners);
       }
     }
