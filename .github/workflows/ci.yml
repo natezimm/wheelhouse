@@ -78,3 +78,66 @@ jobs:
           name: calendar-browser-checks
           path: web/test-results
           retention-days: 7
+
+  # The whole app as `docker compose up` builds it, real API and database included, so a change
+  # that breaks the API and web together fails here rather than after a release deploys it.
+  stack:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+        working-directory: web
+      - name: Playwright version
+        id: playwright
+        working-directory: web
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v6
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - if: steps.playwright-cache.outputs.cache-hit != 'true'
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+      - if: steps.playwright-cache.outputs.cache-hit == 'true'
+        working-directory: web
+        run: npx playwright install-deps chromium
+      - name: Start the demo
+        run: |
+          docker compose up --build -d --wait db
+          docker compose up --build -d
+          for attempt in $(seq 60); do curl -fsS http://127.0.0.1:8080/health >/dev/null && exit 0; sleep 2; done
+          docker compose logs api
+          exit 1
+      - name: Smoke check the demo
+        run: SMOKE_URL=http://127.0.0.1:8080 SMOKE_MODE=Demo node deploy/smoke.mjs
+      - name: Edit, drag and series checks against the demo
+        working-directory: web
+        run: npx playwright test -c playwright.stack.config.mjs
+      - name: Smoke check a family instance
+        run: |
+          # Sign-in needs a Google client to offer; this one is never called.
+          export WHEELHOUSE_MODE=Family WHEELHOUSE_GOOGLE_CLIENT_ID=ci-client WHEELHOUSE_GOOGLE_CLIENT_SECRET=ci-secret WHEELHOUSE_PARENT_EMAILS=parent@example.com
+          docker compose up -d --force-recreate api web
+          for attempt in $(seq 60); do
+            curl -fsS http://127.0.0.1:8080/api/session | grep -q '"Family"' && break
+            sleep 2
+          done
+          SMOKE_URL=http://127.0.0.1:8080 SMOKE_MODE=Family SMOKE_INDEX=2 node deploy/smoke.mjs
+      - name: API log
+        if: failure()
+        run: docker compose logs api
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: stack-browser-checks
+          path: |
+            web/stack-results
+            smoke-results
+          retention-days: 7
