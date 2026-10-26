@@ -358,6 +358,26 @@ describe('optimistic calendar operations', () => {
     read().flush(snapshot([dentist], 3));
   });
 
+  it('undoes a move to a week that is not on screen', () => {
+    const dentist = timed('Dentist', 'm3', '2026-10-13T14:00:00Z', '2026-10-13T15:00:00Z');
+    const later = { ...dentist, startsAt: '2026-10-27T14:00:00Z', endsAt: '2026-10-27T15:00:00Z' };
+    store.reset();
+    store.show('2026-10-12', '2026-10-19');
+    read().flush(snapshot([dentist]));
+    store.update(dentist.id, { ...draft('Dentist'), startDate: '2026-10-27', endDate: '2026-10-27', startTime: '10:00:00', endTime: '11:00:00' }).subscribe();
+    http.expectOne((r) => r.method === 'PUT').flush(later);
+    read().flush(snapshot([], 2));
+    expect(store.undoable()).toEqual({ label: 'Event moved', ready: true });
+
+    store.undo().subscribe();
+    const put = http.expectOne((r) => r.method === 'PUT');
+    expect(put.request.url).toBe(`/api/calendar/events/${dentist.id}`);
+    expect(put.request.body).toMatchObject({ startDate: '2026-10-13', startTime: '10:00:00' });
+    expect(store.events().map((e) => e.id)).toEqual([dentist.id]);
+    put.flush(dentist);
+    read().flush(snapshot([dentist], 3));
+  });
+
   it('offers no Undo for a change to a whole series, and lets an offer lapse', () => {
     vi.useFakeTimers();
     try {

@@ -250,14 +250,16 @@ export class CalendarStore {
     this.forgetUndo();
     if (!original || op.kind === 'add' || op.series || op.following || startsSeries(op) || (op.kind === 'remove' && original.recurring)) return;
     const back = requestFor(original, op.zone, op.request);
-    const target = op.kind === 'update' ? (result || undefined)?.id ?? original.id : null;
+    // The changed event as accepted, kept so Undo works after it leaves the days on screen.
+    const changed = op.kind === 'update' ? (result || undefined) ?? original : undefined;
+    const target = changed?.id ?? null;
     const moved = op.kind === 'update' && op.request!.title === original.title && (op.request!.location ?? null) === (original.location ?? null)
       && op.request!.calendarId === original.calendarId && op.request!.description === undefined && op.request!.memberIds === undefined
       && op.request!.private === undefined;
     this.lastChange.set({
       label: op.kind === 'remove' ? 'Event deleted' : moved ? 'Event moved' : 'Event changed',
       target,
-      undo: () => target ? this.update(target, back) : this.add(back),
+      undo: () => changed ? this.mutate('update', changed.id, back, false, crypto.randomUUID(), changed) : this.add(back),
     });
     this.undoTimer = setTimeout(() => this.lastChange.set(null), CalendarStore.UNDO_MS);
   }
@@ -406,14 +408,14 @@ export class CalendarStore {
   }
 
   private mutate(kind: PendingCalendarChange['kind'], eventId: string | undefined,
-    request: EventRequest | undefined, scope: SeriesScope, operationId: string): Observable<CalendarEvent | void> {
+    request: EventRequest | undefined, scope: SeriesScope, operationId: string, known?: CalendarEvent): Observable<CalendarEvent | void> {
     const series = scope === true;
     const following = scope === 'following';
     return defer(() => {
       const epoch = this.familyEpoch;
       const existing = this.operations().find((op) => op.id === operationId);
       if (existing && (existing.status !== 'uncertain' || existing.kind !== kind)) return throwError(() => new HttpErrorResponse({ status: 409, error: { title: 'This change is still saving.' } }));
-      const original = existing?.original ?? this.allEvents().find((e) => e.id === eventId);
+      const original = existing?.original ?? this.allEvents().find((e) => e.id === eventId) ?? known;
       const source = existing?.source ?? this.calendars().find((c) => c.id === (request?.calendarId ?? original?.calendarId));
       if (!source || !source.canWrite || (kind !== 'add' && !original)) {
         return throwError(() => new HttpErrorResponse({ status: 400, error: { title: 'This event cannot be changed right now.' } }));
@@ -423,8 +425,8 @@ export class CalendarStore {
       }
       const op: PendingCalendarChange = existing ?? {
         id: operationId, kind, request, original, series, following, source,
-        originals: original ? this.allEvents().filter((e) => e.id === original.id || (!!original.seriesId && e.seriesId === original.seriesId
-          && (series || (following && startOf(e) >= startOf(original))))) : [],
+        originals: original ? orElse(this.allEvents().filter((e) => e.id === original.id || (!!original.seriesId && e.seriesId === original.seriesId
+          && (series || (following && startOf(e) >= startOf(original))))), [original]) : [],
         zone: this.family.family()?.timeZone ?? 'UTC', status: 'saving',
       };
       op.status = 'saving';
@@ -599,6 +601,11 @@ function sameContent(a: CalendarEvent, b: CalendarEvent, zone: string, rules = t
  * What puts an event back as it was. Notes, people and privacy go back only when <code>changed</code>
  * changed them, so notes kept as HTML are never rewritten.
  */
+/** The list, or with nothing in it the fallback: an Undo's event may no longer be in the days on screen. */
+function orElse<T>(list: T[], fallback: T[]): T[] {
+  return list.length ? list : fallback;
+}
+
 function requestFor(event: CalendarEvent, zone: string, changed?: EventRequest): EventRequest {
   const clock = (instant: string) => {
     const minutes = minutesIn(zone, instant);
