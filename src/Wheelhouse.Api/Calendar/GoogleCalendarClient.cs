@@ -84,7 +84,9 @@ public sealed record GoogleChanges(bool Changed, string NextSyncToken);
 /// <summary>
 /// One occurrence, timed (<paramref name="StartsAt"/>, <paramref name="EndsAt"/>) or all-day
 /// (<paramref name="StartDate"/> and an exclusive <paramref name="EndDate"/>).
-/// <paramref name="ETag"/> is Google's version of it.
+/// <paramref name="ETag"/> is Google's version of it. <paramref name="Description"/> is Google's,
+/// which may hold HTML. <paramref name="Recurrence"/> is the series' rule (RFC 5545, such as
+/// <c>RRULE:FREQ=WEEKLY;BYDAY=TU,TH</c>), which Google keeps on the series' first event only.
 /// </summary>
 public sealed record GoogleEvent(
     string Id,
@@ -95,13 +97,16 @@ public sealed record GoogleEvent(
     DateTimeOffset? EndsAt,
     DateOnly? StartDate,
     DateOnly? EndDate,
-    string? ETag = null);
+    string? ETag = null,
+    string? Description = null,
+    string? Recurrence = null);
 
 /// <summary>
 /// What the screens set on an event: timed (<paramref name="StartsAt"/>, <paramref name="EndsAt"/>)
 /// or all-day (<paramref name="StartDate"/> and an exclusive <paramref name="EndDate"/>). A timed
 /// event is given the family's <paramref name="TimeZone"/>, so Google shows it at the family's time.
 /// <paramref name="Recurrence"/> is the rule of a new series, which then starts with this event.
+/// <paramref name="Description"/> replaces the event's notes, or with null leaves them as they are.
 /// </summary>
 public sealed record GoogleEventDraft(
     string Title,
@@ -112,7 +117,8 @@ public sealed record GoogleEventDraft(
     DateOnly? EndDate,
     string TimeZone,
     string? Recurrence = null,
-    string? Id = null);
+    string? Id = null,
+    string? Description = null);
 
 /// <summary>Google answered 412: the event changed since the version the screen was editing.</summary>
 public sealed class GoogleEventChangedException(string eventId) : Exception($"Event {eventId} changed in Google first.");
@@ -366,6 +372,11 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
             body["recurrence"] = new[] { rule };
         }
 
+        if (draft.Description is { } description)
+        {
+            body["description"] = description;
+        }
+
         return body;
     }
 
@@ -402,20 +413,27 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
         }
     }
 
+    /// <summary>The series' repeat rule among Google's recurrence lines, which can also hold exception dates.</summary>
+    private static string? RuleIn(List<string>? recurrence) =>
+        recurrence?.FirstOrDefault(line => line.StartsWith("RRULE:", StringComparison.OrdinalIgnoreCase));
+
     /// <summary>An occurrence as the cache keeps it, or null for one with no usable start and end.</summary>
     private static GoogleEvent? ToEvent(EventItem item)
     {
         var title = string.IsNullOrWhiteSpace(item.Summary) ? "Busy" : item.Summary.Trim();
         var location = string.IsNullOrWhiteSpace(item.Location) ? null : item.Location.Trim();
+        var description = string.IsNullOrWhiteSpace(item.Description) ? null : item.Description;
         if (item.Start?.Date is { } startDate && item.End?.Date is { } endDate)
         {
             return new GoogleEvent(item.Id, item.RecurringEventId, title, location, null, null,
-                DateOnly.ParseExact(startDate, "yyyy-MM-dd"), DateOnly.ParseExact(endDate, "yyyy-MM-dd"), item.ETag);
+                DateOnly.ParseExact(startDate, "yyyy-MM-dd"), DateOnly.ParseExact(endDate, "yyyy-MM-dd"), item.ETag,
+                description, RuleIn(item.Recurrence));
         }
 
         if (item.Start?.DateTime is { } startsAt && item.End?.DateTime is { } endsAt)
         {
-            return new GoogleEvent(item.Id, item.RecurringEventId, title, location, startsAt.ToUniversalTime(), endsAt.ToUniversalTime(), null, null, item.ETag);
+            return new GoogleEvent(item.Id, item.RecurringEventId, title, location, startsAt.ToUniversalTime(), endsAt.ToUniversalTime(), null, null, item.ETag,
+                description, RuleIn(item.Recurrence));
         }
 
         return null;
@@ -505,7 +523,9 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
         [property: JsonPropertyName("location")] string? Location,
         [property: JsonPropertyName("recurringEventId")] string? RecurringEventId,
         [property: JsonPropertyName("start")] EventTime? Start,
-        [property: JsonPropertyName("end")] EventTime? End);
+        [property: JsonPropertyName("end")] EventTime? End,
+        [property: JsonPropertyName("description")] string? Description = null,
+        [property: JsonPropertyName("recurrence")] List<string>? Recurrence = null);
 
     private sealed record EventTime(
         [property: JsonPropertyName("date")] string? Date,

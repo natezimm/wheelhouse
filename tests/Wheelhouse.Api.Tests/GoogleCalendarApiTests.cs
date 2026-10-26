@@ -177,6 +177,25 @@ public sealed class GoogleCalendarApiTests
     }
 
     [Fact]
+    public async Task Notes_and_a_series_rule_are_read_and_notes_are_sent_only_when_set()
+    {
+        var sent = new List<string>();
+        var api = ApiOver((_, _) => (HttpStatusCode.OK,
+            """{"id":"yoga","etag":"\"1\"","status":"confirmed","summary":"Yoga","description":"Mat <b>required</b>","recurrence":["EXDATE;TZID=America/New_York:20261027T183000","RRULE:FREQ=WEEKLY;BYDAY=TU"],"start":{"dateTime":"2026-10-20T22:30:00Z"},"end":{"dateTime":"2026-10-20T23:30:00Z"}}"""), sent);
+        var startsAt = new DateTimeOffset(2026, 10, 20, 22, 30, 0, TimeSpan.Zero);
+        var draft = new GoogleEventDraft("Yoga", null, startsAt, startsAt.AddHours(1), null, null, "America/New_York");
+
+        var master = await api.GetEventAsync("access", "cal", "yoga", CancellationToken.None);
+        await api.PatchEventAsync("access", "cal", "yoga", "\"1\"", draft, CancellationToken.None);
+        await api.PatchEventAsync("access", "cal", "yoga", "\"1\"", draft with { Description = "" }, CancellationToken.None);
+
+        Assert.Equal(("Mat <b>required</b>", "RRULE:FREQ=WEEKLY;BYDAY=TU"), (master!.Description, master.Recurrence));
+        Assert.Equal(2, sent.Count);
+        Assert.DoesNotContain("description", sent[0]);
+        Assert.Contains("\"description\":\"\"", sent[1]);
+    }
+
+    [Fact]
     public async Task Google_refusing_a_stale_change_or_missing_the_event_is_told_apart()
     {
         var draft = new GoogleEventDraft("Swim", null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddHours(1), null, null, "UTC");

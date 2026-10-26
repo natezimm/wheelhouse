@@ -35,6 +35,10 @@ export interface CalendarEvent {
   seriesId?: string | null;
   /** Correlates an optimistic create with snapshots received before its HTTP response. */
   creationId?: string | null;
+  /** The event's notes as Google keeps them, which may hold simple HTML; see notesText. */
+  description?: string | null;
+  /** Its series' repeat rule, such as "RRULE:FREQ=WEEKLY;BYDAY=TU,TH"; see describeRule. */
+  recurrence?: string | null;
   pending?: boolean;
 }
 
@@ -57,6 +61,8 @@ export interface EventRequest {
   endDate: Day;
   endTime: string | null;
   repeat: Repeat;
+  /** New notes, replacing the event's; left out, the notes stay as they are. Empty clears them. */
+  description?: string | null;
 }
 
 export interface PendingCalendarChange {
@@ -410,7 +416,7 @@ export class CalendarStore {
       timeout(15_000), switchMap((snapshot) => {
         const expected = op.kind === 'remove' ? undefined : op.series && op.original
           ? previewSeries(op.request!, op.source, op.original, op.zone)
-          : previewEvent(op.request!, op.source, '', op.zone);
+          : previewEvent(op.request!, op.source, '', op.zone, op.original);
         // Google gives an event that starts to repeat new occurrence ids, so its first occurrence is found by content.
         const matching = snapshot.events.filter((e) => op.kind === 'add' ? e.creationId === op.id
           : e.id === op.original?.id || (op.series && !!op.original?.seriesId && e.seriesId === op.original.seriesId)
@@ -515,6 +521,7 @@ export class CalendarStore {
 
 function sameContent(a: CalendarEvent, b: CalendarEvent): boolean {
   return a.title === b.title && a.location === b.location && a.calendarId === b.calendarId && a.allDay === b.allDay
+    && (a.description ?? null) === (b.description ?? null)
     && (a.allDay ? a.startDate === b.startDate && a.endDate === b.endDate
       : Date.parse(a.startsAt!) === Date.parse(b.startsAt!) && Date.parse(a.endsAt!) === Date.parse(b.endsAt!));
 }

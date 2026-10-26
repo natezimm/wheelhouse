@@ -54,6 +54,8 @@ export function previewEvent(
     recurring: original?.recurring ?? request.repeat !== 'Never',
     seriesId: original?.seriesId ?? null,
     creationId: original?.creationId ?? null,
+    description: request.description !== undefined ? request.description || null : original?.description ?? null,
+    recurrence: original?.recurrence ?? null,
     pending: true,
   };
 }

@@ -127,6 +127,17 @@ public sealed class CalendarSync(
     {
         var now = time.GetUtcNow();
         var events = await google.ListEventsAsync(accessToken, source.GoogleCalendarId, now - Behind, now + Ahead, cancellationToken);
+
+        // Google keeps a series' rule on its first event, so each series' first event is asked for it.
+        var rules = new Dictionary<string, string?>();
+        foreach (var seriesId in events.Select(e => e.RecurringEventId).OfType<string>().Distinct())
+        {
+            rules[seriesId] = (await google.GetEventAsync(accessToken, source.GoogleCalendarId, seriesId, cancellationToken))?.Recurrence;
+        }
+
+        events = events
+            .Select(e => e.RecurringEventId is { } seriesId ? e with { Recurrence = rules[seriesId] } : e)
+            .ToList();
         await ReplaceEventsAsync(source, events, cancellationToken);
         source.ListedAt = now;
     }
@@ -192,8 +203,11 @@ public sealed class CalendarSync(
         row.EndsAt = google.EndsAt;
         row.StartDate = google.StartDate;
         row.EndDate = google.EndDate;
+        row.Description = string.IsNullOrWhiteSpace(google.Description) ? null : Limit(google.Description, EventInstance.MaxDescription);
+        // An occurrence Google sends back after a change carries no rule; it keeps its series' rule.
+        row.Recurrence = google.Recurrence ?? (google.RecurringEventId is not null ? row.Recurrence : null);
     }
 
     /// <summary>Google allows longer text than the cache's columns; the screens never show that much.</summary>
-    private static string? Limit(string? text) => text is { Length: > 1024 } ? text[..1024] : text;
+    private static string? Limit(string? text, int max = 1024) => text is { Length: var length } && length > max ? text[..max] : text;
 }

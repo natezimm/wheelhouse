@@ -358,8 +358,9 @@ public sealed class EventTests(ApiFactory factory)
         var zone = TimeZoneInfo.FindSystemTimeZoneById((await FamilyOf(visitor)).TimeZone);
         var milos = await CalendarIdAsync(visitor, "Milo — School & Sports");
         var julians = await CalendarIdAsync(visitor, "Julian");
-        var added = await AddAsync(visitor, Timed(milos, "Piano", new(16, 0), new(16, 45)) with { CreationId = Guid.NewGuid() });
+        var added = await AddAsync(visitor, Timed(milos, "Piano", new(16, 0), new(16, 45)) with { CreationId = Guid.NewGuid(), Description = "Bring the blue book" });
 
+        // The request leaves the notes out, as the editors do when they are unchanged.
         var changed = await ChangeAsync(visitor, added.Id, Timed(julians, "Piano lesson", new(16, 30), new(17, 15)) with { Repeat = EventRepeat.Weekly });
 
         Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
@@ -368,7 +369,8 @@ public sealed class EventTests(ApiFactory factory)
         var lessons = (await CalendarOf(visitor, Day, 21)).Events.Where(e => e.Title == "Piano lesson").ToList();
         Assert.Equal([Day, Day.AddDays(7), Day.AddDays(14)], lessons.Select(e => Local(e, zone).Day));
         Assert.Equal(added.Id, lessons[0].Id);
-        Assert.All(lessons, e => Assert.Equal((true, answer.SeriesId, julians, new TimeOnly(16, 30)), (e.Recurring, e.SeriesId, e.CalendarId, Local(e, zone).Time)));
+        Assert.All(lessons, e => Assert.Equal((true, answer.SeriesId, julians, new TimeOnly(16, 30), "Bring the blue book"),
+            (e.Recurring, e.SeriesId, e.CalendarId, Local(e, zone).Time, e.Description)));
         Assert.DoesNotContain((await CalendarOf(visitor, Day, 21)).Events, e => e.Title == "Piano");
 
         // An event that already repeats keeps its rule.
@@ -528,4 +530,68 @@ public sealed class EventTests(ApiFactory factory)
 
     private static EventResponse Response(GoogleEvent e) =>
         new(Guid.Empty, Guid.Empty, null, e.Title, e.Location, false, e.StartsAt, e.EndsAt, null, null, true);
+
+    [Fact]
+    public async Task The_sync_brings_in_an_events_notes_and_its_series_rule()
+    {
+        await using var family = await ConnectedAsync();
+        var startsAt = new DateTimeOffset(Day.ToDateTime(new TimeOnly(15, 0)), TimeSpan.Zero);
+        family.Google.PutSeries("alex-cal", new GoogleEvent("lesson", null, "Piano", null, startsAt, startsAt.AddHours(1), null, null,
+            Description: "Bring the <b>blue</b> book"), "RRULE:FREQ=WEEKLY", "UTC");
+
+        await family.SyncAsync();
+
+        var lessons = (await CalendarOf(family.Parent, Day, 14)).Events.Where(e => e.Title == "Piano").ToList();
+        Assert.Equal(2, lessons.Count);
+        Assert.All(lessons, e => Assert.Equal(("Bring the <b>blue</b> book", "RRULE:FREQ=WEEKLY"), (e.Description, e.Recurrence)));
+    }
+
+    [Fact]
+    public async Task A_change_leaves_notes_it_does_not_send_and_sets_or_clears_those_it_does()
+    {
+        await using var family = await ConnectedAsync();
+        var startsAt = new DateTimeOffset(Day.ToDateTime(new TimeOnly(9, 0)), TimeSpan.Zero);
+        family.Google.Put("alex-cal", new GoogleEvent("dentist", null, "Dentist", null, startsAt, startsAt.AddHours(1), null, null,
+            Description: "<a href=\"https://example.com\">Directions</a>"));
+        await family.SyncAsync();
+        var dentist = (await CalendarOf(family.Parent, Day, 1)).Events.Single(e => e.Title == "Dentist");
+        var request = Timed(dentist.CalendarId, "Dentist, moved", new(10, 0), new(11, 0));
+
+        (await ChangeAsync(family.Parent, dentist.Id, request)).EnsureSuccessStatusCode();
+        Assert.Equal("<a href=\"https://example.com\">Directions</a>", family.Google.Find("alex-cal", "dentist")!.Description);
+
+        (await ChangeAsync(family.Parent, dentist.Id, request with { Description = "  Ask about the retainer  " })).EnsureSuccessStatusCode();
+        Assert.Equal("Ask about the retainer", (await CalendarOf(family.Parent, Day, 1)).Events.Single(e => e.Id == dentist.Id).Description);
+
+        (await ChangeAsync(family.Parent, dentist.Id, request with { Description = "" })).EnsureSuccessStatusCode();
+        Assert.Null((await CalendarOf(family.Parent, Day, 1)).Events.Single(e => e.Id == dentist.Id).Description);
+        Assert.Null(family.Google.Find("alex-cal", "dentist")!.Description);
+    }
+
+    [Fact]
+    public async Task The_demo_has_notes_and_rules_and_keeps_notes_a_visitor_writes()
+    {
+        using var visitor = await factory.DemoVisitorAsync();
+        var noras = await CalendarIdAsync(visitor, "Nora — Activities");
+        var soccer = (await CalendarOf(visitor, Day.AddDays(-7), 14)).Events.First(e => e.Title == "Soccer practice");
+        Assert.Equal("RRULE:FREQ=WEEKLY;BYDAY=TU,TH", soccer.Recurrence);
+        Assert.NotNull(soccer.Description);
+
+        var added = await AddAsync(visitor, Timed(noras, "Recital", new(18, 0), new(19, 0)) with { Description = "Arrive by 5:30" });
+        Assert.Equal("Arrive by 5:30", added.Description);
+        var tooLong = await visitor.PostAsJsonAsync("/api/calendar/events",
+            Timed(noras, "Recital", new(18, 0), new(19, 0)) with { Description = new string('x', EventEndpoints.MaxDescription + 1) }, ApiFactory.Json);
+        Assert.Equal(HttpStatusCode.BadRequest, tooLong.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_new_demo_series_carries_its_rule()
+    {
+        using var visitor = await factory.DemoVisitorAsync();
+        var noras = await CalendarIdAsync(visitor, "Nora — Activities");
+
+        var added = await AddAsync(visitor, Timed(noras, "Swim", new(16, 0), new(17, 0)) with { Repeat = EventRepeat.Monthly });
+
+        Assert.Equal("RRULE:FREQ=MONTHLY", added.Recurrence);
+    }
 }

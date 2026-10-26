@@ -39,11 +39,13 @@ public sealed record EventResponse(
     DateOnly? EndDate,
     bool Recurring,
     string? SeriesId = null,
-    Guid? CreationId = null)
+    Guid? CreationId = null,
+    string? Description = null,
+    string? Recurrence = null)
 {
     public static EventResponse From(EventInstance e, CalendarSource source) => new(
         e.Id, source.Id, source.MemberId, e.Title, e.Location, e.StartDate != null, e.StartsAt, e.EndsAt, e.StartDate, e.EndDate,
-        e.RecurringEventId != null, EventIdentity.Series(e), EventIdentity.Creation(e));
+        e.RecurringEventId != null, EventIdentity.Series(e), EventIdentity.Creation(e), e.Description, e.Recurrence);
 }
 
 /// <summary>
@@ -64,4 +66,5 @@ public sealed record EventRequest(
     DateOnly EndDate,
     TimeOnly? EndTime,
     EventRepeat Repeat = EventRepeat.Never,
-    Guid? CreationId = null);
+    Guid? CreationId = null,
+    string? Description = null);

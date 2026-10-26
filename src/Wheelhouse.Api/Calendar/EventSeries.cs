@@ -63,13 +63,13 @@ public static class EventSeries
             if (draft.StartDate is { } startDate)
             {
                 yield return new GoogleEvent(id, seriesId, draft.Title, draft.Location, null, null,
-                    date, date.AddDays(draft.EndDate!.Value.DayNumber - startDate.DayNumber));
+                    date, date.AddDays(draft.EndDate!.Value.DayNumber - startDate.DayNumber), null, draft.Description, draft.Recurrence);
             }
             else
             {
                 var startsAt = CalendarEndpoints.At(date, TimeOf(draft.StartsAt!.Value, zone), zone);
                 yield return new GoogleEvent(id, seriesId, draft.Title, draft.Location,
-                    startsAt, startsAt + (draft.EndsAt!.Value - draft.StartsAt.Value), null, null);
+                    startsAt, startsAt + (draft.EndsAt!.Value - draft.StartsAt.Value), null, null, null, draft.Description, draft.Recurrence);
             }
         }
     }
@@ -118,7 +118,8 @@ public static class EventSeries
             var day = DayOf(row, zone);
             var occurrence = MasterDraft(new GoogleEvent("", null, "", null, null, null, day, day), draft, zone);
             CalendarSync.CopyTo(row, new GoogleEvent(row.GoogleEventId, row.RecurringEventId, occurrence.Title, occurrence.Location,
-                occurrence.StartsAt, occurrence.EndsAt, occurrence.StartDate, occurrence.EndDate, row.ETag));
+                occurrence.StartsAt, occurrence.EndsAt, occurrence.StartDate, occurrence.EndDate, row.ETag,
+                draft.Description ?? row.Description, row.Recurrence));
         }
     }
 

@@ -670,6 +670,19 @@ body {
   color: var(--muted);
 }
 
+.field textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 88px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background-color: var(--surface);
+  color: var(--ink);
+  font: 400 16px/1.4 var(--font-body);
+  resize: vertical;
+}
+
 .field input,
 .field select {
   box-sizing: border-box;

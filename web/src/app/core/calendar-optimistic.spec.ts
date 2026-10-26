@@ -219,6 +219,19 @@ describe('optimistic calendar operations', () => {
     expect(store.events().find((e) => e.id === first.id)!.title).toBe('Edited elsewhere');
   });
 
+  it('repeats an uncertain change to only the notes when the snapshot still has the old notes', () => {
+    const notes: EventRequest = { ...draft('Practice'), startTime: '17:00:00', endTime: '18:00:00', description: 'Bring cleats' };
+    store.update(first.id, notes, false, 'operation').subscribe({ error: () => {} });
+    http.expectOne((r) => r.method === 'PUT').error(new ProgressEvent('error'));
+    store.retry('operation').subscribe();
+    read().flush(snapshot([first], 2));
+    const again = http.expectOne((r) => r.method === 'PUT');
+    expect(again.request.body).toMatchObject({ description: 'Bring cleats' });
+    again.flush({ ...first, description: 'Bring cleats' });
+    read().flush(snapshot([{ ...first, description: 'Bring cleats' }, second, unrelated], 3));
+    expect(store.pending()).toHaveLength(0);
+  });
+
   it('shows an event that starts to repeat as its new series until a snapshot replaces it', () => {
     const daily: EventRequest = { ...draft('Reading time'), allDay: true, calendarId: 'c4', startDate: '2026-10-13', startTime: null, endDate: '2026-10-14', endTime: null, repeat: 'Daily' };
     store.update(unrelated.id, daily).subscribe();

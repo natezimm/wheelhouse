@@ -168,6 +168,11 @@ import { AvatarFace } from '../shared/avatar-face';
             />
           </fieldset>
 
+          <fieldset class="field" [disabled]="busy() || uncertain()">
+            <label for="event-notes">NOTES</label>
+            <textarea id="event-notes" rows="3" maxlength="8192" [value]="draft.notes" (input)="set({ notes: $any($event.target).value })"></textarea>
+          </fieldset>
+
           <div class="actions">
             @if (confirmingDelete()) {
               <span class="confirm">{{ series() ? 'Delete every event in this series?' : 'Delete this event?' }}</span>
@@ -270,6 +275,18 @@ import { AvatarFace } from '../shared/avatar-face';
       font-weight: 700;
       letter-spacing: 0.08em;
       color: var(--muted);
+    }
+
+    textarea {
+      box-sizing: border-box;
+      min-height: 112px;
+      padding: 16px 18px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: var(--field);
+      color: var(--ink);
+      font: 400 20px/1.4 var(--font-body);
+      resize: vertical;
     }
 
     input[type='text'] {

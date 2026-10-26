@@ -98,6 +98,11 @@ import { ModalFocus } from '../shared/modal-focus';
           <input type="text" maxlength="255" autocomplete="off" [value]="draft.location" (input)="set({ location: $any($event.target).value })" />
         </label>
 
+        <label class="field">
+          Notes
+          <textarea rows="3" maxlength="8192" [value]="draft.notes" (input)="set({ notes: $any($event.target).value })"></textarea>
+        </label>
+
         </fieldset>
         @if (series()) {
           <p class="note">Every event in the series keeps its own day.</p>

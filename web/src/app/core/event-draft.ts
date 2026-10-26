@@ -1,6 +1,7 @@
 import { CalendarEvent, CalendarSource, EventRequest, FAMILY_COLOR, Repeat } from './calendar';
 import { instantAt } from './calendar-preview';
 import { Day, addDays, dayIn, minutesIn } from './days';
+import { notesText } from './notes';
 import { Member } from './family';
 
 /**
@@ -19,6 +20,13 @@ export interface EventDraft {
   endTime: string;
   /** How a new event, or one that does not repeat yet, is to repeat. */
   repeat: Repeat;
+  /** The notes, as plain text. */
+  notes: string;
+  /**
+   * The notes as the event had them. Notes are sent only when they changed, so an edit never
+   * rewrites notes kept as HTML into plain text.
+   */
+  notesFrom: string;
 }
 
 /** The choices of the Repeat row. */
@@ -51,11 +59,14 @@ export function newDraft(day: Day, calendarId: string, timeZone: string, now: Da
     endDate,
     endTime,
     repeat: 'Never',
+    notes: '',
+    notesFrom: '',
   };
 }
 
 /** An event as it is now, ready to change. */
 export function draftOf(event: CalendarEvent, timeZone: string): EventDraft {
+  const notes = notesText(event.description);
   if (event.allDay) {
     return {
       calendarId: event.calendarId,
@@ -67,6 +78,8 @@ export function draftOf(event: CalendarEvent, timeZone: string): EventDraft {
       endDate: addDays(event.endDate!, -1),
       endTime: '10:00',
       repeat: 'Never',
+      notes,
+      notesFrom: notes,
     };
   }
   return {
@@ -79,6 +92,8 @@ export function draftOf(event: CalendarEvent, timeZone: string): EventDraft {
     endDate: dayIn(timeZone, event.endsAt!),
     endTime: clock(minutesIn(timeZone, event.endsAt!)),
     repeat: 'Never',
+    notes,
+    notesFrom: notes,
   };
 }
 
@@ -103,6 +118,7 @@ export function requestOf(draft: EventDraft): EventRequest {
     endDate: draft.allDay ? addDays(draft.endDate, 1) : draft.endDate,
     endTime: draft.allDay ? null : `${draft.endTime}:00`,
     repeat: draft.repeat,
+    ...(draft.notes.trim() !== draft.notesFrom.trim() ? { description: draft.notes.trim() } : {}),
   };
 }
 

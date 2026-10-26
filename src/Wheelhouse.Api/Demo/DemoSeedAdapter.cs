@@ -44,6 +44,7 @@ internal static class DemoSeedAdapter
                 GoogleEventId = $"demo-{e.Id:N}", RecurringEventId = e.SeriesId, ETag = e.ETag,
                 Title = e.Title, Location = e.Location, StartsAt = e.StartUtc, EndsAt = e.EndUtc,
                 StartDate = e.StartDate, EndDate = e.EndDateExclusive,
+                Description = e.Description, Recurrence = e.RepeatFrequency,
             }));
             family.Calendars.Add(calendar);
         }

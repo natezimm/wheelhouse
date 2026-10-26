@@ -111,6 +111,10 @@ namespace Wheelhouse.Api.Data.Migrations
                     b.Property<Guid>("CalendarSourceId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(8192)
+                        .HasColumnType("character varying(8192)");
+
                     b.Property<string>("ETag")
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
@@ -130,6 +134,10 @@ namespace Wheelhouse.Api.Data.Migrations
                         .HasColumnType("character varying(1024)");
 
                     b.Property<string>("Location")
+                        .HasMaxLength(1024)
+                        .HasColumnType("character varying(1024)");
+
+                    b.Property<string>("Recurrence")
                         .HasMaxLength(1024)
                         .HasColumnType("character varying(1024)");
 
