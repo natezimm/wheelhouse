@@ -93,4 +93,15 @@ describe('event drafts', () => {
 
     expect(writableCalendars(calendars, marlowes.members).map((c) => c.label)).toEqual(['Ben', 'Tess', 'Milo', 'Family']);
   });
+
+  it('sends notes only when they changed, so notes kept as HTML are not rewritten by an edit or a drag', () => {
+    const event = { ...timed('Dentist', 'm1', '2026-10-12T13:00:00Z', '2026-10-12T14:00:00Z'), description: '<b>Bring</b> the card' };
+    const draft = draftOf(event, 'America/New_York');
+    expect(draft.notes).toBe('Bring the card');
+    expect(requestOf(draft)).not.toHaveProperty('description');
+    expect(requestOf(movedTo(event, '2026-10-13', '10:00', 'America/New_York'))).not.toHaveProperty('description');
+    expect(requestOf({ ...draft, notes: '  Bring the new card ' }).description).toBe('Bring the new card');
+    expect(requestOf({ ...draft, notes: '' }).description).toBe('');
+    expect(requestOf({ ...newDraft('2026-10-12', 'c1', 'America/New_York', new Date('2026-10-12T12:00:00Z')), title: 'New' })).not.toHaveProperty('description');
+  });
 });

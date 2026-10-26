@@ -60,8 +60,9 @@ internal sealed class FakeGoogle : IGoogleCalendar
 
     /// <summary>The event, series or occurrence as Google has it now.</summary>
     public GoogleEvent? Find(string calendarId, string eventId) =>
-        EventsOf(calendarId).SingleOrDefault(e => e.Id == eventId)
-        ?? Expanded(calendarId, DateTimeOffset.MinValue, DateTimeOffset.MaxValue).FirstOrDefault(e => e.Id == eventId);
+        // Google gives a series' rule only on its first event.
+        EventsOf(calendarId).SingleOrDefault(e => e.Id == eventId) is { } stored ? stored with { Recurrence = RuleOf(eventId) }
+        : Expanded(calendarId, DateTimeOffset.MinValue, DateTimeOffset.MaxValue).FirstOrDefault(e => e.Id == eventId);
 
     /// <summary>The calendar's events as the screens see them, with each series expanded into its occurrences.</summary>
     public IEnumerable<GoogleEvent> Occurrences(string calendarId, DateTimeOffset from, DateTimeOffset to) =>
@@ -74,7 +75,8 @@ internal sealed class FakeGoogle : IGoogleCalendar
         {
             var (rule, timeZone) = _series[first.Id];
             var zone = TimeZoneInfo.FindSystemTimeZoneById(timeZone);
-            var draft = new GoogleEventDraft(first.Title, first.Location, first.StartsAt, first.EndsAt, first.StartDate, first.EndDate, timeZone);
+            var draft = new GoogleEventDraft(first.Title, first.Location, first.StartsAt, first.EndsAt, first.StartDate, first.EndDate, timeZone,
+                Description: first.Description);
             var repeat = Enum.Parse<EventRepeat>(rule["RRULE:FREQ=".Length..], ignoreCase: true);
             // Two years of occurrences is more than any test reads.
             var until = DateOnly.FromDateTime((first.StartsAt?.UtcDateTime ?? first.StartDate!.Value.ToDateTime(TimeOnly.MinValue)).AddYears(2));
@@ -89,7 +91,7 @@ internal sealed class FakeGoogle : IGoogleCalendar
 
                 if (start >= from && !_cancelled.Contains(id) && events.All(e => e.Id != id))
                 {
-                    yield return occurrence with { Id = id, ETag = $"{first.ETag}{id}" };
+                    yield return occurrence with { Id = id, ETag = $"{first.ETag}{id}", Recurrence = null };
                 }
             }
         }
@@ -201,7 +203,8 @@ internal sealed class FakeGoogle : IGoogleCalendar
             _series[eventId] = (rule, draft.TimeZone);
         }
 
-        Put(calendarId, From(draft, eventId, current.RecurringEventId));
+        // A patch leaves out what it does not set, so notes not sent stay as they were.
+        Put(calendarId, From(draft, eventId, current.RecurringEventId) with { Description = draft.Description is null ? current.Description : draft.Description is "" ? null : draft.Description });
         return Task.FromResult(Find(calendarId, eventId)!);
     }
 
@@ -256,5 +259,6 @@ internal sealed class FakeGoogle : IGoogleCalendar
     }
 
     private static GoogleEvent From(GoogleEventDraft draft, string id, string? recurringEventId) =>
-        new(id, recurringEventId, draft.Title, draft.Location, draft.StartsAt, draft.EndsAt, draft.StartDate, draft.EndDate);
+        new(id, recurringEventId, draft.Title, draft.Location, draft.StartsAt, draft.EndsAt, draft.StartDate, draft.EndDate,
+            Description: string.IsNullOrEmpty(draft.Description) ? null : draft.Description);
 }

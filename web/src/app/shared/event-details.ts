@@ -2,6 +2,8 @@ import { Component, ElementRef, computed, effect, inject, input, output, viewChi
 import { CalendarEvent, CalendarStore, colorOf, spanOf, timeRange } from '../core/calendar';
 import { formatDay, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
+import { notesText } from '../core/notes';
+import { describeRule } from '../core/repeat-rule';
 import { ModalFocus } from './modal-focus';
 import { AvatarFace } from './avatar-face';
 
@@ -42,12 +44,18 @@ import { AvatarFace } from './avatar-face';
           }
           <li>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 2l3 3-3 3M3 11V9a4 4 0 0 1 4-4h13M7 22l-3-3 3-3M21 13v2a4 4 0 0 1-4 4H4"></path></svg>
-            <span>{{ event.repeats ? 'Repeats' : 'Does not repeat' }}</span>
+            <span>{{ event.repeats }}</span>
           </li>
           <li>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"></rect><path d="M3.5 10h17M8 3v4M16 3v4"></path></svg>
             <span>{{ event.calendar }}</span>
           </li>
+          @if (event.notes) {
+            <li class="notes">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h14v16H5zM8.5 9h7M8.5 13h7M8.5 17h4"></path></svg>
+              <span>{{ event.notes }}</span>
+            </li>
+          }
         </ul>
         <div class="actions">
           @if (!event.canWrite) {
@@ -225,6 +233,12 @@ import { AvatarFace } from './avatar-face';
       overflow-wrap: anywhere;
     }
 
+    /* Notes keep their line breaks, and a long note scrolls with the panel. */
+    .notes span {
+      white-space: pre-line;
+      line-height: 1.45;
+    }
+
     .facts svg {
       flex-shrink: 0;
       margin-top: 1px;
@@ -391,7 +405,8 @@ export class EventDetails {
       initial: member?.initial ?? 'F',
       avatar: member?.avatar ?? null,
       location: event.location,
-      repeats: event.recurring,
+      repeats: event.recurring ? describeRule(event.recurrence) : 'Does not repeat',
+      notes: notesText(event.description),
       calendar: source?.name ?? 'Unknown',
       canWrite: !!source?.canWrite,
       busy,

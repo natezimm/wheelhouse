@@ -136,6 +136,8 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
             instance.Property(e => e.ETag).HasMaxLength(255);
             instance.Property(e => e.Title).HasMaxLength(1024);
             instance.Property(e => e.Location).HasMaxLength(1024);
+            instance.Property(e => e.Description).HasMaxLength(EventInstance.MaxDescription);
+            instance.Property(e => e.Recurrence).HasMaxLength(1024);
             instance.HasIndex(e => new { e.CalendarSourceId, e.GoogleEventId }).IsUnique();
             // The calendar screens ask for a range of days.
             instance.HasIndex(e => new { e.FamilyId, e.StartsAt });

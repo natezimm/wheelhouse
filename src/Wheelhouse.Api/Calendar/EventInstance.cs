@@ -43,5 +43,14 @@ public sealed class EventInstance : IFamilyOwned
 
     public DateOnly? EndDate { get; set; }
 
+    /// <summary>The longest notes the cache keeps.</summary>
+    public const int MaxDescription = 8192;
+
+    /// <summary>The event's notes, as Google has them, which may hold HTML.</summary>
+    public string? Description { get; set; }
+
+    /// <summary>Its series' repeat rule (RFC 5545), on every cached occurrence of the series; null for a one-off.</summary>
+    public string? Recurrence { get; set; }
+
     public bool IsAllDay => StartDate is not null;
 }

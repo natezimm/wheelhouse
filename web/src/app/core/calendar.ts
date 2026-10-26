@@ -35,6 +35,10 @@ export interface CalendarEvent {
   seriesId?: string | null;
   /** Correlates an optimistic create with snapshots received before its HTTP response. */
   creationId?: string | null;
+  /** The event's notes as Google keeps them, which may hold simple HTML; see notesText. */
+  description?: string | null;
+  /** Its series' repeat rule, such as "RRULE:FREQ=WEEKLY;BYDAY=TU,TH"; see describeRule. */
+  recurrence?: string | null;
   pending?: boolean;
 }
 
@@ -57,6 +61,8 @@ export interface EventRequest {
   endDate: Day;
   endTime: string | null;
   repeat: Repeat;
+  /** New notes, replacing the event's; left out, the notes stay as they are. Empty clears them. */
+  description?: string | null;
 }
 
 export interface PendingCalendarChange {

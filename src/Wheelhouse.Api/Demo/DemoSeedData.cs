@@ -283,7 +283,8 @@ public static class DemoSeedData
                     date: d, start: new(17, 15), end: new(18, 30),
                     location: "Dehart Park Turf",
                     seriesId: soccerSeriesId,
-                    repeatRule: "Weekly"));
+                    repeatRule: "RRULE:FREQ=WEEKLY;BYDAY=TU,TH",
+                    description: "Shin guards and a full water bottle. Coach Dana cancels by text if it storms."));
             }
         }
 
@@ -299,7 +300,7 @@ public static class DemoSeedData
                     title: "Roll trash & recycling barrels to curb",
                     date: d, start: new(19, 30), end: new(20, 0),
                     seriesId: trashSeriesId,
-                    repeatRule: "Weekly"));
+                    repeatRule: "RRULE:FREQ=WEEKLY;BYDAY=WE"));
             }
         }
 
