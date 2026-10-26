@@ -25,6 +25,12 @@ const swim = {
   startsAt: '2026-10-12T21:30:00Z', endsAt: '2026-10-12T22:15:00Z', startDate: null, endDate: null,
   recurring: false, seriesId: null, creationId: null,
 };
+// Piano every Wednesday, 10-11 AM.
+const piano = {
+  ...swim, id: 'piano', calendarId: 'c1', memberId: 'm1', title: 'Piano',
+  startsAt: '2026-10-14T14:00:00Z', endsAt: '2026-10-14T15:00:00Z',
+  recurring: true, seriesId: 'piano-series', recurrence: 'RRULE:FREQ=WEEKLY;BYDAY=WE',
+};
 
 /** The family above with its live connection down; a change to an event is held and recorded. */
 async function stub(page) {
@@ -33,7 +39,7 @@ async function stub(page) {
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname.startsWith('/api/calendar/events/')) {
-      writes.push({ route, body: route.request().postDataJSON() });
+      writes.push({ route, query: url.search, body: route.request().postDataJSON() });
       return;
     }
     const body =
@@ -42,7 +48,7 @@ async function stub(page) {
         : url.pathname === '/api/family'
           ? family
           : url.pathname === '/api/calendar'
-            ? { calendars, events: [swim], changeNumber: 1, needsReconnect: false }
+            ? { calendars, events: [swim, piano], changeNumber: 1, needsReconnect: false }
             : {};
     await route.fulfill({ status: 200, json: body });
   });
@@ -99,4 +105,38 @@ test('a custom repeat is set by touch, fits the screen and shows every event at 
   } else {
     await expect(page.locator('app-agenda-list li.event', { hasText: 'Swim lesson' }).first()).toBeVisible();
   }
+});
+
+test('this and following changes an event and every later one, with the repeat shown for them', async ({ page }, testInfo) => {
+  const wall = testInfo.project.name === 'wall';
+  const writes = await stub(page);
+  await page.goto(wall ? '/wall' : '/');
+  if (!wall) {
+    await page.getByRole('button', { name: 'Wednesday, October 14' }).click();
+  }
+  await (wall
+    ? page.locator('app-week-view .event', { hasText: 'Piano' })
+    : page.locator('app-agenda-list li.event button', { hasText: 'Piano' })).click();
+  await expect(page.getByRole('dialog', { name: 'Piano' })).toContainText('Every week on Wednesday');
+  await page.getByRole('dialog', { name: 'Piano' }).getByRole('button', { name: 'Edit event', exact: true }).click();
+  const editor = page.locator(wall ? 'app-event-dialog form' : 'app-event-sheet form');
+
+  if (wall) {
+    const choice = editor.getByRole('button', { name: 'This and following', exact: true });
+    expect((await choice.boundingBox()).height).toBeGreaterThanOrEqual(56);
+    await choice.click();
+    await expect(editor.getByRole('button', { name: 'Weekly', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await editor.getByRole('button', { name: 'Start later', exact: true }).click();
+  } else {
+    await editor.getByLabel('Change').selectOption('following');
+    await expect(editor.getByLabel('Repeat', { exact: true })).toHaveValue('weekly');
+    await editor.locator('input[type="time"]').first().fill('10:15');
+  }
+  await page.screenshot({ path: testInfo.outputPath('this-and-following.png'), fullPage: true });
+
+  await editor.getByRole('button', { name: wall ? 'Save changes' : 'Save', exact: true }).click();
+  await expect.poll(() => writes.length).toBe(1);
+  expect(writes[0].query).toBe('?following=true');
+  expect(writes[0].body).toMatchObject({ startDate: '2026-10-14', startTime: '10:15:00' });
+  expect(writes[0].body).not.toHaveProperty('recurrence');
 });

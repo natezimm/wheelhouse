@@ -133,10 +133,11 @@ export function requestOf(draft: EventDraft): EventRequest {
 
 /**
  * A draft changed to <code>next</code>. A repeat being set for the first time follows a new first
- * day, so Weekly on Tuesday becomes Weekly on Wednesday; a series' own rule stays as it is.
+ * day, so Weekly on Tuesday becomes Weekly on Wednesday, and so does the rule of events that become
+ * a series of their own (<code>splitting</code>); otherwise a series' own rule stays as it is.
  */
-export function revise(draft: EventDraft, next: EventDraft): EventDraft {
-  return next.startDate === draft.startDate || next.recurrenceFrom !== null || next.recurrence !== draft.recurrence
+export function revise(draft: EventDraft, next: EventDraft, splitting = false): EventDraft {
+  return next.startDate === draft.startDate || (next.recurrenceFrom !== null && !splitting) || next.recurrence !== draft.recurrence
     ? next
     : { ...next, recurrence: followDay(next.recurrence, draft.startDate, next.startDate) };
 }

@@ -680,4 +680,106 @@ public sealed class EventTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
         Assert.Equal("RRULE:FREQ=WEEKLY", family.Google.RuleOf("practice"));
     }
+
+    private static Task<HttpResponseMessage> ChangeFollowingAsync(HttpClient client, Guid id, EventRequest request) =>
+        client.PutAsJsonAsync($"/api/calendar/events/{id}?following=true", request, ApiFactory.Json);
+
+    [Fact]
+    public async Task Changing_a_demo_event_and_those_after_it_starts_a_new_series_with_the_count_left()
+    {
+        using var visitor = await factory.DemoVisitorAsync();
+        var noras = await CalendarIdAsync(visitor, "Nora — Activities");
+        var zone = TimeZoneInfo.FindSystemTimeZoneById((await FamilyOf(visitor)).TimeZone);
+        await AddAsync(visitor, Timed(noras, "Ballet", new(16, 0), new(17, 0)) with { Recurrence = "RRULE:FREQ=WEEKLY;COUNT=4" });
+        var ballet = (await CalendarOf(visitor, Day, 28)).Events.Where(e => e.Title == "Ballet").ToList();
+        var third = Day.AddDays(14);
+
+        var changed = await ChangeFollowingAsync(visitor, ballet[2].Id, Timed(noras, "Ballet, new studio", new(17, 0), new(18, 0)) with { StartDate = third, EndDate = third });
+
+        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+        var answer = (await changed.Content.ReadFromJsonAsync<EventResponse>(ApiFactory.Json))!;
+        Assert.Equal((third, new TimeOnly(17, 0), "RRULE:FREQ=WEEKLY;COUNT=2"), (Local(answer, zone).Day, Local(answer, zone).Time, answer.Recurrence));
+        var shown = (await CalendarOf(visitor, Day, 28)).Events.Where(e => e.Title.StartsWith("Ballet")).ToList();
+        Assert.Equal([("Ballet", Day), ("Ballet", Day.AddDays(7)), ("Ballet, new studio", third), ("Ballet, new studio", Day.AddDays(21))],
+            shown.Select(e => (e.Title, Local(e, zone).Day)));
+        Assert.All(shown.Take(2), e => Assert.StartsWith("RRULE:FREQ=WEEKLY;UNTIL=", e.Recurrence));
+        Assert.NotEqual(shown[0].SeriesId, shown[2].SeriesId);
+        Assert.Equal(shown[2].SeriesId, shown[3].SeriesId);
+    }
+
+    [Fact]
+    public async Task Deleting_a_demo_event_and_those_after_it_ends_the_series_and_the_first_event_means_all()
+    {
+        using var visitor = await factory.DemoVisitorAsync();
+        var noras = await CalendarIdAsync(visitor, "Nora — Activities");
+        await AddAsync(visitor, AllDay(noras, "Library books due", Day, days: 1) with { Repeat = EventRepeat.Weekly });
+        var due = (await CalendarOf(visitor, Day, 21)).Events.Where(e => e.Title == "Library books due").ToList();
+
+        Assert.Equal(HttpStatusCode.NoContent, (await visitor.DeleteAsync($"/api/calendar/events/{due[1].Id}?following=true")).StatusCode);
+
+        var left = Assert.Single((await CalendarOf(visitor, Day, 28)).Events, e => e.Title == "Library books due");
+        Assert.Equal((due[0].Id, $"RRULE:FREQ=WEEKLY;UNTIL={Day.AddDays(6):yyyyMMdd}"), (left.Id, left.Recurrence));
+
+        Assert.Equal(HttpStatusCode.NoContent, (await visitor.DeleteAsync($"/api/calendar/events/{left.Id}?following=true")).StatusCode);
+        Assert.DoesNotContain((await CalendarOf(visitor, Day, 28)).Events, e => e.Title == "Library books due");
+    }
+
+    [Fact]
+    public async Task Changing_the_first_event_and_those_after_it_changes_the_whole_series()
+    {
+        using var visitor = await factory.DemoVisitorAsync();
+        var noras = await CalendarIdAsync(visitor, "Nora — Activities");
+        var added = await AddAsync(visitor, Timed(noras, "Chess", new(16, 0), new(17, 0)) with { Repeat = EventRepeat.Weekly });
+        var seriesId = added.SeriesId;
+
+        var changed = await ChangeFollowingAsync(visitor, added.Id, Timed(noras, "Chess club", new(16, 0), new(17, 0)));
+
+        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+        var shown = (await CalendarOf(visitor, Day, 21)).Events.Where(e => e.Title.StartsWith("Chess")).ToList();
+        Assert.Equal(3, shown.Count);
+        Assert.All(shown, e => Assert.Equal(("Chess club", seriesId), (e.Title, e.SeriesId)));
+    }
+
+    [Fact]
+    public async Task Changing_an_event_and_those_after_it_in_google_ends_the_series_and_starts_another()
+    {
+        await using var family = await ConnectedAsync();
+        var practices = await SyncedSeriesAsync(family, "Practice");
+        var second = practices[1];
+        var day = Local(second, TimeZoneInfo.Utc).Day;
+
+        var changed = await ChangeFollowingAsync(family.Parent, second.Id,
+            new EventRequest(second.CalendarId, "Practice, new field", null, false, day, new(9, 0), day, new(10, 0)));
+
+        Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
+        Assert.Equal(["insert", "patch"], family.Google.Writes.Select(w => w.Change));
+        Assert.Equal("practice", family.Google.Writes[1].EventId);
+        Assert.StartsWith("RRULE:FREQ=WEEKLY;UNTIL=", family.Google.RuleOf("practice"));
+        Assert.Equal("RRULE:FREQ=WEEKLY", family.Google.RuleOf(family.Google.Writes[0].EventId));
+        var shown = (await CalendarOf(family.Parent, Day, 21)).Events.Where(e => e.Title.StartsWith("Practice")).ToList();
+        Assert.Equal([("Practice", Day, new TimeOnly(15, 0)), ("Practice, new field", day, new TimeOnly(9, 0)), ("Practice, new field", day.AddDays(7), new TimeOnly(9, 0))],
+            shown.Select(e => (e.Title, Local(e, TimeZoneInfo.Utc).Day, Local(e, TimeZoneInfo.Utc).Time)));
+        Assert.Equal(day, Local((await changed.Content.ReadFromJsonAsync<EventResponse>(ApiFactory.Json))!, TimeZoneInfo.Utc).Day);
+
+        // The next sync finds the same events.
+        await family.SyncAsync();
+        Assert.Equal(shown.Select(e => e.Id), (await CalendarOf(family.Parent, Day, 21)).Events.Where(e => e.Title.StartsWith("Practice")).Select(e => e.Id));
+    }
+
+    [Fact]
+    public async Task Deleting_an_event_and_those_after_it_in_google_ends_the_series()
+    {
+        await using var family = await ConnectedAsync();
+        var practices = await SyncedSeriesAsync(family, "Practice");
+
+        var deleted = await family.Parent.DeleteAsync($"/api/calendar/events/{practices[1].Id}?following=true");
+
+        Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
+        Assert.Equal(["patch"], family.Google.Writes.Select(w => w.Change));
+        Assert.StartsWith("RRULE:FREQ=WEEKLY;UNTIL=", family.Google.RuleOf("practice"));
+        var left = Assert.Single((await CalendarOf(family.Parent, Day, 21)).Events, e => e.Title == "Practice");
+        Assert.Equal(practices[0].Id, left.Id);
+        await family.SyncAsync();
+        Assert.Single((await CalendarOf(family.Parent, Day, 21)).Events, e => e.Title == "Practice");
+    }
 }

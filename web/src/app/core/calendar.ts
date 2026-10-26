@@ -4,6 +4,7 @@ import { Observable, catchError, defer, of, shareReplay, switchMap, tap, throwEr
 import { Day, addDays, dayIn, timeIn } from './days';
 import { FamilyStore, Member, refusalMessage } from './family';
 import { overlaps, previewEvent, previewOccurrences, previewSeries } from './calendar-preview';
+import { parseRule } from './repeat-rule';
 
 /** One of the family's Google calendars. A null member means it is the whole family's. */
 export interface CalendarSource {
@@ -71,6 +72,8 @@ export interface PendingCalendarChange {
   original?: CalendarEvent;
   originals: CalendarEvent[];
   series: boolean;
+  /** The change is for the event and every later one of its series, which become a series of their own. */
+  following?: boolean;
   source: CalendarSource;
   zone: string;
   status: 'saving' | 'uncertain' | 'settling';
@@ -180,7 +183,7 @@ export class CalendarStore {
     const event = this.current().status === 'ready' ? this.allEvents().find((e) => e.id === id) : undefined;
     return this.operations().some((op) => op.id === event?.creationId || op.original?.id === id
       || op.originals.some((e) => e.id === id)
-      || (!!event?.seriesId && event.seriesId === op.original?.seriesId && (op.series || wholeSeries)));
+      || (!!event?.seriesId && event.seriesId === op.original?.seriesId && (op.series || op.following || wholeSeries)));
   }
 
   private readonly current = signal<CalendarState>({ status: 'idle' });
@@ -302,22 +305,25 @@ export class CalendarStore {
     return this.mutate('add', undefined, request, false, operationId) as Observable<CalendarEvent>;
   }
 
-  update(id: string, request: EventRequest, series = false, operationId: string = crypto.randomUUID()): Observable<CalendarEvent> {
+  /** With <code>series</code> true the change is for the whole series; with 'following', for the event and every later one. */
+  update(id: string, request: EventRequest, series: SeriesScope = false, operationId: string = crypto.randomUUID()): Observable<CalendarEvent> {
     return this.mutate('update', id, request, series, operationId) as Observable<CalendarEvent>;
   }
 
-  remove(id: string, series = false, operationId: string = crypto.randomUUID()): Observable<void> {
+  remove(id: string, series: SeriesScope = false, operationId: string = crypto.randomUUID()): Observable<void> {
     return this.mutate('remove', id, undefined, series, operationId) as Observable<void>;
   }
 
   /** Check a lost response first; retry the frozen intent, with the same create id if needed. */
   retry(id: string): Observable<CalendarEvent | void> {
     const op = this.operations().find((op) => op.id === id);
-    return op ? this.mutate(op.kind, op.original?.id, op.request, op.series, id) : of(undefined);
+    return op ? this.mutate(op.kind, op.original?.id, op.request, op.following ? 'following' : op.series, id) : of(undefined);
   }
 
   private mutate(kind: PendingCalendarChange['kind'], eventId: string | undefined,
-    request: EventRequest | undefined, series: boolean, operationId: string): Observable<CalendarEvent | void> {
+    request: EventRequest | undefined, scope: SeriesScope, operationId: string): Observable<CalendarEvent | void> {
+    const series = scope === true;
+    const following = scope === 'following';
     return defer(() => {
       const epoch = this.familyEpoch;
       const existing = this.operations().find((op) => op.id === operationId);
@@ -327,12 +333,13 @@ export class CalendarStore {
       if (!source || !source.canWrite || (kind !== 'add' && !original)) {
         return throwError(() => new HttpErrorResponse({ status: 400, error: { title: 'This event cannot be changed right now.' } }));
       }
-      if (!existing && eventId && this.isPending(eventId, series)) {
+      if (!existing && eventId && this.isPending(eventId, series || following)) {
         return throwError(() => new HttpErrorResponse({ status: 409, error: { title: 'This event is still saving.' } }));
       }
       const op: PendingCalendarChange = existing ?? {
-        id: operationId, kind, request, original, series, source,
-        originals: original ? this.allEvents().filter((e) => e.id === original.id || (series && !!original.seriesId && e.seriesId === original.seriesId)) : [],
+        id: operationId, kind, request, original, series, following, source,
+        originals: original ? this.allEvents().filter((e) => e.id === original.id || (!!original.seriesId && e.seriesId === original.seriesId
+          && (series || (following && startOf(e) >= startOf(original))))) : [],
         zone: this.family.family()?.timeZone ?? 'UTC', status: 'saving',
       };
       op.status = 'saving';
@@ -341,8 +348,8 @@ export class CalendarStore {
       const send = () => kind === 'add'
         ? this.http.post<CalendarEvent>('/api/calendar/events', { ...op.request, creationId: op.id })
         : kind === 'update'
-          ? this.http.put<CalendarEvent>(`/api/calendar/events/${op.original!.id}`, op.request, { params: seriesParams(op.series) })
-          : this.http.delete<void>(`/api/calendar/events/${op.original!.id}`, { params: seriesParams(op.series) });
+          ? this.http.put<CalendarEvent>(`/api/calendar/events/${op.original!.id}`, op.request, { params: scopeParams(op) })
+          : this.http.delete<void>(`/api/calendar/events/${op.original!.id}`, { params: scopeParams(op) });
       const call = existing ? this.reconcile(op).pipe(switchMap((found) => found.resolved ? of(found.event) : send())) : send();
       return call.pipe(timeout(20_000), tap((result) => {
         if (epoch !== this.familyEpoch) return;
@@ -379,13 +386,13 @@ export class CalendarStore {
 
   private reconcile(op: PendingCalendarChange): Observable<{ resolved: boolean; event?: CalendarEvent }> {
     const day = op.request?.startDate ?? op.original!.startDate ?? dayIn(op.zone, op.original!.startsAt!);
-    const starts = startsSeries(op);
+    // Google gives an event that starts to repeat, or a split series, new ids, so the result is found by content.
+    const starts = startsSeries(op) || (op.kind === 'update' && !!op.following);
     return this.http.get<CalendarResponse>('/api/calendar', { params: { from: day, to: addDays(day, 1) } }).pipe(
       timeout(15_000), switchMap((snapshot) => {
         const expected = op.kind === 'remove' ? undefined : op.series && op.original
           ? previewSeries(op.request!, op.source, op.original, op.zone)
           : previewEvent(op.request!, op.source, '', op.zone);
-        // Google gives an event that starts to repeat new occurrence ids, so its first occurrence is found by content.
         const matching = snapshot.events.filter((e) => op.kind === 'add' ? e.creationId === op.id
           : e.id === op.original?.id || (op.series && !!op.original?.seriesId && e.seriesId === op.original.seriesId)
             || (starts && e.recurring && sameContent(e, expected!)));
@@ -411,7 +418,8 @@ export class CalendarStore {
     let events = state.events;
     for (const op of this.operations()) {
       const matches = (e: CalendarEvent) => e.id === op.original?.id || op.originals.some((old) => old.id === e.id)
-        || (op.series && !!op.original?.seriesId && e.seriesId === op.original.seriesId);
+        || (!!op.original?.seriesId && e.seriesId === op.original.seriesId
+          && (op.series || (!!op.following && startOf(e) >= startOf(op.original))));
       if (op.kind === 'remove') { events = events.filter((e) => !matches(e)); continue; }
       if (op.kind === 'add') {
         const known = events.filter((e) => e.creationId === op.id || e.id === op.result?.id);
@@ -420,6 +428,11 @@ export class CalendarStore {
         const shown = previews.map((preview) => ({ ...(known.find((e) => dayOf(e) === dayOf(preview)) ?? preview), pending: true }));
         events = [...events.filter((e) => !known.includes(e)), ...shown,
           ...known.filter((e) => !previews.some((p) => dayOf(e) === dayOf(p))).map((e) => ({ ...e, pending: true }))];
+      } else if (op.following && parseRule(op.request!.recurrence ?? op.original?.recurrence)) {
+        // The event and those after it show as the new series they become, from the event's new day.
+        const request = { ...op.request!, recurrence: op.request!.recurrence ?? op.original!.recurrence };
+        events = [...events.filter((e) => !matches(e) && e.id !== op.result?.id && !(op.result?.seriesId && e.seriesId === op.result.seriesId)),
+          ...previewOccurrences(request, op.source, op.id, op.zone, state.from, state.to).map((e) => ({ ...e, creationId: null }))];
       } else if (startsSeries(op)) {
         // An event that starts to repeat shows as the new series across the loaded days, in place of itself.
         events = [...events.filter((e) => !matches(e) && e.id !== op.result?.id && !(op.result?.seriesId && e.seriesId === op.result.seriesId)),
@@ -427,7 +440,7 @@ export class CalendarStore {
       } else {
         const loaded = events.filter(matches);
         const originals = loaded.length ? loaded : op.originals;
-        events = [...events.filter((e) => !matches(e)), ...originals.map((e) => op.series
+        events = [...events.filter((e) => !matches(e)), ...originals.map((e) => op.series || op.following
           ? previewSeries(op.request!, op.source, e, op.zone)
           : previewEvent(op.request!, op.source, e.id, op.zone, e))];
       }
@@ -498,9 +511,17 @@ function startsSeries(op: PendingCalendarChange): boolean {
   return op.kind === 'update' && !op.series && !op.original?.recurring && !!op.request?.recurrence;
 }
 
-function seriesParams(series: boolean): Record<string, string> {
-  return series ? { series: 'true' } : {};
+function scopeParams(op: PendingCalendarChange): Record<string, string> {
+  return op.series ? { series: 'true' } : op.following ? { following: 'true' } : {};
 }
+
+/** When an event starts, comparable across all-day and timed events. */
+function startOf(event: CalendarEvent): string {
+  return event.startDate ?? event.startsAt!;
+}
+
+/** Which events of a series a change or delete is for: only the one (false), all (true), or it and every later one. */
+export type SeriesScope = boolean | 'following';
 
 /** A 409 for a change carries Google's version of the event; one for a lost connection carries a problem. */
 function isEvent(body: unknown): body is CalendarEvent {

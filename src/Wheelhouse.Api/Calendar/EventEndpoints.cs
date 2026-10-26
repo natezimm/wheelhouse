@@ -17,7 +17,8 @@ namespace Wheelhouse.Api.Calendar;
 /// <remarks>
 /// Anyone signed in to the family may do this, a paired wall included: the plan has events
 /// added from the wall, and kids have no sign-in of their own. A change or delete with
-/// <c>?series=true</c> applies to every event of a repeating series (<see cref="EventSeries"/>).
+/// <c>?series=true</c> applies to every event of a repeating series (<see cref="EventSeries"/>),
+/// and <c>?following=true</c> to an event and every later one, which then become a series of their own.
 /// </remarks>
 public static class EventEndpoints
 {
@@ -193,7 +194,8 @@ public static class EventEndpoints
         IOptions<InstanceOptions> instance,
         ILogger<GoogleConnection> logger,
         CancellationToken cancellationToken,
-        bool series = false)
+        bool series = false,
+        bool following = false)
     {
         var row = await db.EventInstances.SingleOrDefaultAsync(e => e.Id == id, cancellationToken);
         if (row is null)
@@ -202,6 +204,7 @@ public static class EventEndpoints
         }
 
         series &= row.RecurringEventId is not null;
+        following &= row.RecurringEventId is not null && !series;
         var (draft, errors) = await DraftAsync(request, db, cancellationToken);
         var rule = draft?.Recurrence;
         var startsSeries = row.RecurringEventId is null && rule is not null;
@@ -209,7 +212,7 @@ public static class EventEndpoints
         var newRule = series && rule is not null && rule != row.Recurrence;
         if (draft is not null)
         {
-            draft = draft with { Recurrence = startsSeries || newRule ? rule : null };
+            draft = draft with { Recurrence = startsSeries || newRule || following ? rule : null };
         }
 
         var sources = await db.CalendarSources
@@ -222,7 +225,7 @@ public static class EventEndpoints
         {
             errors = EventSeries.Errors(row, request, Zone(draft!));
         }
-        else if (errors is null && from != to && row.RecurringEventId is not null)
+        else if (errors is null && from != to && row.RecurringEventId is not null && !following)
         {
             errors = new() { ["calendarId"] = ["One event of a series stays in the series' calendar. Change all events to move them."] };
         }
@@ -230,6 +233,22 @@ public static class EventEndpoints
         if (errors is not null)
         {
             return TypedResults.ValidationProblem(errors);
+        }
+
+        if (following)
+        {
+            if (await SplitAsync(row, draft!, from, to!, db, tokens, google, sync, syncSoon, time, instance, logger, cancellationToken) is { } split)
+            {
+                return split;
+            }
+
+            // The event is its series' first, so it and every later one is the whole series.
+            series = true;
+            newRule = rule is not null && rule != row.Recurrence;
+            if (EventSeries.Errors(row, request, Zone(draft!)) is { } seriesErrors)
+            {
+                return TypedResults.ValidationProblem(seriesErrors);
+            }
         }
 
         if (IsDemo(instance))
@@ -397,7 +416,8 @@ public static class EventEndpoints
         IOptions<InstanceOptions> instance,
         ILogger<GoogleConnection> logger,
         CancellationToken cancellationToken,
-        bool series = false)
+        bool series = false,
+        bool following = false)
     {
         var row = await db.EventInstances.SingleOrDefaultAsync(e => e.Id == id, cancellationToken);
         if (row is null)
@@ -406,10 +426,23 @@ public static class EventEndpoints
         }
 
         series &= row.RecurringEventId is not null;
+        following &= row.RecurringEventId is not null && !series;
         var source = await db.CalendarSources.SingleAsync(s => s.Id == row.CalendarSourceId, cancellationToken);
         if (WritableErrors(source) is { } errors)
         {
             return TypedResults.ValidationProblem(errors);
+        }
+
+        if (following)
+        {
+            var ended = await EndAsync(row, source, db, tokens, google, instance, logger, cancellationToken);
+            if (ended is not null)
+            {
+                return ended;
+            }
+
+            // The event is its series' first, so it and every later one is the whole series.
+            series = true;
         }
 
         if (!IsDemo(instance))
@@ -453,6 +486,262 @@ public static class EventEndpoints
         await db.SaveChangesAsync(cancellationToken);
 
         return TypedResults.NoContent();
+    }
+
+    /// <summary>
+    /// Changes <paramref name="row"/> and every later event of its series: the series is ended the day
+    /// before, and a new series starts with the change, repeating by the request's rule or, without
+    /// one, the old rule with whatever count it had left. Answers the new series' first event, or null
+    /// when the row is the series' first, so the change is for the whole series.
+    /// </summary>
+    private static async Task<Results<Ok<EventResponse>, Conflict<EventResponse>, ValidationProblem, ProblemHttpResult, NotFound>?> SplitAsync(
+        EventInstance row,
+        GoogleEventDraft draft,
+        CalendarSource from,
+        CalendarSource to,
+        WheelhouseDbContext db,
+        GoogleTokens tokens,
+        IGoogleCalendar google,
+        CalendarSync sync,
+        CalendarSyncTrigger syncSoon,
+        TimeProvider time,
+        IOptions<InstanceOptions> instance,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        var zone = Zone(draft);
+        var day = EventSeries.DayOf(row, zone);
+        if (IsDemo(instance))
+        {
+            var rows = await SeriesOf(row, db, cancellationToken);
+            var first = rows.Min(e => EventSeries.DayOf(e, zone));
+            if (day <= first)
+            {
+                return null;
+            }
+
+            if (RepeatRules.Parse(row.Recurrence, zone) is not { } demoRule)
+            {
+                return TypedResults.ValidationProblem(SplitErrors());
+            }
+
+            var (demoBefore, demoAfter) = SplitRule(demoRule, first, day, draft, row.IsAllDay, zone);
+            EndCached(rows, day, demoBefore, db, zone);
+            var newRows = EventSeries.Occurrences(draft with { Recurrence = demoAfter }, Guid.NewGuid().ToString("N"),
+                    Today(time, zone).AddDays(CalendarSync.Ahead.Days), zone)
+                .Select(occurrence => NewRow(row.FamilyId, to, occurrence, db))
+                .ToList();
+            await db.SaveChangesAsync(cancellationToken);
+            return TypedResults.Ok(EventResponse.From(newRows[0], to));
+        }
+
+        var write = await GoogleWrite.StartAsync(db, tokens, google, logger, cancellationToken);
+        if (write.Problem is { } problem)
+        {
+            return problem;
+        }
+
+        GoogleEvent stored;
+        string before;
+        try
+        {
+            var current = await google.GetEventAsync(write.AccessToken!, from.GoogleCalendarId, row.GoogleEventId, cancellationToken);
+            var master = await google.GetEventAsync(write.AccessToken!, from.GoogleCalendarId, row.RecurringEventId!, cancellationToken);
+            if (current?.ETag != row.ETag || master is null)
+            {
+                return await write.ShowAsync(row, from, master is null ? null : current, cancellationToken) is { } shown
+                    ? TypedResults.Conflict(shown)
+                    : TypedResults.NotFound();
+            }
+
+            var first = master.StartDate ?? EventSeries.DayOf(master.StartsAt!.Value, zone);
+            if (day <= first)
+            {
+                return null;
+            }
+
+            if (RepeatRules.Parse(master.Recurrence, zone) is not { } rule)
+            {
+                return TypedResults.ValidationProblem(SplitErrors());
+            }
+
+            (before, var after) = SplitRule(rule, first, day, draft, master.StartDate is not null, zone);
+            // The new series goes in first: should ending the old one then fail, events show twice rather than not at all.
+            stored = await google.InsertEventAsync(write.AccessToken!, to.GoogleCalendarId, draft with { Recurrence = after, Id = null }, cancellationToken);
+            await google.PatchEventAsync(write.AccessToken!, from.GoogleCalendarId, master.Id, master.ETag,
+                new GoogleEventDraft(master.Title, master.Location, master.StartsAt, master.EndsAt, master.StartDate, master.EndDate, draft.TimeZone, Recurrence: before),
+                cancellationToken);
+        }
+        catch (GoogleEventChangedException)
+        {
+            return await write.RefreshAsync(row, from, cancellationToken) is { } current
+                ? TypedResults.Conflict(current)
+                : TypedResults.NotFound();
+        }
+        catch (Exception exception) when (GoogleWrite.IsProblem(exception))
+        {
+            return await write.ProblemFor(exception, from, cancellationToken);
+        }
+
+        try
+        {
+            await sync.ListAsync(from, write.AccessToken!, cancellationToken);
+            if (from != to)
+            {
+                await sync.ListAsync(to, write.AccessToken!, cancellationToken);
+            }
+
+            await db.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception exception) when (GoogleWrite.IsProblem(exception))
+        {
+            logger.LogWarning(exception, "Google could not be reached to read a split series; the next sync brings it in.");
+            syncSoon.SyncSoon(row.FamilyId);
+            db.ChangeTracker.Clear();
+            row = await db.EventInstances.SingleAsync(e => e.Id == row.Id, cancellationToken);
+            EndCached(await SeriesOf(row, db, cancellationToken), day, before, db, zone);
+            // Until the next sync brings in its occurrences, the new series shows as its first event.
+            NewRow(row.FamilyId, to, stored with { RecurringEventId = stored.Id }, db);
+            await db.SaveChangesAsync(cancellationToken);
+        }
+
+        var answer = await db.EventInstances
+            .Where(e => e.CalendarSourceId == to.Id && e.RecurringEventId == stored.Id)
+            .OrderBy(e => e.StartDate).ThenBy(e => e.StartsAt)
+            .FirstOrDefaultAsync(cancellationToken);
+        return answer is null ? TypedResults.NotFound() : TypedResults.Ok(EventResponse.From(answer, to));
+    }
+
+    /// <summary>
+    /// Deletes <paramref name="row"/> and every later event of its series by ending the series the
+    /// day before. Null when the row is the series' first, so the whole series goes.
+    /// </summary>
+    private static async Task<Results<NoContent, Conflict<EventResponse>, ValidationProblem, ProblemHttpResult, NotFound>?> EndAsync(
+        EventInstance row,
+        CalendarSource source,
+        WheelhouseDbContext db,
+        GoogleTokens tokens,
+        IGoogleCalendar google,
+        IOptions<InstanceOptions> instance,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        var timeZone = await db.Families.Select(f => f.TimeZone).SingleAsync(cancellationToken);
+        var zone = TimeZoneInfo.FindSystemTimeZoneById(timeZone);
+        var day = EventSeries.DayOf(row, zone);
+        var rows = await SeriesOf(row, db, cancellationToken);
+        string before;
+        if (IsDemo(instance))
+        {
+            var first = rows.Min(e => EventSeries.DayOf(e, zone));
+            if (day <= first)
+            {
+                return null;
+            }
+
+            before = RepeatRules.Parse(row.Recurrence, zone) is { } rule
+                ? RepeatRules.Format(rule with { Count = null, Until = day.AddDays(-1) }, row.IsAllDay, zone)
+                : row.Recurrence!;
+        }
+        else
+        {
+            var write = await GoogleWrite.StartAsync(db, tokens, google, logger, cancellationToken);
+            if (write.Problem is { } problem)
+            {
+                return problem;
+            }
+
+            try
+            {
+                var current = await google.GetEventAsync(write.AccessToken!, source.GoogleCalendarId, row.GoogleEventId, cancellationToken);
+                var master = await google.GetEventAsync(write.AccessToken!, source.GoogleCalendarId, row.RecurringEventId!, cancellationToken);
+                if (current is null || master is null)
+                {
+                    db.EventInstances.Remove(row);
+                    await db.SaveChangesAsync(cancellationToken);
+                    return TypedResults.NoContent();
+                }
+
+                if (current.ETag != row.ETag)
+                {
+                    return TypedResults.Conflict((await write.ShowAsync(row, source, current, cancellationToken))!);
+                }
+
+                var first = master.StartDate ?? EventSeries.DayOf(master.StartsAt!.Value, zone);
+                if (day <= first)
+                {
+                    return null;
+                }
+
+                if (RepeatRules.Parse(master.Recurrence, zone) is not { } rule)
+                {
+                    return TypedResults.ValidationProblem(SplitErrors());
+                }
+
+                before = RepeatRules.Format(rule with { Count = null, Until = day.AddDays(-1) }, master.StartDate is not null, zone);
+                await google.PatchEventAsync(write.AccessToken!, source.GoogleCalendarId, master.Id, master.ETag,
+                    new GoogleEventDraft(master.Title, master.Location, master.StartsAt, master.EndsAt, master.StartDate, master.EndDate, timeZone, Recurrence: before),
+                    cancellationToken);
+            }
+            catch (GoogleEventChangedException)
+            {
+                return await write.RefreshAsync(row, source, cancellationToken) is { } current
+                    ? TypedResults.Conflict(current)
+                    : TypedResults.NoContent();
+            }
+            catch (Exception exception) when (GoogleWrite.IsProblem(exception))
+            {
+                return await write.ProblemFor(exception, source, cancellationToken);
+            }
+        }
+
+        EndCached(rows, day, before, db, zone);
+        await db.SaveChangesAsync(cancellationToken);
+        return TypedResults.NoContent();
+    }
+
+    /// <summary>
+    /// A series' rule split at <paramref name="day"/>: the old series ends the day before, and the new
+    /// one repeats by the change's own rule or else the old one, with the count it had left.
+    /// </summary>
+    private static (string Before, string After) SplitRule(
+        RepeatRule rule, DateOnly first, DateOnly day, GoogleEventDraft draft, bool allDayBefore, TimeZoneInfo zone)
+    {
+        var before = RepeatRules.Format(rule with { Count = null, Until = day.AddDays(-1) }, allDayBefore, zone);
+        if (draft.Recurrence is { } after)
+        {
+            return (before, after);
+        }
+
+        var taken = RepeatRules.Days(first, rule, day.AddDays(-1)).Count();
+        return (before, RepeatRules.Format(rule with { Count = rule.Count - taken }, draft.StartDate is not null, zone));
+    }
+
+    /// <summary>Ends cached occurrences of a series at <paramref name="day"/>, as Google ends them, with the rule it now has.</summary>
+    private static void EndCached(IEnumerable<EventInstance> rows, DateOnly day, string rule, WheelhouseDbContext db, TimeZoneInfo zone)
+    {
+        foreach (var occurrence in rows)
+        {
+            if (EventSeries.DayOf(occurrence, zone) >= day)
+            {
+                db.EventInstances.Remove(occurrence);
+            }
+            else
+            {
+                occurrence.Recurrence = rule;
+            }
+        }
+    }
+
+    private static Dictionary<string, string[]> SplitErrors() =>
+        new() { ["recurrence"] = ["This series repeats in a way only Google Calendar can split. Change all events, or this one."] };
+
+    private static EventInstance NewRow(Guid familyId, CalendarSource source, GoogleEvent stored, WheelhouseDbContext db)
+    {
+        var row = new EventInstance { Id = Guid.CreateVersion7(), FamilyId = familyId, CalendarSourceId = source.Id, GoogleEventId = stored.Id, Title = "" };
+        CalendarSync.CopyTo(row, stored);
+        db.EventInstances.Add(row);
+        return row;
     }
 
     /// <summary>The cached occurrences of <paramref name="row"/>'s series in its calendar, itself included.</summary>

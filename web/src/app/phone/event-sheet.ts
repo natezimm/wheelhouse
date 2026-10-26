@@ -37,7 +37,7 @@ import { RepeatPicker } from '../shared/repeat-picker';
 
         <label class="field">
           Calendar
-          <select [disabled]="event()?.recurring && !series()" (change)="set({ calendarId: $any($event.target).value })">
+          <select [disabled]="event()?.recurring && scope() === 'this'" (change)="set({ calendarId: $any($event.target).value })">
             @for (choice of choices(); track choice.id) {
               <option [value]="choice.id" [selected]="choice.id === draft.calendarId">{{ choice.label }}</option>
             }
@@ -49,12 +49,13 @@ import { RepeatPicker } from '../shared/repeat-picker';
         } @else {
           <label class="field">
             Change
-            <select (change)="setSeries($any($event.target).value === 'all')">
-              <option value="this" [selected]="!series()">This event</option>
-              <option value="all" [selected]="series()">All events in the series</option>
+            <select (change)="setScope($any($event.target).value)">
+              <option value="this" [selected]="scope() === 'this'">This event</option>
+              <option value="following" [selected]="scope() === 'following'">This and following events</option>
+              <option value="all" [selected]="scope() === 'all'">All events in the series</option>
             </select>
           </label>
-          @if (series()) {
+          @if (scope() !== 'this') {
             <app-repeat-picker [allowNever]="false" [rule]="draft.recurrence" [day]="draft.startDate" (ruleChange)="set({ recurrence: $event })" />
           }
         }
@@ -117,7 +118,7 @@ import { RepeatPicker } from '../shared/repeat-picker';
         @if (event()) {
           @if (confirmingDelete()) {
             <div class="actions">
-              <button type="button" class="button danger" [disabled]="busy()" (click)="remove()">{{ series() ? 'Delete all events' : 'Delete event' }}</button>
+              <button type="button" class="button danger" [disabled]="busy()" (click)="remove()">{{ series() ? 'Delete all events' : following() ? 'Delete this and later events' : 'Delete event' }}</button>
               <button type="button" class="button" (click)="confirmingDelete.set(false)">Keep it</button>
             </div>
           } @else {
@@ -252,9 +253,10 @@ export class EventSheet {
   protected readonly heading = computed(() => (this.event() ? 'Edit event' : 'New event'));
   protected readonly savesTo = computed(() => (this.session.isDemo() ? 'Saves to the demo calendar' : 'Saves to Google Calendar'));
 
-  /** Whether a change to one event of a series goes to every event of it. */
-  private readonly wholeSeries = signal(false);
-  protected readonly series = computed(() => !!this.event()?.recurring && this.wholeSeries());
+  /** Which events of a series a change goes to: this one, it and every later one, or all of them. */
+  protected readonly scope = signal<'this' | 'following' | 'all'>('this');
+  protected readonly series = computed(() => !!this.event()?.recurring && this.scope() === 'all');
+  protected readonly following = computed(() => !!this.event()?.recurring && this.scope() === 'following');
 
   private readonly operationId = crypto.randomUUID();
   protected readonly uncertain = computed(() => this.calendar.isUncertain(this.operationId));
@@ -266,13 +268,13 @@ export class EventSheet {
     if (this.busy() || this.uncertain()) return;
     const draft = this.draft();
     if (draft) {
-      this.edits.set(revise(draft, { ...draft, ...change }));
+      this.edits.set(revise(draft, { ...draft, ...change }, this.following()));
       this.message.set(null);
     }
   }
 
   /** All events of a series keep their own days and share a calendar; see the wall's dialog. */
-  protected setSeries(series: boolean): void {
+  protected setScope(scope: 'this' | 'following' | 'all'): void {
     const draft = this.draft();
     const event = this.event();
     const family = this.family.family();
@@ -280,8 +282,9 @@ export class EventSheet {
       return;
     }
     const original = draftOf(event, family.timeZone);
-    this.wholeSeries.set(series);
-    this.set(series ? onDayOf(draft, original) : { calendarId: original.calendarId, recurrence: original.recurrence });
+    this.scope.set(scope);
+    this.set(scope === 'all' ? onDayOf(draft, original)
+      : scope === 'this' ? { calendarId: original.calendarId, recurrence: original.recurrence } : {});
   }
 
   /** A new first day moves the last day with it, so the event keeps its length. */
@@ -313,7 +316,7 @@ export class EventSheet {
     const request = requestOf(draft);
     this.edits.set(draft);
     this.busy.set(true);
-    (event ? this.calendar.update(event.id, request, this.series(), this.operationId) : this.calendar.add(request, this.operationId)).subscribe({
+    (event ? this.calendar.update(event.id, request, this.following() ? 'following' : this.series(), this.operationId) : this.calendar.add(request, this.operationId)).subscribe({
       next: () => this.closed.emit(),
       error: (error: HttpErrorResponse) => this.refused(error),
     });
@@ -325,7 +328,7 @@ export class EventSheet {
       return;
     }
     this.busy.set(true);
-    this.calendar.remove(event.id, this.series(), this.operationId).subscribe({
+    this.calendar.remove(event.id, this.following() ? 'following' : this.series(), this.operationId).subscribe({
       next: () => this.closed.emit(),
       error: (error: HttpErrorResponse) => this.refused(error),
     });
