@@ -227,7 +227,7 @@ public static class EventEndpoints
 
         if (user.IsDisplay())
         {
-            if (row.IsPrivate)
+            if (await TouchesPrivateAsync(row, series || following, db, cancellationToken))
             {
                 return PrivateOnDisplay();
             }
@@ -462,7 +462,7 @@ public static class EventEndpoints
             return TypedResults.NotFound();
         }
 
-        if (user.IsDisplay() && row.IsPrivate)
+        if (user.IsDisplay() && await TouchesPrivateAsync(row, series || following, db, cancellationToken))
         {
             return PrivateOnDisplay();
         }
@@ -789,6 +789,18 @@ public static class EventEndpoints
     }
 
     /// <summary>The cached occurrences of <paramref name="row"/>'s series in its calendar, itself included.</summary>
+    /// <summary>
+    /// Whether a change to <paramref name="row"/>, or with <paramref name="wholeSeries"/> to its
+    /// series, would reach a private event. A series counts as a whole, so a display cannot reach
+    /// a private occurrence through another one.
+    /// </summary>
+    private static async Task<bool> TouchesPrivateAsync(
+        EventInstance row, bool wholeSeries, WheelhouseDbContext db, CancellationToken cancellationToken) =>
+        row.IsPrivate
+        || (wholeSeries && row.RecurringEventId is not null && await db.EventInstances.AnyAsync(
+            e => e.CalendarSourceId == row.CalendarSourceId && e.RecurringEventId == row.RecurringEventId && e.IsPrivate,
+            cancellationToken));
+
     private static Task<List<EventInstance>> SeriesOf(EventInstance row, WheelhouseDbContext db, CancellationToken cancellationToken) =>
         db.EventInstances
             .Where(e => e.CalendarSourceId == row.CalendarSourceId && e.RecurringEventId == row.RecurringEventId)
