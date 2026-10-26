@@ -21,13 +21,14 @@ Run these from the repository root unless a line says otherwise.
 | Database only, for running from source | `docker compose up db -d` |
 | API from source, port 5080 | `dotnet run --project src/Wheelhouse.Api` |
 | Web dev server, port 4200, in `web/` | `npm start` |
+| Live Google check (needs a test account's secrets, see `docs/live-google-check.md`) | `dotnet test --filter "Category=LiveGoogle"` |
 | New migration | `dotnet tool restore`, then `dotnet ef migrations add <Name> --project src/Wheelhouse.Api --output-dir Data/Migrations` |
 
 The Playwright browser checks use stubbed API responses to hold and reject writes at wall and phone sizes; they verify immediate rendering, draft preservation and uncertain-response reconciliation. CI installs Chromium and retains screenshots/traces in `calendar-browser-checks`. Install the browser locally with `npx playwright install chromium` before running these checks.
 
 There is no linter. Prettier settings live in `web/.prettierrc` but are not enforced, and some files do not match them, so do not reformat files you are not otherwise changing.
 
-The API tests start their own PostgreSQL with Testcontainers. They never use the Compose database.
+The API tests start their own PostgreSQL with Testcontainers. They never use the Compose database. `LiveGoogleTests` are the exception that calls Google: they skip unless the `LIVE_GOOGLE_*` variables are set, and `live-google.yml` runs them nightly against a test account's calendar. When the Google client learns something new, add it there as well as to `FakeGoogle`. Before a calendar release, run the manual [parity checklist](docs/calendar-parity-checklist.md).
 
 ## Architecture
 

@@ -1,0 +1,42 @@
+name: Live Google check
+
+# Runs the real Google client against a test account's calendar each night, so a change on
+# Google's side shows up here before a family notices it. Setup: docs/live-google-check.md.
+on:
+  schedule:
+    - cron: '17 9 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: live-google
+  cancel-in-progress: false
+
+jobs:
+  google:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      LIVE_GOOGLE_CLIENT_ID: ${{ secrets.LIVE_GOOGLE_CLIENT_ID }}
+      LIVE_GOOGLE_CLIENT_SECRET: ${{ secrets.LIVE_GOOGLE_CLIENT_SECRET }}
+      LIVE_GOOGLE_REFRESH_TOKEN: ${{ secrets.LIVE_GOOGLE_REFRESH_TOKEN }}
+      LIVE_GOOGLE_CALENDAR_ID: ${{ secrets.LIVE_GOOGLE_CALENDAR_ID }}
+    steps:
+      # Until the secrets are set the check would only skip, so say so instead of passing quietly.
+      - name: Secrets
+        run: |
+          for name in LIVE_GOOGLE_CLIENT_ID LIVE_GOOGLE_CLIENT_SECRET LIVE_GOOGLE_REFRESH_TOKEN LIVE_GOOGLE_CALENDAR_ID; do
+            if [ -z "${!name}" ]; then
+              echo "::error::$name is not set. See docs/live-google-check.md."
+              exit 1
+            fi
+          done
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - run: dotnet restore
+      - run: dotnet build --no-restore --configuration Release
+      - run: dotnet test --no-build --configuration Release --filter "Category=LiveGoogle" --logger "console;verbosity=normal"
