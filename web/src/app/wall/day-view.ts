@@ -353,7 +353,7 @@ export class DayView {
           title: event.title,
           color: colorOf(event, family.members),
           pending: !!event.pending,
-          label: `${event.title}, ${spanLabel(event, zone)}, ${person.name}${writable.has(event.calendarId) ? '' : ', read only'}${event.pending ? ', saving' : ''}`,
+          label: `${event.title}, ${spanLabel(event, zone)}, ${person.name}${writable.has(event.calendarId) && !event.hidden ? '' : ', read only'}${event.pending ? ', saving' : ''}`,
         })),
       };
     });

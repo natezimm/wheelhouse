@@ -37,6 +37,9 @@ export interface EventDraft {
   people: string[];
   /** The people as the event had them; they are sent only when they changed. */
   peopleFrom: string[];
+  /** Private in Google, so displays show it only as busy. Sent only when it changed. */
+  isPrivate: boolean;
+  privateFrom: boolean;
 }
 
 /** How far one tap moves a time on the wall. */
@@ -71,6 +74,8 @@ export function newDraft(day: Day, calendarId: string, timeZone: string, now: Da
     notesFrom: '',
     people: [],
     peopleFrom: [],
+    isPrivate: false,
+    privateFrom: false,
   };
 }
 
@@ -97,6 +102,8 @@ export function draftOf(event: CalendarEvent, timeZone: string): EventDraft {
       notesFrom: notes,
       people,
       peopleFrom: people,
+      isPrivate: !!event.private,
+      privateFrom: !!event.private,
     };
   }
   return {
@@ -114,6 +121,8 @@ export function draftOf(event: CalendarEvent, timeZone: string): EventDraft {
     notesFrom: notes,
     people,
     peopleFrom: people,
+    isPrivate: !!event.private,
+    privateFrom: !!event.private,
   };
 }
 
@@ -140,6 +149,7 @@ export function requestOf(draft: EventDraft): EventRequest {
     ...(draft.recurrence && draft.recurrence !== draft.recurrenceFrom ? { recurrence: draft.recurrence } : {}),
     ...(draft.notes.trim() !== draft.notesFrom.trim() ? { description: draft.notes.trim() } : {}),
     ...(!sameMembers(draft.people, draft.peopleFrom) ? { memberIds: draft.people } : {}),
+    ...(draft.isPrivate !== draft.privateFrom ? { private: draft.isPrivate } : {}),
   };
 }
 

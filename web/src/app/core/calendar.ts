@@ -42,6 +42,10 @@ export interface CalendarEvent {
   recurrence?: string | null;
   /** The members it is for besides its calendar's owner (memberId), from a hidden tag on the Google event. */
   memberIds?: string[];
+  /** Private in Google: a paired display shows only that the time is busy. */
+  private?: boolean;
+  /** A private event as a display gets it, titled "Busy" with nothing else told, and never changed here. */
+  hidden?: boolean;
   pending?: boolean;
 }
 
@@ -67,6 +71,8 @@ export interface EventRequest {
   description?: string | null;
   /** The members it is for besides its calendar's owner; left out, they stay as they are. */
   memberIds?: string[];
+  /** Makes it private or not, which only a parent may; left out, it stays as it is. */
+  private?: boolean;
 }
 
 export interface PendingCalendarChange {
@@ -531,7 +537,7 @@ export class CalendarStore {
 
 function sameContent(a: CalendarEvent, b: CalendarEvent, zone: string, rules = true): boolean {
   return a.title === b.title && a.location === b.location && a.calendarId === b.calendarId && a.allDay === b.allDay
-    && (a.description ?? null) === (b.description ?? null) && sameMembers(others(a), others(b)) && (!rules || sameRule(a.recurrence, b.recurrence, zone))
+    && (a.description ?? null) === (b.description ?? null) && !!a.private === !!b.private && sameMembers(others(a), others(b)) && (!rules || sameRule(a.recurrence, b.recurrence, zone))
     && (a.allDay ? a.startDate === b.startDate && a.endDate === b.endDate
       : Date.parse(a.startsAt!) === Date.parse(b.startsAt!) && Date.parse(a.endsAt!) === Date.parse(b.endsAt!));
 }

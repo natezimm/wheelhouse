@@ -21,6 +21,9 @@ public static class WheelhouseClaims
 
     /// <summary>A paired display's <see cref="Devices.Device"/> id.</summary>
     public const string Device = "wheelhouse:device";
+
+    /// <summary>Whether the request comes from a paired display rather than a parent.</summary>
+    public static bool IsDisplay(this ClaimsPrincipal user) => user.HasClaim(claim => claim.Type == Device);
 }
 
 public static class Roles

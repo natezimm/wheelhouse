@@ -118,6 +118,16 @@ describe('event drafts', () => {
     expect(peopleChoices({ ...draft, calendarId: 'c4', people: [] }, marloweCalendars, marlowes.members).every((p) => !p.owner && !p.chosen)).toBe(true);
   });
 
+  it('send privacy only when it changed', () => {
+    const therapy = { ...timed('Therapy', 'm2', '2026-10-13T14:00:00Z', '2026-10-13T15:00:00Z'), private: true };
+    const draft = draftOf(therapy, zone);
+
+    expect(draft.isPrivate).toBe(true);
+    expect(requestOf(draft)).not.toHaveProperty('private');
+    expect(requestOf({ ...draft, isPrivate: false }).private).toBe(false);
+    expect(requestOf({ ...newDraft('2026-10-13', 'c1', zone, new Date()), title: 'Gift', isPrivate: true }).private).toBe(true);
+  });
+
   it('send a repeat rule only when it changed, and keep a series’ rule as it is', () => {
     const swim = { ...timed('Swim', 'm3', '2026-10-13T21:30:00Z', '2026-10-13T22:15:00Z'), recurring: true, recurrence: 'RRULE:FREQ=WEEKLY' };
     const draft = draftOf(swim, zone);

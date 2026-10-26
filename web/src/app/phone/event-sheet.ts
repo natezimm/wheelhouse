@@ -88,6 +88,13 @@ import { RepeatPicker } from '../shared/repeat-picker';
           All day
         </label>
 
+        @if (!isDisplay()) {
+          <label class="all-day">
+            <input type="checkbox" [checked]="draft.isPrivate" (change)="set({ isPrivate: $any($event.target).checked })" />
+            <span>Private <small>Wall displays show only that it's busy</small></span>
+          </label>
+        }
+
         <div class="pair">
           <label class="field">
             {{ draft.allDay ? 'First day' : 'Starts' }}
@@ -196,6 +203,13 @@ import { RepeatPicker } from '../shared/repeat-picker';
       gap: 10px;
       font-size: 16px;
       font-weight: 600;
+    }
+
+    .all-day small {
+      display: block;
+      font-size: 13px;
+      font-weight: 400;
+      color: var(--muted);
     }
 
     .all-day:has(input:disabled) {
@@ -322,6 +336,8 @@ export class EventSheet {
     return draft ? peopleChoices(draft, this.calendar.calendars(), this.family.members()) : [];
   });
   protected readonly togglePerson = togglePerson;
+  /** A display shows private events only as busy, so it cannot make one. */
+  protected readonly isDisplay = this.session.isDisplay;
 
   protected readonly heading = computed(() => (this.event() ? 'Edit event' : 'New event'));
   protected readonly savesTo = computed(() => (this.session.isDemo() ? 'Saves to the demo calendar' : 'Saves to Google Calendar'));

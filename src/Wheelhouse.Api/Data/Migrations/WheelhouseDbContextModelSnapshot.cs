@@ -134,6 +134,9 @@ namespace Wheelhouse.Api.Data.Migrations
                         .HasMaxLength(1024)
                         .HasColumnType("character varying(1024)");
 
+                    b.Property<bool>("IsPrivate")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Location")
                         .HasMaxLength(1024)
                         .HasColumnType("character varying(1024)");

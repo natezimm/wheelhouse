@@ -58,5 +58,11 @@ public sealed class EventInstance : IFamilyOwned
     /// </summary>
     public List<Guid> MemberIds { get; set; } = [];
 
+    /// <summary>
+    /// Google's visibility is private (or confidential): a paired display shows only that the time
+    /// is busy, and only a parent can change it.
+    /// </summary>
+    public bool IsPrivate { get; set; }
+
     public bool IsAllDay => StartDate is not null;
 }

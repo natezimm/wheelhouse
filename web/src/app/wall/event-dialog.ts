@@ -170,11 +170,17 @@ import { RepeatPicker } from '../shared/repeat-picker';
                 <app-repeat-picker layout="wall" [allowNever]="false" [rule]="draft.recurrence" [day]="draft.startDate" (ruleChange)="set({ recurrence: $event })" />
               }
             }
-            <div>
+            <div class="toggles">
               <label class="all-day">
                 <input type="checkbox" [checked]="draft.allDay" [disabled]="series()" (change)="set({ allDay: $any($event.target).checked })" />
                 All day
               </label>
+              @if (!isDisplay()) {
+                <label class="all-day">
+                  <input type="checkbox" [checked]="draft.isPrivate" (change)="set({ isPrivate: $any($event.target).checked })" />
+                  Private
+                </label>
+              }
             </div>
           </fieldset>
 
@@ -442,6 +448,11 @@ import { RepeatPicker } from '../shared/repeat-picker';
       flex: none;
     }
 
+    .toggles {
+      display: flex;
+      gap: 32px;
+    }
+
     .all-day {
       display: flex;
       align-items: center;
@@ -615,6 +626,8 @@ export class EventDialog {
     return draft ? peopleChoices(draft, this.calendar.calendars(), this.family.members()) : [];
   });
   protected readonly togglePerson = togglePerson;
+  /** A display shows private events only as busy, so it cannot make one. */
+  protected readonly isDisplay = this.session.isDisplay;
 
   protected readonly heading = computed(() => (this.event() ? 'Edit event' : 'New event'));
   protected readonly savesTo = computed(() => (this.session.isDemo() ? 'Saves to the demo calendar' : 'Saves to Google Calendar'));

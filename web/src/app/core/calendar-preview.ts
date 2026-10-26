@@ -58,6 +58,7 @@ export function previewEvent(
     description: request.description !== undefined ? request.description || null : original?.description ?? null,
     recurrence: request.recurrence || original?.recurrence || null,
     memberIds: othersIn(request, source, original),
+    private: request.private ?? original?.private ?? false,
     pending: true,
   };
 }
@@ -84,6 +85,7 @@ export function previewSeries(
     recurrence: request.recurrence || original.recurrence,
     description: request.description !== undefined ? request.description || null : original.description ?? null,
     memberIds: othersIn(request, source, original),
+    private: request.private ?? original.private ?? false,
     pending: true,
     endDate: request.allDay ? addDays(day, length / 86_400_000) : null,
     startsAt,

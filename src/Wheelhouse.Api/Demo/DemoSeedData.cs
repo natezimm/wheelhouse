@@ -178,6 +178,15 @@ public static class DemoSeedData
             description: "Annual Bordetella & heartworm check."));
 
         var nextFriday = anchor.NextWeekday(DayOfWeek.Friday);
+        // Private in Google, so a paired display shows only that Clara is busy.
+        events.Add(anchor.TimedEvent(
+            familyId, calendars.Clara.Id,
+            title: "Anniversary dinner reservation",
+            date: nextFriday, start: new(19, 30), end: new(21, 30),
+            location: "Le Petit Jardin",
+            description: "Babysitter booked 7–10 PM.",
+            isPrivate: true));
+
         events.Add(anchor.AllDayEvent(
             familyId, calendars.District.Id,
             title: "School Spirit Day — Wear Blue & Gold",
@@ -399,7 +408,8 @@ public sealed class DemoDateAnchor
         string? description = null,
         string? seriesId = null,
         string? repeatRule = null,
-        IReadOnlyList<Guid>? people = null) => new(
+        IReadOnlyList<Guid>? people = null,
+        bool isPrivate = false) => new(
         Id: Guid.NewGuid(),
         FamilyId: familyId,
         CalendarSourceId: calendarSourceId,
@@ -414,7 +424,8 @@ public sealed class DemoDateAnchor
         SeriesId: seriesId,
         RepeatFrequency: repeatRule,
         ETag: $"\"demo-{Guid.NewGuid():N}\"",
-        MemberIds: people ?? []);
+        MemberIds: people ?? [],
+        IsPrivate: isPrivate);
 
     public DemoEventSeed AllDayEvent(
         Guid familyId,
@@ -439,7 +450,8 @@ public sealed class DemoDateAnchor
         SeriesId: null,
         RepeatFrequency: null,
         ETag: $"\"demo-{Guid.NewGuid():N}\"",
-        MemberIds: people ?? []);
+        MemberIds: people ?? [],
+        IsPrivate: false);
 }
 
 // =============================================================================
@@ -507,4 +519,5 @@ public sealed record DemoEventSeed(
     string? SeriesId,
     string? RepeatFrequency,
     string ETag,
-    IReadOnlyList<Guid> MemberIds);
+    IReadOnlyList<Guid> MemberIds,
+    bool IsPrivate);

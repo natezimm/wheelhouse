@@ -57,6 +57,12 @@ import { AvatarFace } from './avatar-face';
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"></rect><path d="M3.5 10h17M8 3v4M16 3v4"></path></svg>
             <span>{{ event.calendar }}</span>
           </li>
+          @if (event.private) {
+            <li>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"></rect><path d="M8.5 10.5V7.5a3.5 3.5 0 0 1 7 0v3"></path></svg>
+              <span>{{ event.hidden ? 'Private event' : 'Private · wall displays show it as busy' }}</span>
+            </li>
+          }
           @if (event.notes) {
             <li class="notes">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h14v16H5zM8.5 9h7M8.5 13h7M8.5 17h4"></path></svg>
@@ -65,7 +71,9 @@ import { AvatarFace } from './avatar-face';
           }
         </ul>
         <div class="actions">
-          @if (!event.canWrite) {
+          @if (event.hidden) {
+            <p class="note">Only a parent can see or change a private event, from their phone.</p>
+          } @else if (!event.canWrite) {
             <p class="note">This event comes from the {{ event.calendar }} calendar, which Wheelhouse can show but not change.</p>
           } @else {
             @if (event.saving) {
@@ -426,6 +434,8 @@ export class EventDetails {
       notes: notesText(event.description),
       calendar: source?.name ?? 'Unknown',
       canWrite: !!source?.canWrite,
+      private: !!event.private,
+      hidden: !!event.hidden,
       busy,
       saving: !busy ? null : operation?.status === 'uncertain' ? 'This change may not have saved. Check it from the save notice.' : 'Saving this change…',
       ...whenOf(event, zone),

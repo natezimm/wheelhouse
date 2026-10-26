@@ -1,4 +1,5 @@
 using System.Data;
+using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using Wheelhouse.Api.Auth;
@@ -28,6 +29,7 @@ public static class CalendarEndpoints
         DateOnly from,
         DateOnly to,
         WheelhouseDbContext db,
+        ClaimsPrincipal user,
         CancellationToken cancellationToken)
     {
         if (to <= from || to.DayNumber - from.DayNumber > MaxDays)
@@ -64,7 +66,9 @@ public static class CalendarEndpoints
                 || (e.StartsAt != null && e.StartsAt < toUtc && e.EndsAt > fromUtc))
             .Join(db.CalendarSources, e => e.CalendarSourceId, source => source.Id, (e, source) => new { Event = e, Source = source })
             .ToListAsync(cancellationToken);
-        var responses = events.Select(e => EventResponse.From(e.Event, e.Source));
+        // A paired display hangs where visitors see it, so a private event shows only as busy.
+        var display = user.IsDisplay();
+        var responses = events.Select(e => EventResponse.From(e.Event, e.Source).For(display));
 
         // All-day events first on each day, then by start time.
         var ordered = responses

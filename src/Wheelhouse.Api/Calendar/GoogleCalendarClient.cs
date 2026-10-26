@@ -87,7 +87,8 @@ public sealed record GoogleChanges(bool Changed, string NextSyncToken);
 /// <paramref name="ETag"/> is Google's version of it. <paramref name="Description"/> is Google's,
 /// which may hold HTML. <paramref name="Recurrence"/> is the series' rule (RFC 5545, such as
 /// <c>RRULE:FREQ=WEEKLY;BYDAY=TU,TH</c>), which Google keeps on the series' first event only.
-/// <paramref name="MemberIds"/> are the members it is for besides its calendar's owner.
+/// <paramref name="MemberIds"/> are the members it is for besides its calendar's owner, and
+/// <paramref name="Private"/> says Google's visibility is private or confidential.
 /// </summary>
 public sealed record GoogleEvent(
     string Id,
@@ -101,7 +102,8 @@ public sealed record GoogleEvent(
     string? ETag = null,
     string? Description = null,
     string? Recurrence = null,
-    IReadOnlyList<Guid>? MemberIds = null);
+    IReadOnlyList<Guid>? MemberIds = null,
+    bool Private = false);
 
 /// <summary>
 /// What the screens set on an event: timed (<paramref name="StartsAt"/>, <paramref name="EndsAt"/>)
@@ -110,6 +112,7 @@ public sealed record GoogleEvent(
 /// <paramref name="Recurrence"/> is the rule of a new series, which then starts with this event.
 /// <paramref name="Description"/> replaces the event's notes, or with null leaves them as they are,
 /// and <paramref name="MemberIds"/> likewise replaces the members it is for besides its calendar's owner.
+/// <paramref name="Private"/> makes it private or not, or with null leaves it as it is.
 /// </summary>
 public sealed record GoogleEventDraft(
     string Title,
@@ -122,7 +125,8 @@ public sealed record GoogleEventDraft(
     string? Recurrence = null,
     string? Id = null,
     string? Description = null,
-    IReadOnlyList<Guid>? MemberIds = null);
+    IReadOnlyList<Guid>? MemberIds = null,
+    bool? Private = null);
 
 /// <summary>Google answered 412: the event changed since the version the screen was editing.</summary>
 public sealed class GoogleEventChangedException(string eventId) : Exception($"Event {eventId} changed in Google first.");
@@ -388,6 +392,11 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
             body["description"] = description;
         }
 
+        if (draft.Private is { } isPrivate)
+        {
+            body["visibility"] = isPrivate ? "private" : "default";
+        }
+
         if (draft.MemberIds is { } members)
         {
             // A patch merges private properties key by key, so an empty value is how the tag is cleared.
@@ -451,17 +460,18 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
         var location = string.IsNullOrWhiteSpace(item.Location) ? null : item.Location.Trim();
         var description = string.IsNullOrWhiteSpace(item.Description) ? null : item.Description;
         var members = MembersIn(item.ExtendedProperties?.Private);
+        var isPrivate = item.Visibility is "private" or "confidential";
         if (item.Start?.Date is { } startDate && item.End?.Date is { } endDate)
         {
             return new GoogleEvent(item.Id, item.RecurringEventId, title, location, null, null,
                 DateOnly.ParseExact(startDate, "yyyy-MM-dd"), DateOnly.ParseExact(endDate, "yyyy-MM-dd"), item.ETag,
-                description, RuleIn(item.Recurrence), members.Count > 0 ? members : null);
+                description, RuleIn(item.Recurrence), members.Count > 0 ? members : null, isPrivate);
         }
 
         if (item.Start?.DateTime is { } startsAt && item.End?.DateTime is { } endsAt)
         {
             return new GoogleEvent(item.Id, item.RecurringEventId, title, location, startsAt.ToUniversalTime(), endsAt.ToUniversalTime(), null, null, item.ETag,
-                description, RuleIn(item.Recurrence), members.Count > 0 ? members : null);
+                description, RuleIn(item.Recurrence), members.Count > 0 ? members : null, isPrivate);
         }
 
         return null;
@@ -554,7 +564,8 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
         [property: JsonPropertyName("end")] EventTime? End,
         [property: JsonPropertyName("description")] string? Description = null,
         [property: JsonPropertyName("recurrence")] List<string>? Recurrence = null,
-        [property: JsonPropertyName("extendedProperties")] ExtendedProperties? ExtendedProperties = null);
+        [property: JsonPropertyName("extendedProperties")] ExtendedProperties? ExtendedProperties = null,
+        [property: JsonPropertyName("visibility")] string? Visibility = null);
 
     private sealed record ExtendedProperties(
         [property: JsonPropertyName("private")] Dictionary<string, string>? Private);

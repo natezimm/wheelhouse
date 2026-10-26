@@ -396,7 +396,7 @@ export class WeekView {
     const bars = allDay.bars.map((bar) => {
       const event = bar.event;
       const member = peopleOf(event, family.members)[0];
-      const readOnly = !writable.has(event.calendarId);
+      const readOnly = !writable.has(event.calendarId) || !!event.hidden;
       return {
         id: event.id,
         title: event.title,

@@ -218,6 +218,26 @@ public sealed class GoogleCalendarApiTests
     }
 
     [Fact]
+    public async Task Privacy_is_read_from_the_visibility_and_sent_only_when_set()
+    {
+        var sent = new List<string>();
+        var api = ApiOver((_, _) => (HttpStatusCode.OK,
+            """{"id":"therapy","etag":"\"1\"","status":"confirmed","summary":"Therapy","visibility":"confidential","start":{"dateTime":"2026-10-20T22:30:00Z"},"end":{"dateTime":"2026-10-20T23:30:00Z"}}"""), sent);
+        var startsAt = new DateTimeOffset(2026, 10, 20, 22, 30, 0, TimeSpan.Zero);
+        var draft = new GoogleEventDraft("Therapy", null, startsAt, startsAt.AddHours(1), null, null, "America/New_York");
+
+        var therapy = await api.GetEventAsync("access", "cal", "therapy", CancellationToken.None);
+        await api.PatchEventAsync("access", "cal", "therapy", "\"1\"", draft, CancellationToken.None);
+        await api.PatchEventAsync("access", "cal", "therapy", "\"1\"", draft with { Private = true }, CancellationToken.None);
+        await api.PatchEventAsync("access", "cal", "therapy", "\"1\"", draft with { Private = false }, CancellationToken.None);
+
+        Assert.True(therapy!.Private);
+        Assert.DoesNotContain("visibility", sent[0]);
+        Assert.Contains("\"visibility\":\"private\"", sent[1]);
+        Assert.Contains("\"visibility\":\"default\"", sent[2]);
+    }
+
+    [Fact]
     public async Task Google_refusing_a_stale_change_or_missing_the_event_is_told_apart()
     {
         var draft = new GoogleEventDraft("Swim", null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddHours(1), null, null, "UTC");

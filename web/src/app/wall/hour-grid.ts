@@ -897,7 +897,7 @@ export class HourGrid {
             const people = peopleOf(event, members);
             const member = (this.variant() === 'day' ? people.find((m) => m.id === column.key) : undefined) ?? people[0];
             const who = namesOf(event, members);
-            const readOnly = !writable.has(event.calendarId);
+            const readOnly = !writable.has(event.calendarId) || !!event.hidden;
             const height = Math.max((segment.end - segment.start) * perMinute - 3, layout.minBlock);
             const short = height < layout.shortBelow;
             // A Day block names its place only when the title, times and place all have a line.
