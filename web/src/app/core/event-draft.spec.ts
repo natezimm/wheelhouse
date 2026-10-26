@@ -1,6 +1,6 @@
 import { marloweCalendars, allDay, timed } from '../testing/calendar';
 import { marlowes } from '../testing/marlowes';
-import { clockLabel, draftOf, moveEnd, moveStart, movedTo, newDraft, onDayOf, problemWith, requestOf, writableCalendars } from './event-draft';
+import { clockLabel, draftOf, moveDays, moveEnd, moveStart, movedTo, newDraft, onDayOf, problemWith, requestOf, revise, writableCalendars } from './event-draft';
 
 describe('event drafts', () => {
   const zone = 'America/New_York';
@@ -45,7 +45,6 @@ describe('event drafts', () => {
       startTime: null,
       endDate: '2026-10-14',
       endTime: null,
-      repeat: 'Never',
     });
     expect(requestOf({ ...trip, allDay: false, endDate: '2026-10-12' })).toMatchObject({ startTime: '09:00:00', endTime: '10:00:00' });
   });
@@ -103,5 +102,25 @@ describe('event drafts', () => {
     expect(requestOf({ ...draft, notes: '  Bring the new card ' }).description).toBe('Bring the new card');
     expect(requestOf({ ...draft, notes: '' }).description).toBe('');
     expect(requestOf({ ...newDraft('2026-10-12', 'c1', 'America/New_York', new Date('2026-10-12T12:00:00Z')), title: 'New' })).not.toHaveProperty('description');
+  });
+
+  it('send a repeat rule only when it changed, and keep a series’ rule as it is', () => {
+    const swim = { ...timed('Swim', 'm3', '2026-10-13T21:30:00Z', '2026-10-13T22:15:00Z'), recurring: true, recurrence: 'RRULE:FREQ=WEEKLY' };
+    const draft = draftOf(swim, zone);
+
+    expect(draft.recurrence).toBe('RRULE:FREQ=WEEKLY;BYDAY=TU');
+    expect(requestOf(draft)).not.toHaveProperty('recurrence');
+    expect(requestOf({ ...draft, recurrence: 'RRULE:FREQ=DAILY' })).toMatchObject({ recurrence: 'RRULE:FREQ=DAILY' });
+    // A rule the screens do not understand is kept, and never sent back.
+    expect(draftOf({ ...swim, recurrence: 'RRULE:FREQ=WEEKLY;BYSETPOS=1' }, zone).recurrence).toBe('RRULE:FREQ=WEEKLY;BYSETPOS=1');
+    expect(draftOf({ ...swim, recurring: false }, zone).recurrence).toBeNull();
+  });
+
+  it('let a ready-made repeat follow a new event’s first day, but not a series’ own rule', () => {
+    const fresh = { ...newDraft('2026-10-13', 'c1', zone, new Date()), recurrence: 'RRULE:FREQ=WEEKLY;BYDAY=TU' };
+    expect(revise(fresh, moveDays(fresh, 1)).recurrence).toBe('RRULE:FREQ=WEEKLY;BYDAY=WE');
+
+    const series = { ...fresh, recurrenceFrom: fresh.recurrence };
+    expect(revise(series, moveDays(series, 1)).recurrence).toBe('RRULE:FREQ=WEEKLY;BYDAY=TU');
   });
 });

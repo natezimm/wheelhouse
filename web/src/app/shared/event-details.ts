@@ -405,7 +405,7 @@ export class EventDetails {
       initial: member?.initial ?? 'F',
       avatar: member?.avatar ?? null,
       location: event.location,
-      repeats: event.recurring ? describeRule(event.recurrence) : 'Does not repeat',
+      repeats: event.recurring ? describeRule(event.recurrence, zone) : 'Does not repeat',
       notes: notesText(event.description),
       calendar: source?.name ?? 'Unknown',
       canWrite: !!source?.canWrite,

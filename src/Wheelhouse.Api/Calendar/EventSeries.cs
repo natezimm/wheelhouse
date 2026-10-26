@@ -7,13 +7,15 @@ public enum EventRepeat
     Daily,
     Weekly,
     Monthly,
+    Yearly,
 }
 
 /// <summary>
 /// Repeating events, which Google keeps as one series and expands into occurrences. A change to
 /// a whole series from a screen keeps every occurrence on its own day: it changes the title,
-/// place, times and length, and can move the series to another calendar, but moving a series to
-/// other days means rewriting its rule, which is left to Google Calendar.
+/// place, times and length, and can move the series to another calendar. Moving a series to
+/// other days means giving it a new rule (<see cref="RepeatRules"/>), which Google expands again
+/// from the series' first event.
 /// </summary>
 public static class EventSeries
 {
@@ -23,42 +25,21 @@ public static class EventSeries
         EventRepeat.Daily => "RRULE:FREQ=DAILY",
         EventRepeat.Weekly => "RRULE:FREQ=WEEKLY",
         EventRepeat.Monthly => "RRULE:FREQ=MONTHLY",
+        EventRepeat.Yearly => "RRULE:FREQ=YEARLY",
         _ => null,
     };
 
     /// <summary>
-    /// A new series' occurrences, from its first event, up to <paramref name="until"/>, as Google would expand them, for
-    /// the demo, which never calls Google. A monthly event on the 31st skips the shorter months, as
-    /// the rule does.
+    /// A new series' occurrences, from its first event, up to <paramref name="until"/>, as Google would expand
+    /// its rule (<see cref="RepeatRules"/>), for the demo, which never calls Google. A monthly event on the 31st
+    /// skips the shorter months, as the rule does.
     /// </summary>
-    public static IEnumerable<GoogleEvent> Occurrences(
-        GoogleEventDraft draft, EventRepeat repeat, string seriesId, DateOnly until, TimeZoneInfo zone)
+    public static IEnumerable<GoogleEvent> Occurrences(GoogleEventDraft draft, string seriesId, DateOnly until, TimeZoneInfo zone)
     {
         var first = draft.StartDate ?? DayOf(draft.StartsAt!.Value, zone);
-        for (var n = 0; ; n++)
+        var rule = RepeatRules.Parse(draft.Recurrence, zone) ?? throw new ArgumentException("The draft has no rule the screens offer.", nameof(draft));
+        foreach (var date in RepeatRules.Days(first, rule, until))
         {
-            DateOnly date;
-            if (repeat == EventRepeat.Monthly)
-            {
-                var month = first.AddDays(1 - first.Day).AddMonths(n);
-                if (first.Day > DateTime.DaysInMonth(month.Year, month.Month))
-                {
-                    continue;
-                }
-
-                date = month.AddDays(first.Day - 1);
-            }
-            else
-            {
-                date = first.AddDays(n * (repeat == EventRepeat.Daily ? 1 : 7));
-            }
-
-            // The first occurrence is there however far ahead it is.
-            if (date > until && date != first)
-            {
-                yield break;
-            }
-
             var id = $"{seriesId}_{date:yyyyMMdd}";
             if (draft.StartDate is { } startDate)
             {
@@ -126,7 +107,8 @@ public static class EventSeries
     /// <summary>The family's day an occurrence starts on.</summary>
     public static DateOnly DayOf(EventInstance row, TimeZoneInfo zone) => row.StartDate ?? DayOf(row.StartsAt!.Value, zone);
 
-    private static DateOnly DayOf(DateTimeOffset instant, TimeZoneInfo zone) =>
+    /// <summary>The family's day an instant falls on.</summary>
+    public static DateOnly DayOf(DateTimeOffset instant, TimeZoneInfo zone) =>
         DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(instant, zone).DateTime);
 
     private static TimeOnly TimeOf(DateTimeOffset instant, TimeZoneInfo zone) =>

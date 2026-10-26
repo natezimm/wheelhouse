@@ -120,7 +120,7 @@ test('dragging an event moves it to another day and time, keeping its length', a
 
   await expect.poll(() => writes.length).toBe(1);
   expect(writes[0]).toMatchObject({ method: 'PUT', path: '/api/calendar/events/swim', series: null });
-  expect(writes[0].body).toMatchObject({ calendarId: 'c3', startDate: '2026-10-13', startTime: '18:30:00', endDate: '2026-10-13', endTime: '19:15:00', repeat: 'Never' });
+  expect(writes[0].body).toMatchObject({ calendarId: 'c3', startDate: '2026-10-13', startTime: '18:30:00', endDate: '2026-10-13', endTime: '19:15:00' });
   // The move shows at once, saving, without opening the details.
   await expect(page.getByRole('dialog', { name: 'Swim lesson' })).toHaveCount(0);
   const moved = page.locator('app-week-view button.event', { hasText: 'Swim lesson' });

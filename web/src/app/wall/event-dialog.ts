@@ -14,14 +14,15 @@ import {
   newDraft,
   onDayOf,
   problemWith,
-  REPEATS,
   requestOf,
+  revise,
   writableCalendars,
 } from '../core/event-draft';
 import { FamilyStore } from '../core/family';
 import { SessionStore } from '../core/session';
 import { ModalFocus } from '../shared/modal-focus';
 import { AvatarFace } from '../shared/avatar-face';
+import { RepeatPicker } from '../shared/repeat-picker';
 
 /**
  * The wall's dialog for adding an event, or changing or deleting one. Everything works by touch:
@@ -29,7 +30,7 @@ import { AvatarFace } from '../shared/avatar-face';
  */
 @Component({
   selector: 'app-event-dialog',
-  imports: [AvatarFace, ModalFocus],
+  imports: [AvatarFace, ModalFocus, RepeatPicker],
   template: `
     <div class="scrim" aria-hidden="true" (click)="!busy() && closed.emit()"></div>
     @if (draft(); as draft) {
@@ -133,22 +134,18 @@ import { AvatarFace } from '../shared/avatar-face';
           <fieldset class="field" [disabled]="busy() || uncertain()">
             @if (!event()?.recurring) {
               <span id="event-repeat">REPEAT</span>
+              <app-repeat-picker layout="wall" [rule]="draft.recurrence" [day]="draft.startDate" (ruleChange)="set({ recurrence: $event })" />
             } @else {
               <span id="event-repeat">CHANGE</span>
-            }
-            <div class="options">
-              @if (!event()?.recurring) {
-                <div class="segments" role="group" aria-labelledby="event-repeat">
-                  @for (repeat of repeats; track repeat) {
-                    <button type="button" [attr.aria-pressed]="draft.repeat === repeat" (click)="set({ repeat })">{{ repeat }}</button>
-                  }
-                </div>
-              } @else {
-                <div class="segments" role="group" aria-labelledby="event-repeat">
-                  <button type="button" [attr.aria-pressed]="!series()" (click)="setSeries(false)">This event</button>
-                  <button type="button" [attr.aria-pressed]="series()" (click)="setSeries(true)">All events</button>
-                </div>
+              <div class="segments" role="group" aria-labelledby="event-repeat">
+                <button type="button" [attr.aria-pressed]="!series()" (click)="setSeries(false)">This event</button>
+                <button type="button" [attr.aria-pressed]="series()" (click)="setSeries(true)">All events</button>
+              </div>
+              @if (series()) {
+                <app-repeat-picker layout="wall" [allowNever]="false" [rule]="draft.recurrence" [day]="draft.startDate" (ruleChange)="set({ recurrence: $event })" />
               }
+            }
+            <div>
               <label class="all-day">
                 <input type="checkbox" [checked]="draft.allDay" [disabled]="series()" (change)="set({ allDay: $any($event.target).checked })" />
                 All day
@@ -215,6 +212,8 @@ import { AvatarFace } from '../shared/avatar-face';
       top: 44px;
       width: 1400px;
       max-width: calc(100% - 72px);
+      max-height: calc(100% - 88px);
+      overflow-y: auto;
       transform: translateX(-50%);
       box-sizing: border-box;
       margin: 0;
@@ -409,11 +408,8 @@ import { AvatarFace } from '../shared/avatar-face';
       justify-content: center;
     }
 
-    .options {
-      min-height: 64px;
-      display: flex;
-      align-items: center;
-      gap: 24px;
+    .field > .segments {
+      flex: none;
     }
 
     .all-day {
@@ -559,7 +555,6 @@ export class EventDialog {
   protected readonly moveLastDay = moveLastDay;
   protected readonly moveStart = moveStart;
   protected readonly moveEnd = moveEnd;
-  protected readonly repeats = REPEATS;
 
   private readonly titleInput = viewChild<ElementRef<HTMLInputElement>>('title');
 
@@ -635,12 +630,13 @@ export class EventDialog {
     }
     const original = draftOf(event, family.timeZone);
     this.wholeSeries.set(series);
-    this.change(series ? onDayOf(draft, original) : { ...draft, calendarId: original.calendarId });
+    this.change(series ? onDayOf(draft, original) : { ...draft, calendarId: original.calendarId, recurrence: original.recurrence });
   }
 
   private change(draft: EventDraft): void {
     if (this.busy() || this.uncertain()) return;
-    this.edits.set(draft);
+    const before = this.draft();
+    this.edits.set(before ? revise(before, draft) : draft);
     this.message.set(null);
   }
 

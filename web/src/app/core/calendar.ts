@@ -4,6 +4,7 @@ import { Observable, catchError, defer, of, shareReplay, switchMap, tap, throwEr
 import { Day, addDays, dayIn, timeIn } from './days';
 import { FamilyStore, Member, refusalMessage } from './family';
 import { overlaps, previewEvent, previewOccurrences, previewSeries } from './calendar-preview';
+import { RepeatRule, parseRule } from './repeat-rule';
 
 /** One of the family's Google calendars. A null member means it is the whole family's. */
 export interface CalendarSource {
@@ -42,14 +43,12 @@ export interface CalendarEvent {
   pending?: boolean;
 }
 
-/** How often a new event, or one that does not repeat yet, repeats. */
-export type Repeat = 'Never' | 'Daily' | 'Weekly' | 'Monthly';
-
 /**
  * An event as a screen sets it, in the family's days and clock. A timed event runs from
  * startTime on startDate to endTime on endDate, as 'HH:mm:ss'; an all-day one has no times and
- * an exclusive endDate. Repeat makes a new event, or a change to one that does not repeat yet, the
- * first of a series; a change to an event that already repeats leaves its rule alone.
+ * an exclusive endDate. A recurrence rule makes a new event, or a change to one that does not repeat
+ * yet, the first of a series, and gives a change to a whole series a new rule; left out, a change
+ * leaves the rule alone.
  */
 export interface EventRequest {
   calendarId: string;
@@ -60,7 +59,8 @@ export interface EventRequest {
   startTime: string | null;
   endDate: Day;
   endTime: string | null;
-  repeat: Repeat;
+  /** A repeat rule such as "RRULE:FREQ=WEEKLY;BYDAY=TU,TH" (see repeat-rule.ts), sent only to set one. */
+  recurrence?: string | null;
   /** New notes, replacing the event's; left out, the notes stay as they are. Empty clears them. */
   description?: string | null;
 }
@@ -420,17 +420,17 @@ export class CalendarStore {
         // Google gives an event that starts to repeat new occurrence ids, so its first occurrence is found by content.
         const matching = snapshot.events.filter((e) => op.kind === 'add' ? e.creationId === op.id
           : e.id === op.original?.id || (op.series && !!op.original?.seriesId && e.seriesId === op.original.seriesId)
-            || (starts && e.recurring && sameContent(e, expected!)));
+            || (starts && e.recurring && sameContent(e, expected!, op.zone)));
         if (op.kind === 'remove') {
           if (!matching.length) return of({ resolved: true });
           const current = matching.find((e) => e.id === op.original!.id) ?? matching[0];
-          if (!sameContent(current, op.original!)) return throwError(() => new HttpErrorResponse({ status: 409, error: current }));
+          if (!sameContent(current, op.original!, op.zone)) return throwError(() => new HttpErrorResponse({ status: 409, error: current }));
           return of({ resolved: false });
         }
-        const found = matching.find((e) => sameContent(e, expected!) && (!starts || e.recurring));
+        const found = matching.find((e) => sameContent(e, expected!, op.zone) && (!starts || e.recurring));
         if (op.kind === 'update' && !found && matching.length) {
           const current = matching.find((e) => e.id === op.original!.id) ?? matching[0];
-          if (!sameContent(current, op.original!)) return throwError(() => new HttpErrorResponse({ status: 409, error: current }));
+          if (!sameContent(current, op.original!, op.zone)) return throwError(() => new HttpErrorResponse({ status: 409, error: current }));
         }
         // A known create is never repeated, even if someone changed it after our lost response.
         return of({ resolved: op.kind === 'add' ? matching.length > 0 : !!found, event: op.kind === 'add' ? matching[0] : found });
@@ -519,16 +519,24 @@ export class CalendarStore {
   }
 }
 
-function sameContent(a: CalendarEvent, b: CalendarEvent): boolean {
+function sameContent(a: CalendarEvent, b: CalendarEvent, zone: string): boolean {
   return a.title === b.title && a.location === b.location && a.calendarId === b.calendarId && a.allDay === b.allDay
-    && (a.description ?? null) === (b.description ?? null)
+    && (a.description ?? null) === (b.description ?? null) && sameRule(a.recurrence, b.recurrence, zone)
     && (a.allDay ? a.startDate === b.startDate && a.endDate === b.endDate
       : Date.parse(a.startsAt!) === Date.parse(b.startsAt!) && Date.parse(a.endsAt!) === Date.parse(b.endsAt!));
 }
 
+/** Two repeat rules mean the same, though one may end on a day and the other at an instant, or list its parts in another order. */
+function sameRule(a: string | null | undefined, b: string | null | undefined, zone: string): boolean {
+  const [first, second] = [parseRule(a, zone), parseRule(b, zone)];
+  if (!first || !second) return !first && !second && (a ?? null) === (b ?? null);
+  const parts = (rule: RepeatRule) => JSON.stringify({ ...rule, byDay: [...rule.byDay].sort(), byMonthDay: [...rule.byMonthDay].sort(), byMonth: [...rule.byMonth].sort() });
+  return parts(first) === parts(second);
+}
+
 /** A change that makes an event that does not repeat yet the first of a series. */
 function startsSeries(op: PendingCalendarChange): boolean {
-  return op.kind === 'update' && !op.series && !op.original?.recurring && !!op.request && op.request.repeat !== 'Never';
+  return op.kind === 'update' && !op.series && !op.original?.recurring && !!op.request?.recurrence;
 }
 
 function seriesParams(series: boolean): Record<string, string> {

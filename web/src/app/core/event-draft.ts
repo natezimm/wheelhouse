@@ -1,8 +1,9 @@
-import { CalendarEvent, CalendarSource, EventRequest, FAMILY_COLOR, Repeat } from './calendar';
+import { CalendarEvent, CalendarSource, EventRequest, FAMILY_COLOR } from './calendar';
 import { instantAt } from './calendar-preview';
 import { Day, addDays, dayIn, minutesIn } from './days';
 import { notesText } from './notes';
 import { Member } from './family';
+import { canonicalRule, followDay } from './repeat-rule';
 
 /**
  * An event being added or changed on a screen, in the family's days and clock. Times are
@@ -18,8 +19,13 @@ export interface EventDraft {
   startTime: string;
   endDate: Day;
   endTime: string;
-  /** How a new event, or one that does not repeat yet, is to repeat. */
-  repeat: Repeat;
+  /**
+   * Its repeat rule (see repeat-rule.ts), or null for an event that does not repeat. A change to
+   * one event of a series leaves it alone; a change to the whole series may set a new one.
+   */
+  recurrence: string | null;
+  /** The rule as the event had it. The rule is sent only when it changed. */
+  recurrenceFrom: string | null;
   /** The notes, as plain text. */
   notes: string;
   /**
@@ -28,9 +34,6 @@ export interface EventDraft {
    */
   notesFrom: string;
 }
-
-/** The choices of the Repeat row. */
-export const REPEATS: readonly Repeat[] = ['Never', 'Daily', 'Weekly', 'Monthly'];
 
 /** How far one tap moves a time on the wall. */
 export const STEP_MINUTES = 15;
@@ -58,7 +61,8 @@ export function newDraft(day: Day, calendarId: string, timeZone: string, now: Da
     startTime: clock(start),
     endDate,
     endTime,
-    repeat: 'Never',
+    recurrence: null,
+    recurrenceFrom: null,
     notes: '',
     notesFrom: '',
   };
@@ -67,6 +71,9 @@ export function newDraft(day: Day, calendarId: string, timeZone: string, now: Da
 /** An event as it is now, ready to change. */
 export function draftOf(event: CalendarEvent, timeZone: string): EventDraft {
   const notes = notesText(event.description);
+  const first = event.startDate ?? dayIn(timeZone, event.startsAt!);
+  // A rule the screens do not understand is kept as Google wrote it, and is never sent back.
+  const recurrence = event.recurring ? canonicalRule(event.recurrence, first, timeZone) ?? event.recurrence ?? null : null;
   if (event.allDay) {
     return {
       calendarId: event.calendarId,
@@ -77,7 +84,8 @@ export function draftOf(event: CalendarEvent, timeZone: string): EventDraft {
       startTime: '09:00',
       endDate: addDays(event.endDate!, -1),
       endTime: '10:00',
-      repeat: 'Never',
+      recurrence,
+      recurrenceFrom: recurrence,
       notes,
       notesFrom: notes,
     };
@@ -91,7 +99,8 @@ export function draftOf(event: CalendarEvent, timeZone: string): EventDraft {
     startTime: clock(minutesIn(timeZone, event.startsAt!)),
     endDate: dayIn(timeZone, event.endsAt!),
     endTime: clock(minutesIn(timeZone, event.endsAt!)),
-    repeat: 'Never',
+    recurrence,
+    recurrenceFrom: recurrence,
     notes,
     notesFrom: notes,
   };
@@ -117,9 +126,19 @@ export function requestOf(draft: EventDraft): EventRequest {
     startTime: draft.allDay ? null : `${draft.startTime}:00`,
     endDate: draft.allDay ? addDays(draft.endDate, 1) : draft.endDate,
     endTime: draft.allDay ? null : `${draft.endTime}:00`,
-    repeat: draft.repeat,
+    ...(draft.recurrence && draft.recurrence !== draft.recurrenceFrom ? { recurrence: draft.recurrence } : {}),
     ...(draft.notes.trim() !== draft.notesFrom.trim() ? { description: draft.notes.trim() } : {}),
   };
+}
+
+/**
+ * A draft changed to <code>next</code>. A repeat being set for the first time follows a new first
+ * day, so Weekly on Tuesday becomes Weekly on Wednesday; a series' own rule stays as it is.
+ */
+export function revise(draft: EventDraft, next: EventDraft): EventDraft {
+  return next.startDate === draft.startDate || next.recurrenceFrom !== null || next.recurrence !== draft.recurrence
+    ? next
+    : { ...next, recurrence: followDay(next.recurrence, draft.startDate, next.startDate) };
 }
 
 /** What stops a draft from being saved, said for people, or null when it can be. */

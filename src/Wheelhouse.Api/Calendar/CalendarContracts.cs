@@ -52,9 +52,11 @@ public sealed record EventResponse(
 /// An event as a screen sets it, in the family's own days and clock. A timed event runs from
 /// <paramref name="StartTime"/> on <paramref name="StartDate"/> to <paramref name="EndTime"/> on
 /// <paramref name="EndDate"/>; an all-day one has no times, and its <paramref name="EndDate"/> is
-/// exclusive, as in <see cref="EventResponse"/>. <paramref name="Repeat"/> makes a new event, or
-/// a change to one that does not repeat yet, the first of a series; a change to an event that
-/// already repeats leaves its rule as it is.
+/// exclusive, as in <see cref="EventResponse"/>. <paramref name="Recurrence"/>, a rule such as
+/// <c>RRULE:FREQ=WEEKLY;BYDAY=TU,TH</c> (<see cref="RepeatRules"/>), or else the simpler
+/// <paramref name="Repeat"/>, makes a new event, or a change to one that does not repeat yet, the
+/// first of a series, and with a change to a whole series gives it that rule. Left out, a change
+/// to an event that already repeats leaves its rule as it is.
 /// </summary>
 public sealed record EventRequest(
     Guid CalendarId,
@@ -67,4 +69,5 @@ public sealed record EventRequest(
     TimeOnly? EndTime,
     EventRepeat Repeat = EventRepeat.Never,
     Guid? CreationId = null,
-    string? Description = null);
+    string? Description = null,
+    string? Recurrence = null);

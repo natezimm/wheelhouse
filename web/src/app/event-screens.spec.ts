@@ -68,6 +68,8 @@ describe('event screens', () => {
       button(dialog, 'Start later').click();
       button(dialog, 'A day later').click();
       Array.from(dialog.querySelectorAll<HTMLButtonElement>('.chip')).find((chip) => chip.textContent?.trim().endsWith('Milo'))!.click();
+      // Weekly is named from the day the event is on by now.
+      await settle();
       button(dialog, 'Weekly').click();
       await settle();
       expect(button(dialog, 'Weekly').getAttribute('aria-pressed')).toBe('true');
@@ -88,7 +90,7 @@ describe('event screens', () => {
         startTime: '18:00:00',
         endDate: '2026-10-13',
         endTime: '19:00:00',
-        repeat: 'Weekly',
+        recurrence: 'RRULE:FREQ=WEEKLY;BYDAY=TU',
       });
       request.flush(timed('Parent & tot swim', 'm3', '2026-10-13T22:00:00Z', '2026-10-13T23:00:00Z'));
       http.expectOne((r) => r.url === '/api/calendar');
@@ -130,7 +132,7 @@ describe('event screens', () => {
       button(dialog, 'Save changes').click();
 
       const request = http.expectOne({ method: 'PUT', url: `/api/calendar/events/${swim.id}` });
-      expect(request.request.body).toMatchObject({ title: 'Swim lesson', startDate: '2026-10-12', repeat: 'Weekly' });
+      expect(request.request.body).toMatchObject({ title: 'Swim lesson', startDate: '2026-10-12', recurrence: 'RRULE:FREQ=WEEKLY;BYDAY=MO' });
       await settle();
       const swims = page.querySelectorAll('.event[aria-busy="true"] .title');
       expect(Array.from(swims, (t) => t.textContent)).toEqual(['Swim lesson']);
@@ -157,6 +159,30 @@ describe('event screens', () => {
 
       const request = http.expectOne({ method: 'PUT', url: `/api/calendar/events/${soccer.id}?series=true` });
       expect(request.request.body).toMatchObject({ calendarId: 'c2', startDate: '2026-10-14', startTime: '17:45:00', endTime: '19:00:00' });
+    });
+
+    it('sets a custom repeat with steppers and weekday buttons', async () => {
+      const { page, settle } = await open('/wall');
+
+      await edit(page, settle, 'Monday, October 12');
+      const dialog = page.querySelector<HTMLElement>('app-event-dialog form')!;
+      button(dialog, 'Custom').click();
+      await settle();
+      const custom = dialog.querySelector<HTMLElement>('[aria-label="Custom repeat"]')!;
+      expect(button(custom, 'Monday').getAttribute('aria-pressed')).toBe('true');
+      button(custom, 'More').click();
+      await settle();
+      button(custom, 'Wednesday').click();
+      await settle();
+      button(custom, 'After').click();
+      await settle();
+      button(custom, 'Fewer times').click();
+      await settle();
+      expect(dialog.querySelector('app-repeat-picker .said')?.textContent).toBe('Every 2 weeks on Monday and Wednesday, 9 times');
+      button(dialog, 'Save changes').click();
+
+      expect(http.expectOne({ method: 'PUT', url: `/api/calendar/events/${swim.id}` }).request.body)
+        .toMatchObject({ recurrence: 'RRULE:FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,WE;COUNT=9' });
     });
 
     it('deletes an event only once it is confirmed', async () => {
@@ -238,12 +264,38 @@ describe('event screens', () => {
       await settle();
       const sheet = page.querySelector<HTMLElement>('app-event-sheet form')!;
       const repeat = Array.from(sheet.querySelectorAll('select')).find((select) => select.parentElement?.textContent?.includes('Repeat'))!;
-      repeat.value = 'Monthly';
+      repeat.value = 'monthly';
       repeat.dispatchEvent(new Event('change'));
       await settle();
       button(sheet, 'Save').click();
 
-      expect(http.expectOne({ method: 'PUT', url: `/api/calendar/events/${swim.id}` }).request.body).toMatchObject({ repeat: 'Monthly' });
+      expect(http.expectOne({ method: 'PUT', url: `/api/calendar/events/${swim.id}` }).request.body).toMatchObject({ recurrence: 'RRULE:FREQ=MONTHLY;BYMONTHDAY=12' });
+    });
+
+    it('gives a whole series a new repeat, and none when only one event changes', async () => {
+      const { page, settle } = await open('/');
+
+      page.querySelector<HTMLButtonElement>('.strip button[aria-label="Wednesday, October 14"]')!.click();
+      await settle();
+      page.querySelector<HTMLButtonElement>('app-agenda-list li button')!.click();
+      await settle();
+      button(page.querySelector('app-event-details')!, 'Edit event').click();
+      await settle();
+      const sheet = page.querySelector<HTMLElement>('app-event-sheet form')!;
+      const repeatOf = () => Array.from(sheet.querySelectorAll('select')).find((select) => select.parentElement?.textContent?.includes('Repeat'));
+      expect(repeatOf()).toBeUndefined();
+      const change = Array.from(sheet.querySelectorAll('select')).find((select) => select.parentElement?.textContent?.includes('Change'))!;
+      change.value = 'all';
+      change.dispatchEvent(new Event('change'));
+      await settle();
+      expect(Array.from(repeatOf()!.options, (o) => o.textContent?.trim())).not.toContain('Does not repeat');
+      repeatOf()!.value = 'weekdays';
+      repeatOf()!.dispatchEvent(new Event('change'));
+      await settle();
+      button(sheet, 'Save').click();
+
+      expect(http.expectOne({ method: 'PUT', url: `/api/calendar/events/${soccer.id}?series=true` }).request.body)
+        .toMatchObject({ recurrence: 'RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR' });
     });
 
     it('keeps a refused event open with the server’s reason', async () => {
