@@ -19,6 +19,11 @@ import { CalendarStore } from '../core/calendar';
         <span>{{ failure }}</span>
         <button type="button" (click)="calendar.dismissFailure()">Dismiss</button>
       </div>
+    } @else if (calendar.undoable(); as change) {
+      <div class="saving" role="status" aria-live="polite">
+        <span>{{ change.label }}</span>
+        <button type="button" [disabled]="!change.ready" (click)="undo()">Undo</button>
+      </div>
     }
   `,
   styles: `
@@ -56,6 +61,10 @@ import { CalendarStore } from '../core/calendar';
       font: 700 14px var(--font-body);
       cursor: pointer;
     }
+    button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
     :host-context(app-wall-shell) .saving {
       min-height: 64px;
       padding-left: 26px;
@@ -78,6 +87,9 @@ export class CalendarSaveStatus {
   protected readonly calendar = inject(CalendarStore);
   protected uncertain(): boolean {
     return this.calendar.pending().some((op) => op.status === 'uncertain');
+  }
+  protected undo(): void {
+    this.calendar.undo().subscribe({ error: () => {} });
   }
   protected check(): void {
     for (const op of this.calendar.pending().filter((op) => op.status === 'uncertain')) {
