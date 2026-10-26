@@ -650,6 +650,31 @@ public sealed class EventTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task A_display_cannot_reach_a_private_occurrence_through_its_series()
+    {
+        using var parent = await factory.DemoVisitorAsync();
+        using var display = await PairedDisplayAsync(parent);
+        var julians = await CalendarIdAsync(parent, "Julian");
+        await AddAsync(parent, Timed(julians, "Reading", new(19, 0), new(19, 30)) with { Recurrence = "RRULE:FREQ=DAILY;COUNT=3" });
+        var reading = (await CalendarOf(parent, Day, 3)).Events.Where(e => e.Title == "Reading").ToList();
+        Assert.Equal(3, reading.Count);
+        var last = Day.AddDays(2);
+        (await ChangeAsync(parent, reading[2].Id, Timed(julians, "Reading", new(19, 0), new(19, 30)) with { StartDate = last, EndDate = last, Private = true }))
+            .EnsureSuccessStatusCode();
+
+        var first = Timed(julians, "Reading", new(20, 0), new(20, 30));
+        Assert.Equal(HttpStatusCode.Forbidden, (await ChangeAsync(display, reading[0].Id, first, series: true)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await display.PutAsJsonAsync($"/api/calendar/events/{reading[1].Id}?following=true", first with { StartDate = Day.AddDays(1), EndDate = Day.AddDays(1) }, ApiFactory.Json)).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await display.DeleteAsync($"/api/calendar/events/{reading[0].Id}?series=true")).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await display.DeleteAsync($"/api/calendar/events/{reading[1].Id}?following=true")).StatusCode);
+        Assert.Equal(3, (await CalendarOf(parent, Day, 3)).Events.Count(e => e.Title == "Reading"));
+
+        // The occurrences that are not private still change one at a time.
+        Assert.Equal(HttpStatusCode.OK, (await ChangeAsync(display, reading[0].Id, first)).StatusCode);
+    }
+
+    [Fact]
     public async Task Privacy_is_google_s_visibility_and_a_change_leaves_it_unless_it_says()
     {
         await using var family = await ConnectedAsync();
