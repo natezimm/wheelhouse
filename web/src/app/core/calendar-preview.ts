@@ -57,6 +57,7 @@ export function previewEvent(
     creationId: original?.creationId ?? null,
     description: request.description !== undefined ? request.description || null : original?.description ?? null,
     recurrence: request.recurrence || original?.recurrence || null,
+    memberIds: othersIn(request, source, original),
     pending: true,
   };
 }
@@ -81,6 +82,8 @@ export function previewSeries(
     title: request.title,
     location: request.location,
     recurrence: request.recurrence || original.recurrence,
+    description: request.description !== undefined ? request.description || null : original.description ?? null,
+    memberIds: othersIn(request, source, original),
     pending: true,
     endDate: request.allDay ? addDays(day, length / 86_400_000) : null,
     startsAt,
@@ -125,4 +128,9 @@ export function overlaps(event: CalendarEvent, from: Day, to: Day, zone: string)
     ? event.startDate! < to && event.endDate! > from
     : dayIn(zone, event.startsAt!) < to &&
         dayIn(zone, new Date(Date.parse(event.endsAt!) - 1)) >= from;
+}
+
+/** The members a changed event is for besides its calendar's owner, as the server answers them. */
+function othersIn(request: EventRequest, source: CalendarSource, original?: CalendarEvent): string[] {
+  return (request.memberIds ?? original?.memberIds ?? []).filter((id) => id !== source.memberId);
 }

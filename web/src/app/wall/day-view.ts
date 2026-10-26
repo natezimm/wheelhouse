@@ -1,5 +1,5 @@
 import { Component, computed, effect, inject, input, output, viewChild } from '@angular/core';
-import { CalendarStore, FAMILY, FAMILY_COLOR, colorOf, ownerOf, showsOn } from '../core/calendar';
+import { CalendarStore, FAMILY, FAMILY_COLOR, colorOf, ownersOf, showsOn } from '../core/calendar';
 import { inAllDayLane, timedSegments } from '../core/calendar-grid';
 import { Clock } from '../core/clock';
 import { Day, addDays, dayIn, formatDay } from '../core/days';
@@ -324,7 +324,7 @@ export class DayView {
       key: person.owner,
       day,
       name: person.name,
-      segments: segments.filter((segment) => ownerOf(segment.event) === person.owner),
+      segments: segments.filter((segment) => ownersOf(segment.event, family.members).includes(person.owner)),
     }));
   });
 
@@ -343,7 +343,7 @@ export class DayView {
     const ready = status === 'ready';
 
     const people = this.people().map((person) => {
-      const mine = events.filter((event) => ownerOf(event) === person.owner);
+      const mine = events.filter((event) => ownersOf(event, family.members).includes(person.owner));
       const count = mine.length;
       return {
         ...person,

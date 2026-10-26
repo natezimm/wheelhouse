@@ -79,6 +79,8 @@ public static class DemoSeedData
     {
         var events = new List<DemoEventSeed>();
         var today = anchor.Today;
+        // Some events are for more than their calendar's owner, as a hidden tag on the Google event says.
+        var (julian, nora) = (calendars.Julian.MemberId!.Value, calendars.Nora.MemberId!.Value);
 
         // --- TODAY (Always immediately visible on Phone Today & Wall Day/Week) ---
         events.Add(anchor.TimedEvent(
@@ -99,7 +101,8 @@ public static class DemoSeedData
             title: "After-school robotics club",
             date: today, start: new(15, 30), end: new(17, 0),
             location: "Middle School Lab 204",
-            description: "Julian picking up on the way back."));
+            description: "Julian picking up on the way back.",
+            people: [julian]));
 
         // A busy afternoon: three people at once, so the week shows overlapping events side by side.
         events.Add(anchor.TimedEvent(
@@ -112,7 +115,8 @@ public static class DemoSeedData
             familyId, calendars.Clara.Id,
             title: "Pick up Nora from the pool",
             date: today, start: new(15, 45), end: new(16, 15),
-            location: "Riverside Rec Center"));
+            location: "Riverside Rec Center",
+            people: [nora]));
 
         // A stay across several days, shown as one bar in the week's all-day lane.
         events.Add(anchor.AllDayEvent(
@@ -189,7 +193,8 @@ public static class DemoSeedData
             familyId, calendars.Family.Id,
             title: "Farmers market & bakery run",
             date: comingSaturday, start: new(9, 0), end: new(10, 30),
-            location: "Springfield Ave Farmers Market"));
+            location: "Springfield Ave Farmers Market",
+            people: [julian, nora]));
 
         events.Add(anchor.TimedEvent(
             familyId, calendars.Nora.Id,
@@ -393,7 +398,8 @@ public sealed class DemoDateAnchor
         string? location = null,
         string? description = null,
         string? seriesId = null,
-        string? repeatRule = null) => new(
+        string? repeatRule = null,
+        IReadOnlyList<Guid>? people = null) => new(
         Id: Guid.NewGuid(),
         FamilyId: familyId,
         CalendarSourceId: calendarSourceId,
@@ -407,7 +413,8 @@ public sealed class DemoDateAnchor
         Description: description,
         SeriesId: seriesId,
         RepeatFrequency: repeatRule,
-        ETag: $"\"demo-{Guid.NewGuid():N}\"");
+        ETag: $"\"demo-{Guid.NewGuid():N}\"",
+        MemberIds: people ?? []);
 
     public DemoEventSeed AllDayEvent(
         Guid familyId,
@@ -416,7 +423,8 @@ public sealed class DemoDateAnchor
         DateOnly startDate,
         DateOnly endDateExclusive,
         string? location = null,
-        string? description = null) => new(
+        string? description = null,
+        IReadOnlyList<Guid>? people = null) => new(
         Id: Guid.NewGuid(),
         FamilyId: familyId,
         CalendarSourceId: calendarSourceId,
@@ -430,7 +438,8 @@ public sealed class DemoDateAnchor
         Description: description,
         SeriesId: null,
         RepeatFrequency: null,
-        ETag: $"\"demo-{Guid.NewGuid():N}\"");
+        ETag: $"\"demo-{Guid.NewGuid():N}\"",
+        MemberIds: people ?? []);
 }
 
 // =============================================================================
@@ -497,4 +506,5 @@ public sealed record DemoEventSeed(
     string? Description,
     string? SeriesId,
     string? RepeatFrequency,
-    string ETag);
+    string ETag,
+    IReadOnlyList<Guid> MemberIds);

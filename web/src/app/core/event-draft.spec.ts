@@ -1,6 +1,6 @@
 import { marloweCalendars, allDay, timed } from '../testing/calendar';
 import { marlowes } from '../testing/marlowes';
-import { clockLabel, draftOf, moveDays, moveEnd, moveStart, movedTo, newDraft, onDayOf, problemWith, requestOf, revise, writableCalendars } from './event-draft';
+import { clockLabel, draftOf, moveDays, moveEnd, moveStart, movedTo, newDraft, onDayOf, peopleChoices, problemWith, requestOf, revise, togglePerson, writableCalendars } from './event-draft';
 
 describe('event drafts', () => {
   const zone = 'America/New_York';
@@ -102,6 +102,20 @@ describe('event drafts', () => {
     expect(requestOf({ ...draft, notes: '  Bring the new card ' }).description).toBe('Bring the new card');
     expect(requestOf({ ...draft, notes: '' }).description).toBe('');
     expect(requestOf({ ...newDraft('2026-10-12', 'c1', 'America/New_York', new Date('2026-10-12T12:00:00Z')), title: 'New' })).not.toHaveProperty('description');
+  });
+
+  it('send the people only when they changed, in any order, and always count the calendar’s owner', () => {
+    const haircuts = { ...timed('Haircuts', 'm1', '2026-10-13T14:00:00Z', '2026-10-13T15:00:00Z'), memberIds: ['m3', 'm2'] };
+    const draft = draftOf(haircuts, zone);
+
+    expect(requestOf(draft)).not.toHaveProperty('memberIds');
+    expect(requestOf({ ...draft, people: ['m2', 'm3'] })).not.toHaveProperty('memberIds');
+    expect(requestOf({ ...draft, people: togglePerson(draft, 'm2') }).memberIds).toEqual(['m3']);
+    expect(requestOf({ ...draft, people: [] }).memberIds).toEqual([]);
+    expect(peopleChoices(draft, marloweCalendars, marlowes.members).map((p) => [p.id, p.owner, p.chosen])).toEqual([
+      ['m1', true, true], ['m2', false, true], ['m3', false, true],
+    ]);
+    expect(peopleChoices({ ...draft, calendarId: 'c4', people: [] }, marloweCalendars, marlowes.members).every((p) => !p.owner && !p.chosen)).toBe(true);
   });
 
   it('send a repeat rule only when it changed, and keep a series’ rule as it is', () => {

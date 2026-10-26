@@ -87,6 +87,7 @@ public sealed record GoogleChanges(bool Changed, string NextSyncToken);
 /// <paramref name="ETag"/> is Google's version of it. <paramref name="Description"/> is Google's,
 /// which may hold HTML. <paramref name="Recurrence"/> is the series' rule (RFC 5545, such as
 /// <c>RRULE:FREQ=WEEKLY;BYDAY=TU,TH</c>), which Google keeps on the series' first event only.
+/// <paramref name="MemberIds"/> are the members it is for besides its calendar's owner.
 /// </summary>
 public sealed record GoogleEvent(
     string Id,
@@ -99,14 +100,16 @@ public sealed record GoogleEvent(
     DateOnly? EndDate,
     string? ETag = null,
     string? Description = null,
-    string? Recurrence = null);
+    string? Recurrence = null,
+    IReadOnlyList<Guid>? MemberIds = null);
 
 /// <summary>
 /// What the screens set on an event: timed (<paramref name="StartsAt"/>, <paramref name="EndsAt"/>)
 /// or all-day (<paramref name="StartDate"/> and an exclusive <paramref name="EndDate"/>). A timed
 /// event is given the family's <paramref name="TimeZone"/>, so Google shows it at the family's time.
 /// <paramref name="Recurrence"/> is the rule of a new series, which then starts with this event.
-/// <paramref name="Description"/> replaces the event's notes, or with null leaves them as they are.
+/// <paramref name="Description"/> replaces the event's notes, or with null leaves them as they are,
+/// and <paramref name="MemberIds"/> likewise replaces the members it is for besides its calendar's owner.
 /// </summary>
 public sealed record GoogleEventDraft(
     string Title,
@@ -118,7 +121,8 @@ public sealed record GoogleEventDraft(
     string TimeZone,
     string? Recurrence = null,
     string? Id = null,
-    string? Description = null);
+    string? Description = null,
+    IReadOnlyList<Guid>? MemberIds = null);
 
 /// <summary>Google answered 412: the event changed since the version the screen was editing.</summary>
 public sealed class GoogleEventChangedException(string eventId) : Exception($"Event {eventId} changed in Google first.");
@@ -148,6 +152,13 @@ public sealed class GoogleGrantRevokedException() : Exception("Google no longer 
 /// </summary>
 public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOptions> client) : IGoogleCalendar
 {
+    /// <summary>
+    /// The private extended property that names the members an event is for besides its calendar's
+    /// owner, as comma-separated ids. Private properties belong to this copy of the event, and
+    /// Google Calendar never shows them.
+    /// </summary>
+    public const string MembersKey = "wheelhouseMembers";
+
     public const string TokenEndpoint = "https://oauth2.googleapis.com/token";
     public const string RevokeEndpoint = "https://oauth2.googleapis.com/revoke";
     public const string CalendarApi = "https://www.googleapis.com/calendar/v3/";
@@ -377,6 +388,15 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
             body["description"] = description;
         }
 
+        if (draft.MemberIds is { } members)
+        {
+            // A patch merges private properties key by key, so an empty value is how the tag is cleared.
+            body["extendedProperties"] = new Dictionary<string, object>
+            {
+                ["private"] = new Dictionary<string, string> { [MembersKey] = string.Join(',', members) },
+            };
+        }
+
         return body;
     }
 
@@ -417,23 +437,31 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
     private static string? RuleIn(List<string>? recurrence) =>
         recurrence?.FirstOrDefault(line => line.StartsWith("RRULE:", StringComparison.OrdinalIgnoreCase));
 
+    /// <summary>The member ids in an event's private properties; text that is not an id is left out.</summary>
+    public static IReadOnlyList<Guid> MembersIn(IReadOnlyDictionary<string, string>? properties) =>
+        properties?.GetValueOrDefault(MembersKey) is { } text
+            ? text.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(part => Guid.TryParse(part, out var id) ? id : Guid.Empty).Where(id => id != Guid.Empty).Distinct().ToList()
+            : [];
+
     /// <summary>An occurrence as the cache keeps it, or null for one with no usable start and end.</summary>
     private static GoogleEvent? ToEvent(EventItem item)
     {
         var title = string.IsNullOrWhiteSpace(item.Summary) ? "Busy" : item.Summary.Trim();
         var location = string.IsNullOrWhiteSpace(item.Location) ? null : item.Location.Trim();
         var description = string.IsNullOrWhiteSpace(item.Description) ? null : item.Description;
+        var members = MembersIn(item.ExtendedProperties?.Private);
         if (item.Start?.Date is { } startDate && item.End?.Date is { } endDate)
         {
             return new GoogleEvent(item.Id, item.RecurringEventId, title, location, null, null,
                 DateOnly.ParseExact(startDate, "yyyy-MM-dd"), DateOnly.ParseExact(endDate, "yyyy-MM-dd"), item.ETag,
-                description, RuleIn(item.Recurrence));
+                description, RuleIn(item.Recurrence), members.Count > 0 ? members : null);
         }
 
         if (item.Start?.DateTime is { } startsAt && item.End?.DateTime is { } endsAt)
         {
             return new GoogleEvent(item.Id, item.RecurringEventId, title, location, startsAt.ToUniversalTime(), endsAt.ToUniversalTime(), null, null, item.ETag,
-                description, RuleIn(item.Recurrence));
+                description, RuleIn(item.Recurrence), members.Count > 0 ? members : null);
         }
 
         return null;
@@ -525,7 +553,11 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
         [property: JsonPropertyName("start")] EventTime? Start,
         [property: JsonPropertyName("end")] EventTime? End,
         [property: JsonPropertyName("description")] string? Description = null,
-        [property: JsonPropertyName("recurrence")] List<string>? Recurrence = null);
+        [property: JsonPropertyName("recurrence")] List<string>? Recurrence = null,
+        [property: JsonPropertyName("extendedProperties")] ExtendedProperties? ExtendedProperties = null);
+
+    private sealed record ExtendedProperties(
+        [property: JsonPropertyName("private")] Dictionary<string, string>? Private);
 
     private sealed record EventTime(
         [property: JsonPropertyName("date")] string? Date,

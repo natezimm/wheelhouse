@@ -15,7 +15,9 @@ import {
   onDayOf,
   problemWith,
   requestOf,
+  peopleChoices,
   revise,
+  togglePerson,
   writableCalendars,
 } from '../core/event-draft';
 import { FamilyStore } from '../core/family';
@@ -130,6 +132,28 @@ import { RepeatPicker } from '../shared/repeat-picker';
               }
             </div>
           </fieldset>
+
+          @if (people().length > 1) {
+            <fieldset class="field" [disabled]="busy() || uncertain()">
+              <span id="event-who">WHO</span>
+              <div class="calendars" role="group" aria-labelledby="event-who">
+                @for (person of people(); track person.id) {
+                  <button
+                    type="button"
+                    class="chip"
+                    [class.owner]="person.owner"
+                    [style.--member]="person.color"
+                    [attr.aria-pressed]="person.chosen"
+                    [attr.aria-label]="person.owner ? person.name + ', owner of the calendar' : person.name"
+                    [disabled]="person.owner"
+                    (click)="set({ people: togglePerson(draft, person.id) })"
+                  >
+                    <span class="mark" aria-hidden="true"><app-avatar-face [initial]="person.initial" [avatar]="person.avatar" /></span>{{ person.name }}
+                  </button>
+                }
+              </div>
+            </fieldset>
+          }
 
           <fieldset class="field" [disabled]="busy() || uncertain()">
             @if (!event()?.recurring) {
@@ -393,6 +417,11 @@ import { RepeatPicker } from '../shared/repeat-picker';
       cursor: default;
     }
 
+    /* The calendar's owner is always one of the event's people, so their chip stays on. */
+    .chip.owner:disabled {
+      opacity: 1;
+    }
+
     .mark {
       flex-shrink: 0;
       width: 34px;
@@ -580,6 +609,12 @@ export class EventDialog {
     }
     return first ? newDraft(this.day(), first.id, family.timeZone, new Date(), this.at()) : null;
   });
+
+  protected readonly people = computed(() => {
+    const draft = this.draft();
+    return draft ? peopleChoices(draft, this.calendar.calendars(), this.family.members()) : [];
+  });
+  protected readonly togglePerson = togglePerson;
 
   protected readonly heading = computed(() => (this.event() ? 'Edit event' : 'New event'));
   protected readonly savesTo = computed(() => (this.session.isDemo() ? 'Saves to the demo calendar' : 'Saves to Google Calendar'));

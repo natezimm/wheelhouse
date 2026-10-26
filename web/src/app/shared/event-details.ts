@@ -1,5 +1,5 @@
 import { Component, ElementRef, computed, effect, inject, input, output, viewChild } from '@angular/core';
-import { CalendarEvent, CalendarStore, colorOf, spanOf, timeRange } from '../core/calendar';
+import { CalendarEvent, CalendarStore, FAMILY_COLOR, colorOf, namesOf, peopleOf, spanOf, timeRange } from '../core/calendar';
 import { formatDay, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { notesText } from '../core/notes';
@@ -25,7 +25,14 @@ import { AvatarFace } from './avatar-face';
           <span class="grip" aria-hidden="true"></span>
         }
         <div class="owner">
-          <span class="who"><span class="mark" aria-hidden="true"><app-avatar-face [initial]="event.initial" [avatar]="event.avatar" /></span>{{ event.who }}</span>
+          <span class="who">
+            <span class="faces" aria-hidden="true">
+              @for (face of event.faces; track face.key) {
+                <span class="mark" [style.--member]="face.color"><app-avatar-face [initial]="face.initial" [avatar]="face.avatar" /></span>
+              }
+            </span>
+            {{ event.who }}
+          </span>
           <button #close type="button" class="close" aria-label="Close" (click)="closed.emit()">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
           </button>
@@ -153,6 +160,15 @@ import { AvatarFace } from './avatar-face';
       gap: 12px;
       font-size: 18px;
       font-weight: 700;
+    }
+
+    .faces {
+      display: flex;
+    }
+
+    /* Each face overlaps the one before it a little, so several people read as one group. */
+    .faces .mark + .mark {
+      margin-left: -8px;
     }
 
     .mark {
@@ -391,7 +407,7 @@ export class EventDetails {
       return null;
     }
     const zone = family.timeZone;
-    const member = family.members.find((m) => m.id === event.memberId);
+    const member = peopleOf(event, family.members)[0];
     const source = this.calendar.calendars().find((c) => c.id === event.calendarId);
     const operation = this.calendar
       .pending()
@@ -401,9 +417,10 @@ export class EventDetails {
       source: event,
       title: event.title,
       color: colorOf(event, family.members),
-      who: member?.displayName ?? 'Family',
-      initial: member?.initial ?? 'F',
-      avatar: member?.avatar ?? null,
+      who: namesOf(event, family.members),
+      faces: member
+        ? peopleOf(event, family.members).map((m) => ({ key: m.id, color: m.color, initial: m.initial, avatar: m.avatar ?? null }))
+        : [{ key: 'family', color: FAMILY_COLOR, initial: 'F', avatar: null }],
       location: event.location,
       repeats: event.recurring ? describeRule(event.recurrence, zone) : 'Does not repeat',
       notes: notesText(event.description),

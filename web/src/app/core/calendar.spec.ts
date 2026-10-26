@@ -3,7 +3,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { allDay, marloweCalendars, timed } from '../testing/calendar';
 import { marlowes } from '../testing/marlowes';
-import { CalendarStore, FAMILY, FAMILY_COLOR, colorOf, daysOf, showsOn, spanOf, whenOn } from './calendar';
+import { FamilyStore } from './family';
+import { CalendarStore, FAMILY, FAMILY_COLOR, colorOf, daysOf, namesOf, ownersOf, peopleOf, showsOn, spanOf, whenOn } from './calendar';
 
 const zone = 'America/New_York';
 
@@ -101,6 +102,19 @@ describe('CalendarStore', () => {
     expect(store.allEvents()).toEqual([dentist, trash]);
     store.toggle('m1');
     expect(store.events()).toEqual([dentist]);
+  });
+
+  it('shows an event for several people while any of them is shown', () => {
+    const haircuts = { ...timed('Haircuts', 'm1', '2026-10-13T14:00:00Z', '2026-10-13T15:00:00Z'), memberIds: ['m3'] };
+    TestBed.inject(FamilyStore).load();
+    http.expectOne('/api/family').flush(marlowes);
+    store.show('2026-10-12', '2026-10-19');
+    http.expectOne((r) => r.url === '/api/calendar').flush({ calendars: marloweCalendars, events: [haircuts] });
+
+    store.toggle('m1');
+    expect(store.events()).toEqual([haircuts]);
+    store.toggle('m3');
+    expect(store.events()).toEqual([]);
   });
 
   it('is unavailable when the first load fails, but a failed refresh keeps what is shown', () => {
@@ -258,3 +272,22 @@ describe('calendar snapshot recovery', () => {
   });
 });
 
+describe('whose an event is', () => {
+  const members = marlowes.members;
+
+  it('is its calendar owner first, then the other people it names, or the family', () => {
+    const market = { ...timed('Market', null, '2026-10-17T13:00:00Z', '2026-10-17T14:30:00Z'), memberIds: ['m3', 'm2', 'gone'] };
+    const haircuts = { ...timed('Haircuts', 'm1', '2026-10-13T14:00:00Z', '2026-10-13T15:00:00Z'), memberIds: ['m1', 'm3'] };
+    const taco = timed('Taco night', null, '2026-10-13T22:00:00Z', '2026-10-13T23:00:00Z');
+
+    expect(ownersOf(haircuts, members)).toEqual(['m1', 'm3']);
+    expect(ownersOf(taco, members)).toEqual([FAMILY]);
+    // A member who left the family no longer counts, so the event falls back to the family's.
+    expect(ownersOf({ ...taco, memberIds: ['gone'] }, members)).toEqual([FAMILY]);
+    expect(peopleOf(market, members).map((m) => m.id)).toEqual(['m3', 'm2']);
+    expect(colorOf(market, members)).toBe(members.find((m) => m.id === 'm3')!.color);
+    expect(namesOf(market, members)).toBe('Milo and Tess');
+    expect(namesOf({ ...market, memberId: 'm1' }, members)).toBe('Ben, Milo and Tess');
+    expect(namesOf(taco, members)).toBe('Family');
+  });
+});

@@ -569,6 +569,49 @@ public sealed class EventTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task An_event_can_be_for_more_people_than_its_calendars_owner()
+    {
+        using var visitor = await factory.DemoVisitorAsync();
+        var members = (await FamilyOf(visitor)).Members;
+        var (clara, nora) = (members.Single(m => m.DisplayName == "Clara").Id, members.Single(m => m.DisplayName == "Nora").Id);
+        var claras = await CalendarIdAsync(visitor, "Clara");
+        Assert.Contains((await CalendarOf(visitor, Day.AddDays(-7), 21)).Events, e => e.MemberIds is { Count: > 0 });
+
+        // The calendar's owner is the event's already, so naming her again changes nothing.
+        var added = await AddAsync(visitor, Timed(claras, "Haircuts", new(10, 0), new(11, 0)) with { MemberIds = [nora, clara, nora] });
+        Assert.Equal(clara, added.MemberId);
+        Assert.Equal([nora], added.MemberIds!);
+
+        var request = Timed(claras, "Haircuts, both", new(10, 30), new(11, 30));
+        (await ChangeAsync(visitor, added.Id, request)).EnsureSuccessStatusCode();
+        Assert.Equal([nora], (await CalendarOf(visitor, Day, 1)).Events.Single(e => e.Id == added.Id).MemberIds!);
+
+        (await ChangeAsync(visitor, added.Id, request with { MemberIds = [] })).EnsureSuccessStatusCode();
+        Assert.Empty((await CalendarOf(visitor, Day, 1)).Events.Single(e => e.Id == added.Id).MemberIds!);
+
+        var stranger = await ChangeAsync(visitor, added.Id, request with { MemberIds = [Guid.NewGuid()] });
+        Assert.Equal(HttpStatusCode.BadRequest, stranger.StatusCode);
+        Assert.Contains("memberIds", await stranger.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task The_people_of_an_event_are_kept_in_google_and_read_back_by_a_sync()
+    {
+        await using var family = await ConnectedAsync();
+        var alex = (await family.FamilyAsync()).Members.Single().Id;
+        var everyone = (await CalendarOf(family.Parent, Day, 1)).Calendars.Single(c => c.MemberId is null && c.CanWrite).Id;
+
+        var added = await AddAsync(family.Parent, Timed(everyone, "Recital", new(18, 0), new(19, 0)) with { MemberIds = [alex] });
+        Assert.Equal([alex], added.MemberIds!);
+        var stored = family.Google.Occurrences("family-cal", DateTimeOffset.MinValue, DateTimeOffset.MaxValue).Single(e => e.Title == "Recital");
+        Assert.Equal([alex], stored.MemberIds!);
+
+        family.Google.Put("family-cal", stored with { MemberIds = [], ETag = "\"2\"" });
+        await family.SyncAsync();
+        Assert.Empty((await CalendarOf(family.Parent, Day, 1)).Events.Single(e => e.Title == "Recital").MemberIds!);
+    }
+
+    [Fact]
     public async Task The_demo_has_notes_and_rules_and_keeps_notes_a_visitor_writes()
     {
         using var visitor = await factory.DemoVisitorAsync();

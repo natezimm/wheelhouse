@@ -1,5 +1,5 @@
 import { Component, computed, inject, input, output } from '@angular/core';
-import { CalendarStore, colorOf, showsOn, spanOf } from '../core/calendar';
+import { CalendarStore, colorOf, namesOf, peopleOf, showsOn, spanOf } from '../core/calendar';
 import { inAllDayLane } from '../core/calendar-grid';
 import { Day, dayIn, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
@@ -127,7 +127,7 @@ export class CompactAgenda {
     };
     const ordered = [...events.filter(allDay), ...events.filter((event) => !allDay(event))];
     return ordered.map((event) => {
-      const member = family.members.find((m) => m.id === event.memberId);
+      const member = peopleOf(event, family.members)[0];
       const whole = allDay(event);
       const startsToday = !whole && dayIn(zone, event.startsAt!) === day;
       const time = whole ? 'All day' : startsToday ? timeIn(zone, event.startsAt!).replace(/\s?([AP]M)$/, (_, half: string) => ` ${half.toLowerCase()}`) : 'Until';
@@ -140,7 +140,7 @@ export class CompactAgenda {
         pending: !!event.pending,
         allDay: whole,
         time,
-        label: `${event.title}, ${whole ? 'all day' : startsToday ? timeIn(zone, event.startsAt!) : `until ${timeIn(zone, event.endsAt!)}`}, ${member?.displayName ?? 'Family'}${event.pending ? ', saving' : ''}`,
+        label: `${event.title}, ${whole ? 'all day' : startsToday ? timeIn(zone, event.startsAt!) : `until ${timeIn(zone, event.endsAt!)}`}, ${namesOf(event, family.members)}${event.pending ? ', saving' : ''}`,
       };
     });
   });

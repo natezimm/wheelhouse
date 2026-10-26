@@ -1,5 +1,5 @@
 import { Component, computed, effect, inject, input, output, viewChild } from '@angular/core';
-import { CalendarEvent, CalendarStore, colorOf } from '../core/calendar';
+import { CalendarEvent, CalendarStore, colorOf, namesOf, peopleOf } from '../core/calendar';
 import { dayBars, timedSegments } from '../core/calendar-grid';
 import { Clock } from '../core/clock';
 import { Day, addDays, dayIn, formatDay, startOfWeek, timeIn } from '../core/days';
@@ -395,7 +395,7 @@ export class WeekView {
     const rows = Math.max(1, allDay.lanes) + (allDay.hidden.some((n) => n > 0) ? 1 : 0);
     const bars = allDay.bars.map((bar) => {
       const event = bar.event;
-      const member = family.members.find((m) => m.id === event.memberId);
+      const member = peopleOf(event, family.members)[0];
       const readOnly = !writable.has(event.calendarId);
       return {
         id: event.id,
@@ -409,7 +409,7 @@ export class WeekView {
         row: `${bar.lane + 1}`,
         before: bar.continuesBefore,
         after: bar.continuesAfter,
-        label: `${event.title}, ${spanLabel(event, zone)}, ${member?.displayName ?? 'Family'}${readOnly ? ', read only' : ''}${event.pending ? ', saving' : ''}`,
+        label: `${event.title}, ${spanLabel(event, zone)}, ${namesOf(event, family.members)}${readOnly ? ', read only' : ''}${event.pending ? ', saving' : ''}`,
       };
     });
     const barsMore = allDay.hidden

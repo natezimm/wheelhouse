@@ -1,5 +1,5 @@
 import { Component, ElementRef, computed, effect, inject, input, output, signal, viewChild } from '@angular/core';
-import { CalendarStore, colorOf, daysOf } from '../core/calendar';
+import { CalendarStore, colorOf, daysOf, peopleOf } from '../core/calendar';
 import { compactTime, monthWeek } from '../core/calendar-grid';
 import { Clock } from '../core/clock';
 import { Day, addDays, addMonths, dayIn, formatDay, startOfMonth, startOfWeek, timeIn } from '../core/days';
@@ -459,7 +459,7 @@ export class MonthView {
       }
     }
     const describe = (event: (typeof events)[number]) => {
-      const member = family.members.find((m) => m.id === event.memberId);
+      const member = peopleOf(event, family.members)[0];
       return { title: event.title, color: colorOf(event, family.members), initial: member?.initial ?? 'F', avatar: member?.avatar ?? null, pending: !!event.pending };
     };
 

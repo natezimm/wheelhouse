@@ -1,5 +1,5 @@
 import { Component, computed, inject, input, linkedSignal, output } from '@angular/core';
-import { CalendarEvent, CalendarStore, colorOf, showsOn, spanOf } from '../core/calendar';
+import { CalendarEvent, CalendarStore, colorOf, namesOf, peopleOf, showsOn, spanOf } from '../core/calendar';
 import { Clock } from '../core/clock';
 import { Day, dayIn, formatDay, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
@@ -366,13 +366,13 @@ export class AgendaList {
 
     const events = this.calendar.events().filter((event) => showsOn(event, day, zone));
     const describe = (event: CalendarEvent) => {
-      const member = family.members.find((m) => m.id === event.memberId);
+      const member = peopleOf(event, family.members)[0];
       return {
         id: event.id,
         title: event.title,
         pending: !!event.pending,
         color: colorOf(event, family.members),
-        who: member?.displayName ?? 'Family',
+        who: namesOf(event, family.members),
         initial: member?.initial ?? 'F',
         avatar: member?.avatar ?? null,
       };

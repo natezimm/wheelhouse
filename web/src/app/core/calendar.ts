@@ -40,6 +40,8 @@ export interface CalendarEvent {
   description?: string | null;
   /** Its series' repeat rule, such as "RRULE:FREQ=WEEKLY;BYDAY=TU,TH"; see describeRule. */
   recurrence?: string | null;
+  /** The members it is for besides its calendar's owner (memberId), from a hidden tag on the Google event. */
+  memberIds?: string[];
   pending?: boolean;
 }
 
@@ -63,6 +65,8 @@ export interface EventRequest {
   recurrence?: string | null;
   /** New notes, replacing the event's; left out, the notes stay as they are. Empty clears them. */
   description?: string | null;
+  /** The members it is for besides its calendar's owner; left out, they stay as they are. */
+  memberIds?: string[];
 }
 
 export interface PendingCalendarChange {
@@ -104,12 +108,37 @@ export const FAMILY = 'family';
  */
 export const FAMILY_COLOR = 'var(--family)';
 
-/** Whose an event is, for the filter: a member's id, or FAMILY. */
-export const ownerOf = (event: CalendarEvent) => event.memberId ?? FAMILY;
+/**
+ * Whose an event is, for the filter and the Day view's columns: its calendar's owner and the
+ * other members it is for, or FAMILY for an event on the family's calendar that names no one.
+ * A member who has left the family no longer counts, though Google's tag may still name them.
+ */
+export function ownersOf(event: CalendarEvent, members: readonly Member[]): string[] {
+  const others = (event.memberIds ?? []).filter((id) => members.some((member) => member.id === id));
+  const owners = [...new Set([...(event.memberId ? [event.memberId] : []), ...others])];
+  return owners.length ? owners : [FAMILY];
+}
 
-/** The color an event takes: its member's, or the family's. */
+/** The members an event is for, its calendar's owner first, leaving out anyone no longer in the family. */
+export function peopleOf(event: CalendarEvent, members: readonly Member[]): Member[] {
+  return ownersOf(event, members).map((id) => members.find((member) => member.id === id)).filter((member): member is Member => !!member);
+}
+
+/** The color an event takes: its first person's, or the family's. */
 export function colorOf(event: CalendarEvent, members: readonly Member[]): string {
-  return members.find((member) => member.id === event.memberId)?.color ?? FAMILY_COLOR;
+  return peopleOf(event, members)[0]?.color ?? FAMILY_COLOR;
+}
+
+/** Who an event is for, said for people: "Nora and Julian", or "Family". */
+export function namesOf(event: CalendarEvent, members: readonly Member[]): string {
+  const names = peopleOf(event, members).map((member) => member.displayName);
+  return names.length ? names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}` : 'Family';
+}
+
+/** Two lists name the same members, in any order. */
+export function sameMembers(a: readonly string[] | null | undefined, b: readonly string[] | null | undefined): boolean {
+  const [first, second] = [new Set(a ?? []), new Set(b ?? [])];
+  return first.size === second.size && [...first].every((id) => second.has(id));
 }
 
 /** The first and last of the family's days an event shows on. A timed event that ends at midnight does not reach the next day. */
@@ -256,7 +285,8 @@ export class CalendarStore {
   /** The events in range that the filter lets through. */
   readonly events = computed(() => {
     const hidden = this.hiddenOwners();
-    return this.allEvents().filter((event) => !hidden.has(ownerOf(event)));
+    const members = this.family.members();
+    return this.allEvents().filter((event) => ownersOf(event, members).some((owner) => !hidden.has(owner)));
   });
 
   /** Whether a parent has to connect Google again before the calendar updates. */
@@ -504,9 +534,14 @@ export class CalendarStore {
 
 function sameContent(a: CalendarEvent, b: CalendarEvent, zone: string, rules = true): boolean {
   return a.title === b.title && a.location === b.location && a.calendarId === b.calendarId && a.allDay === b.allDay
-    && (a.description ?? null) === (b.description ?? null) && (!rules || sameRule(a.recurrence, b.recurrence, zone))
+    && (a.description ?? null) === (b.description ?? null) && sameMembers(others(a), others(b)) && (!rules || sameRule(a.recurrence, b.recurrence, zone))
     && (a.allDay ? a.startDate === b.startDate && a.endDate === b.endDate
       : Date.parse(a.startsAt!) === Date.parse(b.startsAt!) && Date.parse(a.endsAt!) === Date.parse(b.endsAt!));
+}
+
+/** The members an event is for besides its calendar's owner. */
+function others(event: CalendarEvent): string[] {
+  return (event.memberIds ?? []).filter((id) => id !== event.memberId);
 }
 
 /** Two repeat rules mean the same, though one may end on a day and the other at an instant, or list its parts in another order. */

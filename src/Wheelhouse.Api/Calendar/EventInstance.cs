@@ -52,5 +52,11 @@ public sealed class EventInstance : IFamilyOwned
     /// <summary>Its series' repeat rule (RFC 5545), on every cached occurrence of the series; null for a one-off.</summary>
     public string? Recurrence { get; set; }
 
+    /// <summary>
+    /// The members the event is for besides its calendar's owner, kept in a hidden tag on the Google
+    /// event (<see cref="GoogleCalendarApi.MembersKey"/>), so other Google Calendar apps never show it.
+    /// </summary>
+    public List<Guid> MemberIds { get; set; } = [];
+
     public bool IsAllDay => StartDate is not null;
 }

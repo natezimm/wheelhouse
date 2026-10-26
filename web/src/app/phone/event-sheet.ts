@@ -2,16 +2,17 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, input, linkedSignal, output, signal } from '@angular/core';
 import { CalendarEvent, CalendarStore, eventRefusal } from '../core/calendar';
 import { Day } from '../core/days';
-import { EventDraft, draftOf, newDraft, onDayOf, problemWith, requestOf, revise, writableCalendars } from '../core/event-draft';
+import { EventDraft, draftOf, newDraft, onDayOf, peopleChoices, problemWith, requestOf, revise, togglePerson, writableCalendars } from '../core/event-draft';
 import { FamilyStore } from '../core/family';
 import { SessionStore } from '../core/session';
 import { ModalFocus } from '../shared/modal-focus';
+import { AvatarFace } from '../shared/avatar-face';
 import { RepeatPicker } from '../shared/repeat-picker';
 
 /** The phone's sheet for adding an event, or changing or deleting one, over the calendar. */
 @Component({
   selector: 'app-event-sheet',
-  imports: [ModalFocus, RepeatPicker],
+  imports: [AvatarFace, ModalFocus, RepeatPicker],
   template: `
     @if (draft(); as draft) {
       <form
@@ -43,6 +44,28 @@ import { RepeatPicker } from '../shared/repeat-picker';
             }
           </select>
         </label>
+
+        @if (people().length > 1) {
+          <div class="field">
+            <span id="sheet-who">Who</span>
+            <div class="people" role="group" aria-labelledby="sheet-who">
+              @for (person of people(); track person.id) {
+                <button
+                  type="button"
+                  class="person"
+                  [class.owner]="person.owner"
+                  [style.--member]="person.color"
+                  [attr.aria-pressed]="person.chosen"
+                  [attr.aria-label]="person.owner ? person.name + ', owner of the calendar' : person.name"
+                  [disabled]="person.owner"
+                  (click)="set({ people: togglePerson(draft, person.id) })"
+                >
+                  <span class="mark" aria-hidden="true"><app-avatar-face [initial]="person.initial" [avatar]="person.avatar" /></span>{{ person.name }}
+                </button>
+              }
+            </div>
+          </div>
+        }
 
         @if (!event()?.recurring) {
           <app-repeat-picker [rule]="draft.recurrence" [day]="draft.startDate" (ruleChange)="set({ recurrence: $event })" />
@@ -203,6 +226,50 @@ import { RepeatPicker } from '../shared/repeat-picker';
       font-weight: 600;
     }
 
+    .people {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .person {
+      min-height: 44px;
+      padding: 0 14px 0 6px;
+      border: 1px solid var(--line);
+      border-radius: var(--pill);
+      background: var(--surface);
+      color: var(--ink);
+      font: 600 15px var(--font-body);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .person[aria-pressed='true'] {
+      border: 2px solid var(--ink);
+      background: var(--member-chip-bg);
+    }
+
+    .person:disabled:not(.owner) {
+      opacity: 0.45;
+    }
+
+    .mark {
+      flex-shrink: 0;
+      width: 30px;
+      height: 30px;
+      box-sizing: border-box;
+      border-radius: 50%;
+      background: var(--member-strong);
+      border: var(--avatar-border);
+      color: var(--on-avatar);
+      font-size: 13px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
     .actions {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -249,6 +316,12 @@ export class EventSheet {
     }
     return first ? newDraft(this.day(), first.id, family.timeZone, new Date(), this.at()) : null;
   });
+
+  protected readonly people = computed(() => {
+    const draft = this.draft();
+    return draft ? peopleChoices(draft, this.calendar.calendars(), this.family.members()) : [];
+  });
+  protected readonly togglePerson = togglePerson;
 
   protected readonly heading = computed(() => (this.event() ? 'Edit event' : 'New event'));
   protected readonly savesTo = computed(() => (this.session.isDemo() ? 'Saves to the demo calendar' : 'Saves to Google Calendar'));
