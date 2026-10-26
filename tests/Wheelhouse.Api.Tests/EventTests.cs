@@ -358,8 +358,9 @@ public sealed class EventTests(ApiFactory factory)
         var zone = TimeZoneInfo.FindSystemTimeZoneById((await FamilyOf(visitor)).TimeZone);
         var milos = await CalendarIdAsync(visitor, "Milo — School & Sports");
         var julians = await CalendarIdAsync(visitor, "Julian");
-        var added = await AddAsync(visitor, Timed(milos, "Piano", new(16, 0), new(16, 45)) with { CreationId = Guid.NewGuid() });
+        var added = await AddAsync(visitor, Timed(milos, "Piano", new(16, 0), new(16, 45)) with { CreationId = Guid.NewGuid(), Description = "Bring the blue book" });
 
+        // The request leaves the notes out, as the editors do when they are unchanged.
         var changed = await ChangeAsync(visitor, added.Id, Timed(julians, "Piano lesson", new(16, 30), new(17, 15)) with { Repeat = EventRepeat.Weekly });
 
         Assert.Equal(HttpStatusCode.OK, changed.StatusCode);
@@ -368,7 +369,8 @@ public sealed class EventTests(ApiFactory factory)
         var lessons = (await CalendarOf(visitor, Day, 21)).Events.Where(e => e.Title == "Piano lesson").ToList();
         Assert.Equal([Day, Day.AddDays(7), Day.AddDays(14)], lessons.Select(e => Local(e, zone).Day));
         Assert.Equal(added.Id, lessons[0].Id);
-        Assert.All(lessons, e => Assert.Equal((true, answer.SeriesId, julians, new TimeOnly(16, 30)), (e.Recurring, e.SeriesId, e.CalendarId, Local(e, zone).Time)));
+        Assert.All(lessons, e => Assert.Equal((true, answer.SeriesId, julians, new TimeOnly(16, 30), "Bring the blue book"),
+            (e.Recurring, e.SeriesId, e.CalendarId, Local(e, zone).Time, e.Description)));
         Assert.DoesNotContain((await CalendarOf(visitor, Day, 21)).Events, e => e.Title == "Piano");
 
         // An event that already repeats keeps its rule.

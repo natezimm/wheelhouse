@@ -239,7 +239,8 @@ public static class EventEndpoints
             else if (startsSeries)
             {
                 // The event becomes the series' first occurrence and keeps its id, so the screen's event stays put.
-                var newSeries = EventSeries.Occurrences(draft!, request.Repeat, row.GoogleEventId,
+                // Notes left out of the request stay the event's notes, in every occurrence.
+                var newSeries = EventSeries.Occurrences(draft! with { Description = draft.Description ?? row.Description }, request.Repeat, row.GoogleEventId,
                     Today(time, Zone(draft!)).AddDays(CalendarSync.Ahead.Days), Zone(draft!)).ToList();
                 for (var n = 0; n < newSeries.Count; n++)
                 {
