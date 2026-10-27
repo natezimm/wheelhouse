@@ -333,8 +333,9 @@ export class EventSheet {
     }
     const copy = this.copy();
     if (copy && first) {
-      const own = this.choices().some((choice) => choice.id === copy.calendarId);
-      return copyOf(copy, own ? copy.calendarId : first.id, family.timeZone);
+      const id = this.choices().some((choice) => choice.id === copy.calendarId) ? copy.calendarId : first.id;
+      const calendar = this.calendar.calendars().find((c) => c.id === id) ?? { id, memberId: null };
+      return copyOf(copy, calendar, family.timeZone);
     }
     return first ? newDraft(this.day(), first.id, family.timeZone, new Date(), this.at()) : null;
   });

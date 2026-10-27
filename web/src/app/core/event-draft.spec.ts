@@ -127,7 +127,7 @@ describe('event drafts', () => {
       recurring: true,
       recurrence: 'RRULE:FREQ=WEEKLY',
     };
-    const copy = copyOf(therapy, 'c1', zone);
+    const copy = copyOf(therapy, { id: 'c1', memberId: 'm1' }, zone);
 
     expect(requestOf(copy)).toMatchObject({
       calendarId: 'c1',
@@ -137,11 +137,14 @@ describe('event drafts', () => {
       startTime: '10:00:00',
       endTime: '11:00:00',
       description: 'Bring the form',
-      memberIds: ['m1'],
+      // Tess's own event, copied into Ben's calendar, is still hers; Ben is its calendar's owner.
+      memberIds: ['m2'],
       private: true,
     });
     expect(requestOf(copy)).not.toHaveProperty('recurrence');
-    expect(requestOf(copyOf(timed('Swim', 'm3', '2026-10-13T21:30:00Z', '2026-10-13T22:15:00Z'), 'c3', zone))).not.toHaveProperty('private');
+    const swim = timed('Swim', 'm3', '2026-10-13T21:30:00Z', '2026-10-13T22:15:00Z');
+    expect(requestOf(copyOf(swim, { id: swim.calendarId, memberId: 'm3' }, zone))).not.toHaveProperty('private');
+    expect(requestOf(copyOf(swim, { id: swim.calendarId, memberId: 'm3' }, zone))).not.toHaveProperty('memberIds');
   });
 
   it('send privacy only when it changed', () => {
