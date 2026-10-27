@@ -18,6 +18,9 @@ export function soonIn(event: CalendarEvent, continuesBefore: boolean, now: Date
   return minutes >= 1 && minutes <= SOON_MINUTES ? minutes : null;
 }
 
+/** How far the wall's resize grip reaches below an event into free space, making it 56 px with its 16 px inside. */
+const GRIP_BELOW = 40;
+
 /** Room above the first hour line and below the last, so their labels are not cut off. */
 const PAD = 10;
 
@@ -55,7 +58,7 @@ interface Drag {
   y: number;
   lastX: number;
   lastY: number;
-  /** Minutes between the event's start and the point it was picked up by. */
+  /** Minutes between the event's start (its end, for a resize) and the point it was picked up by. */
   grab: number;
   /** The column and minute of the day it started in. */
   fromColumn: string;
@@ -144,6 +147,7 @@ export interface GridMore {
                 [style.top.px]="block.top"
                 [style.height.px]="block.height"
                 [style.--reach.px]="block.reach"
+                [style.--grip-below.px]="block.gripBelow"
                 [style.left]="block.left"
                 [style.width]="block.width"
                 [attr.aria-label]="block.label"
@@ -375,12 +379,12 @@ export interface GridMore {
     }
 
     :host(.wall) .resize {
-      bottom: -10px;
-      height: 24px;
+      bottom: calc(-1 * var(--grip-below, 0px));
+      height: calc(16px + var(--grip-below, 0px));
     }
 
     :host(.wall) .resize::before {
-      bottom: 12px;
+      bottom: calc(6px + var(--grip-below, 0px));
       opacity: 0.45;
     }
 
@@ -963,6 +967,8 @@ export class HourGrid {
       width: `calc(${100 / lanes}% - ${2 * layout.gap}px)`,
     });
     const reach = (height: number, room: number) => (layout.reach ? Math.max(height, Math.min(layout.reach, height + room * perMinute)) : null);
+    // On the wall the grip that pulls the end takes a finger in the free space below the event, never over the next one.
+    const gripBelow = (room: number) => (layout.reach ? Math.min(GRIP_BELOW, Math.max(0, room * perMinute - layout.gap)) : null);
 
     return {
       hours: Array.from({ length: last - first + 1 }, (_, i) => ({
@@ -1013,6 +1019,7 @@ export class HourGrid {
               short,
               narrow: segment.lanes >= 3,
               reach: reach(height, segment.room),
+              gripBelow: gripBelow(segment.room),
               lines:
                 this.variant() === 'day'
                   ? Math.max(1, Math.floor((height - 18 - layout.dayTime - (place ? layout.dayLine : 0)) / layout.dayLine))
@@ -1129,7 +1136,7 @@ export class HourGrid {
       y: event.clientY,
       lastX: event.clientX,
       lastY: event.clientY,
-      grab: minute - segment.start,
+      grab: minute - (mode === 'resize' ? segment.end : segment.start),
       fromColumn: column.key,
       fromDay: column.day,
       fromStart: segment.start,
@@ -1246,8 +1253,8 @@ export class HourGrid {
     }
     const { first, last } = this.scale();
     if (drag.mode === 'resize') {
-      // The end follows the pointer in its own column, at least a step after the start.
-      const end = Math.round(minute / STEP_MINUTES) * STEP_MINUTES;
+      // The end follows the pointer, wherever on the grip it was taken, at least a step after the start.
+      const end = Math.round((minute - drag.grab) / STEP_MINUTES) * STEP_MINUTES;
       this.drag.set({ ...drag, lastX: x, lastY: y, end: Math.min(Math.max(end, drag.start + STEP_MINUTES), Math.min(last * 60, 24 * 60)) });
       this.scrollAtEdge();
       return;

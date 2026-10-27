@@ -135,6 +135,8 @@ for (const layout of ['wall', 'desktop']) {
     await swim.evaluate((el) => el.scrollIntoView({ block: 'center' }));
     const hour = parseFloat(await grid.evaluate((el) => getComputedStyle(el).getPropertyValue('--hour')));
     const edge = await swim.locator('.resize').boundingBox();
+    // With free time below, the wall's grip takes a finger there.
+    if (layout === 'wall') expect(edge.height).toBeGreaterThanOrEqual(56);
     const from = { x: edge.x + edge.width / 2, y: edge.y + edge.height / 2 };
 
     await page.mouse.move(from.x, from.y);

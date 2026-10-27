@@ -1,5 +1,5 @@
 import { HttpClient } from '@angular/common/http';
-import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
+import { DestroyRef, Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { CalendarEvent, CalendarStore } from './calendar';
 import { Clock } from './clock';
 import { Day, dayIn } from './days';
@@ -14,6 +14,9 @@ export interface Countdown {
   /** "Today", "Tomorrow" or "12 days". */
   left: string;
 }
+
+/** How long after a failed read the countdowns are read again. */
+const RETRY_MS = 30_000;
 
 /** Whole days from one family day to another. */
 export function daysUntil(from: Day, to: Day): number {
@@ -37,6 +40,8 @@ export class CountdownStore {
   private readonly clock = inject(Clock);
   private readonly events = signal<CalendarEvent[]>([]);
   private asked = 0;
+  private retry: ReturnType<typeof setTimeout> | undefined;
+  private familyId: string | null = null;
 
   /** The family's today, which only changes at its midnight. */
   private readonly today = computed(() => {
@@ -58,23 +63,35 @@ export class CountdownStore {
     const calendar = inject(CalendarStore);
     effect(() => {
       const today = this.today();
+      const familyId = this.family.family()?.id ?? null;
       calendar.changeNumber();
-      untracked(() => this.fetch(today));
+      untracked(() => {
+        // Another family's countdowns are never shown while this one's load.
+        if (familyId !== this.familyId) {
+          this.familyId = familyId;
+          this.events.set([]);
+        }
+        this.fetch(today);
+      });
     });
+    inject(DestroyRef).onDestroy(() => clearTimeout(this.retry));
   }
 
   private fetch(today: Day | null): void {
     const ask = ++this.asked;
+    clearTimeout(this.retry);
     if (!today) {
       this.events.set([]);
       return;
     }
-    // A failed read keeps the countdowns shown; the next change or day tries again.
+    // A failed read keeps the countdowns shown and tries again after the shared recovery interval.
     this.http.get<CalendarEvent[]>('/api/calendar/countdowns', { params: { from: today } }).subscribe({
       next: (events) => {
         if (ask === this.asked) this.events.set(events);
       },
-      error: () => {},
+      error: () => {
+        if (ask === this.asked) this.retry = setTimeout(() => this.fetch(today), RETRY_MS);
+      },
     });
   }
 }

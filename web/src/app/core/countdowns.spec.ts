@@ -56,4 +56,25 @@ describe('CountdownStore', () => {
       ['Cabin weekend', 24, '24 days'],
     ]);
   });
+
+  it('tries a failed read again, and never shows another family’s countdowns', async () => {
+    const store = TestBed.inject(CountdownStore);
+    const family = TestBed.inject(FamilyStore);
+    family.load();
+    http.expectOne('/api/family').flush(marlowes);
+    TestBed.tick();
+    http.expectOne((r) => r.url === '/api/calendar/countdowns').flush('down', { status: 503, statusText: 'Unavailable' });
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    http.expectOne((r) => r.url === '/api/calendar/countdowns').flush([allDay('Cabin weekend', null, '2026-11-20', '2026-11-23')]);
+    expect(store.countdowns().map((c) => c.title)).toEqual(['Cabin weekend']);
+
+    // A wall paired into another family drops the first family's countdowns at once.
+    family.load();
+    http.expectOne('/api/family').flush({ ...marlowes, id: 'another' });
+    TestBed.tick();
+    expect(store.countdowns()).toEqual([]);
+    http.expectOne((r) => r.url === '/api/calendar/countdowns').flush('down', { status: 503, statusText: 'Unavailable' });
+    expect(store.countdowns()).toEqual([]);
+  });
 });
