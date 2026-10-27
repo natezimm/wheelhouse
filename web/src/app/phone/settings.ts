@@ -28,6 +28,7 @@ import { SignIn } from './sign-in';
       <h1>Settings</h1>
     </header>
 
+    <main>
     @switch (family.state().status) {
       @case ('ready') {
         @if (session.isDisplay()) {
@@ -281,8 +282,14 @@ import { SignIn } from './sign-in';
         <p class="notice">Could not load the family. Try again in a moment.</p>
       }
     }
+    </main>
   `,
   styles: `
+    /* The sections stay the page's own children for its layout. */
+    main {
+      display: contents;
+    }
+
     :host {
       box-sizing: border-box;
       min-height: 100vh;

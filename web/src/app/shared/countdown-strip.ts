@@ -12,7 +12,8 @@ import { FamilyStore } from '../core/family';
   host: { '[class]': 'layout()' },
   template: `
     @if (chips().length) {
-      <ul aria-label="Counting down to">
+      <!-- The phone's row scrolls sideways, so a keyboard can take it to scroll. -->
+      <ul aria-label="Counting down to" [attr.tabindex]="layout() === 'phone' ? 0 : null">
         @for (chip of chips(); track chip.id) {
           <li [style.--member]="chip.color" [attr.aria-label]="chip.title + ', ' + (chip.days <= 0 ? 'today' : chip.days === 1 ? 'tomorrow' : 'in ' + chip.left)">
             <span class="left">{{ chip.left }}</span>

@@ -81,6 +81,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
       <!-- Drawn only by a theme that has one: Groovy's three stripes. -->
       <div class="band" aria-hidden="true"><span></span><span></span><span></span></div>
 
+      <main>
       @if (period(); as period) {
         <app-calendar-toolbar
           layout="wall"
@@ -133,6 +134,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
           <app-event-details [eventId]="id" layout="wall" (closed)="selected.set(null)" (edit)="editEvent($event)" (remove)="editEvent($event, true)" (duplicate)="duplicate($event)" />
         }
       </section>
+      </main>
 
       @if (editing(); as open) {
         <app-event-dialog [event]="open.event" [day]="open.day" [at]="open.at" [deleting]="open.deleting" [copy]="open.copy ?? null" (closed)="editing.set(null)" />
@@ -141,6 +143,11 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
   `,
   host: { '(pointerdown)': 'touched()' },
   styles: `
+    /* The toolbar and the calendar are the page's main part, laid out as the shell's own children. */
+    main {
+      display: contents;
+    }
+
     :host {
       box-sizing: border-box;
       height: 100vh;
