@@ -101,7 +101,9 @@ import { CalendarView, Period, VIEWS } from '../core/calendar-period';
       white-space: nowrap;
     }
 
+    /* A little more than a space, so "November 1" and its year never read as one number. */
     .year {
+      margin-left: 0.2em;
       font-weight: 400;
       color: var(--faint);
     }
@@ -225,16 +227,17 @@ import { CalendarView, Period, VIEWS } from '../core/calendar-period';
       font-size: 32px;
     }
 
-    /* The connection gives way, ending its notice early, before any control does. */
+    /* The connection gives way, ending its notice early, before any control does. The Live dot
+       and its refresh button are short and never give way, so countdowns end their titles first. */
     :host(.wall) .status {
-      flex: 1 1 0;
-      min-width: 0;
+      flex: 1 0 auto;
       justify-content: center;
     }
 
     /* A connection problem takes the room it needs; anything in the extras slot gives way first. */
     :host(.wall) .status:has(.pill) {
       flex: 0 1 auto;
+      min-width: 0;
     }
 
     :host(.wall) .view-switch {

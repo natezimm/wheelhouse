@@ -137,7 +137,7 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
         <header>
           <div class="title">
             <span class="subtitle"><app-calendar-connection layout="phone" show="live" /><span class="text">{{ heading().subtitle }}</span></span>
-            <h1>{{ heading().title }}</h1>
+            <h1 [style.--chars]="heading().title.length">{{ heading().title }}</h1>
           </div>
           @if (period(); as period) {
             <!-- The day's week strip already leads back to today. -->
@@ -233,6 +233,7 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
     .title {
       flex: 1;
       min-width: 0;
+      container-type: inline-size;
       display: flex;
       flex-direction: column;
     }
@@ -256,7 +257,8 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
     h1 {
       margin: 0;
       font-family: var(--font-display);
-      font-size: 32px;
+      /* As large as fits beside the buttons, up to 32 px: a week's dates and a Today button share a narrow phone. */
+      font-size: clamp(18px, calc(100cqi / (var(--chars, 8) * var(--title-em))), 32px);
       font-weight: var(--display-weight);
       font-variation-settings: var(--display-variation);
       letter-spacing: -0.02em;
@@ -531,6 +533,12 @@ export class CalendarHome {
       return { title, subtitle: `${formatDay(day, { weekday: 'short', month: 'short', day: 'numeric' })}${current}` };
     }
     if (this.view() === 'week') {
+      // A week across a year's end keeps both years above its dates, so the dates fit.
+      const last = addDays(period.end, -1);
+      if (period.start.slice(0, 4) !== last.slice(0, 4)) {
+        const short = (d: Day) => formatDay(d, { month: 'short', day: 'numeric' });
+        return { title: `${short(period.start)} – ${short(last)}`, subtitle: `${period.start.slice(0, 4)} – ${last.slice(0, 4)}${current}` };
+      }
       return { title: period.brief, subtitle: `${period.year}${current}` };
     }
     return { title: period.title, subtitle: `${period.year}${current}` };
