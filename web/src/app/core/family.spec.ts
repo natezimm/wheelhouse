@@ -14,7 +14,10 @@ describe('FamilyStore', () => {
     http = TestBed.inject(HttpTestingController);
   });
 
-  afterEach(() => http.verify());
+  afterEach(() => {
+    http.match((r) => r.url === '/api/calendar/countdowns');
+    http.verify();
+  });
 
   it('has no members while loading', () => {
     expect(store.state()).toEqual({ status: 'loading' });

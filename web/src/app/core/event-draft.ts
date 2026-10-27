@@ -40,6 +40,9 @@ export interface EventDraft {
   /** Private in Google, so displays show it only as busy. Sent only when it changed. */
   isPrivate: boolean;
   privateFrom: boolean;
+  /** Counted down to on the wall, and whether it was before this edit. */
+  countdown: boolean;
+  countdownFrom: boolean;
 }
 
 /** How far one tap moves a time on the wall. */
@@ -76,6 +79,8 @@ export function newDraft(day: Day, calendarId: string, timeZone: string, now: Da
     peopleFrom: [],
     isPrivate: false,
     privateFrom: false,
+    countdown: false,
+    countdownFrom: false,
   };
 }
 
@@ -104,6 +109,8 @@ export function draftOf(event: CalendarEvent, timeZone: string): EventDraft {
       peopleFrom: people,
       isPrivate: !!event.private,
       privateFrom: !!event.private,
+      countdown: !!event.countdown,
+      countdownFrom: !!event.countdown,
     };
   }
   return {
@@ -123,6 +130,8 @@ export function draftOf(event: CalendarEvent, timeZone: string): EventDraft {
     peopleFrom: people,
     isPrivate: !!event.private,
     privateFrom: !!event.private,
+    countdown: !!event.countdown,
+    countdownFrom: !!event.countdown,
   };
 }
 
@@ -150,6 +159,7 @@ export function requestOf(draft: EventDraft): EventRequest {
     ...(draft.notes.trim() !== draft.notesFrom.trim() ? { description: draft.notes.trim() } : {}),
     ...(!sameMembers(draft.people, draft.peopleFrom) ? { memberIds: draft.people } : {}),
     ...(draft.isPrivate !== draft.privateFrom ? { private: draft.isPrivate } : {}),
+    ...(draft.countdown !== draft.countdownFrom ? { countdown: draft.countdown } : {}),
   };
 }
 
@@ -187,6 +197,14 @@ export function moveDays(draft: EventDraft, days: number): EventDraft {
 export function movedTo(event: CalendarEvent, day: Day, time: string, timeZone: string): EventDraft {
   const end = new Date(Date.parse(instantAt(day, time, timeZone)) + Date.parse(event.endsAt!) - Date.parse(event.startsAt!));
   return { ...draftOf(event, timeZone), startDate: day, startTime: time, endDate: dayIn(timeZone, end), endTime: clock(minutesIn(timeZone, end)) };
+}
+
+/** A timed event given a new end on its first day, <code>end</code> minutes after that day's midnight; 24:00 is the next midnight. */
+export function resizedTo(event: CalendarEvent, end: number, timeZone: string): EventDraft {
+  const draft = draftOf(event, timeZone);
+  return end >= DAY_MINUTES
+    ? { ...draft, endDate: addDays(draft.startDate, 1), endTime: '00:00' }
+    : { ...draft, endDate: draft.startDate, endTime: clock(end) };
 }
 
 /** Moves an all-day event's last day, never before its first. */

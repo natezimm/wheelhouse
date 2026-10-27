@@ -226,7 +226,17 @@ public static class DemoSeedData
             startDate: nextWeekendSat,
             endDateExclusive: nextWeekendSat.AddDays(2), // Exclusive Monday end, matching Google Calendar
             location: "Phoenicia, NY",
-            description: "Check-in after 3 PM Saturday; pack hiking boots and board games."));
+            description: "Check-in after 3 PM Saturday; pack hiking boots and board games.",
+            // The wall counts down the days to the trip.
+            countdown: true));
+
+        events.Add(anchor.AllDayEvent(
+            familyId, calendars.Family.Id,
+            title: "Nora's birthday",
+            startDate: today.AddDays(33),
+            endDateExclusive: today.AddDays(34),
+            people: [nora],
+            countdown: true));
 
         // --- EARLIER DAYS (so the current week and month look lived in, not only what is ahead) ---
         events.Add(anchor.TimedEvent(
@@ -409,7 +419,8 @@ public sealed class DemoDateAnchor
         string? seriesId = null,
         string? repeatRule = null,
         IReadOnlyList<Guid>? people = null,
-        bool isPrivate = false) => new(
+        bool isPrivate = false,
+        bool countdown = false) => new(
         Id: Guid.NewGuid(),
         FamilyId: familyId,
         CalendarSourceId: calendarSourceId,
@@ -425,7 +436,8 @@ public sealed class DemoDateAnchor
         RepeatFrequency: repeatRule,
         ETag: $"\"demo-{Guid.NewGuid():N}\"",
         MemberIds: people ?? [],
-        IsPrivate: isPrivate);
+        IsPrivate: isPrivate,
+        Countdown: countdown);
 
     public DemoEventSeed AllDayEvent(
         Guid familyId,
@@ -435,7 +447,8 @@ public sealed class DemoDateAnchor
         DateOnly endDateExclusive,
         string? location = null,
         string? description = null,
-        IReadOnlyList<Guid>? people = null) => new(
+        IReadOnlyList<Guid>? people = null,
+        bool countdown = false) => new(
         Id: Guid.NewGuid(),
         FamilyId: familyId,
         CalendarSourceId: calendarSourceId,
@@ -451,7 +464,8 @@ public sealed class DemoDateAnchor
         RepeatFrequency: null,
         ETag: $"\"demo-{Guid.NewGuid():N}\"",
         MemberIds: people ?? [],
-        IsPrivate: false);
+        IsPrivate: false,
+        Countdown: countdown);
 }
 
 // =============================================================================
@@ -520,4 +534,5 @@ public sealed record DemoEventSeed(
     string? RepeatFrequency,
     string ETag,
     IReadOnlyList<Guid> MemberIds,
-    bool IsPrivate);
+    bool IsPrivate,
+    bool Countdown = false);

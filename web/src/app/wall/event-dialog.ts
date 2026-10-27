@@ -181,6 +181,10 @@ import { RepeatPicker } from '../shared/repeat-picker';
                   Private
                 </label>
               }
+              <label class="all-day">
+                <input type="checkbox" [checked]="draft.countdown" (change)="set({ countdown: $any($event.target).checked })" />
+                Count down
+              </label>
             </div>
           </fieldset>
 

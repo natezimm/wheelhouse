@@ -4,7 +4,16 @@ import { Family } from './family';
 
 export type WeatherIcon = 'Sun' | 'Moon' | 'PartlyCloudy' | 'Cloud' | 'Fog' | 'Rain' | 'Snow' | 'Storm';
 
-/** Today's weather where the family lives, in its own units. */
+/** One day of the forecast, by the family's day. */
+export interface ForecastDay {
+  date: string;
+  description: string;
+  icon: WeatherIcon;
+  high: number;
+  low: number;
+}
+
+/** Today's weather where the family lives, in its own units, and the coming week's forecast, today first. */
 export interface Weather {
   temperature: number;
   description: string;
@@ -12,6 +21,7 @@ export interface Weather {
   high: number;
   low: number;
   unit: 'F' | 'C';
+  days?: ForecastDay[];
 }
 
 /**
@@ -26,6 +36,11 @@ export class WeatherStore {
   private shown: string | null = null;
 
   readonly weather = this.current.asReadonly();
+
+  /** The forecast for a day of the coming week, if there is one. */
+  forecastFor(day: string): ForecastDay | undefined {
+    return this.current()?.days?.find((d) => d.date === day);
+  }
 
   /** Shows the weather for the family's place and units. Asking again for the same place does nothing. */
   show(family: Family): void {

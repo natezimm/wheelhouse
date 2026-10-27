@@ -16,6 +16,7 @@ public static class CalendarEndpoints
     public static IEndpointRouteBuilder MapCalendar(this IEndpointRouteBuilder app)
     {
         app.MapGet("/api/calendar", GetCalendar).RequireAuthorization(Policies.Family);
+        app.MapGet("/api/calendar/countdowns", GetCountdowns).RequireAuthorization(Policies.Family);
 
         return app;
     }
@@ -89,6 +90,48 @@ public static class CalendarEndpoints
         await snapshot.CommitAsync(cancellationToken);
         return TypedResults.Ok(new CalendarResponse(
             calendars, ordered, needsReconnect, family.CalendarChangeNumber, window?.From, window?.To));
+    }
+
+    /// <summary>How many countdowns the wall shows at once.</summary>
+    public const int MaxCountdowns = 3;
+
+    /// <summary>
+    /// The next few events marked to count down to that start on or after the family's day
+    /// <paramref name="from"/>, soonest first, one per series. A paired display never sees a private
+    /// one, since a countdown names the event.
+    /// </summary>
+    private static async Task<Results<Ok<List<EventResponse>>, NotFound>> GetCountdowns(
+        DateOnly from,
+        WheelhouseDbContext db,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken)
+    {
+        var timeZone = await db.Families.AsNoTracking().Select(f => f.TimeZone).SingleOrDefaultAsync(cancellationToken);
+        if (timeZone is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        var zone = TimeZoneInfo.FindSystemTimeZoneById(timeZone);
+        var fromUtc = StartOfDay(from, zone);
+        var display = user.IsDisplay();
+        var marked = await db.EventInstances
+            .AsNoTracking()
+            .Where(e => e.Countdown && (!display || !e.IsPrivate)
+                && ((e.StartDate != null && e.StartDate >= from) || (e.StartsAt != null && e.StartsAt >= fromUtc)))
+            .Join(db.CalendarSources, e => e.CalendarSourceId, source => source.Id, (e, source) => new { Event = e, Source = source })
+            .ToListAsync(cancellationToken);
+
+        var next = marked
+            .Select(e => new { e.Event, Response = EventResponse.From(e.Event, e.Source), Starts = e.Event.StartsAt ?? StartOfDay(e.Event.StartDate!.Value, zone) })
+            .GroupBy(e => (e.Event.CalendarSourceId, e.Event.RecurringEventId ?? e.Event.GoogleEventId))
+            .Select(series => series.MinBy(e => e.Starts)!)
+            .OrderBy(e => e.Starts)
+            .ThenBy(e => e.Response.Title, StringComparer.Ordinal)
+            .Take(MaxCountdowns)
+            .Select(e => e.Response)
+            .ToList();
+        return TypedResults.Ok(next);
     }
 
     /// <summary>The instant a local day begins in <paramref name="zone"/>, as UTC.</summary>

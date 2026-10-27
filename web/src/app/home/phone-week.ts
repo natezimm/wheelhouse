@@ -5,6 +5,7 @@ import { Day, addDays, dayIn, formatDay, startOfWeek } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { CalendarFilter } from '../shared/calendar-filter';
 import { CompactAgenda } from './compact-agenda';
+import { DayForecast } from '../shared/day-forecast';
 
 /**
  * The phone's week: each day in a card of its own, rather than seven squeezed columns, with a
@@ -12,7 +13,7 @@ import { CompactAgenda } from './compact-agenda';
  */
 @Component({
   selector: 'app-phone-week',
-  imports: [CompactAgenda, CalendarFilter],
+  imports: [CompactAgenda, CalendarFilter, DayForecast],
   template: `
     <app-calendar-filter class="compact" />
     @for (day of days(); track day.day) {
@@ -23,6 +24,7 @@ import { CompactAgenda } from './compact-agenda';
             <span class="name">{{ day.name }}</span>
             <span class="sub">{{ day.sub }}</span>
           </h2>
+          <app-day-forecast [day]="day.day" />
         </div>
         <app-compact-agenda [day]="day.day" (inspect)="inspect.emit($event)" />
       </section>
@@ -86,6 +88,10 @@ import { CompactAgenda } from './compact-agenda';
       margin: 0;
       display: flex;
       flex-direction: column;
+    }
+
+    app-day-forecast {
+      margin-left: auto;
     }
 
     .name {

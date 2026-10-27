@@ -32,12 +32,41 @@ public sealed class WeatherTests(ApiFactory factory)
 
         var weather = await visitor.GetFromJsonAsync<WeatherResponse>("/api/weather", ApiFactory.Json);
 
-        Assert.Equal(new WeatherResponse(61, "Partly cloudy", WeatherIcon.PartlyCloudy, 66, 48, "F"), weather);
+        Assert.Equal(new WeatherResponse(61, "Partly cloudy", WeatherIcon.PartlyCloudy, 66, 48, "F"), weather! with { Days = null });
         var asked = Assert.Single(openMeteo.Requests);
         Assert.Contains("latitude=40.73", asked.Query);
         Assert.Contains("longitude=-74.27", asked.Query);
         Assert.Contains("temperature_unit=fahrenheit", asked.Query);
         Assert.Contains("timezone=America%2FNew_York", asked.Query);
+        Assert.Contains("forecast_days=7", asked.Query);
+    }
+
+    [Fact]
+    public async Task The_forecast_has_a_day_for_each_day_of_the_coming_week()
+    {
+        var openMeteo = new FakeOpenMeteo(HttpStatusCode.OK, """
+            {
+              "current": { "temperature_2m": 61.4, "weather_code": 2, "is_day": 0 },
+              "daily": {
+                "time": ["2026-10-26", "2026-10-27", "2026-10-28"],
+                "weather_code": [2, 61, 0],
+                "temperature_2m_max": [66.2, 58.6, 70.4],
+                "temperature_2m_min": [47.6, 50.1, 52.9]
+              }
+            }
+            """);
+        using var visitor = await VisitorAsync(openMeteo);
+
+        var weather = (await visitor.GetFromJsonAsync<WeatherResponse>("/api/weather", ApiFactory.Json))!;
+
+        Assert.Equal(
+            [
+                new ForecastDay(new DateOnly(2026, 10, 26), "Partly cloudy", WeatherIcon.PartlyCloudy, 66, 48),
+                new ForecastDay(new DateOnly(2026, 10, 27), "Rain", WeatherIcon.Rain, 59, 50),
+                // A day's icon is the daytime one, even when it is night now.
+                new ForecastDay(new DateOnly(2026, 10, 28), "Clear", WeatherIcon.Sun, 70, 53),
+            ],
+            weather.Days!);
     }
 
     [Fact]

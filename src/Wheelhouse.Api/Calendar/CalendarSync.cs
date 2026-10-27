@@ -208,6 +208,7 @@ public sealed class CalendarSync(
         row.Recurrence = google.Recurrence ?? (google.RecurringEventId is not null ? row.Recurrence : null);
         row.MemberIds = google.MemberIds?.ToList() ?? [];
         row.IsPrivate = google.Private;
+        row.Countdown = google.Countdown;
     }
 
     /// <summary>Google allows longer text than the cache's columns; the screens never show that much.</summary>

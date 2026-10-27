@@ -91,7 +91,12 @@ test('renaming all events of a series on the phone renames every one', async ({ 
   await addAt10(page, 'Stack series check', 'Weekly');
   await page.reload();
 
-  await page.getByRole('button', { name: /Stack series check/ }).first().click();
+  // Today's events that ended over an hour ago fold behind "N earlier events" on the phone.
+  const series = page.getByRole('button', { name: /Stack series check/ }).first();
+  const earlier = page.getByRole('button', { name: /earlier event/ });
+  await expect(series.or(earlier)).toBeVisible();
+  if (await earlier.isVisible()) await earlier.click();
+  await series.click();
   await page.getByRole('dialog', { name: 'Stack series check' }).getByRole('button', { name: 'Edit event', exact: true }).click();
   const sheet = page.locator('app-event-sheet');
   await sheet.getByLabel('Change').selectOption('all');

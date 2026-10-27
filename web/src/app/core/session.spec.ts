@@ -13,7 +13,10 @@ describe('SessionStore', () => {
     http = TestBed.inject(HttpTestingController);
   });
 
-  afterEach(() => http.verify());
+  afterEach(() => {
+    http.match((r) => r.url === '/api/calendar/countdowns');
+    http.verify();
+  });
 
   /** Lets the store's awaited steps run up to its next request. */
   const tick = () => new Promise((resolve) => setTimeout(resolve));

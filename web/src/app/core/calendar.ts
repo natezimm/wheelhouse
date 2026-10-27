@@ -46,6 +46,8 @@ export interface CalendarEvent {
   private?: boolean;
   /** A private event as a display gets it, titled "Busy" with nothing else told, and never changed here. */
   hidden?: boolean;
+  /** The wall counts down the days to it, from a hidden tag on the Google event. */
+  countdown?: boolean;
   pending?: boolean;
 }
 
@@ -73,6 +75,8 @@ export interface EventRequest {
   memberIds?: string[];
   /** Makes it private or not, which only a parent may; left out, it stays as it is. */
   private?: boolean;
+  /** Counts down to it on the wall or stops; left out, it stays as it is. */
+  countdown?: boolean;
 }
 
 export interface PendingCalendarChange {
@@ -261,7 +265,7 @@ export class CalendarStore {
     const target = changed?.id ?? null;
     const moved = op.kind === 'update' && op.request!.title === original.title && (op.request!.location ?? null) === (original.location ?? null)
       && op.request!.calendarId === original.calendarId && op.request!.description === undefined && op.request!.memberIds === undefined
-      && op.request!.private === undefined;
+      && op.request!.private === undefined && op.request!.countdown === undefined;
     this.lastChange.set({
       label: op.kind === 'remove' ? 'Event deleted' : moved ? 'Event moved' : 'Event changed',
       target,
@@ -623,13 +627,13 @@ export class CalendarStore {
 
 function sameContent(a: CalendarEvent, b: CalendarEvent, zone: string, rules = true): boolean {
   return a.title === b.title && a.location === b.location && a.calendarId === b.calendarId && a.allDay === b.allDay
-    && (a.description ?? null) === (b.description ?? null) && !!a.private === !!b.private && sameMembers(others(a), others(b)) && (!rules || sameRule(a.recurrence, b.recurrence, zone))
+    && (a.description ?? null) === (b.description ?? null) && !!a.private === !!b.private && !!a.countdown === !!b.countdown && sameMembers(others(a), others(b)) && (!rules || sameRule(a.recurrence, b.recurrence, zone))
     && (a.allDay ? a.startDate === b.startDate && a.endDate === b.endDate
       : Date.parse(a.startsAt!) === Date.parse(b.startsAt!) && Date.parse(a.endsAt!) === Date.parse(b.endsAt!));
 }
 
 /**
- * What puts an event back as it was. Notes, people and privacy go back only when <code>changed</code>
+ * What puts an event back as it was. Notes, people, privacy and countdown go back only when <code>changed</code>
  * changed them, so notes kept as HTML are never rewritten.
  */
 /** The list, or with nothing in it the fallback: an Undo's event may no longer be in the days on screen. */
@@ -654,6 +658,7 @@ function requestFor(event: CalendarEvent, zone: string, changed?: EventRequest):
     ...(!changed || changed.description !== undefined ? { description: event.description ?? '' } : {}),
     ...(!changed || changed.memberIds !== undefined ? { memberIds: others(event) } : {}),
     ...(!changed || changed.private !== undefined ? { private: !!event.private } : {}),
+    ...(!changed || changed.countdown !== undefined ? { countdown: !!event.countdown } : {}),
   };
 }
 

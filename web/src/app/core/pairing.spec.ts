@@ -16,6 +16,7 @@ describe('WallPairing', () => {
 
   afterEach(() => {
     pairing.end();
+    http.match((r) => r.url === '/api/calendar/countdowns');
     http.verify();
     vi.useRealTimers();
   });

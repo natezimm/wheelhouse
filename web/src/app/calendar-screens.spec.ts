@@ -104,7 +104,10 @@ describe('calendar screens', () => {
       // An hour at 50 px leaves too little room for the time row and a title line, so it reads on one line.
       expect(block('Dentist').classList.contains('short')).toBe(true);
       expect(block('Book club').classList.contains('short')).toBe(false);
-      expect(block('Swim lesson').querySelector('.time')?.textContent).toBe('5:30 pm');
+      // At 5:22 the 5:30 swim lesson is about to start, so it says how soon instead of its time.
+      expect(block('Swim lesson').querySelector('.time')?.textContent).toBe('In 8 min');
+      expect(block('Swim lesson').classList.contains('soon')).toBe(true);
+      expect(block('Book club').classList.contains('soon')).toBe(false);
       expect(page.querySelectorAll('[aria-label="Monday, October 12"] .now-line')).toHaveLength(1);
       expect(page.querySelectorAll('.now-line')).toHaveLength(1);
       expect(page.querySelector('.now-label')?.textContent).toBe('5:22');
@@ -252,7 +255,7 @@ describe('calendar screens', () => {
       expect(shownTitle(page)).toBe('Monday, October 12 2026');
       expect(rows(page.querySelectorAll('app-day-view .head .who'))).toEqual(['Ben 1 today', 'Tess 1 today', 'Milo 1 today', 'Family 1 today']);
       expect(texts(page.querySelectorAll('app-day-view .all-day .bar'))).toEqual(['Grandma in town']);
-      expect(rows(page.querySelectorAll('[role="group"][aria-label="Milo"] .event .content'))).toEqual(['Swim lesson 5:30 – 6:15 PM']);
+      expect(rows(page.querySelectorAll('[role="group"][aria-label="Milo"] .event .content'))).toEqual(['Swim lesson In 8 min · 5:30 – 6:15 PM']);
       expect(rows(page.querySelectorAll('[role="group"][aria-label="Tess"] .event .content'))).toEqual(['Book club 7:00 – 9:00 PM']);
       // The now line crosses every person's column, with the time in the gutter.
       expect(page.querySelectorAll('app-day-view .now-line').length).toBe(4);

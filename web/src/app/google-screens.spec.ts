@@ -20,6 +20,7 @@ describe('Google Calendar on the phone', () => {
 
   afterEach(() => {
     http.match('/health');
+    http.match((r) => r.url === '/api/calendar/countdowns');
     http.verify();
   });
 

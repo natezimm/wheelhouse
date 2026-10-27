@@ -79,6 +79,7 @@ describe('CalendarLive', () => {
   });
   afterEach(() => {
     TestBed.resetTestingModule();
+    http.match((r) => r.url === '/api/calendar/countdowns');
     http.verify();
     vi.useRealTimers();
   });

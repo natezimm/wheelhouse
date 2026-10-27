@@ -123,7 +123,7 @@ public sealed partial class WheelhouseDbContext
             nameof(EventInstance.CalendarSourceId), nameof(EventInstance.Title), nameof(EventInstance.Location),
             nameof(EventInstance.StartsAt), nameof(EventInstance.EndsAt), nameof(EventInstance.StartDate),
             nameof(EventInstance.EndDate), nameof(EventInstance.RecurringEventId), nameof(EventInstance.Description),
-            nameof(EventInstance.Recurrence), nameof(EventInstance.MemberIds), nameof(EventInstance.IsPrivate)),
+            nameof(EventInstance.Recurrence), nameof(EventInstance.MemberIds), nameof(EventInstance.IsPrivate), nameof(EventInstance.Countdown)),
         CalendarSource => AddedOrDeleted(entry) || Changed(entry,
             nameof(CalendarSource.Name), nameof(CalendarSource.MemberId), nameof(CalendarSource.CanWrite)),
         GoogleConnection => AddedOrDeleted(entry) || Changed(entry, nameof(GoogleConnection.Status)),
