@@ -1,6 +1,6 @@
 import { marloweCalendars, allDay, timed } from '../testing/calendar';
 import { marlowes } from '../testing/marlowes';
-import { clockLabel, copyOf, draftOf, moveDays, moveEnd, moveStart, movedTo, newDraft, onDayOf, peopleChoices, problemWith, requestOf, revise, togglePerson, writableCalendars } from './event-draft';
+import { clockLabel, copyOf, draftOf, moveDays, moveEnd, moveStart, movedTo, newDraft, onDayOf, peopleChoices, problemWith, requestOf, resizedTo, revise, togglePerson, writableCalendars } from './event-draft';
 
 describe('event drafts', () => {
   const zone = 'America/New_York';
@@ -126,6 +126,7 @@ describe('event drafts', () => {
       memberIds: ['m1'],
       recurring: true,
       recurrence: 'RRULE:FREQ=WEEKLY',
+      countdown: true,
     };
     const copy = copyOf(therapy, { id: 'c1', memberId: 'm1' }, zone);
 
@@ -142,6 +143,9 @@ describe('event drafts', () => {
       private: true,
     });
     expect(requestOf(copy)).not.toHaveProperty('recurrence');
+    // A copy is not counted down to unless it is marked again.
+    expect(copy.countdown).toBe(false);
+    expect(requestOf(copy)).not.toHaveProperty('countdown');
     const swim = timed('Swim', 'm3', '2026-10-13T21:30:00Z', '2026-10-13T22:15:00Z');
     expect(requestOf(copyOf(swim, { id: swim.calendarId, memberId: 'm3' }, zone))).not.toHaveProperty('private');
     expect(requestOf(copyOf(swim, { id: swim.calendarId, memberId: 'm3' }, zone))).not.toHaveProperty('memberIds');
@@ -155,6 +159,24 @@ describe('event drafts', () => {
     expect(requestOf(draft)).not.toHaveProperty('private');
     expect(requestOf({ ...draft, isPrivate: false }).private).toBe(false);
     expect(requestOf({ ...newDraft('2026-10-13', 'c1', zone, new Date()), title: 'Gift', isPrivate: true }).private).toBe(true);
+  });
+
+  it('send the countdown mark only when it changed', () => {
+    const cabin = { ...allDay('Cabin weekend', null, '2026-11-20', '2026-11-23'), countdown: true };
+    const draft = draftOf(cabin, zone);
+
+    expect(draft.countdown).toBe(true);
+    expect(requestOf(draft)).not.toHaveProperty('countdown');
+    expect(requestOf({ ...draft, countdown: false }).countdown).toBe(false);
+    expect(requestOf({ ...newDraft('2026-10-13', 'c1', zone, new Date()), title: 'Party' })).not.toHaveProperty('countdown');
+    expect(requestOf({ ...newDraft('2026-10-13', 'c1', zone, new Date()), title: 'Party', countdown: true }).countdown).toBe(true);
+  });
+
+  it('end a resized event at the new time on its own day, or at the midnight that ends it', () => {
+    const swim = timed('Swim', 'm3', '2026-10-12T21:30:00Z', '2026-10-12T22:15:00Z'); // 5:30 to 6:15 PM
+
+    expect(resizedTo(swim, 19 * 60, zone)).toMatchObject({ startDate: '2026-10-12', startTime: '17:30', endDate: '2026-10-12', endTime: '19:00' });
+    expect(resizedTo(swim, 24 * 60, zone)).toMatchObject({ startTime: '17:30', endDate: '2026-10-13', endTime: '00:00' });
   });
 
   it('send a repeat rule only when it changed, and keep a series’ rule as it is', () => {

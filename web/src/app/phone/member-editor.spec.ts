@@ -22,6 +22,7 @@ describe('MemberEditor', () => {
     // Settings, where a saved change returns to, also loads the family's displays.
     http.match('/api/devices');
     http.match('/api/calendar/google');
+    http.match((r) => r.url === '/api/calendar/countdowns');
     http.verify();
   });
 

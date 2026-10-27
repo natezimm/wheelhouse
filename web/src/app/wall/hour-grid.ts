@@ -1,12 +1,25 @@
 import { Component, DestroyRef, ElementRef, Injector, afterNextRender, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { CalendarEvent, CalendarStore, FAMILY_COLOR, colorOf, namesOf, peopleOf, timeRange } from '../core/calendar';
-import { STEP_MINUTES, clockLabel, movedTo, requestOf } from '../core/event-draft';
+import { STEP_MINUTES, clockLabel, movedTo, requestOf, resizedTo } from '../core/event-draft';
 import { TimedSegment, arrange, hourLabel, hourRange } from '../core/calendar-grid';
 import { Clock } from '../core/clock';
 import { Day, dayIn, formatDay, minutesIn, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { ThemeService } from '../core/theme';
 import { AvatarFace } from '../shared/avatar-face';
+
+/** How many minutes before its start an event shows as about to start. */
+export const SOON_MINUTES = 10;
+
+/** Whole minutes until a timed event starts, rounded up, while that is within SOON_MINUTES; otherwise null. */
+export function soonIn(event: CalendarEvent, continuesBefore: boolean, now: Date): number | null {
+  if (event.allDay || continuesBefore || !event.startsAt) return null;
+  const minutes = Math.ceil((Date.parse(event.startsAt) - now.getTime()) / 60_000);
+  return minutes >= 1 && minutes <= SOON_MINUTES ? minutes : null;
+}
+
+/** How far the wall's resize grip reaches below an event into free space, making it 56 px with its 16 px inside. */
+const GRIP_BELOW = 40;
 
 /** Room above the first hour line and below the last, so their labels are not cut off. */
 const PAD = 10;
@@ -30,9 +43,14 @@ const LONG_PRESS = 350;
 const EDGE = 48;
 const EDGE_SPEED = 14;
 
-/** An event being dragged to another time or day: where it was picked up and where it would land. */
+/**
+ * An event being dragged to another time or day, or by its bottom edge to a new end: where it was
+ * picked up and where it would land.
+ */
 interface Drag {
   event: CalendarEvent;
+  /** Moving keeps the length; resizing keeps the start and changes the end. */
+  mode: 'move' | 'resize';
   pointerId: number;
   touch: boolean;
   /** Where the press began, and where the pointer is now, in the window. */
@@ -40,7 +58,7 @@ interface Drag {
   y: number;
   lastX: number;
   lastY: number;
-  /** Minutes between the event's start and the point it was picked up by. */
+  /** Minutes between the event's start (its end, for a resize) and the point it was picked up by. */
   grab: number;
   /** The column and minute of the day it started in. */
   fromColumn: string;
@@ -51,6 +69,9 @@ interface Drag {
   column: string;
   day: Day;
   start: number;
+  /** The minute of the day it ends at, and where a resize would end it. */
+  fromEnd: number;
+  end: number;
 }
 
 /** A new event on the grid, from tapping an empty half hour: its day and 'HH:mm'. */
@@ -120,11 +141,13 @@ export interface GridMore {
                 [class.calendar-pending]="block.pending"
                 [class.movable]="block.movable"
                 [class.lifted]="block.id === lifted()"
+                [class.soon]="block.soon !== null"
                 [attr.aria-busy]="block.pending"
                 [style.--member]="block.color"
                 [style.top.px]="block.top"
                 [style.height.px]="block.height"
                 [style.--reach.px]="block.reach"
+                [style.--grip-below.px]="block.gripBelow"
                 [style.left]="block.left"
                 [style.width]="block.width"
                 [attr.aria-label]="block.label"
@@ -159,6 +182,9 @@ export interface GridMore {
                     <span class="title clamp" [style.--lines]="block.lines">{{ block.title }}</span>
                   }
                 </span>
+                @if (block.resizable) {
+                  <span class="resize" aria-hidden="true" (pointerdown)="press($event, block.segment, column.source, true, 'resize')"></span>
+                }
               </button>
             }
             @for (more of column.more; track more.key) {
@@ -188,13 +214,13 @@ export interface GridMore {
                   <div
                     class="chooser"
                     role="dialog"
-                    aria-label="Move a repeating event"
+                    [attr.aria-label]="preview.resizing ? 'Change a repeating event' : 'Move a repeating event'"
                     [class.end]="preview.end"
                     [class.above]="preview.above"
                     [style.top.px]="preview.above ? preview.top - 8 : preview.top + preview.height + 8"
                     (pointerdown)="$event.stopPropagation()"
                   >
-                    <span class="ask">Move {{ preview.sameDay ? 'which events' : 'this event' }} to {{ preview.when }}?</span>
+                    <span class="ask">{{ preview.resizing ? 'Change which events to' : preview.sameDay ? 'Move which events to' : 'Move this event to' }} {{ preview.when }}?</span>
                     <button type="button" (click)="drop(false)">This event</button>
                     @if (preview.sameDay) {
                       <button type="button" (click)="drop(true)">All events</button>
@@ -324,6 +350,54 @@ export interface GridMore {
       right: 0;
       top: 0;
       height: var(--reach, 100%);
+    }
+
+    /* The bottom edge pulls the end: a grip shows where to take it, and its reach takes a finger. */
+    .resize {
+      position: absolute;
+      z-index: 1;
+      left: 0;
+      right: 0;
+      bottom: -6px;
+      height: 16px;
+      cursor: ns-resize;
+      touch-action: none;
+    }
+
+    .resize::before {
+      content: '';
+      position: absolute;
+      left: 50%;
+      bottom: 8px;
+      width: 28px;
+      height: 4px;
+      margin-left: -14px;
+      border-radius: 2px;
+      background: var(--member-strong);
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+
+    :host(.wall) .resize {
+      bottom: calc(-1 * var(--grip-below, 0px));
+      height: calc(16px + var(--grip-below, 0px));
+    }
+
+    :host(.wall) .resize::before {
+      bottom: calc(6px + var(--grip-below, 0px));
+      opacity: 0.45;
+    }
+
+    .event:hover .resize::before,
+    .event.selected .resize::before,
+    .resize:hover::before {
+      opacity: 0.8;
+    }
+
+    .short .resize::before,
+    .narrow .resize::before {
+      width: 18px;
+      margin-left: -9px;
     }
 
     /* Block, not flex, so the title can clamp to the lines that fit. */
@@ -716,8 +790,26 @@ export interface GridMore {
       }
     }
 
+    /* An event about to start: a ring in its owner's color that breathes, and "In 8 min" for its time. */
+    .event.soon {
+      box-shadow: 0 0 0 3px var(--member-strong), var(--event-outline);
+      animation: soon 2.4s ease-in-out infinite;
+    }
+
+    .event.soon .time {
+      color: var(--member-time);
+      font-weight: 800;
+    }
+
+    @keyframes soon {
+      50% {
+        box-shadow: 0 0 0 6px var(--member-edge), var(--event-outline);
+      }
+    }
+
     @media (prefers-reduced-motion: reduce) {
-      .note.waiting {
+      .note.waiting,
+      .event.soon {
         animation-duration: 0s;
       }
     }
@@ -790,10 +882,11 @@ export class HourGrid {
     const layout = LAYOUTS[this.layout()];
     const { first, hour, height: gridHeight } = this.scale();
     const perMinute = hour / 60;
-    const length = (Date.parse(drag.event.endsAt!) - Date.parse(drag.event.startsAt!)) / 60_000;
+    const resizing = drag.mode === 'resize';
+    const length = resizing ? drag.end - drag.start : (Date.parse(drag.event.endsAt!) - Date.parse(drag.event.startsAt!)) / 60_000;
     const top = PAD + (drag.start - first * 60) * perMinute + 1;
     const height = Math.max(length * perMinute - 3, layout.minBlock);
-    const draft = movedTo(drag.event, drag.day, clock(drag.start), this.zone());
+    const draft = this.draftFor(drag);
     const range = `${clockLabel(draft.startTime)} – ${clockLabel(draft.endTime)}`;
     const columns = this.columns();
     const index = columns.findIndex((column) => column.key === drag.column);
@@ -805,7 +898,8 @@ export class HourGrid {
       title: drag.event.title,
       color: colorOf(drag.event, this.family.family()?.members ?? []),
       range,
-      when: `${drag.day === drag.fromDay ? '' : formatDay(drag.day, { weekday: 'long' }) + ' '}${clockLabel(draft.startTime)}`,
+      when: resizing ? `end at ${clockLabel(draft.endTime)}` : `${drag.day === drag.fromDay ? '' : formatDay(drag.day, { weekday: 'long' }) + ' '}${clockLabel(draft.startTime)}`,
+      resizing,
       sameDay: drag.day === drag.fromDay,
       // The question opens toward the room it has: leftward from the last columns, upward near the bottom.
       end: columns.length > 2 && index >= columns.length - 2,
@@ -873,6 +967,8 @@ export class HourGrid {
       width: `calc(${100 / lanes}% - ${2 * layout.gap}px)`,
     });
     const reach = (height: number, room: number) => (layout.reach ? Math.max(height, Math.min(layout.reach, height + room * perMinute)) : null);
+    // On the wall the grip that pulls the end takes a finger in the free space below the event, never over the next one.
+    const gripBelow = (room: number) => (layout.reach ? Math.min(GRIP_BELOW, Math.max(0, room * perMinute - layout.gap)) : null);
 
     return {
       hours: Array.from({ length: last - first + 1 }, (_, i) => ({
@@ -902,6 +998,7 @@ export class HourGrid {
             const short = height < layout.shortBelow;
             // A Day block names its place only when the title, times and place all have a line.
             const place = this.variant() === 'day' && event.location && height >= 18 + layout.dayTime + 2 * layout.dayLine ? event.location : null;
+            const soon = soonIn(event, segment.continuesBefore, now);
             return {
               ...across(segment.lane, segment.lanes),
               id: event.id,
@@ -909,6 +1006,8 @@ export class HourGrid {
               segment,
               // An event is picked up by the part on the day it starts; one still saving waits.
               movable: !readOnly && !event.pending && !segment.continuesBefore,
+              // Its end is pulled from its bottom edge, on the day it both starts and ends.
+              resizable: !readOnly && !event.pending && !segment.continuesBefore && !segment.continuesAfter,
               title: event.title,
               color: member?.color ?? FAMILY_COLOR,
               initial: member?.initial ?? 'F',
@@ -920,16 +1019,18 @@ export class HourGrid {
               short,
               narrow: segment.lanes >= 3,
               reach: reach(height, segment.room),
+              gripBelow: gripBelow(segment.room),
               lines:
                 this.variant() === 'day'
                   ? Math.max(1, Math.floor((height - 18 - layout.dayTime - (place ? layout.dayLine : 0)) / layout.dayLine))
                   : short
                     ? Math.max(1, Math.floor((height - 4) / layout.lineHeight))
                     : Math.max(1, Math.floor((height - layout.titleTop - titleBottom) / layout.lineHeight)),
-              time: segment.continuesBefore ? `Until ${shortTime(timeIn(zone, event.endsAt!))}` : shortTime(timeIn(zone, event.startsAt!)),
-              range: timeRange(event, zone),
+              soon,
+              time: soon !== null ? `In ${soon} min` : segment.continuesBefore ? `Until ${shortTime(timeIn(zone, event.endsAt!))}` : shortTime(timeIn(zone, event.startsAt!)),
+              range: soon !== null ? `In ${soon} min · ${timeRange(event, zone)}` : timeRange(event, zone),
               place,
-              label: `${event.title}, ${weekday} ${timeRange(event, zone)}, ${who}${readOnly ? ', read only' : ''}${event.pending ? ', saving' : ''}`,
+              label: `${event.title}, ${weekday} ${timeRange(event, zone)}${soon !== null ? `, starts in ${soon} ${soon === 1 ? 'minute' : 'minutes'}` : ''}, ${who}${readOnly ? ', read only' : ''}${event.pending ? ', saving' : ''}`,
             };
           }),
           more: more.map((block) => {
@@ -1009,7 +1110,11 @@ export class HourGrid {
    * A press on an event: a mouse or pen that moves drags it, and a finger picks it up by holding
    * still for a moment. A press that never becomes a drag stays a tap and opens the event.
    */
-  protected press(event: PointerEvent, segment: TimedSegment, column: GridColumn, movable: boolean): void {
+  protected press(event: PointerEvent, segment: TimedSegment, column: GridColumn, movable: boolean, mode: Drag['mode'] = 'move'): void {
+    if (mode === 'resize') {
+      // The edge is inside the event: the event itself must not also pick it up to move.
+      event.stopPropagation();
+    }
     if (this.choosing()) {
       this.cancel();
     }
@@ -1024,13 +1129,14 @@ export class HourGrid {
     const touch = event.pointerType === 'touch';
     this.drag.set({
       event: segment.event,
+      mode,
       pointerId: event.pointerId,
       touch,
       x: event.clientX,
       y: event.clientY,
       lastX: event.clientX,
       lastY: event.clientY,
-      grab: minute - segment.start,
+      grab: minute - (mode === 'resize' ? segment.end : segment.start),
       fromColumn: column.key,
       fromDay: column.day,
       fromStart: segment.start,
@@ -1038,6 +1144,8 @@ export class HourGrid {
       column: column.key,
       day: column.day,
       start: segment.start,
+      fromEnd: segment.end,
+      end: segment.end,
     });
     if (touch) {
       this.longPress = window.setTimeout(() => this.pickUp(), LONG_PRESS);
@@ -1065,9 +1173,16 @@ export class HourGrid {
     if (!drag) {
       return;
     }
-    const draft = movedTo(drag.event, drag.day, clock(drag.start), this.zone());
+    const draft = this.draftFor(drag);
     // The calendar shows the move at once and says if it could not be saved, putting the event back.
     this.calendar.update(drag.event.id, requestOf(draft), series).subscribe({ error: () => undefined });
+  }
+
+  /** The event as a drag would leave it: moved, keeping its length, or with its new end. */
+  private draftFor(drag: Drag) {
+    return drag.mode === 'resize'
+      ? resizedTo(drag.event, drag.end, this.zone())
+      : movedTo(drag.event, drag.day, clock(drag.start), this.zone());
   }
 
   /** Lets go of a drag, or of a question about one, leaving the event where it was. */
@@ -1137,6 +1252,13 @@ export class HourGrid {
       return;
     }
     const { first, last } = this.scale();
+    if (drag.mode === 'resize') {
+      // The end follows the pointer, wherever on the grip it was taken, at least a step after the start.
+      const end = Math.round((minute - drag.grab) / STEP_MINUTES) * STEP_MINUTES;
+      this.drag.set({ ...drag, lastX: x, lastY: y, end: Math.min(Math.max(end, drag.start + STEP_MINUTES), Math.min(last * 60, 24 * 60)) });
+      this.scrollAtEdge();
+      return;
+    }
     const columns = this.columns();
     const elements = Array.from(this.host.nativeElement.querySelectorAll<HTMLElement>('.column'));
     let index = elements.findIndex((element) => x < element.getBoundingClientRect().right);
@@ -1160,7 +1282,7 @@ export class HourGrid {
     setTimeout(() => (this.swallowClick = false));
     clearTimeout(this.longPress);
     cancelAnimationFrame(this.edgeFrame);
-    if (drag.day === drag.fromDay && drag.start === drag.fromStart) {
+    if (drag.day === drag.fromDay && drag.start === drag.fromStart && drag.end === drag.fromEnd) {
       this.stop();
     } else if (drag.event.recurring) {
       // Keep the preview where it was dropped while the question is open.

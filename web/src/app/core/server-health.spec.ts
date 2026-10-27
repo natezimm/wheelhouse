@@ -13,7 +13,10 @@ describe('ServerHealth', () => {
     http = TestBed.inject(HttpTestingController);
   });
 
-  afterEach(() => http.verify());
+  afterEach(() => {
+    http.match((r) => r.url === '/api/calendar/countdowns');
+    http.verify();
+  });
 
   it('is checking until the first answer arrives', () => {
     health.check();

@@ -112,6 +112,9 @@ namespace Wheelhouse.Api.Data.Migrations
                     b.Property<Guid>("CalendarSourceId")
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("Countdown")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Description")
                         .HasMaxLength(8192)
                         .HasColumnType("character varying(8192)");

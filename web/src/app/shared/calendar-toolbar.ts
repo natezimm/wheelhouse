@@ -232,6 +232,11 @@ import { CalendarView, Period, VIEWS } from '../core/calendar-period';
       justify-content: center;
     }
 
+    /* A connection problem takes the room it needs; anything in the extras slot gives way first. */
+    :host(.wall) .status:has(.pill) {
+      flex: 0 1 auto;
+    }
+
     :host(.wall) .view-switch {
       padding: 4px;
     }

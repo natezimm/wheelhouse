@@ -238,6 +238,24 @@ public sealed class GoogleCalendarApiTests
     }
 
     [Fact]
+    public async Task A_countdown_is_a_hidden_tag_kept_beside_the_people_and_sent_only_when_set()
+    {
+        var sent = new List<string>();
+        var api = ApiOver((_, _) => (HttpStatusCode.OK,
+            """{"id":"trip","etag":"\"1\"","status":"confirmed","summary":"Trip","extendedProperties":{"private":{"wheelhouseCountdown":"1"}},"start":{"date":"2026-11-14"},"end":{"date":"2026-11-16"}}"""), sent);
+        var draft = new GoogleEventDraft("Trip", null, null, null, new DateOnly(2026, 11, 14), new DateOnly(2026, 11, 16), "America/New_York");
+        var member = Guid.NewGuid();
+
+        var trip = await api.GetEventAsync("access", "cal", "trip", CancellationToken.None);
+        await api.PatchEventAsync("access", "cal", "trip", "\"1\"", draft, CancellationToken.None);
+        await api.PatchEventAsync("access", "cal", "trip", "\"1\"", draft with { Countdown = false, MemberIds = [member] }, CancellationToken.None);
+
+        Assert.True(trip!.Countdown);
+        Assert.DoesNotContain("extendedProperties", sent[0]);
+        Assert.Contains($"\"private\":{{\"wheelhouseMembers\":\"{member}\",\"wheelhouseCountdown\":\"\"}}", sent[1]);
+    }
+
+    [Fact]
     public async Task Google_refusing_a_stale_change_or_missing_the_event_is_told_apart()
     {
         var draft = new GoogleEventDraft("Swim", null, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch.AddHours(1), null, null, "UTC");

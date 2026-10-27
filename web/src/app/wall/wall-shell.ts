@@ -11,6 +11,7 @@ import { CalendarConnection } from '../shared/calendar-connection';
 import { CalendarFilter } from '../shared/calendar-filter';
 import { CalendarSaveStatus } from '../shared/calendar-save-status';
 import { CalendarToolbar } from '../shared/calendar-toolbar';
+import { CountdownStrip } from '../shared/countdown-strip';
 import { DemoNotice } from '../shared/demo-notice';
 import { EventDetails } from '../shared/event-details';
 import { DayView } from './day-view';
@@ -39,6 +40,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
     CalendarFilter,
     CalendarSaveStatus,
     CalendarToolbar,
+    CountdownStrip,
     DayView,
     DemoNotice,
     EventDetails,
@@ -91,6 +93,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
           (add)="addEvent()"
         >
           <app-calendar-connection status layout="wall" />
+          <app-countdown-strip extras layout="wall" />
         </app-calendar-toolbar>
       } @else {
         <app-calendar-connection layout="wall" />
@@ -246,6 +249,14 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
     app-calendar-toolbar {
       height: 64px;
       flex-shrink: 0;
+    }
+
+    /* Countdowns give way, ending their titles early, before the controls or a connection problem do. */
+    app-countdown-strip {
+      flex: 0 1000 auto;
+      min-width: 0;
+      max-width: 44%;
+      margin-right: 8px;
     }
 
     /* The calendar fills its card edge to edge, unlike the forms' cards. */

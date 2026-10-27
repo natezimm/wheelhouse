@@ -20,7 +20,10 @@ describe('Settings', () => {
     displays = [];
   });
 
-  afterEach(() => http.verify());
+  afterEach(() => {
+    http.match((r) => r.url === '/api/calendar/countdowns');
+    http.verify();
+  });
 
   /** Opens Settings with the family loaded. */
   async function open() {

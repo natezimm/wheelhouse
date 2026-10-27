@@ -95,6 +95,11 @@ import { RepeatPicker } from '../shared/repeat-picker';
           </label>
         }
 
+        <label class="all-day">
+          <input type="checkbox" [checked]="draft.countdown" (change)="set({ countdown: $any($event.target).checked })" />
+          <span>Count down <small>The wall shows the days left</small></span>
+        </label>
+
         <div class="pair">
           <label class="field">
             {{ draft.allDay ? 'First day' : 'Starts' }}

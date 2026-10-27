@@ -5,11 +5,12 @@ import { Day, addDays, dayIn, formatDay, startOfWeek } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { CalendarFilter } from '../shared/calendar-filter';
 import { AgendaList } from './agenda-list';
+import { CountdownStrip } from '../shared/countdown-strip';
 
 /** The phone's day: a strip of the week to move around it, the people, then the day's agenda. */
 @Component({
   selector: 'app-phone-day',
-  imports: [AgendaList, CalendarFilter],
+  imports: [AgendaList, CalendarFilter, CountdownStrip],
   template: `
     @if (strip(); as strip) {
       <div class="strip" role="group" aria-label="Days this week">
@@ -22,6 +23,7 @@ import { AgendaList } from './agenda-list';
         }
       </div>
     }
+    <app-countdown-strip layout="phone" />
     <app-calendar-filter class="compact" />
     <section [attr.aria-label]="name()">
       <app-agenda-list [day]="focus()" (inspect)="inspect.emit($event)" (add)="add.emit()" />
