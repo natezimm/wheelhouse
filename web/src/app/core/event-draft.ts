@@ -136,6 +136,29 @@ export function draftOf(event: CalendarEvent, timeZone: string): EventDraft {
 }
 
 /**
+ * A new event like <code>event</code>: the same title, place, times, notes, people and privacy,
+ * in <code>calendar</code>, which is its calendar when that takes new events. Copied into another
+ * calendar it keeps its own calendar's owner among its people. It does not repeat, even when
+ * copied from a series, and is not counted down to until marked; everything it keeps is sent, since nothing holds it yet.
+ */
+export function copyOf(event: CalendarEvent, calendar: Pick<CalendarSource, 'id' | 'memberId'>, timeZone: string): EventDraft {
+  const draft = draftOf(event, timeZone);
+  const owners = calendar.id !== event.calendarId && event.memberId ? [event.memberId, ...draft.people] : draft.people;
+  return {
+    ...draft,
+    calendarId: calendar.id,
+    people: [...new Set(owners)].filter((id) => id !== calendar.memberId),
+    recurrence: null,
+    recurrenceFrom: null,
+    notesFrom: '',
+    peopleFrom: [],
+    privateFrom: false,
+    countdown: false,
+    countdownFrom: false,
+  };
+}
+
+/**
  * A draft put back on <code>original</code>'s day, all day or timed as it was, keeping its new
  * times and length: a change to a whole series keeps each event on its own day.
  */

@@ -173,7 +173,9 @@ test('a repeating event asks whether to move it alone or the whole series, and E
   await writes[0].route.fulfill({ status: 200, json: { ...events[1], startsAt: '2026-10-14T14:30:00Z', endsAt: '2026-10-14T15:30:00Z' } });
   await expect(page.locator('app-calendar-save-status')).toHaveCount(1);
 
-  // To another day a whole series cannot follow, since each event keeps its own day.
+  // To another day a whole series cannot follow, since each event keeps its own day. It can be
+  // picked up again once its save is confirmed.
+  await expect(piano).not.toHaveClass(/calendar-pending/);
   const again = center(await piano.boundingBox());
   await page.mouse.move(again.x, again.y);
   await page.mouse.down();

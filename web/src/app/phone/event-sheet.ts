@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, input, linkedSignal, output, signal } from '@angular/core';
 import { CalendarEvent, CalendarStore, eventRefusal } from '../core/calendar';
 import { Day } from '../core/days';
-import { EventDraft, draftOf, newDraft, onDayOf, peopleChoices, problemWith, requestOf, revise, togglePerson, writableCalendars } from '../core/event-draft';
+import { EventDraft, copyOf, draftOf, newDraft, onDayOf, peopleChoices, problemWith, requestOf, revise, togglePerson, writableCalendars } from '../core/event-draft';
 import { FamilyStore } from '../core/family';
 import { SessionStore } from '../core/session';
 import { ModalFocus } from '../shared/modal-focus';
@@ -313,6 +313,9 @@ export class EventSheet {
   /** Opens straight to asking whether to delete the event, as Delete in its details does. */
   readonly deleting = input(false);
 
+  /** An event to start a new one from, as Duplicate in its details does. */
+  readonly copy = input<CalendarEvent | null>(null);
+
   readonly closed = output<void>();
 
   protected readonly choices = computed(() => writableCalendars(this.calendar.calendars(), this.family.members()));
@@ -332,6 +335,12 @@ export class EventSheet {
     }
     if (event) {
       return draftOf(event, family.timeZone);
+    }
+    const copy = this.copy();
+    if (copy && first) {
+      const id = this.choices().some((choice) => choice.id === copy.calendarId) ? copy.calendarId : first.id;
+      const calendar = this.calendar.calendars().find((c) => c.id === id) ?? { id, memberId: null };
+      return copyOf(copy, calendar, family.timeZone);
     }
     return first ? newDraft(this.day(), first.id, family.timeZone, new Date(), this.at()) : null;
   });

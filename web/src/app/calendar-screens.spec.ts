@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from './app.routes';
+import { shortcutOf } from './shared/shortcut-help';
 import { CalendarEvent, CalendarStore } from './core/calendar';
 import { FamilyStore } from './core/family';
 import { VIEW_STORAGE_KEY } from './core/view-preferences';
@@ -573,6 +574,62 @@ describe('calendar screens', () => {
       expect(texts(page.querySelectorAll('nav.rail a'))).toEqual(['Calendar', 'Settings']);
       expect(page.querySelector('app-phone-nav')).toBeNull();
       expect(column(page, 'Monday, October 12')).toContain('Dentist');
+    });
+
+    it('answers to keyboard shortcuts, but not while typing or with an editor open', async () => {
+      const { page, settle } = await open('/', { from: '2026-10-12', to: '2026-10-19' });
+      const press = async (key: string, target: EventTarget = document) => {
+        target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
+        await settle();
+      };
+
+      await press('j');
+      http.expectOne((r) => r.params.get('from') === '2026-10-19').flush({ calendars: marloweCalendars, events });
+      expect(shownTitle(page)).toBe('October 19 – 25 2026');
+      await press('t');
+      expect(shownTitle(page)).toBe('October 12 – 18 2026');
+      await press('D');
+      http.match((r) => r.url === '/api/calendar').forEach((r) => r.flush({ calendars: marloweCalendars, events }));
+      expect(page.querySelector('app-day-view')).not.toBeNull();
+      await press('w');
+      http.match((r) => r.url === '/api/calendar').forEach((r) => r.flush({ calendars: marloweCalendars, events }));
+      expect(page.querySelector('app-week-view')).not.toBeNull();
+
+      // ? lists them; nothing else answers until it closes.
+      await press('?');
+      const help = page.querySelector<HTMLElement>('app-shortcut-help [role="dialog"]')!;
+      expect(help.textContent).toContain('Go to today');
+      await press('m');
+      expect(page.querySelector('app-week-view')).not.toBeNull();
+      help.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await settle();
+      expect(page.querySelector('app-shortcut-help')).toBeNull();
+
+      // E edits the open event; typing in its editor is only typing.
+      page.querySelector<HTMLButtonElement>('[aria-label^="Swim lesson"]')!.click();
+      await settle();
+      await press('j');
+      expect(shownTitle(page)).toBe('October 12 – 18 2026');
+      await press('e');
+      expect(page.querySelector('app-event-dialog h1')?.textContent).toBe('Edit event');
+      await press('j', page.querySelector('#event-title')!);
+      await press('j');
+      expect(shownTitle(page)).toBe('October 12 – 18 2026');
+      page.querySelector('app-event-dialog form')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await settle();
+
+      // Delete asks first, in the editor; C starts a new event.
+      page.querySelector<HTMLButtonElement>('[aria-label^="Swim lesson"]')!.click();
+      await settle();
+      await press('Delete');
+      expect(page.querySelector('app-event-dialog')?.textContent).toContain('Delete');
+      page.querySelector('app-event-dialog form')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await settle();
+      await press('c');
+      expect(page.querySelector('app-event-dialog h1')?.textContent).toBe('New event');
+      // A key held with Ctrl or Command is the browser's.
+      expect(shortcutOf(new KeyboardEvent('keydown', { key: 't', ctrlKey: true }))).toBeNull();
+      expect(shortcutOf(new KeyboardEvent('keydown', { key: 'r', metaKey: true }))).toBeNull();
     });
 
     it('keeps the view and the day when the window narrows, and remembers a view for the context it is in now', async () => {

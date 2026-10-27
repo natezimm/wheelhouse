@@ -79,16 +79,26 @@ import { AvatarFace } from './avatar-face';
         <div class="actions">
           @if (event.hidden) {
             <p class="note">Only a parent can see or change a private event, from their phone.</p>
-          } @else if (!event.canWrite) {
-            <p class="note">This event comes from the {{ event.calendar }} calendar, which Wheelhouse can show but not change.</p>
           } @else {
-            @if (event.saving) {
+            @if (!event.canWrite) {
+              <p class="note">This event comes from the {{ event.calendar }} calendar, which Wheelhouse can show but not change.</p>
+            } @else if (event.saving) {
               <p class="note" role="status">{{ event.saving }}</p>
             }
-            <div class="buttons">
-              <button type="button" class="edit" [disabled]="event.busy" (click)="edit.emit(event.source)">Edit event</button>
-              <button type="button" class="delete" [disabled]="event.busy" (click)="remove.emit(event.source)">Delete</button>
-            </div>
+            @if (event.canWrite || canAdd()) {
+              <div class="buttons">
+                @if (event.canWrite) {
+                  <button type="button" class="edit" [disabled]="event.busy" (click)="edit.emit(event.source)">Edit event</button>
+                }
+                <!-- A copy goes in a calendar that takes new events, so even a read-only event can be copied. -->
+                @if (canAdd()) {
+                  <button type="button" class="duplicate" [class.alone]="!event.canWrite" (click)="duplicate.emit(event.source)">Duplicate</button>
+                }
+                @if (event.canWrite) {
+                  <button type="button" class="delete" [disabled]="event.busy" (click)="remove.emit(event.source)">Delete</button>
+                }
+              </div>
+            }
           }
         </div>
       </section>
@@ -307,6 +317,18 @@ import { AvatarFace } from './avatar-face';
       color: var(--on-primary);
     }
 
+    .duplicate {
+      padding: 0 24px;
+      border: var(--control-border);
+      background: var(--surface);
+      box-shadow: var(--control-shadow);
+      color: var(--ink);
+    }
+
+    .duplicate.alone {
+      flex: 1;
+    }
+
     .delete {
       padding: 0 28px;
       border: 1px solid var(--danger-line);
@@ -385,6 +407,8 @@ import { AvatarFace } from './avatar-face';
       font-size: 17px;
     }
 
+    :host(.desktop) .duplicate,
+    :host(.phone) .duplicate,
     :host(.desktop) .delete,
     :host(.phone) .delete {
       padding: 0 22px;
@@ -411,6 +435,10 @@ export class EventDetails {
   readonly closed = output<void>();
   readonly edit = output<CalendarEvent>();
   readonly remove = output<CalendarEvent>();
+  readonly duplicate = output<CalendarEvent>();
+
+  /** Whether the family has a calendar that takes new events, for Duplicate. */
+  protected readonly canAdd = computed(() => this.calendar.calendars().some((calendar) => calendar.canWrite));
 
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('close');
 
