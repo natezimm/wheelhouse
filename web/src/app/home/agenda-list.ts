@@ -196,7 +196,7 @@ const EARLIER_THAN_MS = 60 * 60_000;
     .end {
       font-size: 13px;
       font-weight: 500;
-      color: var(--faint);
+      color: var(--muted);
     }
 
     .event button {
