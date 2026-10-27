@@ -2,8 +2,8 @@
 
 The API tests talk to a fake Google (`FakeGoogle`, and a stand-in for Google's HTTP endpoints in
 `GoogleCalendarApiTests`). Those fakes are only as right as what we assumed about Google. The live
-check runs the real client (`GoogleCalendarApi`) against a real calendar every night, so a change on
-Google's side, or a wrong assumption, shows up as a red run here instead of on a family's wall.
+check runs the real client (`GoogleCalendarApi`) against a real calendar, so a change on Google's
+side, or a wrong assumption, shows up as a red run here instead of on a family's wall.
 
 `LiveGoogleTests` covers what the screens rely on:
 
@@ -19,8 +19,19 @@ ahead, and delete them afterwards; a failed run's leftovers are deleted by the n
 
 ## Running it
 
-The workflow `.github/workflows/live-google.yml` runs at 09:17 UTC every night and on demand from
-the Actions tab (**Live Google check**, **Run workflow**). It fails until its four secrets are set.
+The workflow `.github/workflows/live-google.yml` runs on demand from the Actions tab (**Live Google
+check**, **Run workflow**), for example before a release that changes how events are read or
+written. It has no schedule yet, so it does not fail every night while its four secrets are unset.
+Once they are set, add a schedule to run it nightly:
+
+```yaml
+on:
+  schedule:
+    - cron: '17 9 * * *'
+  workflow_dispatch:
+```
+
+A run fails until its four secrets are set.
 
 Locally, set the same four variables and run:
 
@@ -58,8 +69,8 @@ Use a Google account made for this, never a family's.
    | `LIVE_GOOGLE_CALENDAR_ID` | the calendar id from step 1 |
 
 6. Run **Live Google check** from the Actions tab once to see it pass.
-
-GitHub emails the person who last changed the workflow's schedule when a scheduled run fails.
+7. To run it nightly, add the schedule shown above. GitHub emails the person who last changed the
+   workflow's schedule when a scheduled run fails.
 
 ## When it fails
 
