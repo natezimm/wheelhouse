@@ -650,6 +650,38 @@ public sealed class EventTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task The_wall_counts_down_to_the_next_marked_events_one_per_series()
+    {
+        using var parent = await factory.DemoVisitorAsync();
+        using var display = await PairedDisplayAsync(parent);
+        var julians = await CalendarIdAsync(parent, "Julian");
+        List<EventResponse> Countdowns(HttpClient client) =>
+            client.GetFromJsonAsync<List<EventResponse>>($"/api/calendar/countdowns?from={Day:yyyy-MM-dd}", ApiFactory.Json).Result!;
+
+        // The demo counts down to the cabin weekend and Nora's birthday.
+        Assert.Equal(["Catskills Cabin Weekend", "Nora's birthday"], Countdowns(parent).Select(e => e.Title));
+
+        var lessons = Timed(julians, "Piano lesson", new(16, 0), new(16, 30)) with { Recurrence = "RRULE:FREQ=WEEKLY;COUNT=3", Countdown = true };
+        var first = await AddAsync(parent, lessons);
+        Assert.True(first.Countdown);
+        var counted = Countdowns(parent);
+        Assert.Equal(["Piano lesson", "Catskills Cabin Weekend", "Nora's birthday"], counted.Select(e => e.Title));
+        Assert.Equal(first.StartsAt, counted[0].StartsAt);
+
+        // A change that leaves it out keeps the countdown; one that says so stops it.
+        (await ChangeAsync(parent, first.Id, Timed(julians, "Piano", new(16, 0), new(16, 30)), series: true)).EnsureSuccessStatusCode();
+        Assert.Equal("Piano", Countdowns(parent)[0].Title);
+        (await ChangeAsync(parent, first.Id, Timed(julians, "Piano", new(16, 0), new(16, 30)) with { Countdown = false }, series: true)).EnsureSuccessStatusCode();
+        Assert.DoesNotContain(Countdowns(parent), e => e.Title == "Piano");
+
+        // A private event is never counted down on a display.
+        var claras = await CalendarIdAsync(parent, "Clara");
+        await AddAsync(parent, Timed(claras, "Surprise party", new(18, 0), new(20, 0)) with { Countdown = true, Private = true });
+        Assert.Contains(Countdowns(parent), e => e.Title == "Surprise party");
+        Assert.DoesNotContain(Countdowns(display), e => e.Title is "Surprise party" or "Busy");
+    }
+
+    [Fact]
     public async Task A_display_cannot_reach_a_private_occurrence_through_its_series()
     {
         using var parent = await factory.DemoVisitorAsync();

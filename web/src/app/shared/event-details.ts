@@ -63,6 +63,12 @@ import { AvatarFace } from './avatar-face';
               <span>{{ event.hidden ? 'Private event' : 'Private · wall displays show it as busy' }}</span>
             </li>
           }
+          @if (event.countdown) {
+            <li>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10M7 21h10M8 3c0 4 8 5 8 9s-8 5-8 9M16 3c0 4-8 5-8 9s8 5 8 9"></path></svg>
+              <span>Counted down on the wall</span>
+            </li>
+          }
           @if (event.notes) {
             <li class="notes">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h14v16H5zM8.5 9h7M8.5 13h7M8.5 17h4"></path></svg>
@@ -435,6 +441,7 @@ export class EventDetails {
       calendar: source?.name ?? 'Unknown',
       canWrite: !!source?.canWrite,
       private: !!event.private,
+      countdown: !!event.countdown,
       hidden: !!event.hidden,
       busy,
       saving: !busy ? null : operation?.status === 'uncertain' ? 'This change may not have saved. Check it from the save notice.' : 'Saving this change…',

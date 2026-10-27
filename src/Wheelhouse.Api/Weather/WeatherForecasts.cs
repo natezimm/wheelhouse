@@ -4,7 +4,7 @@ using Wheelhouse.Api.Families;
 namespace Wheelhouse.Api.Weather;
 
 /// <summary>
-/// Today's weather for a place, asked of Open-Meteo at most once every 30 minutes per place. The
+/// Today's weather and the week's forecast for a place, asked of Open-Meteo at most once every 30 minutes per place. The
 /// demo's visitors all share the Marlowes' city, so they share one cached forecast too.
 /// </summary>
 public sealed class WeatherForecasts(OpenMeteo openMeteo, IMemoryCache cache)
@@ -31,9 +31,27 @@ public sealed class WeatherForecasts(OpenMeteo openMeteo, IMemoryCache cache)
             icon,
             (int)Math.Round(forecast.Daily.High[0]),
             (int)Math.Round(forecast.Daily.Low[0]),
-            family.Units == Units.Metric ? "C" : "F");
+            family.Units == Units.Metric ? "C" : "F",
+            DaysOf(forecast.Daily));
 
         return cache.Set(key, weather, KeepFor);
+    }
+
+    /// <summary>Each day of the forecast, today first, with its daytime icon; none when Open-Meteo sent no dates.</summary>
+    private static IReadOnlyList<ForecastDay> DaysOf(OpenMeteo.Daily daily)
+    {
+        if (daily.Dates is not { } dates || daily.WeatherCodes is not { } codes)
+        {
+            return [];
+        }
+
+        var count = new[] { dates.Length, codes.Length, daily.High.Length, daily.Low.Length }.Min();
+        return Enumerable.Range(0, count).Select(i =>
+        {
+            var (description, icon) = Describe(codes[i], isDay: true);
+            return new ForecastDay(DateOnly.ParseExact(dates[i], "yyyy-MM-dd"), description, icon,
+                (int)Math.Round(daily.High[i]), (int)Math.Round(daily.Low[i]));
+        }).ToList();
     }
 
     /// <summary>Words and an icon for a WMO weather code, as Open-Meteo reports it.</summary>
@@ -66,5 +84,12 @@ public enum WeatherIcon
     Storm,
 }
 
-/// <summary>Today's weather where the family lives, in its own units.</summary>
-public sealed record WeatherResponse(int Temperature, string Description, WeatherIcon Icon, int High, int Low, string Unit);
+/// <summary>
+/// Today's weather where the family lives, in its own units, and the forecast for the coming
+/// week by the family's days, today first.
+/// </summary>
+public sealed record WeatherResponse(int Temperature, string Description, WeatherIcon Icon, int High, int Low, string Unit,
+    IReadOnlyList<ForecastDay>? Days = null);
+
+/// <summary>One day of the forecast: its weather in words and an icon, and its high and low.</summary>
+public sealed record ForecastDay(DateOnly Date, string Description, WeatherIcon Icon, int High, int Low);

@@ -77,11 +77,11 @@ public sealed class LiveGoogleTests : IAsyncLifetime
         new($"{Marker}: {title}", "Library", startsAt, startsAt.AddHours(1), null, null, Zone, recurrence);
 
     [LiveGoogleFact]
-    public async Task An_event_keeps_its_notes_people_and_privacy_and_refuses_a_stale_etag()
+    public async Task An_event_keeps_its_notes_people_privacy_and_countdown_and_refuses_a_stale_etag()
     {
         var people = new[] { Guid.NewGuid(), Guid.NewGuid() };
         var added = await google.InsertEventAsync(token, Calendar,
-            Draft("story time", Start) with { Description = "Bring <b>library cards</b>", MemberIds = people, Private = true },
+            Draft("story time", Start) with { Description = "Bring <b>library cards</b>", MemberIds = people, Private = true, Countdown = true },
             CancellationToken.None);
 
         var read = await google.GetEventAsync(token, Calendar, added.Id, CancellationToken.None);
@@ -91,13 +91,15 @@ public sealed class LiveGoogleTests : IAsyncLifetime
         Assert.Equal("Bring <b>library cards</b>", read.Description);
         Assert.Equal(people, read.MemberIds);
         Assert.True(read.Private);
+        Assert.True(read.Countdown);
 
-        // A patch that names none of them leaves notes, people and privacy as they were.
+        // A patch that names none of them leaves notes, people, privacy and the countdown as they were.
         var moved = await google.PatchEventAsync(token, Calendar, added.Id, read.ETag, Draft("story time", Start.AddHours(2)), CancellationToken.None);
         Assert.Equal(Start.AddHours(2), moved.StartsAt);
         Assert.Equal("Bring <b>library cards</b>", moved.Description);
         Assert.Equal(people, moved.MemberIds);
         Assert.True(moved.Private);
+        Assert.True(moved.Countdown);
         Assert.NotEqual(read.ETag, moved.ETag);
 
         // The version the screen was editing is gone, so Google refuses a change or delete made with it.
@@ -106,11 +108,12 @@ public sealed class LiveGoogleTests : IAsyncLifetime
         await Assert.ThrowsAsync<GoogleEventChangedException>(() =>
             google.DeleteEventAsync(token, Calendar, added.Id, read.ETag, CancellationToken.None));
 
-        // An empty tag clears the people, and privacy can be turned off.
+        // An empty tag clears the people, and privacy and the countdown can be turned off.
         var cleared = await google.PatchEventAsync(token, Calendar, added.Id, moved.ETag,
-            Draft("story time", Start.AddHours(2)) with { MemberIds = [], Private = false }, CancellationToken.None);
+            Draft("story time", Start.AddHours(2)) with { MemberIds = [], Private = false, Countdown = false }, CancellationToken.None);
         Assert.Null(cleared.MemberIds);
         Assert.False(cleared.Private);
+        Assert.False(cleared.Countdown);
 
         await google.DeleteEventAsync(token, Calendar, added.Id, cleared.ETag, CancellationToken.None);
         Assert.Null(await google.GetEventAsync(token, Calendar, added.Id, CancellationToken.None));

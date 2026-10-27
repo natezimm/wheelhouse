@@ -57,6 +57,7 @@ describe('optimistic calendar operations', () => {
     read().flush(snapshot([first, second, unrelated]));
   });
   afterEach(() => {
+    http.match((r) => r.url === '/api/calendar/countdowns');
     http.verify();
     vi.useRealTimers();
   });

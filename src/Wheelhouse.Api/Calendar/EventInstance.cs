@@ -64,5 +64,11 @@ public sealed class EventInstance : IFamilyOwned
     /// </summary>
     public bool IsPrivate { get; set; }
 
+    /// <summary>
+    /// The wall counts down the days to it, kept in a hidden tag on the Google event
+    /// (<see cref="GoogleCalendarApi.CountdownKey"/>).
+    /// </summary>
+    public bool Countdown { get; set; }
+
     public bool IsAllDay => StartDate is not null;
 }

@@ -6,6 +6,7 @@ import { Day, addDays, dayIn, formatDay, startOfWeek, timeIn } from '../core/day
 import { FamilyStore } from '../core/family';
 import { GridColumn, GridNote, GridSlot, HourGrid } from './hour-grid';
 import { AvatarFace } from '../shared/avatar-face';
+import { DayForecast } from '../shared/day-forecast';
 
 export type { GridSlot } from './hour-grid';
 
@@ -16,7 +17,7 @@ export type { GridSlot } from './hour-grid';
  */
 @Component({
   selector: 'app-week-view',
-  imports: [AvatarFace, HourGrid],
+  imports: [AvatarFace, DayForecast, HourGrid],
   host: { '[class]': 'layout()' },
   template: `
     @if (week(); as week) {
@@ -26,6 +27,7 @@ export type { GridSlot } from './hour-grid';
           <button type="button" class="head" [class.today]="day.isToday" [attr.aria-label]="'Open ' + day.name" (click)="openDay.emit(day.day)">
             <span class="dow">{{ day.dow }}</span>
             <span class="num">{{ day.num }}</span>
+            <app-day-forecast [day]="day.day" />
           </button>
         }
       </div>
@@ -124,6 +126,15 @@ export type { GridSlot } from './hour-grid';
 
     .head.today {
       background: var(--today-head);
+    }
+
+    .head app-day-forecast {
+      margin-left: auto;
+    }
+
+    :host(.desktop) .head app-day-forecast {
+      font-size: 12px;
+      --forecast-icon: 18px;
     }
 
     .dow {

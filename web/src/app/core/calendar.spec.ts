@@ -59,7 +59,10 @@ describe('CalendarStore', () => {
     http = TestBed.inject(HttpTestingController);
   });
 
-  afterEach(() => http.verify());
+  afterEach(() => {
+    http.match((r) => r.url === '/api/calendar/countdowns');
+    http.verify();
+  });
 
   const respond = (events = [dentist, trash]) =>
     http
@@ -164,7 +167,10 @@ describe('calendar snapshot recovery', () => {
     http = TestBed.inject(HttpTestingController);
     store.show('2026-10-12', '2026-10-19');
   });
-  afterEach(() => http.verify());
+  afterEach(() => {
+    http.match((r) => r.url === '/api/calendar/countdowns');
+    http.verify();
+  });
 
   it('acknowledges snapshots, ignores duplicate/invalid notifications, and coalesces gaps', () => {
     read().flush(snapshot(5));

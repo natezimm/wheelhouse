@@ -55,7 +55,10 @@ describe('calendar connection controls', () => {
     read().flush(snapshot());
     fixture = TestBed.createComponent(CalendarConnection);
   });
-  afterEach(() => http.verify());
+  afterEach(() => {
+    http.match((r) => r.url === '/api/calendar/countdowns');
+    http.verify();
+  });
 
   it('distinguishes the live connection from snapshot progress and exposes a disabled busy action', async () => {
     await settle();

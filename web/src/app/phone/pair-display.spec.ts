@@ -20,6 +20,7 @@ describe('PairDisplay', () => {
     http.match('/api/family');
     http.match('/api/devices');
     http.match('/api/calendar/google');
+    http.match((r) => r.url === '/api/calendar/countdowns');
     http.verify();
   });
 
