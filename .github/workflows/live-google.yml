@@ -1,10 +1,9 @@
 name: Live Google check
 
-# Runs the real Google client against a test account's calendar each night, so a change on
-# Google's side shows up here before a family notices it. Setup: docs/live-google-check.md.
+# Runs the real Google client against a test account's calendar, so a change on Google's side
+# shows up here before a family notices it. Manual only for now; to run it nightly once the
+# secrets are set, add `schedule: [{ cron: '17 9 * * *' }]`. Setup: docs/live-google-check.md.
 on:
-  schedule:
-    - cron: '17 9 * * *'
   workflow_dispatch:
 
 permissions:

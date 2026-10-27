@@ -31,7 +31,7 @@ The `stack` CI job builds the whole app with `docker compose`, runs `deploy/smok
 
 There is no linter. Prettier settings live in `web/.prettierrc` but are not enforced, and some files do not match them, so do not reformat files you are not otherwise changing.
 
-The API tests start their own PostgreSQL with Testcontainers. They never use the Compose database. `LiveGoogleTests` are the exception that calls Google: they skip unless the `LIVE_GOOGLE_*` variables are set, and `live-google.yml` runs them nightly against a test account's calendar. When the Google client learns something new, add it there as well as to `FakeGoogle`. Before a calendar release, run the manual [parity checklist](docs/calendar-parity-checklist.md).
+The API tests start their own PostgreSQL with Testcontainers. They never use the Compose database. `LiveGoogleTests` are the exception that calls Google: they skip unless the `LIVE_GOOGLE_*` variables are set, and `live-google.yml` runs them on demand (no schedule until its secrets are set) against a test account's calendar. When the Google client learns something new, add it there as well as to `FakeGoogle`. Before a calendar release, run the manual [parity checklist](docs/calendar-parity-checklist.md).
 
 ## Architecture
 
