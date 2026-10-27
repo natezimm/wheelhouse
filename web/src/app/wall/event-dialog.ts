@@ -6,6 +6,7 @@ import {
   EventDraft,
   STEP_MINUTES,
   clockLabel,
+  copyOf,
   draftOf,
   moveDays,
   moveEnd,
@@ -588,6 +589,9 @@ export class EventDialog {
   /** Opens straight to asking whether to delete the event, as Delete in its details does. */
   readonly deleting = input(false);
 
+  /** An event to start a new one from, as Duplicate in its details does. */
+  readonly copy = input<CalendarEvent | null>(null);
+
   readonly closed = output<void>();
 
   protected readonly step = STEP_MINUTES;
@@ -617,6 +621,11 @@ export class EventDialog {
     }
     if (event) {
       return draftOf(event, family.timeZone);
+    }
+    const copy = this.copy();
+    if (copy && first) {
+      const own = this.choices().some((choice) => choice.id === copy.calendarId);
+      return copyOf(copy, own ? copy.calendarId : first.id, family.timeZone);
     }
     return first ? newDraft(this.day(), first.id, family.timeZone, new Date(), this.at()) : null;
   });

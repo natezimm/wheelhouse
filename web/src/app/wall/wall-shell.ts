@@ -127,12 +127,12 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
         }
         <app-calendar-save-status class="toast" />
         @if (selected(); as id) {
-          <app-event-details [eventId]="id" layout="wall" (closed)="selected.set(null)" (edit)="editEvent($event)" (remove)="editEvent($event, true)" />
+          <app-event-details [eventId]="id" layout="wall" (closed)="selected.set(null)" (edit)="editEvent($event)" (remove)="editEvent($event, true)" (duplicate)="duplicate($event)" />
         }
       </section>
 
       @if (editing(); as open) {
-        <app-event-dialog [event]="open.event" [day]="open.day" [at]="open.at" [deleting]="open.deleting" (closed)="editing.set(null)" />
+        <app-event-dialog [event]="open.event" [day]="open.day" [at]="open.at" [deleting]="open.deleting" [copy]="open.copy ?? null" (closed)="editing.set(null)" />
       }
     }
   `,
@@ -317,7 +317,7 @@ export class WallShell {
   protected readonly selected = signal<string | null>(null);
 
   /** The event being added (no event) or changed in the dialog, or null when it is closed. */
-  protected readonly editing = signal<{ event: CalendarEvent | null; day: Day; at: string | null; deleting: boolean } | null>(null);
+  protected readonly editing = signal<{ event: CalendarEvent | null; day: Day; at: string | null; deleting: boolean; copy?: CalendarEvent } | null>(null);
   private readonly dialog = viewChild(EventDialog);
   private readonly week = viewChild(WeekView);
   private readonly dayView = viewChild(DayView);
@@ -423,6 +423,12 @@ export class WallShell {
   protected editEvent(event: CalendarEvent, deleting = false): void {
     this.selected.set(null);
     this.editing.set({ event, day: event.startDate ?? dayIn(this.family.family()!.timeZone, event.startsAt!), at: null, deleting });
+  }
+
+  /** Duplicate in an event's details opens a new event like it, in the editor. */
+  protected duplicate(event: CalendarEvent): void {
+    this.selected.set(null);
+    this.editing.set({ event: null, day: event.startDate ?? dayIn(this.family.family()!.timeZone, event.startsAt!), at: null, deleting: false, copy: event });
   }
 
   /** A day tapped in the month or the week opens on its own. */

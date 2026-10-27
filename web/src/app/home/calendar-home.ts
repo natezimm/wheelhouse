@@ -17,6 +17,7 @@ import { CalendarSaveStatus } from '../shared/calendar-save-status';
 import { CalendarToolbar } from '../shared/calendar-toolbar';
 import { DemoNotice } from '../shared/demo-notice';
 import { EventDetails } from '../shared/event-details';
+import { ShortcutHelp, shortcutOf } from '../shared/shortcut-help';
 import { WeatherIcon } from '../shared/weather-icon';
 import { DayView } from '../wall/day-view';
 import { EventDialog } from '../wall/event-dialog';
@@ -52,13 +53,14 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
     PhoneMonth,
     PhoneNav,
     PhoneWeek,
+    ShortcutHelp,
     RouterLink,
     RouterLinkActive,
     SignIn,
     WeatherIcon,
     WeekView,
   ],
-  host: { '[class.wide]': 'wide()' },
+  host: { '[class.wide]': 'wide()', '(document:keydown)': 'shortcut($event)' },
   template: `
     @if (wide()) {
       <nav class="rail" aria-label="Sections">
@@ -124,8 +126,11 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
             }
           }
           <app-calendar-save-status class="toast" />
+          @if (helping()) {
+            <app-shortcut-help (closed)="helping.set(false)" />
+          }
           @if (selected(); as id) {
-            <app-event-details [eventId]="id" layout="desktop" (closed)="selected.set(null)" (edit)="edit($event)" (remove)="edit($event, true)" />
+            <app-event-details [eventId]="id" layout="desktop" (closed)="selected.set(null)" (edit)="edit($event)" (remove)="edit($event, true)" (duplicate)="duplicate($event)" />
           }
         </section>
       } @else {
@@ -184,15 +189,15 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
     @if (!wide()) {
       <app-phone-nav />
       @if (selected(); as id) {
-        <app-event-details [eventId]="id" layout="phone" (closed)="selected.set(null)" (edit)="edit($event)" (remove)="edit($event, true)" />
+        <app-event-details [eventId]="id" layout="phone" (closed)="selected.set(null)" (edit)="edit($event)" (remove)="edit($event, true)" (duplicate)="duplicate($event)" />
       }
     }
 
     @if (editing(); as open) {
       @if (open.wide) {
-        <app-event-dialog [event]="open.event" [day]="open.day" [at]="open.at" [deleting]="open.deleting" (closed)="editing.set(null)" />
+        <app-event-dialog [event]="open.event" [day]="open.day" [at]="open.at" [deleting]="open.deleting" [copy]="open.copy ?? null" (closed)="editing.set(null)" />
       } @else {
-        <app-event-sheet [event]="open.event" [day]="open.day" [at]="open.at" [deleting]="open.deleting" (closed)="editing.set(null)" />
+        <app-event-sheet [event]="open.event" [day]="open.day" [at]="open.at" [deleting]="open.deleting" [copy]="open.copy ?? null" (closed)="editing.set(null)" />
       }
     }
   `,
@@ -486,7 +491,10 @@ export class CalendarHome {
   protected readonly selected = signal<string | null>(null);
 
   /** The event being added (no event) or changed, and whether it opened in the desktop editor. */
-  protected readonly editing = signal<{ event: CalendarEvent | null; day: Day; wide: boolean; at: string | null; deleting: boolean } | null>(null);
+  protected readonly editing = signal<{ event: CalendarEvent | null; day: Day; wide: boolean; at: string | null; deleting: boolean; copy?: CalendarEvent } | null>(null);
+
+  /** Whether the list of keyboard shortcuts is open. */
+  protected readonly helping = signal(false);
 
   protected readonly canAdd = computed(() => this.calendar.calendars().some((calendar) => calendar.canWrite));
 
@@ -542,6 +550,53 @@ export class CalendarHome {
     });
   }
 
+  /**
+   * A desktop window answers to keys, as a desktop calendar does: T for today, J/K or N/P to step,
+   * D, W and M for the views, C for a new event, and, with an event's details open, E to edit it
+   * and Delete to delete it. ? lists them. Nothing answers while an editor or the list is open.
+   */
+  protected shortcut(event: KeyboardEvent): void {
+    const action = shortcutOf(event);
+    if (!action || !this.wide() || this.signingIn() || this.editing() || this.helping() || !this.period()) {
+      return;
+    }
+    const id = this.selected();
+    if (id) {
+      const open = this.calendar.allEvents().find((e) => e.id === id);
+      const writable = !!open && !open.hidden && !open.pending && !this.calendar.isPending(open.id)
+        && !!this.calendar.calendars().find((c) => c.id === open.calendarId)?.canWrite;
+      if ((action === 'edit' || action === 'delete') && open && writable) {
+        event.preventDefault();
+        this.edit(open, action === 'delete');
+      }
+      return;
+    }
+    if (action === 'edit' || action === 'delete' || (action === 'create' && !this.canAdd())) {
+      return;
+    }
+    event.preventDefault();
+    switch (action) {
+      case 'today':
+        this.focus.set(null);
+        break;
+      case 'next':
+      case 'previous':
+        this.step(action === 'next' ? 1 : -1);
+        break;
+      case 'day':
+      case 'week':
+      case 'month':
+        this.choose(action);
+        break;
+      case 'create':
+        this.add();
+        break;
+      case 'help':
+        this.helping.set(true);
+        break;
+    }
+  }
+
   /** A view chosen is remembered for the context the window is in now. */
   protected choose(view: CalendarView): void {
     this.view.set(view);
@@ -582,6 +637,15 @@ export class CalendarHome {
     if (family) {
       this.selected.set(null);
       this.editing.set({ event, day: event.startDate ?? dayIn(family.timeZone, event.startsAt!), wide: this.wide(), at: null, deleting });
+    }
+  }
+
+  /** Duplicate in an event's details opens a new event like it, in the editor. */
+  protected duplicate(event: CalendarEvent): void {
+    const family = this.family.family();
+    if (family) {
+      this.selected.set(null);
+      this.editing.set({ event: null, day: event.startDate ?? dayIn(family.timeZone, event.startsAt!), wide: this.wide(), at: null, deleting: false, copy: event });
     }
   }
 }

@@ -1,6 +1,6 @@
 import { marloweCalendars, allDay, timed } from '../testing/calendar';
 import { marlowes } from '../testing/marlowes';
-import { clockLabel, draftOf, moveDays, moveEnd, moveStart, movedTo, newDraft, onDayOf, peopleChoices, problemWith, requestOf, revise, togglePerson, writableCalendars } from './event-draft';
+import { clockLabel, copyOf, draftOf, moveDays, moveEnd, moveStart, movedTo, newDraft, onDayOf, peopleChoices, problemWith, requestOf, revise, togglePerson, writableCalendars } from './event-draft';
 
 describe('event drafts', () => {
   const zone = 'America/New_York';
@@ -116,6 +116,32 @@ describe('event drafts', () => {
       ['m1', true, true], ['m2', false, true], ['m3', false, true],
     ]);
     expect(peopleChoices({ ...draft, calendarId: 'c4', people: [] }, marloweCalendars, marlowes.members).every((p) => !p.owner && !p.chosen)).toBe(true);
+  });
+
+  it('copy an event as a new one that sends everything it keeps and does not repeat', () => {
+    const therapy = {
+      ...timed('Therapy', 'm2', '2026-10-13T14:00:00Z', '2026-10-13T15:00:00Z', 'Elm St'),
+      private: true,
+      description: 'Bring the form',
+      memberIds: ['m1'],
+      recurring: true,
+      recurrence: 'RRULE:FREQ=WEEKLY',
+    };
+    const copy = copyOf(therapy, 'c1', zone);
+
+    expect(requestOf(copy)).toMatchObject({
+      calendarId: 'c1',
+      title: 'Therapy',
+      location: 'Elm St',
+      startDate: '2026-10-13',
+      startTime: '10:00:00',
+      endTime: '11:00:00',
+      description: 'Bring the form',
+      memberIds: ['m1'],
+      private: true,
+    });
+    expect(requestOf(copy)).not.toHaveProperty('recurrence');
+    expect(requestOf(copyOf(timed('Swim', 'm3', '2026-10-13T21:30:00Z', '2026-10-13T22:15:00Z'), 'c3', zone))).not.toHaveProperty('private');
   });
 
   it('send privacy only when it changed', () => {

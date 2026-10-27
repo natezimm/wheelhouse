@@ -55,6 +55,35 @@ describe('event screens', () => {
   }
 
   describe('on the wall', () => {
+    it('duplicates an event into a new one like it, sending what it copies', async () => {
+      const { page, settle } = await open('/wall');
+
+      page.querySelector<HTMLButtonElement>('[aria-label^="Swim lesson"]')!.click();
+      await settle();
+      button(page.querySelector('app-event-details')!, 'Duplicate').click();
+      await settle();
+      expect(page.querySelector('app-event-details')).toBeNull();
+      const dialog = page.querySelector<HTMLElement>('app-event-dialog form')!;
+      expect(dialog.querySelector('h1')?.textContent).toBe('New event');
+      expect(dialog.querySelector<HTMLInputElement>('#event-title')!.value).toBe('Swim lesson');
+      button(dialog, 'Start later').click();
+      await settle();
+      button(dialog, 'Save event').click();
+
+      const request = http.expectOne({ method: 'POST', url: '/api/calendar/events' });
+      expect(request.request.body).toMatchObject({
+        calendarId: 'c3',
+        title: 'Swim lesson',
+        location: 'Riverside Rec Center',
+        startDate: '2026-10-12',
+        startTime: '17:45:00',
+        endTime: '18:30:00',
+      });
+      expect(request.request.body).not.toHaveProperty('recurrence');
+      request.flush(timed('Swim lesson', 'm3', '2026-10-12T21:45:00Z', '2026-10-12T22:30:00Z'));
+      http.match((r) => r.url === '/api/calendar');
+    });
+
     it('adds a weekly event from the steppers and chips, and shows it once the server has it', async () => {
       const { page, settle } = await open('/wall');
 

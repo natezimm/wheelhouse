@@ -127,6 +127,23 @@ export function draftOf(event: CalendarEvent, timeZone: string): EventDraft {
 }
 
 /**
+ * A new event like <code>event</code>: the same title, place, times, notes, people and privacy,
+ * in <code>calendarId</code>, which is its calendar when that takes new events. It does not repeat,
+ * even when copied from a series; everything it keeps is sent, since nothing holds it yet.
+ */
+export function copyOf(event: CalendarEvent, calendarId: string, timeZone: string): EventDraft {
+  return {
+    ...draftOf(event, timeZone),
+    calendarId,
+    recurrence: null,
+    recurrenceFrom: null,
+    notesFrom: '',
+    peopleFrom: [],
+    privateFrom: false,
+  };
+}
+
+/**
  * A draft put back on <code>original</code>'s day, all day or timed as it was, keeping its new
  * times and length: a change to a whole series keeps each event on its own day.
  */

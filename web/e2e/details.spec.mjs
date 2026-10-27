@@ -127,15 +127,18 @@ test('the keyboard opens an event, stays inside its details and editor, and come
 
   const details = page.getByRole('dialog', { name: 'Swim lesson' });
   await expect(details.getByRole('button', { name: 'Close' })).toBeFocused();
-  // Tab goes round the details: Close, Edit event, Delete, then Close again.
+  // Tab goes round the details: Close, Edit event, Duplicate, Delete, then Close again.
   await page.keyboard.press('Tab');
   await expect(details.getByRole('button', { name: 'Edit event' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(details.getByRole('button', { name: 'Duplicate' })).toBeFocused();
   await page.keyboard.press('Tab');
   await page.keyboard.press('Tab');
   await expect(details.getByRole('button', { name: 'Close' })).toBeFocused();
   await page.keyboard.press('Shift+Tab');
   await expect(details.getByRole('button', { name: 'Delete' })).toBeFocused();
 
+  await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Enter');
   const editor = page.getByRole('dialog', { name: 'Edit event' });
