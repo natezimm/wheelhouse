@@ -154,7 +154,8 @@ for (const layout of ['wall', 'desktop']) {
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await writes[0].route.fulfill({ status: 200, json: { ...events[0], endsAt: '2026-10-12T23:00:00Z' } });
 
-    // It cannot end before a quarter hour after it starts.
+    // It cannot end before a quarter hour after it starts. The grip returns once the save is confirmed.
+    await expect(swim.locator('.resize')).toBeVisible();
     const again = await swim.locator('.resize').boundingBox();
     await page.mouse.move(again.x + again.width / 2, again.y + again.height / 2);
     await page.mouse.down();
