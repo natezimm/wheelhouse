@@ -124,6 +124,8 @@
   --font-time: var(--font-body);
   --display-weight: 600;
   --display-variation: normal;
+  /* About how wide a display letter is, in ems, so the phone's title can size itself to fit. */
+  --title-em: 0.62;
   /* Groovy's three stripes under the wall's header. */
   --band-display: none;
 }
@@ -206,6 +208,7 @@
   --font-body: 'DM Sans', system-ui, sans-serif;
   --display-weight: 800;
   --display-variation: 'SOFT' 100;
+  --title-em: 0.72;
   --band-display: flex;
   --band-1: #d9622b;
   --band-2: #e3a72f;
@@ -355,6 +358,7 @@
   --font-body: 'Space Grotesk', system-ui, sans-serif;
   --font-time: 'IBM Plex Mono', ui-monospace, monospace;
   --display-weight: 700;
+  --title-em: 0.68;
 }
 
 /* Night: every theme's dark, low-glare look, on with data-night always or during the family's

@@ -35,7 +35,7 @@ const WEEKDAY_LETTERS: Record<Weekday, [string, string]> = {
   selector: 'app-repeat-picker',
   template: `
     @if (layout() === 'wall') {
-      <div class="segments" role="group" aria-label="Repeat">
+      <div class="segments presets" role="group" aria-label="Repeat">
         @for (preset of wallPresets(); track preset.id) {
           <button type="button" [attr.aria-pressed]="!customOpen() && chosen()?.id === preset.id" (click)="choose(preset.rule)">{{ preset.short }}</button>
         }
@@ -184,6 +184,15 @@ const WEEKDAY_LETTERS: Record<Weekday, [string, string]> = {
     }
     :host(.wall) .segments button {
       font-size: 17px;
+    }
+
+    /* The ready-made repeats share the row by their words, so "Weekdays" is never cut short. */
+    .presets {
+      display: flex;
+    }
+
+    .presets button {
+      flex: 1 1 auto;
     }
     .segments button[aria-pressed='true'] {
       background: var(--segment);

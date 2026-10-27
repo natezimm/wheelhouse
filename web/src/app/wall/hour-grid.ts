@@ -400,6 +400,16 @@ export interface GridMore {
       margin-left: -9px;
     }
 
+    /* A short event's words fill its height, so its grip sits on the bottom edge instead of over them. */
+    .short .resize::before {
+      bottom: 4px;
+      height: 3px;
+    }
+
+    :host(.wall) .short .resize::before {
+      bottom: calc(var(--grip-below, 0px) - 1px);
+    }
+
     /* Block, not flex, so the title can clamp to the lines that fit. */
     .content {
       display: block;
