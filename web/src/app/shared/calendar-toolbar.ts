@@ -101,7 +101,9 @@ import { CalendarView, Period, VIEWS } from '../core/calendar-period';
       white-space: nowrap;
     }
 
+    /* A little more than a space, so "November 1" and its year never read as one number. */
     .year {
+      margin-left: 0.2em;
       font-weight: 400;
       color: var(--faint);
     }
