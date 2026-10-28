@@ -62,12 +62,7 @@ public static class DemoEndpoints
                 statusCode: StatusCodes.Status429TooManyRequests);
         }
 
-        if (await copies.CreateAsync(cancellationToken) is not { } familyId)
-        {
-            return TypedResults.Problem(
-                "The demo is full right now. Try again later.",
-                statusCode: StatusCodes.Status503ServiceUnavailable);
-        }
+        var familyId = await copies.CreateAsync(cancellationToken);
 
         await calendar.DisconnectAsync(http.User);
         await http.SignInAsync(

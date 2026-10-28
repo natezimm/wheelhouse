@@ -1,4 +1,4 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, firstValueFrom, tap } from 'rxjs';
 
@@ -17,8 +17,8 @@ type SessionState =
   | { status: 'family'; signedIn: boolean; canSignIn: boolean; isDisplay: boolean }
   /** A demo visitor with their own private copy of the demo family. */
   | { status: 'demo'; isDisplay: boolean }
-  /** A demo that has no room for another visitor right now. */
-  | { status: 'demo-full' };
+  /** A demo that could not check this visitor in: too many new visits from their network, or a failure. */
+  | { status: 'demo-unavailable'; reason: 'busy' | 'failed' };
 
 /** What kind of instance this is, and the demo visitor's way in. */
 @Injectable({ providedIn: 'root' })
@@ -27,7 +27,11 @@ export class SessionStore {
   private readonly current = signal<SessionState>({ status: 'unknown' });
 
   readonly isDemo = computed(() => this.current().status === 'demo');
-  readonly isDemoFull = computed(() => this.current().status === 'demo-full');
+  /** Why the demo could not check this visitor in, or null. */
+  readonly demoUnavailable = computed(() => {
+    const state = this.current();
+    return state.status === 'demo-unavailable' ? state.reason : null;
+  });
   /** A family instance where a parent can sign in with Google and nobody is signed in yet. */
   readonly canSignIn = computed(() => {
     const state = this.current();
@@ -66,8 +70,9 @@ export class SessionStore {
       try {
         await firstValueFrom(this.http.post('/api/demo/visit', null));
         this.current.set({ status: 'demo', isDisplay: !!session.isDisplay });
-      } catch {
-        this.current.set({ status: 'demo-full' });
+      } catch (error) {
+        const busy = error instanceof HttpErrorResponse && error.status === 429;
+        this.current.set({ status: 'demo-unavailable', reason: busy ? 'busy' : 'failed' });
       }
     } catch {
       this.current.set({ status: 'unknown' });

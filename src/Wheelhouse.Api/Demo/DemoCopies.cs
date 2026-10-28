@@ -9,7 +9,7 @@ namespace Wheelhouse.Api.Demo;
 /// The demo's visitor copies. Each visitor gets a private copy of the demo family, so nobody
 /// sees what another visitor typed. A copy is a family row with an expiry.
 /// </summary>
-public sealed class DemoCopies(WheelhouseDbContext db, IOptions<InstanceOptions> instance, TimeProvider time)
+public sealed class DemoCopies(WheelhouseDbContext db, IOptions<InstanceOptions> instance, TimeProvider time, ILogger<DemoCopies> logger)
 {
     /// <summary>How long a visitor keeps their copy, and their sign-in to it.</summary>
     public static readonly TimeSpan Lifetime = TimeSpan.FromHours(24);
@@ -20,13 +20,19 @@ public sealed class DemoCopies(WheelhouseDbContext db, IOptions<InstanceOptions>
     public Task<bool> ExistsAsync(Guid familyId, CancellationToken cancellationToken) =>
         db.Families.IgnoreQueryFilters().AnyAsync(family => family.Id == familyId && family.ExpiresAt != null, cancellationToken);
 
-    /// <summary>Makes a new copy and returns its family id, or null when the demo is full.</summary>
-    public async Task<Guid?> CreateAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Makes a new copy and returns its family id. At the limit the oldest copies make room, so
+    /// a newcomer is never turned away for copies their visitors may have long since left.
+    /// </summary>
+    public async Task<Guid> CreateAsync(CancellationToken cancellationToken)
     {
-        var copies = await db.Families.IgnoreQueryFilters().CountAsync(family => family.ExpiresAt != null, cancellationToken);
-        if (copies >= instance.Value.MaxDemoCopies)
+        var copies = db.Families.IgnoreQueryFilters().Where(family => family.ExpiresAt != null);
+        var over = await copies.CountAsync(cancellationToken) - instance.Value.MaxDemoCopies + 1;
+        if (over > 0)
         {
-            return null;
+            var oldest = await copies.OrderBy(family => family.ExpiresAt).Select(family => family.Id).Take(over).ToListAsync(cancellationToken);
+            await copies.Where(family => oldest.Contains(family.Id)).ExecuteDeleteAsync(cancellationToken);
+            logger.LogWarning("The demo reached {Limit} copies; deleted the {Count} oldest", instance.Value.MaxDemoCopies, oldest.Count);
         }
 
         var family = DemoFamily.Create(Guid.NewGuid(), time.GetUtcNow() + Lifetime);

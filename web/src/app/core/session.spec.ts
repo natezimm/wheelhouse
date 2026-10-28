@@ -32,7 +32,7 @@ describe('SessionStore', () => {
     await starting;
 
     expect(session.isDemo()).toBe(true);
-    expect(session.isDemoFull()).toBe(false);
+    expect(session.demoUnavailable()).toBeNull();
   });
 
   it('checks in a returning demo visitor too, in case their copy was cleared', async () => {
@@ -46,17 +46,31 @@ describe('SessionStore', () => {
     expect(session.isDemo()).toBe(true);
   });
 
-  it('knows when the demo has no room', async () => {
+  it('knows when too many new visits came from this network', async () => {
     const starting = session.start();
 
     http.expectOne('/api/session').flush({ mode: 'Demo', signedIn: false });
     await tick();
     http
       .expectOne({ method: 'POST', url: '/api/demo/visit' })
-      .flush({ detail: 'The demo is full right now. Try again later.' }, { status: 503, statusText: 'Service Unavailable' });
+      .flush({ detail: 'Too many new demo visits from your network. Try again later.' }, { status: 429, statusText: 'Too Many Requests' });
     await starting;
 
-    expect(session.isDemoFull()).toBe(true);
+    expect(session.demoUnavailable()).toBe('busy');
+    expect(session.isDemo()).toBe(false);
+  });
+
+  it('knows when the demo could not check the visitor in', async () => {
+    const starting = session.start();
+
+    http.expectOne('/api/session').flush({ mode: 'Demo', signedIn: false });
+    await tick();
+    http
+      .expectOne({ method: 'POST', url: '/api/demo/visit' })
+      .flush(null, { status: 503, statusText: 'Service Unavailable' });
+    await starting;
+
+    expect(session.demoUnavailable()).toBe('failed');
     expect(session.isDemo()).toBe(false);
   });
 

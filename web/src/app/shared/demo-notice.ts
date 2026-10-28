@@ -1,7 +1,7 @@
 import { Component, inject, input } from '@angular/core';
 import { SessionStore } from '../core/session';
 
-/** Tells visitors to the public demo that nothing here is real or kept, or that it has no room. */
+/** Tells visitors to the public demo that nothing here is real or kept, or that it could not start. */
 @Component({
   selector: 'app-demo-notice',
   template: `
@@ -11,8 +11,10 @@ import { SessionStore } from '../core/session';
       } @else {
         <span>Demo · your own copy of a fictional family, cleared after a day</span>
       }
-    } @else if (session.isDemoFull()) {
-      <span>The demo is full right now. Please try again later.</span>
+    } @else if (session.demoUnavailable() === 'busy') {
+      <span>Too many new demo visits from your network. Please try again later.</span>
+    } @else if (session.demoUnavailable() === 'failed') {
+      <span>The demo could not start. Please reload to try again.</span>
     }
   `,
   styles: `
