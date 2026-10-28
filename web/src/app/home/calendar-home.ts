@@ -500,7 +500,7 @@ export class CalendarHome {
 
   protected readonly canAdd = computed(() => this.calendar.calendars().some((calendar) => calendar.canWrite));
 
-  protected readonly signingIn = computed(() => this.family.state().status === 'private' && !this.session.isDemoFull());
+  protected readonly signingIn = computed(() => this.family.state().status === 'private' && !this.session.demoUnavailable());
 
   private readonly today = computed(() => {
     const family = this.family.family();

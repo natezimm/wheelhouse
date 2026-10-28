@@ -9,8 +9,8 @@ public sealed class InstanceOptions
     public InstanceMode Mode { get; set; } = InstanceMode.Family;
 
     /// <summary>
-    /// On a demo instance, the most visitor copies kept at once. New visitors are turned away
-    /// beyond it, which bounds how much a script hammering the demo can store.
+    /// On a demo instance, the most visitor copies kept at once. Beyond it a new visitor's copy
+    /// replaces the oldest, which bounds how much a script hammering the demo can store.
     /// </summary>
     public int MaxDemoCopies { get; set; } = 1000;
 

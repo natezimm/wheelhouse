@@ -347,7 +347,7 @@ export class WallShell {
   protected readonly pairingChosen = signal(false);
 
   protected readonly showPairing = computed(
-    () => this.pairingChosen() || (this.family.state().status === 'private' && !this.session.isDemoFull()),
+    () => this.pairingChosen() || (this.family.state().status === 'private' && !this.session.demoUnavailable()),
   );
 
   private readonly today = computed(() => {

@@ -103,23 +103,40 @@ public sealed class DemoTests(ApiFactory factory)
     }
 
     [Fact]
-    public async Task A_full_demo_turns_new_visitors_away_but_keeps_serving_those_it_has()
+    public async Task A_full_demo_makes_room_for_a_new_visitor_by_deleting_the_oldest_copy()
     {
         // Its own database, so the limit counts only this test's visitors.
         await using var own = new ApiFactory();
         await own.InitializeAsync();
         await using var demo = own.WithWebHostBuilder(builder => builder
             .UseSetting("Wheelhouse:Mode", InstanceMode.Demo)
-            .UseSetting("Wheelhouse:MaxDemoCopies", 1));
+            .UseSetting("Wheelhouse:MaxDemoCopies", 2));
         using var first = demo.CreateClient();
         using var second = demo.CreateClient();
+        using var third = demo.CreateClient();
+        var realFamilyId = Guid.NewGuid();
+        await using (var anyone = own.DbContextFor(familyId: null))
+        {
+            // A real family is never a copy, so it never makes room.
+            anyone.Families.Add(new Family { Id = realFamilyId, Name = "A real family", TimeZone = "Europe/Paris" });
+            await anyone.SaveChangesAsync();
+        }
 
-        var admitted = await first.PostAsync("/api/demo/visit", content: null);
-        var turnedAway = await second.PostAsync("/api/demo/visit", content: null);
+        Assert.Equal(HttpStatusCode.NoContent, (await first.PostAsync("/api/demo/visit", content: null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await second.PostAsync("/api/demo/visit", content: null)).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await third.PostAsync("/api/demo/visit", content: null)).StatusCode);
 
-        Assert.Equal(HttpStatusCode.NoContent, admitted.StatusCode);
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, turnedAway.StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await second.GetAsync("/api/family")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await first.GetAsync("/api/family")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await second.GetAsync("/api/family")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await third.GetAsync("/api/family")).StatusCode);
+        await using (var db = own.DbContextFor(familyId: null))
+        {
+            Assert.Equal(2, await db.Families.IgnoreQueryFilters().CountAsync(family => family.ExpiresAt != null));
+            Assert.True(await db.Families.IgnoreQueryFilters().AnyAsync(family => family.Id == realFamilyId));
+        }
+
+        // The visitor whose copy made room gets a new one on their next visit.
+        Assert.Equal(HttpStatusCode.NoContent, (await first.PostAsync("/api/demo/visit", content: null)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await first.GetAsync("/api/family")).StatusCode);
     }
 

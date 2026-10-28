@@ -148,14 +148,14 @@ describe('routes', () => {
       expect(text(page.querySelectorAll('app-calendar-filter button'))).toEqual(['B Ben', 'T Tess', 'M Milo']);
     });
 
-    it('says the demo is full instead of showing a pairing code', async () => {
+    it('says the demo could not start instead of showing a pairing code', async () => {
       await startDemo({ status: 503 });
       const { page, settle } = await open('/wall');
       http.expectOne('/api/family').flush(null, { status: 401, statusText: 'Unauthorized' });
       await settle();
 
       expect(page.querySelector('app-demo-notice')?.textContent?.trim()).toBe(
-        'The demo is full right now. Please try again later.',
+        'The demo could not start. Please reload to try again.',
       );
       expect(page.querySelector('app-pairing-screen')).toBeNull();
     });
