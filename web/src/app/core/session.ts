@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, firstValueFrom, tap } from 'rxjs';
+import { Observable, firstValueFrom, retry, tap, throwError, timer } from 'rxjs';
 
 export interface Session {
   /** Demo: the public instance with a fictional family. Family: a real family's private one. */
@@ -11,6 +11,13 @@ export interface Session {
   /** Signed in as a paired display, which reads the family but is not a parent. */
   isDisplay?: boolean;
 }
+
+/**
+ * A check-in that never got an answer (the connection dropped, or the browser gave up) or met a
+ * server error is tried again this many times, this far apart, before the demo says it could not start.
+ */
+export const VISIT_RETRIES = 2;
+export const VISIT_RETRY_MS = 1000;
 
 type SessionState =
   | { status: 'unknown' }
@@ -68,7 +75,17 @@ export class SessionStore {
       }
 
       try {
-        await firstValueFrom(this.http.post('/api/demo/visit', null));
+        await firstValueFrom(
+          this.http.post('/api/demo/visit', null).pipe(
+            retry({
+              count: VISIT_RETRIES,
+              delay: (error) =>
+                error instanceof HttpErrorResponse && (error.status === 0 || error.status >= 500)
+                  ? timer(VISIT_RETRY_MS)
+                  : throwError(() => error),
+            }),
+          ),
+        );
         this.current.set({ status: 'demo', isDisplay: !!session.isDisplay });
       } catch (error) {
         const busy = error instanceof HttpErrorResponse && error.status === 429;

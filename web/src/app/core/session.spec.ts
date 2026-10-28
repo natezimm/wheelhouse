@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { SessionStore } from './session';
+import { SessionStore, VISIT_RETRIES, VISIT_RETRY_MS } from './session';
 
 describe('SessionStore', () => {
   let session: SessionStore;
@@ -60,18 +60,44 @@ describe('SessionStore', () => {
     expect(session.isDemo()).toBe(false);
   });
 
-  it('knows when the demo could not check the visitor in', async () => {
-    const starting = session.start();
+  it('tries a check-in again when it got no answer', async () => {
+    vi.useFakeTimers();
+    try {
+      const starting = session.start();
 
-    http.expectOne('/api/session').flush({ mode: 'Demo', signedIn: false });
-    await tick();
-    http
-      .expectOne({ method: 'POST', url: '/api/demo/visit' })
-      .flush(null, { status: 503, statusText: 'Service Unavailable' });
-    await starting;
+      http.expectOne('/api/session').flush({ mode: 'Demo', signedIn: false });
+      await vi.advanceTimersByTimeAsync(0);
+      http.expectOne({ method: 'POST', url: '/api/demo/visit' }).error(new ProgressEvent('abort'));
+      await vi.advanceTimersByTimeAsync(VISIT_RETRY_MS);
+      http.expectOne({ method: 'POST', url: '/api/demo/visit' }).flush(null);
+      await starting;
 
-    expect(session.demoUnavailable()).toBe('failed');
-    expect(session.isDemo()).toBe(false);
+      expect(session.isDemo()).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('knows when the demo could not check the visitor in, after trying again', async () => {
+    vi.useFakeTimers();
+    try {
+      const starting = session.start();
+
+      http.expectOne('/api/session').flush({ mode: 'Demo', signedIn: false });
+      await vi.advanceTimersByTimeAsync(0);
+      for (let attempt = 0; attempt <= VISIT_RETRIES; attempt++) {
+        http
+          .expectOne({ method: 'POST', url: '/api/demo/visit' })
+          .flush(null, { status: 503, statusText: 'Service Unavailable' });
+        await vi.advanceTimersByTimeAsync(VISIT_RETRY_MS);
+      }
+      await starting;
+
+      expect(session.demoUnavailable()).toBe('failed');
+      expect(session.isDemo()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('never checks in on a family instance', async () => {

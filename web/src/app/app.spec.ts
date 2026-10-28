@@ -149,7 +149,7 @@ describe('routes', () => {
     });
 
     it('says the demo could not start instead of showing a pairing code', async () => {
-      await startDemo({ status: 503 });
+      await startDemo({ status: 403 });
       const { page, settle } = await open('/wall');
       http.expectOne('/api/family').flush(null, { status: 401, statusText: 'Unauthorized' });
       await settle();
