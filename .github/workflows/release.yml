@@ -1,8 +1,11 @@
 name: Release
 
-# Pushing a tag such as v0.1.0 tests it, publishes its images and moves the server to it.
+# Every merge to main is tested and, unless held, released: the next version is tagged, its
+# images are published, the demo moves to it and is checked, and only then the family instances.
+# Pushing a tag such as v0.7.0, or running this by hand with a version, releases that version.
 on:
   push:
+    branches: [main]
     tags: ['v*']
   workflow_dispatch:
     inputs:
@@ -14,6 +17,8 @@ on:
 permissions:
   contents: read
 
+# Releases run one at a time. A merge that arrives while one runs waits; if another arrives
+# too, only the newest waits, and its release includes both.
 concurrency:
   group: release
   cancel-in-progress: false
@@ -28,28 +33,94 @@ jobs:
     timeout-minutes: 5
     permissions:
       contents: write
+      pull-requests: read
     outputs:
+      release: ${{ steps.release.outputs.release }}
       version: ${{ steps.release.outputs.version }}
       sha: ${{ steps.release.outputs.sha }}
     steps:
-      - name: Validate and pin the release
+      - name: Choose and pin the release
         id: release
         uses: actions/github-script@v9
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
+          AUTO_RELEASE: ${{ vars.AUTO_RELEASE }}
         with:
           script: |
             const manual = context.eventName === 'workflow_dispatch';
+            const automatic = context.eventName === 'push' && context.ref === 'refs/heads/main';
             if (manual && context.ref !== 'refs/heads/main') {
               throw new Error('Manual releases must run from main.');
             }
+
+            const hold = async (reason) => {
+              core.setOutput('release', 'false');
+              core.notice(reason);
+              await core.summary
+                .addHeading('No release')
+                .addRaw(reason)
+                .write();
+            };
+
+            // An automatic release bumps the patch number, or the minor or major number when a
+            // pull request merged since the last release carries the release:minor or
+            // release:major label.
+            const nextVersion = async () => {
+              if ((process.env.AUTO_RELEASE || '').trim().toLowerCase() === 'off') {
+                await hold('Automatic releases are paused: the repository variable AUTO_RELEASE is off.');
+                return null;
+              }
+              const pullsOf = async (sha) => {
+                const { data } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                  ...context.repo, commit_sha: sha
+                });
+                return data.filter((pull) => pull.merged_at && pull.base.ref === 'main');
+              };
+              const labelsOf = (pulls) => pulls.flatMap((pull) => pull.labels.map((label) => label.name));
+              const message = context.payload.head_commit?.message ?? '';
+              if (/\[no release\]/i.test(message) || labelsOf(await pullsOf(context.sha)).includes('release:hold')) {
+                await hold('This merge is held: its pull request has the release:hold label or its commit says [no release]. The next release will include it.');
+                return null;
+              }
+
+              const tags = await github.paginate(github.rest.repos.listTags, { ...context.repo, per_page: 100 });
+              const released = tags
+                .map((tag) => ({ tag, parts: /^v(\d+)\.(\d+)\.(\d+)$/.exec(tag.name)?.slice(1).map(Number) }))
+                .filter((entry) => entry.parts)
+                .sort((a, b) => b.parts[0] - a.parts[0] || b.parts[1] - a.parts[1] || b.parts[2] - a.parts[2]);
+              if (!released.length) throw new Error('Release the first version by hand.');
+              const latest = released[0];
+              const { data: comparison } = await github.rest.repos.compareCommitsWithBasehead({
+                ...context.repo, basehead: `${latest.tag.commit.sha}...${context.sha}`
+              });
+              // Re-running all of a release's jobs deploys its version again.
+              if (comparison.status === 'identical') return latest.tag.name;
+              if (comparison.status === 'behind') {
+                await hold(`${latest.tag.name} already includes this commit.`);
+                return null;
+              }
+
+              const labels = new Set();
+              for (const commit of comparison.commits) {
+                for (const label of labelsOf(await pullsOf(commit.sha))) labels.add(label);
+              }
+              let [major, minor, patch] = latest.parts;
+              if (labels.has('release:major')) [major, minor, patch] = [major + 1, 0, 0];
+              else if (labels.has('release:minor')) [minor, patch] = [minor + 1, 0];
+              else patch += 1;
+              return `v${major}.${minor}.${patch}`;
+            };
+
             const version = manual
               ? process.env.REQUESTED_VERSION
-              : context.ref.replace('refs/tags/', '');
+              : automatic
+                ? await nextVersion()
+                : context.ref.replace('refs/tags/', '');
+            if (!version) return;
             if (!/^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$/.test(version)) {
               throw new Error('Use a release version such as v0.2.0.');
             }
-            if (manual) {
+            if (manual || automatic) {
               let existing;
               try {
                 existing = await github.rest.git.getRef({
@@ -69,16 +140,18 @@ jobs:
                 });
               }
             }
+            core.setOutput('release', 'true');
             core.setOutput('version', version);
             core.setOutput('sha', context.sha);
             await core.summary
               .addHeading('Wheelhouse release')
               .addTable([['Version', 'Commit'], [version, context.sha]])
-              .addRaw('Deploys every configured Wheelhouse instance after tests and image builds pass.')
+              .addRaw('Deploys the demo, checks it, then deploys the family instances after tests and image builds pass.')
               .write();
 
   images:
     needs: prepare
+    if: needs.prepare.outputs.release == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -112,6 +185,7 @@ jobs:
 
   deploy:
     needs: [prepare, images]
+    if: needs.prepare.outputs.release == 'true'
     # Playwright cannot install Chromium on the newer image ubuntu-latest moved to; pin until it can.
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -168,33 +242,19 @@ jobs:
           scp deploy/deploy.sh deploy/restore.sh deploy/storage.py deploy/install-maintenance.sh deploy/nightly-backup.sh server:wheelhouse/
           ssh server 'bash ~/wheelhouse/install-maintenance.sh'
 
-      # The images are private, so the server signs in to the registry with this job's
-      # short-lived token for the length of the deploy and signs out again afterwards.
-      - name: Deploy
+      # A demo that fails to start or fails its browser check stops the release here, before any
+      # family instance is touched.
+      - name: Deploy and check the demo
         env:
           REGISTRY_USER: ${{ github.actor }}
           REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          printf '%s' "$REGISTRY_TOKEN" | ssh server "docker login ghcr.io --username '$REGISTRY_USER' --password-stdin"
-          ssh server "WHEELHOUSE_COMPOSE=\$HOME/wheelhouse/compose.candidate.yaml bash ~/wheelhouse/deploy.sh '$VERSION'; status=\$?; docker logout ghcr.io; exit \$status"
+        run: bash deploy/release-phase.sh Demo
 
-      - name: Check deployed browsers through SSH
-        run: |
-          set -euo pipefail
-          ssh server 'cat ~/wheelhouse/release-smoke.tsv' > "$RUNNER_TEMP/instances.tsv"
-          index=0
-          while IFS=$'\t' read -r name port mode; do
-            [[ "$port" =~ ^[0-9]+$ && ( "$mode" == Demo || "$mode" == Family ) ]]
-            index=$((index + 1))
-            control="$RUNNER_TEMP/wheelhouse-smoke-$index"
-            ssh -M -S "$control" -fNT -o ExitOnForwardFailure=yes -L "127.0.0.1:18080:127.0.0.1:$port" server
-            trap 'ssh -S "$control" -O exit server 2>/dev/null || true' EXIT
-            SMOKE_URL=http://127.0.0.1:18080 SMOKE_MODE="$mode" SMOKE_INDEX="$index" node deploy/smoke.mjs
-            ssh -S "$control" -O exit server
-            trap - EXIT
-          done < "$RUNNER_TEMP/instances.tsv"
-          [[ "$index" -gt 0 ]]
-          echo "All deployed instances passed browser smoke checks." >> "$GITHUB_STEP_SUMMARY"
+      - name: Deploy and check the family instances
+        env:
+          REGISTRY_USER: ${{ github.actor }}
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash deploy/release-phase.sh Family
 
       - name: Expire old backups and unused Wheelhouse images
         run: ssh server 'python3 ~/wheelhouse/storage.py cleanup'
@@ -206,3 +266,26 @@ jobs:
           path: smoke-results
           if-no-files-found: ignore
           retention-days: 7
+
+  notes:
+    needs: [prepare, deploy]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Publish release notes
+        uses: actions/github-script@v9
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        with:
+          script: |
+            try {
+              await github.rest.repos.getReleaseByTag({ ...context.repo, tag: process.env.VERSION });
+              return;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            await github.rest.repos.createRelease({
+              ...context.repo, tag_name: process.env.VERSION, name: process.env.VERSION, generate_release_notes: true
+            });

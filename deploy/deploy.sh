@@ -3,8 +3,11 @@
 set -euo pipefail
 umask 077
 unset WHEELHOUSE_VERSION
-version="${1:?usage: deploy.sh <version>}"
+version="${1:?usage: deploy.sh <version> [Demo|Family]}"
 [[ "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo 'Invalid release version' >&2; exit 1; }
+# A release moves the demo first and the family instances only once the demo passes its checks.
+only="${2:-}"
+[[ -z "$only" || "$only" == Demo || "$only" == Family ]] || { echo 'Mode must be Demo or Family' >&2; exit 1; }
 root="${WHEELHOUSE_ROOT:-$HOME/wheelhouse}"
 candidate="${WHEELHOUSE_COMPOSE:-$root/compose.yaml}"
 exec 9>"$root/operations.lock"
@@ -13,6 +16,20 @@ read_value() { sed -n "s/^$2=//p" "$1" | tail -n 1; }
 shopt -s nullglob
 env_files=("$root"/*/.env)
 ((${#env_files[@]})) || { echo 'No instances configured' >&2; exit 1; }
+declare -a held=()
+if [[ -n "$only" ]]; then
+  declare -a selected=()
+  for env_file in "${env_files[@]}"; do
+    mode="$(read_value "$env_file" WHEELHOUSE_MODE)"
+    if [[ "${mode:-Family}" == "$only" ]]; then selected+=("$env_file"); else held+=("$(dirname "$env_file")"); fi
+  done
+  if ((${#selected[@]} == 0)); then
+    echo "No $only instances to deploy"
+    : > "$root/release-smoke.tsv"
+    exit 0
+  fi
+  env_files=("${selected[@]}")
+fi
 # Release snapshots stay on this server; only the nightly backup leaves it.
 if [[ ! -f "$root/backup.env" ]]; then
   echo 'Warning: off-server backups are not configured. See "Nightly off-server backups" in deploy/README.md.' >&2
@@ -103,6 +120,10 @@ done
 
 # No migration has run until every existing instance has a verified backup.
 phase=deploy
+# Instances this run leaves alone keep the Compose file that matches their version.
+for dir in "${held[@]}"; do
+  [[ -f "$dir/recovery-compose.yaml" || ! -f "$root/compose.yaml" ]] || cp "$root/compose.yaml" "$dir/recovery-compose.yaml"
+done
 cp "$candidate" "$root/compose.yaml.new"
 mv "$root/compose.yaml.new" "$root/compose.yaml"
 : > "$run/instances.tsv"
