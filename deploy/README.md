@@ -2,7 +2,7 @@
 
 One server can run any number of Wheelhouse instances, for example a public demo and a family's private one. Each instance is a folder under `~/wheelhouse` with its own `.env`, database and domain. Instances share only the image version.
 
-Pushing a version tag runs the tests, publishes the images to GitHub Container Registry, and moves every instance on the server to that version.
+Each merge to `main` runs the tests, tags the next version, publishes the images to GitHub Container Registry, and moves the demo and then the family instances on the server to that version. See [Release](#release).
 
 ## Once per server
 
@@ -33,7 +33,7 @@ Pick a name (`demo` below), a domain and a mode:
 
 4. For a `Family` instance, set up [Google sign-in](#google-sign-in). Until it is, nobody can sign in, and each release says so.
 
-The instance starts on the next release. To start it without a new version, open the latest **Release** run under the repository's Actions and choose **Re-run all jobs**.
+The instance starts on the next release. To start it without a new version, open the latest **Release** run that deployed (not a held one) under the repository's Actions and choose **Re-run all jobs**.
 
 ## Google sign-in
 
@@ -90,24 +90,51 @@ Nothing in the instance's `.env` names its domain, so no release is needed.
 
 ## Release
 
-### From GitHub (recommended)
+### Automatically, on each merge (the usual way)
 
-After merging the release controls into `main`, open **Actions → Release → Run workflow**.
-Choose branch **main** and enter a new version such as **v0.2.0**. The run tests that exact
-commit, creates its tag, builds both images and deploys every configured instance.
-The version must match `vMAJOR.MINOR.PATCH`, optionally with a prerelease suffix.
-Existing tags are never moved; choose a new version if a tag belongs to another commit.
+Every push to `main`, which is every merged pull request, runs **Actions → Release**:
 
-The first catch-up release is `v0.2.0`; it includes the calendar, live updates, chores,
-lists, grocery and weekly meal plan features merged since `v0.1.1`.
-Merging a PR alone still does not deploy. Use another version for each later release.
-A tag created by the workflow token does not start a second tag-triggered run: the
-manual run performs the complete release itself. Re-run a failed run to retry its
-original commit; starting a new run on a changed main needs a new version.
+1. The CI jobs test the merged commit. A failure stops here and nothing is released.
+2. The next version is tagged on that commit. It is the last `vX.Y.Z` tag with the patch
+   number bumped, or the minor or major number when a pull request merged since that tag
+   has the `release:minor` or `release:major` label.
+3. Both images are built and published.
+4. Every `Demo` instance is backed up, moved to the version and checked in a browser.
+5. Only if that passed, every `Family` instance is backed up, moved and checked the same way.
+6. The GitHub release is published with notes listing the pull requests it includes.
 
-Watch the test, prepare, images and deploy jobs. The deploy job also runs browser smoke checks. The deploy job must finish successfully
-before the release is live. Reload each site afterwards, and verify Today and Calendar; open `/wall` for the wall layout. A private family instance
-still requires Google sign-in and a calendar connection for real events.
+A demo that fails to start or fails its check fails the run before any family instance is
+touched; the family keeps the version it had. Fix forward with another merge, or restore
+the demo from its snapshot (see [Backups and release recovery](#backups-and-release-recovery)).
+A failure in the family step leaves the demo on the new version.
+
+Merges that arrive while a release runs wait for it. If several wait, only the newest
+runs, and its release includes the others (and their labels).
+
+**Holding a release.** To merge without releasing, add the `release:hold` label to the pull
+request before merging, or put `[no release]` in its title (the merge commit carries the
+title) or in the message of a commit pushed straight to `main`. The tests still run, and
+the next merge that is not held releases everything since the last version. To pause all
+automatic releases, for example before a busy family weekend, set the repository variable
+`AUTO_RELEASE` to `off` under **Settings → Secrets and variables → Actions → Variables**,
+and delete it or set it to `on` to resume.
+
+To retry a failed release, re-run its failed jobs; re-running all its jobs deploys the same
+version again. A held or superseded commit is never released on its own.
+
+### By hand from GitHub
+
+Open **Actions → Release → Run workflow**, choose branch **main** and enter a new version
+such as **v0.8.0**. The run tests that exact commit, creates its tag, builds both images and
+deploys like an automatic release. The version must match `vMAJOR.MINOR.PATCH`, optionally
+with a prerelease suffix. Existing tags are never moved; choose a new version if a tag
+belongs to another commit. A tag created by the workflow token does not start a second
+tag-triggered run: the manual run performs the complete release itself.
+
+Watch the test, prepare, images and deploy jobs. The deploy job runs the browser smoke
+checks and must finish successfully before the release is live. Reload each site
+afterwards, and verify Today and Calendar; open `/wall` for the wall layout. A private
+family instance still requires Google sign-in and a calendar connection for real events.
 
 ### From a local checkout
 

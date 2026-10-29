@@ -111,6 +111,30 @@ class OperationsTests(unittest.TestCase):
         self.assertEqual(len((self.root/'release-smoke.tsv').read_text().splitlines()), 2)
         self.assertNotIn('never-print-this', result.stdout+result.stderr)
 
+    def test_demo_goes_first_and_family_keeps_its_version_until_its_turn(self):
+        env = self.root/'b/.env'
+        env.write_text(env.read_text().replace('WHEELHOUSE_MODE=Demo', 'WHEELHOUSE_MODE=Family'))
+        result = self.run_script('deploy.sh', 'v0.2.0', 'Demo')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(any(c['project']=='wheelhouse-b' and c['cmd'][0] in ['pull','stop','up'] for c in self.docker_commands()))
+        self.assertIn('WHEELHOUSE_VERSION=v0.1.1', env.read_text())
+        self.assertEqual((self.root/'b/recovery-compose.yaml').read_text(), 'old-compose')
+        self.assertEqual((self.root/'release-smoke.tsv').read_text().split('\t')[0], 'a')
+        self.log.unlink()
+        result = self.run_script('deploy.sh', 'v0.2.0', 'Family')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.backup('b')/'compose.yaml').read_text(), 'old-compose')
+        self.assertFalse(any(c['project']=='wheelhouse-a' for c in self.docker_commands()))
+        self.assertIn('WHEELHOUSE_VERSION=v0.2.0', env.read_text())
+        self.assertFalse((self.root/'b/recovery-compose.yaml').exists())
+        self.assertEqual(len((self.root/'release-smoke.tsv').read_text().splitlines()), 1)
+
+    def test_a_mode_without_instances_deploys_nothing(self):
+        result = self.run_script('deploy.sh', 'v0.2.0', 'Family')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse(self.docker_commands())
+        self.assertEqual((self.root/'release-smoke.tsv').read_text(), '')
+
     def test_failed_backup_resumes_old_instances_without_migration(self):
         result = self.run_script('deploy.sh', 'v0.2.0', FAIL_DUMP='wheelhouse-b')
         self.assertNotEqual(result.returncode, 0)
