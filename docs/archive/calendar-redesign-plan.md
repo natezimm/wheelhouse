@@ -6,7 +6,7 @@ Created October 21, 2026; reviewed against the code and given a visual direction
 
 Wheelhouse is a calendar-first application. Its wall and desktop experience takes its visual direction from Skylight: a compact header, a white calendar surface with fine rules, member colors everywhere, and pastel event blocks positioned on a shared time grid. Skylight is inspiration, not a specification; Wheelhouse keeps its own name, fonts and warm neutral ground.
 
-The initial view choices are **Day, Week and Month**. The wall and desktop default to Week. A phone defaults to a Day agenda, which also replaces the separate phone Today screen. Remember the user's last selected view on that device, separately for phone, desktop and wall contexts. Chores, shared lists/to-dos, groceries, meals and recipes stay out of the calendar experience (see [calendar-only scope](calendar-only-scope.md)).
+The initial view choices are **Day, Week and Month**. The wall and desktop default to Week. A phone defaults to a Day agenda, which also replaces the separate phone Today screen. Remember the user's last selected view on that device, separately for phone, desktop and wall contexts. Chores, shared lists/to-dos, groceries, meals and recipes stay out of the calendar experience (see [calendar-only scope](../calendar-only-scope.md)).
 
 **Aesthetics are the priority of this redesign.** Functional behavior that exists today must keep working, but a milestone is not done until its screens look like the approved mockups with real data at the reviewed sizes.
 
@@ -30,21 +30,21 @@ Where this document and the canvas disagree about appearance, the canvas wins; w
 ## Current code, reviewed October 22
 
 - The calendar-only cleanup (PR #39) is done: routes, navigation, smoke checks and demo seeds no longer expose household features. Milestone 1 no longer needs to retire them; it only verifies that nothing returns.
-- [`wall/week-view.ts`](../web/src/app/wall/week-view.ts) stacks event cards inside seven independent day columns with no hour grid. It must be replaced, not restyled.
-- [`wall/day-view.ts`](../web/src/app/wall/day-view.ts) already draws an hour grid with a column per person, all-day events on top, side-by-side overlaps and a now line, and grows its hour range to fit early or late events. Its positioning code is the starting point for the shared grid engine.
-- [`wall/month-view.ts`](../web/src/app/wall/month-view.ts) shows up to three titles per day with dots and "+N more", but no times and no bars for multi-day events.
-- [`wall/wall-shell.ts`](../web/src/app/wall/wall-shell.ts) spends about 150 px on a 52 px date heading and a footer that holds status, demo pairing and Add event. Its idle timer resets to Week after two minutes and discards an open editor (`editing.set(null)`), which this plan forbids.
+- [`wall/week-view.ts`](../../web/src/app/wall/week-view.ts) stacks event cards inside seven independent day columns with no hour grid. It must be replaced, not restyled.
+- [`wall/day-view.ts`](../../web/src/app/wall/day-view.ts) already draws an hour grid with a column per person, all-day events on top, side-by-side overlaps and a now line, and grows its hour range to fit early or late events. Its positioning code is the starting point for the shared grid engine.
+- [`wall/month-view.ts`](../../web/src/app/wall/month-view.ts) shows up to three titles per day with dots and "+N more", but no times and no bars for multi-day events.
+- [`wall/wall-shell.ts`](../../web/src/app/wall/wall-shell.ts) spends about 150 px on a 52 px date heading and a footer that holds status, demo pairing and Add event. Its idle timer resets to Week after two minutes and discards an open editor (`editing.set(null)`), which this plan forbids.
 - Tapping an event opens the editor directly on both layouts. There is no read-only details view, so read-only events (the school district calendar) are disabled buttons that cannot be inspected.
-- The phone has two tabs: Today ([`phone/phone-shell.ts`](../web/src/app/phone/phone-shell.ts) with [`today-events.ts`](../web/src/app/phone/today-events.ts)) and Calendar ([`phone/calendar.ts`](../web/src/app/phone/calendar.ts), a month picker with a dot per person and the chosen day's agenda). There is no desktop layout: a laptop browser gets the phone layout stretched across the screen.
-- The wall has no settings by design ([AGENTS.md](../AGENTS.md)). That stays: this plan does not add settings, even display-only ones, to the wall.
+- The phone has two tabs: Today ([`phone/phone-shell.ts`](../../web/src/app/phone/phone-shell.ts) with [`today-events.ts`](../../web/src/app/phone/today-events.ts)) and Calendar ([`phone/calendar.ts`](../../web/src/app/phone/calendar.ts), a month picker with a dot per person and the chosen day's agenda). There is no desktop layout: a laptop browser gets the phone layout stretched across the screen.
+- The wall has no settings by design ([AGENTS.md](../../AGENTS.md)). That stays: this plan does not add settings, even display-only ones, to the wall.
 - Member colors are saturated (`MEMBER_COLORS`, demo seeds use similar shades). White initials on the brighter ones, such as amber, fall below 4.5:1. The redesign derives a darker shade for avatars and time labels instead of changing stored colors.
 - `Family.nightModeFrom/To` are settable but nothing uses them yet. Night mode (see Themes) will; dimming the wall to a clock stays outside this redesign.
-- [`deploy/smoke.mjs`](../deploy/smoke.mjs) expects a "Today" heading, a two-link Sections nav and `/calendar` rendering `app-phone-calendar .month`. Milestone 1 must update it with the new phone entry and navigation.
+- [`deploy/smoke.mjs`](../../deploy/smoke.mjs) expects a "Today" heading, a two-link Sections nav and `/calendar` rendering `app-phone-calendar .month`. Milestone 1 must update it with the new phone entry and navigation.
 - Preserve the Angular stores, Google Calendar integration, family isolation, pairing, optimistic saves, conflict handling and live recovery. This is a presentation and navigation change, not a new calendar backend. No API change is expected for the redesign itself; the one candidate (repeat rule and notes in details) is deferred, see Event details.
 
 ## Visual system
 
-Add these as design tokens in [`styles.css`](../web/src/styles.css) next to the existing ones, and use them instead of raw values. Values come from the canvas.
+Add these as design tokens in [`styles.css`](../../web/src/styles.css) next to the existing ones, and use them instead of raw values. Values come from the canvas.
 
 - **Surfaces.** Ground `#F4F2EE`; calendar surface white, 28 px radius on the wall (22 px desktop, 20 px phone cards) with a faint shadow; rules `#ECE9E3` between days and `#EFECE7` for hour lines; today's column and header tinted `#FBFAF7`.
 - **Text.** Ink `#1F2328`; secondary `#5F646B`; hour labels and day names `#6B7077` (at least 4.5:1 on white). Outfit for the clock, headings and date numbers; Figtree for everything else.

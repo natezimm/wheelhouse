@@ -14,7 +14,7 @@
 - Named shared lists and grocery shopping.
 - Meal planning, saved recipes, and meals-to-groceries.
 
-Keep the previous feature specifications in this directory and the historical roadmap for future design decisions. They are not deployed promises.
+Keep the previous feature specifications and the historical roadmap in [archive/](archive/) for future design decisions. They are not deployed promises.
 
 ## Retired now
 
@@ -29,4 +29,4 @@ Existing PostgreSQL records **must not be deleted**. Retain historical EF Core d
 
 ## Next
 
-Follow the Skylight-inspired calendar redesign plan separately: weekly-first wall, clear Day/Week/Month navigation, responsive phone agenda and polished event workflows. Keep schema cleanup out of that visual PR.
+Follow the Skylight-inspired [calendar redesign plan](archive/calendar-redesign-plan.md) separately: weekly-first wall, clear Day/Week/Month navigation, responsive phone agenda and polished event workflows. Keep schema cleanup out of that visual PR.

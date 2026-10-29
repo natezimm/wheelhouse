@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Guidance for coding agents working in this repository. The README covers what Wheelhouse is and how to run it; this file covers what you need to change it safely.
+Guidance for coding agents working in this repository. The README covers what Wheelhouse is and how to run it; this file covers what you need to change it safely. [docs/architecture.md](docs/architecture.md) draws the same architecture for people, and [docs/adr/](docs/adr/) records why the main choices were made: when a change alters one of those, update the diagram or add a decision record in the same pull request. Finished and deferred plans live in [docs/archive/](docs/archive/).
 
 ## Commands
 
@@ -82,7 +82,7 @@ Local development and `docker compose up` run as `Demo`.
 
 ## Project rules
 
-**Calendar-first release scope.** Chores, shared to-do lists, groceries, meals and recipes are deferred. Do not reintroduce their routes, endpoints, services, SignalR transport, demo fixtures, or tests without an explicit new feature decision. Their old design docs and [household roadmap](docs/household-roadmap.md) are historical/future planning references, **not active implementation specifications**. See [calendar-only scope](docs/calendar-only-scope.md).
+**Calendar-first release scope.** Chores, shared to-do lists, groceries, meals and recipes are deferred. Do not reintroduce their routes, endpoints, services, SignalR transport, demo fixtures, or tests without an explicit new feature decision. Their old design docs and [household roadmap](docs/archive/household-roadmap.md) are historical/future planning references, **not active implementation specifications**. See [calendar-only scope](docs/calendar-only-scope.md).
 
 **Legacy data only.** `Chore`, `ChorePlan`, `ChoreCompletion`, `HouseholdList`, `ListItem`, `GroceryCategory`, `MealSlot`, `MealCommand`, `Recipe`, `GroceryBatch`, and `GroceryContribution` remain as EF persistence shapes only. Existing migrations, the model snapshot, relationships, revision columns and DB records must not be dropped or altered as collateral during calendar work. They are not live features; avoid adding behavior to those types. A dedicated future archival/data-deletion decision is required before removal of their mapping.
 
