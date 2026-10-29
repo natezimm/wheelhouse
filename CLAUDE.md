@@ -12,7 +12,7 @@ Start the app with `docker compose up --build -d` and look at both layouts befor
 
 ## Plan and mockups
 
-The new proposed plan for chores, lists and meals lives in [docs/household-roadmap.md](docs/household-roadmap.md). Read it before those increments; it defines their scope, sequencing, design workflow and completion criteria. It is a new plan created after calendar live updates, not a recovered historical roadmap. Follow its design workflow for new screens using the existing design system.
+The new proposed plan for chores, lists and meals lives in [docs/archive/household-roadmap.md](docs/archive/household-roadmap.md). Read it before those increments; it defines their scope, sequencing, design workflow and completion criteria. It is a new plan created after calendar live updates, not a recovered historical roadmap. Follow its design workflow for new screens using the existing design system.
 
 The earlier implementation plan and screen mockups for other milestones are kept outside this repository. When work depends on those external materials, read them first; if their links are missing, ask rather than inventing their scope or layout.
 
