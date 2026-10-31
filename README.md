@@ -7,10 +7,7 @@ A family calendar for the kitchen wall and every phone in the house, built on th
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Live demo](https://img.shields.io/badge/demo-calendar.nathanzimmerman.com-2ea44f)](https://calendar.nathanzimmerman.com)
 
-<p>
-  <img src="docs/screenshots/m6-wall-week.png" alt="The wall display's Week view: a color-coded hour grid for each family member, an all-day lane, the current time and a Live indicator" width="74%">
-  <img src="docs/screenshots/m1-phone-day.png" alt="The phone's Day agenda with the week strip, member chips and today's events" width="24%">
-</p>
+![Dragging an event to a new time on the desktop Week view, then adding "Dinner at Olive Garden" for Saturday and watching it appear](docs/screenshots/demo.gif)
 
 **[Try the live demo](https://calendar.nathanzimmerman.com)**: you get your own private copy of the fictional Marlowe family, no sign-in needed, cleared after a day. Open [`/wall`](https://calendar.nathanzimmerman.com/wall) for the wall display, and `/` on a phone.
 
@@ -21,6 +18,11 @@ A family calendar for the kitchen wall and every phone in the house, built on th
 - **Edit from anywhere.** Add, change, duplicate and delete events, drag them to another time or day, pull an edge to change the length, and set repeats from "every weekday" to "the second Tuesday, ten times". Undo for ten seconds after changing or deleting one event.
 - **Live everywhere.** A change on one screen appears on every other within a second or two, and edits made in Google's own apps arrive within two minutes.
 - **Family settings** on the phone: members and their colors and pictures, which Google calendars show and whose they are, paired wall displays, private events, and four themes (Daylight, Groovy, Classic, Bold), each with a night look.
+
+<p>
+  <img src="docs/screenshots/m6-wall-week.png" alt="The wall display's Week view: a color-coded hour grid for each family member, an all-day lane, the current time and a Live indicator" width="74%">
+  <img src="docs/screenshots/m1-phone-day.png" alt="The phone's Day agenda with the week strip, member chips and today's events" width="24%">
+</p>
 
 <p>
   <img src="docs/screenshots/m5-phone-day-themes.png" alt="The phone Day view in each theme: Daylight, Groovy, Classic, Bold and Daylight at night" width="100%">
