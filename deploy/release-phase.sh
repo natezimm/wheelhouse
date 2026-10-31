@@ -7,9 +7,12 @@ mode="${1:?usage: release-phase.sh <Demo|Family>}"
 : "${VERSION:?}" "${REGISTRY_USER:?}" "${REGISTRY_TOKEN:?}"
 
 # The images are private, so the server signs in to the registry with the job's short-lived
-# token for the length of the deploy and signs out again afterwards.
-printf '%s' "$REGISTRY_TOKEN" | ssh server "docker login ghcr.io --username '$REGISTRY_USER' --password-stdin"
-ssh server "WHEELHOUSE_COMPOSE=\$HOME/wheelhouse/compose.candidate.yaml bash ~/wheelhouse/deploy.sh '$VERSION' '$mode'; status=\$?; docker logout ghcr.io; exit \$status"
+# token for the length of the deploy and signs out again afterwards. The sign-in goes to
+# Wheelhouse's own Docker config, so another app deploying to the same server at the same time
+# cannot overwrite or sign out of it.
+docker_config='export DOCKER_CONFIG=$HOME/.docker-wheelhouse; mkdir -p "$DOCKER_CONFIG"; [ -L "$DOCKER_CONFIG/cli-plugins" ] || [ ! -d "$HOME/.docker/cli-plugins" ] || ln -s "$HOME/.docker/cli-plugins" "$DOCKER_CONFIG/cli-plugins"'
+printf '%s' "$REGISTRY_TOKEN" | ssh server "$docker_config; docker login ghcr.io --username '$REGISTRY_USER' --password-stdin"
+ssh server "$docker_config; WHEELHOUSE_COMPOSE=\$HOME/wheelhouse/compose.candidate.yaml bash ~/wheelhouse/deploy.sh '$VERSION' '$mode'; status=\$?; docker logout ghcr.io; exit \$status"
 
 instances="${RUNNER_TEMP:-/tmp}/instances-$mode.tsv"
 ssh server 'cat ~/wheelhouse/release-smoke.tsv' > "$instances"
