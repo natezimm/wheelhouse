@@ -5,6 +5,9 @@ services:
   db:
     image: postgres:17.11-bookworm
     restart: unless-stopped
+    # Sized for a small shared VM: the default is 128 MB of buffers, far more than a family's calendar
+    # needs; the kernel's file cache still holds what the buffers don't.
+    command: ["postgres", "-c", "shared_buffers=32MB"]
     environment:
       POSTGRES_DB: wheelhouse
       POSTGRES_USER: wheelhouse
@@ -31,6 +34,9 @@ services:
       Google__ClientSecret: ${WHEELHOUSE_GOOGLE_CLIENT_SECRET:-}
       # Workstation GC: the server is small and each instance should stay light.
       DOTNET_gcServer: "0"
+    # .NET sizes its heap to the container's limit. Locally a demo API used about 145 MB uncapped and
+    # about 87 MB under this limit after 40 visits, answering as fast.
+    mem_limit: 160m
     volumes:
       - keys:/home/app/.aspnet/DataProtection-Keys
     depends_on:
