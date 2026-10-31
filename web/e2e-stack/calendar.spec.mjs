@@ -51,6 +51,14 @@ test('an event added on the screen is saved, survives a reload and can be delete
   await page.getByRole('button', { name: 'Add event', exact: true }).first().click();
   const editor = page.locator(wall ? 'app-event-dialog' : 'app-event-sheet');
   await editor.locator('input[type=text]').first().fill(title);
+  if (wall) {
+    // At 1 PM, like addAt1's events: at the default time, now, a Saturday morning's demo events
+    // would fold it into "+N" on Week and the check below could not find it.
+    for (const [field, time] of [['Start time', '1:00 PM'], ['End time', '2:00 PM']]) {
+      await editor.getByRole('textbox', { name: field }).fill(time);
+      await editor.getByRole('textbox', { name: field }).press('Enter');
+    }
+  }
   await editor.getByRole('button', { name: wall ? 'Save event' : 'Save', exact: true }).click();
   await saved(page);
   expect((await calendar(page)).events.map((e) => e.title)).toContain(title);
