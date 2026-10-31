@@ -1,6 +1,6 @@
 import { marloweCalendars, allDay, timed } from '../testing/calendar';
 import { marlowes } from '../testing/marlowes';
-import { clockLabel, copyOf, draftOf, moveDays, moveEnd, moveStart, movedTo, newDraft, onDayOf, peopleChoices, problemWith, requestOf, resizedTo, revise, togglePerson, writableCalendars } from './event-draft';
+import { clockLabel, copyOf, draftOf, endAt, moveDays, moveEnd, moveStart, movedTo, newDraft, onDayOf, parseClock, peopleChoices, problemWith, requestOf, resizedTo, revise, startAt, togglePerson, writableCalendars } from './event-draft';
 
 describe('event drafts', () => {
   const zone = 'America/New_York';
@@ -57,6 +57,45 @@ describe('event drafts', () => {
     expect(moveEnd(late, -120)).toMatchObject({ endDate: '2026-10-14', endTime: '22:45' });
     expect(clockLabel('00:30')).toBe('12:30 AM');
     expect(clockLabel('17:05')).toBe('5:05 PM');
+  });
+
+  it('read typed times in the usual ways, and nothing that is not a time', () => {
+    for (const [typed, time] of [
+      ['3pm', '15:00'], ['3 PM', '15:00'], ['3:30 PM', '15:30'], ['3:30p', '15:30'], ['3.30 p.m.', '15:30'], ['330pm', '15:30'],
+      ['12am', '00:00'], ['12:15 AM', '00:15'], ['12pm', '12:00'], ['9a', '09:00'], ['15:30', '15:30'], ['1530', '15:30'],
+      ['0930', '09:30'], ['00:45', '00:45'], ['23', '23:00'], ['noon', '12:00'], ['Midnight', '00:00'], [' 5:05 pm ', '17:05'],
+    ]) {
+      expect(parseClock(typed), typed).toBe(time);
+    }
+    for (const typed of ['', 'soon', '13pm', '0am', '3:75', '24:00', '3:3', '12345', '3pmm']) {
+      expect(parseClock(typed), typed).toBeNull();
+    }
+  });
+
+  it('read an hour without AM or PM as the first from the time given, a family’s day by default', () => {
+    expect(parseClock('8')).toBe('08:00');
+    expect(parseClock('3')).toBe('15:00');
+    expect(parseClock('6:45')).toBe('18:45');
+    expect(parseClock('1', '09:00')).toBe('13:00');
+    expect(parseClock('11', '09:00')).toBe('11:00');
+    expect(parseClock('10', '20:00')).toBe('22:00');
+    expect(parseClock('1', '23:00')).toBe('01:00');
+  });
+
+  it('keep the length when a start is typed, and end at the first typed end time after the start', () => {
+    const swim = { ...newDraft('2026-10-14', 'c1', zone, new Date()), startTime: '17:30', endTime: '18:15' };
+
+    expect(startAt(swim, '23:40')).toMatchObject({ startDate: '2026-10-14', startTime: '23:40', endDate: '2026-10-15', endTime: '00:25' });
+    expect(startAt(swim, '08:00')).toMatchObject({ startTime: '08:00', endDate: '2026-10-14', endTime: '08:45' });
+    expect(endAt(swim, '20:00')).toMatchObject({ endDate: '2026-10-14', endTime: '20:00' });
+    expect(endAt(swim, '01:00')).toMatchObject({ endDate: '2026-10-15', endTime: '01:00' });
+    expect(endAt({ ...swim, endDate: '2026-10-15', endTime: '01:00' }, '19:00')).toMatchObject({ endDate: '2026-10-14', endTime: '19:00' });
+    expect(problemWith({ ...endAt(swim, '17:30'), title: 'Swim' })).toBe('End the event after it starts.');
+    // An event a day long or more keeps its last day.
+    const day = { ...swim, startTime: '09:00', endDate: '2026-10-15', endTime: '09:00' };
+    expect(endAt(day, '09:15')).toMatchObject({ endDate: '2026-10-15', endTime: '09:15' });
+    expect(endAt(day, '09:00')).toMatchObject({ endDate: '2026-10-15', endTime: '09:00' });
+    expect(endAt({ ...swim, endDate: '2026-10-16' }, '09:00')).toMatchObject({ endDate: '2026-10-16', endTime: '09:00' });
   });
 
   it('keep the length when moved to another day and time, past midnight and across clock changes', () => {

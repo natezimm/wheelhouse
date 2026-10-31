@@ -8,16 +8,19 @@ import {
   clockLabel,
   copyOf,
   draftOf,
+  endAt,
   moveDays,
   moveEnd,
   moveLastDay,
   moveStart,
   newDraft,
   onDayOf,
+  parseClock,
   problemWith,
   requestOf,
   peopleChoices,
   revise,
+  startAt,
   togglePerson,
   writableCalendars,
 } from '../core/event-draft';
@@ -28,8 +31,9 @@ import { AvatarFace } from '../shared/avatar-face';
 import { RepeatPicker } from '../shared/repeat-picker';
 
 /**
- * The wall's dialog for adding an event, or changing or deleting one. Everything works by touch:
- * days and times move with steppers, since a wall has no comfortable date picker.
+ * The wall's dialog for adding an event, or changing or deleting one, which a desktop window uses
+ * too. Everything works by touch: days and times move with steppers, since a wall has no
+ * comfortable date picker. A time can also be typed ("3pm", "15:30"), and arrow keys step it.
  */
 @Component({
   selector: 'app-event-dialog',
@@ -93,7 +97,20 @@ import { RepeatPicker } from '../shared/repeat-picker';
                   <button type="button" aria-label="Start earlier" (click)="adjust(moveStart, -step)">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path></svg>
                   </button>
-                  <span>{{ clockLabel(draft.startTime) }}</span>
+                  <span>
+                    <input
+                      type="text"
+                      class="time"
+                      aria-label="Start time"
+                      autocomplete="off"
+                      spellcheck="false"
+                      [value]="clockLabel(draft.startTime)"
+                      (change)="typeTime('start', $any($event.target))"
+                      (keydown.enter)="$event.preventDefault(); typeTime('start', $any($event.target))"
+                      (keydown.arrowup)="$event.preventDefault(); adjust(moveStart, step)"
+                      (keydown.arrowdown)="$event.preventDefault(); adjust(moveStart, -step)"
+                    />
+                  </span>
                   <button type="button" aria-label="Start later" (click)="adjust(moveStart, step)">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
                   </button>
@@ -103,7 +120,18 @@ import { RepeatPicker } from '../shared/repeat-picker';
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path></svg>
                   </button>
                   <span>
-                    {{ clockLabel(draft.endTime) }}
+                    <input
+                      type="text"
+                      class="time"
+                      autocomplete="off"
+                      spellcheck="false"
+                      [attr.aria-label]="draft.endDate !== draft.startDate ? 'End time, ' + dayLabel(draft.endDate) : 'End time'"
+                      [value]="clockLabel(draft.endTime)"
+                      (change)="typeTime('end', $any($event.target))"
+                      (keydown.enter)="$event.preventDefault(); typeTime('end', $any($event.target))"
+                      (keydown.arrowup)="$event.preventDefault(); adjust(moveEnd, step)"
+                      (keydown.arrowdown)="$event.preventDefault(); adjust(moveEnd, -step)"
+                    />
                     @if (draft.endDate !== draft.startDate) {
                       <small>{{ shortDay(draft.endDate) }}</small>
                     }
@@ -381,6 +409,39 @@ import { RepeatPicker } from '../shared/repeat-picker';
       white-space: nowrap;
     }
 
+    /* A typed time takes the stepper's whole height between its buttons, so it is as easy to tap. */
+    .stepper > span:has(> input.time) {
+      align-self: stretch;
+      position: relative;
+    }
+
+    .stepper input.time {
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      border: 0;
+      border-radius: 10px;
+      background: none;
+      color: var(--ink);
+      font: 600 19px var(--font-body);
+      text-align: center;
+    }
+
+    .stepper input.time:has(+ small) {
+      padding-bottom: 16px;
+    }
+
+    .stepper input.time + small {
+      position: absolute;
+      inset: auto 0 10px;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .stepper input.time:hover:not(:focus) {
+      background: var(--surface);
+    }
+
     .stepper small {
       font-size: 13px;
       font-weight: 600;
@@ -398,6 +459,17 @@ import { RepeatPicker } from '../shared/repeat-picker';
       align-items: center;
       justify-content: center;
       cursor: pointer;
+    }
+
+    /* A desktop window's narrower dialog gives the typed times the room the wall's wide buttons take. */
+    .when {
+      container-type: inline-size;
+    }
+
+    @container (max-width: 680px) {
+      .stepper button {
+        width: 44px;
+      }
     }
 
     .chip {
@@ -679,6 +751,26 @@ export class EventDialog {
     if (draft) {
       this.change(move(draft, by));
     }
+  }
+
+  /**
+   * Sets the start or end from what was typed in it, then shows it the family's way. Something
+   * that is not a time puts the field back as it was and says how to type one.
+   */
+  protected typeTime(which: 'start' | 'end', input: HTMLInputElement): void {
+    const draft = this.draft();
+    if (!draft || this.busy() || this.uncertain()) {
+      return;
+    }
+    const time = parseClock(input.value, which === 'end' ? draft.startTime : undefined);
+    if (time === null) {
+      input.value = clockLabel(which === 'start' ? draft.startTime : draft.endTime);
+      this.message.set('Type a time such as 3:30 PM or 15:30.');
+      return;
+    }
+    this.change(which === 'start' ? startAt(draft, time) : endAt(draft, time));
+    const changed = this.draft()!;
+    input.value = clockLabel(which === 'start' ? changed.startTime : changed.endTime);
   }
 
   /**

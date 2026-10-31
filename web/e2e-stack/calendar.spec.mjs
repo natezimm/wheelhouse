@@ -23,14 +23,18 @@ async function calendar(page, days = 8) {
   return response.json();
 }
 
-/** Adds an event at 10 AM today through the API, as the setup for a check of the screens. */
-async function addAt10(page, title, repeat = 'Never') {
+/**
+ * Adds an event at 1 PM today through the API, as the setup for a check of the screens. No demo
+ * event overlaps that hour on any day, so Week never folds it into "+N" (at 10 AM on a Saturday
+ * it would be a third beside the farmers market and the morning's other event).
+ */
+async function addAt1(page, title, repeat = 'Never') {
   const { calendars } = await calendar(page);
   const writable = calendars.find((c) => c.canWrite && c.memberId);
   const response = await page.request.post('/api/calendar/events', {
     data: {
       calendarId: writable.id, title, location: null, allDay: false,
-      startDate: today, startTime: '10:00:00', endDate: today, endTime: '11:00:00', repeat,
+      startDate: today, startTime: '13:00:00', endDate: today, endTime: '14:00:00', repeat,
     },
   });
   expect(response.ok()).toBeTruthy();
@@ -65,7 +69,7 @@ test('an event added on the screen is saved, survives a reload and can be delete
 test('dragging an event on the wall moves it, and the move is saved', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'wall', 'Dragging is for the wall and desktop grids');
   const errors = await open(page, true);
-  const added = await addAt10(page, 'Stack drag check');
+  const added = await addAt1(page, 'Stack drag check');
   await page.reload();
 
   const grid = page.locator('app-week-view app-hour-grid');
@@ -88,7 +92,7 @@ test('dragging an event on the wall moves it, and the move is saved', async ({ p
 test('renaming all events of a series on the phone renames every one', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'phone', 'One layout is enough for the series write');
   const errors = await open(page, false);
-  await addAt10(page, 'Stack series check', 'Weekly');
+  await addAt1(page, 'Stack series check', 'Weekly');
   await page.reload();
 
   // Today's events that ended over an hour ago fold behind "N earlier events" on the phone.
