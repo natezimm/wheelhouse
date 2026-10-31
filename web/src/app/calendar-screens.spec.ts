@@ -199,7 +199,7 @@ describe('calendar screens', () => {
       await settle();
 
       const dialog = page.querySelector<HTMLElement>('app-event-dialog form')!;
-      expect(Array.from(dialog.querySelectorAll('.stepper > span'), (s) => s.textContent?.trim())).toEqual(['Wed, Oct 14', '2:30 PM', '3:30 PM']);
+      expect(Array.from(dialog.querySelectorAll('.stepper > span'), (s) => s.querySelector('input')?.value ?? s.textContent?.trim())).toEqual(['Wed, Oct 14', '2:30 PM', '3:30 PM']);
     });
 
     it("hides a person's events when their chip is tapped", async () => {
