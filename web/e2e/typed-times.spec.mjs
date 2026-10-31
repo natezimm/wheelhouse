@@ -87,10 +87,17 @@ for (const where of ['wall', 'desktop']) {
     for (const field of [start, end]) {
       expect(await field.evaluate((input) => input.scrollWidth <= input.clientWidth)).toBe(true);
     }
+    // An end before the start is the next day, named under the time.
+    await end.fill('1am');
+    await end.press('Tab');
+    await expect(editor.getByRole('textbox', { name: 'End time, Tue, Oct 13' })).toHaveValue('1:00 AM');
 
     if (where === 'wall') {
       for (const name of ['Start earlier', 'Start later']) {
         expect((await editor.getByRole('button', { name, exact: true }).boundingBox()).width).toBeGreaterThanOrEqual(56);
+      }
+      for (const field of [start, end]) {
+        expect((await field.boundingBox()).height).toBeGreaterThanOrEqual(56);
       }
     }
     await editor.getByRole('group', { name: 'When' }).screenshot({ path: testInfo.outputPath(`${where}-times.png`) });
@@ -98,6 +105,6 @@ for (const where of ['wall', 'desktop']) {
 
     await editor.getByRole('button', { name: 'Save changes', exact: true }).click();
     await expect.poll(() => writes.length).toBe(1);
-    expect(writes[0].body).toMatchObject({ startDate: '2026-10-12', startTime: '16:00:00', endDate: '2026-10-12', endTime: '23:45:00' });
+    expect(writes[0].body).toMatchObject({ startDate: '2026-10-12', startTime: '16:00:00', endDate: '2026-10-13', endTime: '01:00:00' });
   });
 }

@@ -409,9 +409,15 @@ import { RepeatPicker } from '../shared/repeat-picker';
       white-space: nowrap;
     }
 
+    /* A typed time takes the stepper's whole height between its buttons, so it is as easy to tap. */
+    .stepper > span:has(> input.time) {
+      align-self: stretch;
+      position: relative;
+    }
+
     .stepper input.time {
       width: 100%;
-      height: 40px;
+      height: 100%;
       padding: 0;
       border: 0;
       border-radius: 10px;
@@ -419,6 +425,17 @@ import { RepeatPicker } from '../shared/repeat-picker';
       color: var(--ink);
       font: 600 19px var(--font-body);
       text-align: center;
+    }
+
+    .stepper input.time:has(+ small) {
+      padding-bottom: 16px;
+    }
+
+    .stepper input.time + small {
+      position: absolute;
+      inset: auto 0 10px;
+      text-align: center;
+      pointer-events: none;
     }
 
     .stepper input.time:hover:not(:focus) {

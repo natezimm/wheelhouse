@@ -91,7 +91,10 @@ describe('event drafts', () => {
     expect(endAt(swim, '01:00')).toMatchObject({ endDate: '2026-10-15', endTime: '01:00' });
     expect(endAt({ ...swim, endDate: '2026-10-15', endTime: '01:00' }, '19:00')).toMatchObject({ endDate: '2026-10-14', endTime: '19:00' });
     expect(problemWith({ ...endAt(swim, '17:30'), title: 'Swim' })).toBe('End the event after it starts.');
-    // An event over more than a day keeps its last day.
+    // An event a day long or more keeps its last day.
+    const day = { ...swim, startTime: '09:00', endDate: '2026-10-15', endTime: '09:00' };
+    expect(endAt(day, '09:15')).toMatchObject({ endDate: '2026-10-15', endTime: '09:15' });
+    expect(endAt(day, '09:00')).toMatchObject({ endDate: '2026-10-15', endTime: '09:00' });
     expect(endAt({ ...swim, endDate: '2026-10-16' }, '09:00')).toMatchObject({ endDate: '2026-10-16', endTime: '09:00' });
   });
 

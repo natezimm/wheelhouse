@@ -263,13 +263,13 @@ export function startAt(draft: EventDraft, time: string): EventDraft {
 
 /**
  * Ends the event at <code>time</code> ('HH:mm'), as typing an end does: at the first such time
- * from its start, so a time before the start ends it the next day. An event longer than a day keeps
+ * from its start, so a time before the start ends it the next day. An event a day long or more keeps
  * its last day while the time still falls after the start.
  */
 export function endAt(draft: EventDraft, time: string): EventDraft {
   const start = startOf(draft);
   const onLastDay = minutesOf(draft.endDate, time);
-  const end = endOf(draft) - start > DAY_MINUTES && onLastDay > start ? onLastDay
+  const end = endOf(draft) - start >= DAY_MINUTES && onLastDay > start ? onLastDay
     : minutesOf(draft.startDate, time) + (time < draft.startTime ? DAY_MINUTES : 0);
   const [endDate, endTime] = split(end);
   return { ...draft, endDate, endTime };
