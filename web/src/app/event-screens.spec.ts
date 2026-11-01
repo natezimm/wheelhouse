@@ -141,12 +141,20 @@ describe('event screens', () => {
 
       const request = http.expectOne({ method: 'PUT', url: `/api/calendar/events/${swim.id}` });
       expect(request.request.body).toMatchObject({ title: 'Swim lesson (cancelled)', startTime: '17:30:00', endTime: '18:15:00' });
-      request.flush({ ...swim, title: 'Swim lesson, indoor pool' }, { status: 409, statusText: 'Conflict' });
+      request.flush({ ...swim, title: 'Swim lesson, indoor pool', version: 'theirs' }, { status: 409, statusText: 'Conflict' });
       http.expectOne((r) => r.url === '/api/calendar');
       await settle();
 
-      expect(dialog.querySelector('[role="alert"]')?.textContent).toContain('changed this event in Google Calendar first');
+      expect(dialog.querySelector('[role="alert"]')?.textContent).toContain('changed this event first');
       expect(dialog.querySelector<HTMLInputElement>('#event-title')!.value).toBe('Swim lesson, indoor pool');
+
+      // Saving again is made from their version, so it is not refused again.
+      button(dialog, 'Save changes').click();
+      const again = http.expectOne({ method: 'PUT', url: `/api/calendar/events/${swim.id}` });
+      expect(again.request.body.version).toBe('theirs');
+      again.flush({ ...swim, title: 'Swim lesson, indoor pool', version: 'mine' });
+      http.expectOne((r) => r.url === '/api/calendar');
+      await settle();
     });
 
     it('makes an event that does not repeat yet into a weekly series', async () => {

@@ -276,6 +276,36 @@ describe('calendar snapshot recovery', () => {
     read().flush(snapshot(2, 'Edited'));
     expect(store.changeNumber()).toBe(2);
   });
+
+  it('sends the version a change or delete was made from, and Undo the version it saved', () => {
+    const current = { ...snapshot(1), events: [{ ...snapshot(1).events[0], version: 'v2' }] };
+    read().flush(current);
+    const id = store.events()[0].id;
+    const request = {
+      calendarId: 'c1', title: 'Edited', location: null, allDay: true,
+      startDate: '2026-10-12', endDate: '2026-10-13', startTime: null, endTime: null,
+    };
+
+    store.update(id, request).subscribe();
+    const put = http.expectOne((r) => r.method === 'PUT');
+    expect(put.request.body.version).toBe('v2');
+    put.flush({ ...current.events[0], title: 'Edited', version: 'v3' });
+    read().flush({ ...current, changeNumber: 2, events: [{ ...current.events[0], title: 'Edited', version: 'v3' }] });
+
+    store.undo().subscribe();
+    const undo = http.expectOne((r) => r.method === 'PUT');
+    expect(undo.request.body.version).toBe('v3');
+    undo.flush({ ...current.events[0], version: 'v4' });
+    read().flush({ ...current, changeNumber: 3, events: [{ ...current.events[0], version: 'v4' }] });
+
+    // A draft opened from an older version says so, and the server refuses it.
+    store.remove(id, false, crypto.randomUUID(), 'v2').subscribe({ error: () => undefined });
+    const remove = http.expectOne((r) => r.method === 'DELETE');
+    expect(remove.request.params.get('version')).toBe('v2');
+    remove.flush({ ...current.events[0], title: 'Theirs', version: 'v4' }, { status: 409, statusText: 'Conflict' });
+    expect(store.events()[0].title).toBe('Theirs');
+    read().flush({ ...current, changeNumber: 3, events: [{ ...current.events[0], title: 'Theirs', version: 'v4' }] });
+  });
 });
 
 describe('whose an event is', () => {

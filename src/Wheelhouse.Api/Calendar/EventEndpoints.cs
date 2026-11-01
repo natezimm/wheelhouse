@@ -235,6 +235,11 @@ public static class EventEndpoints
             request = request with { Private = null };
         }
 
+        if (await StaleAsync(row, request.Version, db, cancellationToken) is { } stale)
+        {
+            return stale;
+        }
+
         series &= row.RecurringEventId is not null;
         following &= row.RecurringEventId is not null && !series;
         var (draft, errors) = await DraftAsync(request, db, cancellationToken);
@@ -455,7 +460,8 @@ public static class EventEndpoints
         ClaimsPrincipal user,
         CancellationToken cancellationToken,
         bool series = false,
-        bool following = false)
+        bool following = false,
+        string? version = null)
     {
         var row = await db.EventInstances.SingleOrDefaultAsync(e => e.Id == id, cancellationToken);
         if (row is null)
@@ -466,6 +472,11 @@ public static class EventEndpoints
         if (user.IsDisplay() && await TouchesPrivateAsync(row, series || following, db, cancellationToken))
         {
             return PrivateOnDisplay();
+        }
+
+        if (await StaleAsync(row, version, db, cancellationToken) is { } stale)
+        {
+            return stale;
         }
 
         series &= row.RecurringEventId is not null;
@@ -956,6 +967,23 @@ public static class EventEndpoints
         }
 
         return errors.Count == 0 ? (draft! with { Description = description, Recurrence = rule, MemberIds = memberIds, Private = request.Private, Countdown = request.Countdown }, null) : (null, errors);
+    }
+
+    /// <summary>
+    /// A 409 with the event as it is now when the screen's change or delete was made from an older
+    /// <paramref name="seen"/> version of it, so a draft opened before someone else's save cannot
+    /// overwrite that save. Google's own <c>If-Match</c> still guards against changes made in Google.
+    /// Null when the screen saw the current version, or sent none.
+    /// </summary>
+    private static async Task<Conflict<EventResponse>?> StaleAsync(EventInstance row, string? seen, WheelhouseDbContext db, CancellationToken cancellationToken)
+    {
+        if (seen is null || seen == EventVersion.Of(row))
+        {
+            return null;
+        }
+
+        var source = await db.CalendarSources.SingleAsync(s => s.Id == row.CalendarSourceId, cancellationToken);
+        return TypedResults.Conflict(EventResponse.From(row, source));
     }
 
     /// <summary>A display shows a private event only as busy, so it may not change or delete one.</summary>
