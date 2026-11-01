@@ -124,7 +124,7 @@ Every pull request runs three jobs, and every merge to `main` runs them again be
 
 | Job | What it checks |
 | --- | --- |
-| `api` | About 190 xUnit integration tests against a real PostgreSQL started by Testcontainers, plus the deploy scripts' own tests |
+| `api` | About 250 xUnit integration tests against a real PostgreSQL started by Testcontainers, plus the deploy scripts' own tests |
 | `web` | The production Angular build, unit tests (grid engine, family-zone day math, live recovery, contrast for every theme and member color), and Playwright checks at wall and phone sizes for optimistic saves, drag, repeats, undo and reconnects |
 | `stack` | The whole app from `docker compose`, a smoke check, then add, reload, delete, drag and series edits against the real API and database, and a check that a family instance shows nothing signed out |
 
