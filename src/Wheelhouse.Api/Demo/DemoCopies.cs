@@ -14,6 +14,9 @@ public sealed class DemoCopies(WheelhouseDbContext db, IOptions<InstanceOptions>
     /// <summary>How long a visitor keeps their copy, and their sign-in to it.</summary>
     public static readonly TimeSpan Lifetime = TimeSpan.FromHours(24);
 
+    /// <summary>The advisory lock that admits one new copy at a time; an arbitrary constant no other lock uses.</summary>
+    private const long AdmissionLock = 0x57686c4465_6d6f;
+
     // These run before anyone is signed in, or with no request at all, so there is no current
     // family: each query opts out of the family filter on purpose.
 
@@ -26,6 +29,10 @@ public sealed class DemoCopies(WheelhouseDbContext db, IOptions<InstanceOptions>
     /// </summary>
     public async Task<Guid> CreateAsync(CancellationToken cancellationToken)
     {
+        // One admission at a time, across API processes, so two newcomers at the limit cannot both
+        // count room for themselves and leave one copy too many.
+        await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
+        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({AdmissionLock})", cancellationToken);
         var copies = db.Families.IgnoreQueryFilters().Where(family => family.ExpiresAt != null);
         var over = await copies.CountAsync(cancellationToken) - instance.Value.MaxDemoCopies + 1;
         if (over > 0)
@@ -38,6 +45,7 @@ public sealed class DemoCopies(WheelhouseDbContext db, IOptions<InstanceOptions>
         var family = DemoFamily.Create(Guid.NewGuid(), time.GetUtcNow() + Lifetime);
         db.Families.Add(family);
         await db.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return family.Id;
     }

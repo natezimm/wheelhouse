@@ -303,6 +303,8 @@ export class EventSheet {
 
   /** The event to change, or null to add one. */
   readonly event = input<CalendarEvent | null>(null);
+  /** The version of the event on screen once a refusal showed someone else's; until then the one opened. */
+  private readonly seen = signal<string | null>(null);
 
   /** The day a new event goes on. */
   readonly day = input.required<Day>();
@@ -416,7 +418,7 @@ export class EventSheet {
       return;
     }
     const event = this.event();
-    const request = requestOf(draft);
+    const request = { ...requestOf(draft), ...(event ? { version: this.seen() ?? event.version } : {}) };
     this.edits.set(draft);
     this.busy.set(true);
     (event ? this.calendar.update(event.id, request, this.following() ? 'following' : this.series(), this.operationId) : this.calendar.add(request, this.operationId)).subscribe({
@@ -431,7 +433,7 @@ export class EventSheet {
       return;
     }
     this.busy.set(true);
-    this.calendar.remove(event.id, this.following() ? 'following' : this.series(), this.operationId).subscribe({
+    this.calendar.remove(event.id, this.following() ? 'following' : this.series(), this.operationId, this.seen() ?? event.version).subscribe({
       next: () => this.closed.emit(),
       error: (error: HttpErrorResponse) => this.refused(error),
     });
@@ -441,6 +443,10 @@ export class EventSheet {
     this.busy.set(false);
     this.confirmingDelete.set(false);
     const refusal = eventRefusal(error);
+    if (refusal.changed) {
+      // Saving again is a decision made with their version in front of them.
+      this.seen.set(refusal.changed.version ?? null);
+    }
     const family = this.family.family();
     if (refusal.changed && family) {
       this.edits.set(draftOf(refusal.changed, family.timeZone));

@@ -48,6 +48,8 @@ export interface CalendarEvent {
   hidden?: boolean;
   /** The wall counts down the days to it, from a hidden tag on the Google event. */
   countdown?: boolean;
+  /** Opaque: changes whenever anything shown of the event does. A change or delete sends back the one it was made from. */
+  version?: string | null;
   pending?: boolean;
 }
 
@@ -77,6 +79,11 @@ export interface EventRequest {
   private?: boolean;
   /** Counts down to it on the wall or stops; left out, it stays as it is. */
   countdown?: boolean;
+  /**
+   * The version of the event the change was made from. When someone else saved it since, the
+   * change is refused with their version. Left out, the store sends the version it holds.
+   */
+  version?: string | null;
 }
 
 export interface PendingCalendarChange {
@@ -90,6 +97,8 @@ export interface PendingCalendarChange {
   following?: boolean;
   source: CalendarSource;
   zone: string;
+  /** The version of the event the change or delete was made from, sent so a stale one is refused. */
+  seen?: string | null;
   status: 'saving' | 'uncertain' | 'settling';
   settleAfter?: number;
   result?: CalendarEvent;
@@ -269,7 +278,7 @@ export class CalendarStore {
     this.lastChange.set({
       label: op.kind === 'remove' ? 'Event deleted' : moved ? 'Event moved' : 'Event changed',
       target,
-      undo: () => changed ? this.mutate('update', changed.id, back, false, crypto.randomUUID(), changed) : this.add(back),
+      undo: () => changed ? this.mutate('update', changed.id, { ...back, version: changed.version }, false, crypto.randomUUID(), changed) : this.add(back),
     });
     this.undoTimer = setTimeout(() => this.lastChange.set(null), CalendarStore.UNDO_MS);
   }
@@ -432,8 +441,9 @@ export class CalendarStore {
     return this.mutate('update', id, request, series, operationId) as Observable<CalendarEvent>;
   }
 
-  remove(id: string, series: SeriesScope = false, operationId: string = crypto.randomUUID()): Observable<void> {
-    return this.mutate('remove', id, undefined, series, operationId) as Observable<void>;
+  /** <code>version</code> is the version of the event the person chose to delete, when they saw it a while ago. */
+  remove(id: string, series: SeriesScope = false, operationId: string = crypto.randomUUID(), version?: string | null): Observable<void> {
+    return this.mutate('remove', id, undefined, series, operationId, undefined, version) as Observable<void>;
   }
 
   /** Check a lost response first; retry the frozen intent, with the same create id if needed. */
@@ -443,7 +453,7 @@ export class CalendarStore {
   }
 
   private mutate(kind: PendingCalendarChange['kind'], eventId: string | undefined,
-    request: EventRequest | undefined, scope: SeriesScope, operationId: string, known?: CalendarEvent): Observable<CalendarEvent | void> {
+    request: EventRequest | undefined, scope: SeriesScope, operationId: string, known?: CalendarEvent, version?: string | null): Observable<CalendarEvent | void> {
     const series = scope === true;
     const following = scope === 'following';
     return defer(() => {
@@ -463,6 +473,7 @@ export class CalendarStore {
         originals: original ? orElse(this.allEvents().filter((e) => e.id === original.id || (!!original.seriesId && e.seriesId === original.seriesId
           && (series || (following && startOf(e) >= startOf(original))))), [original]) : [],
         zone: this.family.family()?.timeZone ?? 'UTC', status: 'saving',
+        seen: request?.version ?? version ?? original?.version ?? null,
       };
       op.status = 'saving';
       this.failure.set(null);
@@ -471,8 +482,8 @@ export class CalendarStore {
         ? this.http.post<CalendarEvent>('/api/calendar/events', { ...op.request, creationId: op.id })
         : kind === 'update'
           // A split makes a new series; its id lets a retry find the one an earlier try made.
-          ? this.http.put<CalendarEvent>(`/api/calendar/events/${op.original!.id}`, op.following ? { ...op.request, creationId: op.id } : op.request, { params: scopeParams(op) })
-          : this.http.delete<void>(`/api/calendar/events/${op.original!.id}`, { params: scopeParams(op) });
+          ? this.http.put<CalendarEvent>(`/api/calendar/events/${op.original!.id}`, { ...op.request, version: op.seen ?? undefined, ...(op.following ? { creationId: op.id } : {}) }, { params: scopeParams(op) })
+          : this.http.delete<void>(`/api/calendar/events/${op.original!.id}`, { params: { ...scopeParams(op), ...(op.seen ? { version: op.seen } : {}) } });
       const call = existing ? this.reconcile(op).pipe(switchMap((found) => found.resolved ? of(found.event) : send())) : send();
       return call.pipe(timeout(20_000), tap((result) => {
         if (epoch !== this.familyEpoch) return;
@@ -705,7 +716,7 @@ function isEvent(body: unknown): body is CalendarEvent {
 export function eventRefusal(error: HttpErrorResponse): { message: string; changed: CalendarEvent | null } {
   if (error.status === 409 && isEvent(error.error)) {
     return {
-      message: 'Someone changed this event in Google Calendar first. This is their version now.',
+      message: 'Someone changed this event first. This is their version now.',
       changed: error.error,
     };
   }
