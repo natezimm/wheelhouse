@@ -1,10 +1,19 @@
 # Production stack for one Wheelhouse instance, such as the public demo or a family's own.
 # Every instance on the server runs this same file from its own folder with its own .env,
 # so instances share nothing: separate database, network and secrets. See deploy/README.md.
+
+# Docker keeps a container's output forever by default; this keeps at most 30 MB per container.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   db:
     image: postgres:17.11-bookworm
     restart: unless-stopped
+    logging: *logging
     # Sized for a small shared VM: the default is 128 MB of buffers, far more than a family's calendar
     # needs; the kernel's file cache still holds what the buffers don't.
     command: ["postgres", "-c", "shared_buffers=32MB"]
@@ -23,6 +32,7 @@ services:
   api:
     image: ghcr.io/natezimm/wheelhouse-api:${WHEELHOUSE_VERSION:?deploy.sh sets WHEELHOUSE_VERSION}
     restart: unless-stopped
+    logging: *logging
     environment:
       ConnectionStrings__Wheelhouse: Host=db;Port=5432;Database=wheelhouse;Username=wheelhouse;Password=${WHEELHOUSE_DB_PASSWORD};GSS Encryption Mode=Disable
       # Demo gives every visitor a private copy of a fictional family. Family is private: nothing is readable without signing in.
@@ -46,6 +56,7 @@ services:
   web:
     image: ghcr.io/natezimm/wheelhouse-web:${WHEELHOUSE_VERSION}
     restart: unless-stopped
+    logging: *logging
     ports:
       # Loopback only. The server's own nginx terminates HTTPS and forwards here.
       - "127.0.0.1:${WHEELHOUSE_HTTP_PORT:?Set WHEELHOUSE_HTTP_PORT in the instance's .env}:80"

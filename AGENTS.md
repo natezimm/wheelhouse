@@ -42,7 +42,7 @@ The API tests start their own PostgreSQL with Testcontainers. They never use the
 **Instance mode.** The same image runs as two kinds of instance, chosen by `Wheelhouse:Mode` (`WHEELHOUSE_MODE` in a deployed instance's `.env`):
 
 - `Family` is a real family's private instance. Nothing is readable without signing in. It is the default when the setting is missing, and it must stay the default.
-- `Demo` is the public demo. Each visitor gets a private copy of a fictional family (`Demo/DemoCopies`) and is signed in to it as a parent. A copy is a family row with `ExpiresAt` set, deleted an hour or less after it expires, or sooner when the demo holds `MaxDemoCopies` and a newcomer's copy replaces the oldest, so the demo never turns a visitor away for being full. A real family has no `ExpiresAt`, so cleanup can never delete one.
+- `Demo` is the public demo. Each visitor gets a private copy of a fictional family (`Demo/DemoCopies`) and is signed in to it as a parent. A copy is a family row with `ExpiresAt` set, deleted an hour or less after it expires, or sooner when the demo holds `MaxDemoCopies` and a newcomer's copy replaces the oldest, so the demo never turns a visitor away for being full; copies are admitted one at a time under an advisory lock. A copy holds at most `MaxDemoEvents` events, and a demo repeating event starts no more than 90 days back, so one write expands a bounded number of occurrences. A real family has no `ExpiresAt`, so cleanup can never delete one.
 
 Local development and `docker compose up` run as `Demo`.
 

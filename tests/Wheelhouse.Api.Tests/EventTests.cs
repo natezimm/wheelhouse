@@ -4,6 +4,8 @@ using Wheelhouse.Api.Auth;
 using Wheelhouse.Api.Calendar;
 using Wheelhouse.Api.Devices;
 using Wheelhouse.Api.Families;
+using Wheelhouse.Api.Instance;
+using Microsoft.AspNetCore.Hosting;
 
 namespace Wheelhouse.Api.Tests;
 
@@ -66,6 +68,48 @@ public sealed class EventTests(ApiFactory factory)
         Assert.Equal(family.Members.Single(m => m.DisplayName == "Milo").Id, added.MemberId);
         Assert.False(added.Recurring);
         Assert.Contains((await CalendarOf(visitor, Day, 1)).Events, e => e.Id == added.Id && e.Location == "Riverside Rec Center");
+    }
+
+    [Fact]
+    public async Task The_demo_refuses_a_repeating_event_that_starts_before_the_days_it_keeps()
+    {
+        using var visitor = await factory.DemoVisitorAsync();
+        var milos = await CalendarIdAsync(visitor, "Milo — School & Sports");
+        var ancient = new DateOnly(1990, 1, 1);
+
+        var added = await visitor.PostAsJsonAsync("/api/calendar/events",
+            Timed(milos, "Since forever", new(7, 0), new(7, 30)) with { StartDate = ancient, EndDate = ancient, Repeat = EventRepeat.Daily }, ApiFactory.Json);
+        var oneOff = await AddAsync(visitor, Timed(milos, "Long ago", new(7, 0), new(7, 30)) with { StartDate = ancient, EndDate = ancient });
+        var madeRepeating = await ChangeAsync(visitor, oneOff.Id,
+            Timed(milos, "Long ago", new(7, 0), new(7, 30)) with { StartDate = ancient, EndDate = ancient, Repeat = EventRepeat.Daily });
+
+        Assert.Equal(HttpStatusCode.BadRequest, added.StatusCode);
+        Assert.Contains("startDate", await added.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.BadRequest, madeRepeating.StatusCode);
+        Assert.Equal([oneOff.Id], (await CalendarOf(visitor, ancient, 1)).Events.Where(e => e.Title is "Since forever" or "Long ago").Select(e => e.Id));
+        Assert.DoesNotContain((await CalendarOf(visitor, ancient.AddDays(1), 7)).Events, e => e.Title is "Since forever" or "Long ago");
+    }
+
+    [Fact]
+    public async Task A_demo_copy_holds_only_so_many_events()
+    {
+        await using var demo = factory.WithWebHostBuilder(builder => builder
+            .UseSetting("Wheelhouse:Mode", InstanceMode.Demo)
+            .UseSetting("Wheelhouse:MaxDemoEvents", "600"));
+        using var visitor = demo.CreateClient();
+        (await visitor.PostAsync("/api/demo/visit", content: null)).EnsureSuccessStatusCode();
+        var milos = await CalendarIdAsync(visitor, "Milo — School & Sports");
+        var daily = Timed(milos, "Stretch", new(7, 0), new(7, 15)) with { Repeat = EventRepeat.Daily };
+
+        var first = await visitor.PostAsJsonAsync("/api/calendar/events", daily, ApiFactory.Json);
+        var second = await visitor.PostAsJsonAsync("/api/calendar/events", daily, ApiFactory.Json);
+        var oneOff = await visitor.PostAsJsonAsync("/api/calendar/events", Timed(milos, "Dentist", new(9, 0), new(9, 30)), ApiFactory.Json);
+
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, second.StatusCode);
+        Assert.Contains("600 events", await second.Content.ReadAsStringAsync());
+        Assert.Equal(HttpStatusCode.Created, oneOff.StatusCode);
+        Assert.Single((await CalendarOf(visitor, Day, 1)).Events, e => e.Title == "Stretch");
     }
 
     [Fact]
