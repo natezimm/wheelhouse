@@ -269,7 +269,8 @@ public static class EventEndpoints
 
         if (following)
         {
-            if (await SplitAsync(row, draft!, from, to!, db, tokens, google, sync, syncSoon, time, instance, logger, cancellationToken) is { } split)
+            var newSeriesId = request.CreationId is { } key ? EventIdentity.ForCreation(row.FamilyId, key) : null;
+            if (await SplitAsync(row, draft!, newSeriesId, from, to!, db, tokens, google, sync, syncSoon, time, instance, logger, cancellationToken) is { } split)
             {
                 return split;
             }
@@ -540,6 +541,7 @@ public static class EventEndpoints
     private static async Task<Results<Ok<EventResponse>, Conflict<EventResponse>, ValidationProblem, ProblemHttpResult, NotFound>?> SplitAsync(
         EventInstance row,
         GoogleEventDraft draft,
+        string? newSeriesId,
         CalendarSource from,
         CalendarSource to,
         WheelhouseDbContext db,
@@ -573,7 +575,7 @@ public static class EventEndpoints
 
             var (demoBefore, demoAfter) = SplitRule(demoRule, first, day, draft, row.IsAllDay, zone);
             EndCached(rows, day, demoBefore, db, zone);
-            var newRows = EventSeries.Occurrences(draft with { Recurrence = demoAfter }, Guid.NewGuid().ToString("N"),
+            var newRows = EventSeries.Occurrences(draft with { Recurrence = demoAfter }, newSeriesId ?? Guid.NewGuid().ToString("N"),
                     Today(time, zone).AddDays(CalendarSync.Ahead.Days), zone)
                 .Select(occurrence => NewRow(row.FamilyId, to, occurrence, db))
                 .ToList();
@@ -587,8 +589,9 @@ public static class EventEndpoints
             return problem;
         }
 
-        GoogleEvent stored;
+        GoogleEvent stored = null!;
         string before;
+        var undone = false;
         try
         {
             var current = await google.GetEventAsync(write.AccessToken!, from.GoogleCalendarId, row.GoogleEventId, cancellationToken);
@@ -612,11 +615,43 @@ public static class EventEndpoints
             }
 
             (before, var after) = SplitRule(rule, first, day, draft, master.StartDate is not null, zone);
-            // The new series goes in first: should ending the old one then fail, events show twice rather than not at all.
-            stored = await google.InsertEventAsync(write.AccessToken!, to.GoogleCalendarId, draft with { Recurrence = after, Id = null }, cancellationToken);
-            await google.PatchEventAsync(write.AccessToken!, from.GoogleCalendarId, master.Id, master.ETag,
-                new GoogleEventDraft(master.Title, master.Location, master.StartsAt, master.EndsAt, master.StartDate, master.EndDate, draft.TimeZone, Recurrence: before),
-                cancellationToken);
+            // The new series goes in first, so a failure never loses events. It has the screen's
+            // operation id, so a retry finds the series it already made instead of adding another.
+            stored = await google.InsertEventAsync(write.AccessToken!, to.GoogleCalendarId, draft with { Recurrence = after, Id = newSeriesId }, cancellationToken);
+            try
+            {
+                await google.PatchEventAsync(write.AccessToken!, from.GoogleCalendarId, master.Id, master.ETag,
+                    new GoogleEventDraft(master.Title, master.Location, master.StartsAt, master.EndsAt, master.StartDate, master.EndDate, draft.TimeZone, Recurrence: before),
+                    cancellationToken);
+            }
+            catch (Exception exception) when (exception is GoogleEventChangedException || GoogleWrite.IsProblem(exception))
+            {
+                // The old series may still run on, and the new one would show every later event twice.
+                // It is taken back out only when the old one surely was not ended: Google refused the
+                // change, or still has the version it was made against. Otherwise the screen's retry,
+                // with the same id, finishes the split.
+                undone = await UndoInsertAsync(exception is GoogleEventChangedException);
+                throw;
+            }
+
+            async Task<bool> UndoInsertAsync(bool refused)
+            {
+                try
+                {
+                    if (!refused && (await google.GetEventAsync(write.AccessToken!, from.GoogleCalendarId, master.Id, CancellationToken.None))?.ETag != master.ETag)
+                    {
+                        return false;
+                    }
+
+                    await google.DeleteEventAsync(write.AccessToken!, to.GoogleCalendarId, stored.Id, etag: null, CancellationToken.None);
+                    return true;
+                }
+                catch (Exception undo) when (GoogleWrite.IsProblem(undo) || undo is GoogleEventChangedException)
+                {
+                    logger.LogWarning(undo, "Could not take back the new series of a split that failed; a retry finishes the split.");
+                    return false;
+                }
+            }
         }
         catch (GoogleEventChangedException)
         {
@@ -626,7 +661,10 @@ public static class EventEndpoints
         }
         catch (Exception exception) when (GoogleWrite.IsProblem(exception))
         {
-            return await write.ProblemFor(exception, from, cancellationToken);
+            // Nothing changed in Google, so the screen may save again as a new change.
+            return undone
+                ? TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "Google couldn't finish this change, so nothing changed. Try again.")
+                : await write.ProblemFor(exception, from, cancellationToken);
         }
 
         try

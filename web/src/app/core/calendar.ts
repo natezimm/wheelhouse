@@ -470,7 +470,8 @@ export class CalendarStore {
       const send = () => kind === 'add'
         ? this.http.post<CalendarEvent>('/api/calendar/events', { ...op.request, creationId: op.id })
         : kind === 'update'
-          ? this.http.put<CalendarEvent>(`/api/calendar/events/${op.original!.id}`, op.request, { params: scopeParams(op) })
+          // A split makes a new series; its id lets a retry find the one an earlier try made.
+          ? this.http.put<CalendarEvent>(`/api/calendar/events/${op.original!.id}`, op.following ? { ...op.request, creationId: op.id } : op.request, { params: scopeParams(op) })
           : this.http.delete<void>(`/api/calendar/events/${op.original!.id}`, { params: scopeParams(op) });
       const call = existing ? this.reconcile(op).pipe(switchMap((found) => found.resolved ? of(found.event) : send())) : send();
       return call.pipe(timeout(20_000), tap((result) => {
