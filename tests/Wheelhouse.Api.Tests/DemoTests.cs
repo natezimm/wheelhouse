@@ -141,6 +141,24 @@ public sealed class DemoTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Newcomers_arriving_at_once_never_leave_more_copies_than_the_limit()
+    {
+        await using var own = new ApiFactory();
+        await own.InitializeAsync();
+        await using var demo = own.WithWebHostBuilder(builder => builder
+            .UseSetting("Wheelhouse:Mode", InstanceMode.Demo)
+            .UseSetting("Wheelhouse:MaxDemoCopies", 2));
+        var visitors = Enumerable.Range(0, 6).Select(_ => demo.CreateClient()).ToList();
+
+        var visits = await Task.WhenAll(visitors.Select(visitor => visitor.PostAsync("/api/demo/visit", content: null)));
+
+        Assert.All(visits, visit => Assert.Equal(HttpStatusCode.NoContent, visit.StatusCode));
+        await using var db = own.DbContextFor(familyId: null);
+        Assert.Equal(2, await db.Families.IgnoreQueryFilters().CountAsync(family => family.ExpiresAt != null));
+        visitors.ForEach(visitor => visitor.Dispose());
+    }
+
+    [Fact]
     public async Task One_address_cannot_fill_the_demo_with_new_copies()
     {
         Task<HttpContext> Visit(string address, string? cookie = null) => factory.Demo.Server.SendAsync(context =>
