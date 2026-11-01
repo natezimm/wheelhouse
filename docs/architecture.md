@@ -45,7 +45,7 @@ flowchart TB
   Phone["Phone and desktop<br/>Angular /, bottom tabs or rail"]
 
   subgraph Instance["One instance (Docker Compose)"]
-    Web["web<br/>nginx: Angular build, CSP,<br/>proxies /api, /hubs, /health"]
+    Web["web<br/>nginx: Angular build, CSP,<br/>proxies /api, /hubs, /health, /robots.txt"]
     subgraph Api["api (ASP.NET Core 10)"]
       Endpoints["Minimal API endpoints<br/>by feature folder"]
       Hub["/hubs/calendar<br/>SignalR"]

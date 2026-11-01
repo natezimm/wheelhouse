@@ -64,6 +64,7 @@ app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapHealth();
+app.MapRobots();
 app.MapSession();
 app.MapAuth();
 app.MapDemo();
