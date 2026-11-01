@@ -170,7 +170,18 @@ internal sealed class FakeGoogle : IGoogleCalendar
         }
 
         Listed.Add((calendarId, from, to));
-        return Task.FromResult<IReadOnlyList<GoogleEvent>>([.. Occurrences(calendarId, from - TimeSpan.FromDays(1), to)]);
+        IReadOnlyList<GoogleEvent> listed = [.. Occurrences(calendarId, from - TimeSpan.FromDays(1), to)];
+        return AfterListing is { } after ? AnswerLate(after, listed) : Task.FromResult(listed);
+    }
+
+    /// <summary>Runs once a calendar's events are read and before they are answered, as when a save lands while Google's answer is on its way.</summary>
+    public Func<Task>? AfterListing { get; set; }
+
+    private async Task<IReadOnlyList<GoogleEvent>> AnswerLate(Func<Task> after, IReadOnlyList<GoogleEvent> listed)
+    {
+        AfterListing = null;
+        await after();
+        return listed;
     }
 
     public Task<GoogleEvent> InsertEventAsync(string accessToken, string calendarId, GoogleEventDraft draft, CancellationToken cancellationToken)
