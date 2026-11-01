@@ -9,7 +9,6 @@ import { SessionStore } from '../core/session';
 import { ViewPreferences } from '../core/view-preferences';
 import { WeatherStore } from '../core/weather';
 import { EventSheet } from '../phone/event-sheet';
-import { PhoneNav } from '../phone/phone-nav';
 import { SignIn } from '../phone/sign-in';
 import { CalendarConnection } from '../shared/calendar-connection';
 import { CalendarFilter } from '../shared/calendar-filter';
@@ -32,7 +31,7 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
 
 /**
  * The calendar at <code>/</code>, for phones and desktop browsers alike. Below 768 px: a header,
- * the view switch, the view, and tabs along the bottom. From 768 px: a rail on the left, a
+ * the view switch with a Settings button beside it, and the view. From 768 px: a rail on the left, a
  * toolbar and the calendar in a card. The layout follows the window without changing the
  * route, and keeps the date, filters and any open editor as it does.
  */
@@ -51,7 +50,6 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
     MonthView,
     PhoneDay,
     PhoneMonth,
-    PhoneNav,
     PhoneWeek,
     ShortcutHelp,
     RouterLink,
@@ -70,7 +68,7 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
           Calendar
         </a>
         <a routerLink="/settings">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"></path></svg>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
           Settings
         </a>
         <app-demo-notice class="demo" [short]="true" />
@@ -167,6 +165,10 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
                 <button type="button" [attr.aria-pressed]="view() === option.view" (click)="choose(option.view)">{{ option.label }}</button>
               }
             </div>
+            <!-- The phone's only other section; Settings leads back here. -->
+            <a class="settings" routerLink="/settings" aria-label="Settings" title="Settings">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+            </a>
           </div>
           @switch (view()) {
             @case ('day') {
@@ -187,7 +189,6 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
     </main>
 
     @if (!wide()) {
-      <app-phone-nav />
       @if (selected(); as id) {
         <app-event-details [eventId]="id" layout="phone" (closed)="selected.set(null)" (edit)="edit($event)" (remove)="edit($event, true)" (duplicate)="duplicate($event)" />
       }
@@ -312,9 +313,37 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
       background: var(--ground);
     }
 
+    .switch-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
     .view-switch {
+      flex: 1;
+      min-width: 0;
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .view-switch button {
+      padding: 0 8px;
+    }
+
+    /* A round button as tall as the switch, drawn like the header's Today button. */
+    .settings {
+      flex-shrink: 0;
+      align-self: stretch;
+      width: 52px;
+      box-sizing: border-box;
+      border: var(--control-border);
+      border-radius: var(--pill);
+      background: var(--surface);
+      box-shadow: var(--control-shadow);
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .subtitle app-calendar-connection {
@@ -330,7 +359,7 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
       position: fixed;
       left: 16px;
       right: 16px;
-      bottom: 92px;
+      bottom: 20px;
       z-index: 4;
       display: flex;
       justify-content: center;

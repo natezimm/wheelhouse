@@ -34,13 +34,11 @@ try {
     await expect(page.getByRole('link', { name: 'Sign in with Google' })).toBeVisible();
     await expect(page.locator('app-agenda-list')).toHaveCount(0);
   } else {
-    // A new phone opens on today's agenda, with the calendar and Settings along the bottom.
+    // A new phone opens on today's agenda, with a Settings button beside the view switch and no tabs.
     await expect(page.getByRole('heading', { name: 'Today', exact: true })).toBeVisible();
     await expect(page.locator('app-agenda-list')).toContainText(/\S/);
-    const sections = page.getByRole('navigation', { name: 'Sections' });
-    await expect(sections.getByRole('link')).toHaveCount(2);
-    await expect(sections.getByRole('link', { name: 'Calendar', exact: true })).toBeVisible();
-    await expect(sections.getByRole('link', { name: 'Settings', exact: true })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Sections' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Settings', exact: true })).toBeVisible();
     await page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'Month', exact: true }).click();
     await expect(page.locator('app-phone-month .month')).toBeVisible();
     await expect(page.locator('app-phone-month .month')).toContainText(/\S/);
