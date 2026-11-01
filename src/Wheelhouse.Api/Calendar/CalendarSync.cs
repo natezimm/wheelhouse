@@ -1,4 +1,6 @@
+using System.Data;
 using System.Security.Cryptography;
+using Npgsql;
 using Microsoft.EntityFrameworkCore;
 using Wheelhouse.Api.Data;
 
@@ -79,6 +81,12 @@ public sealed class CalendarSync(
             .ToListAsync(cancellationToken);
         foreach (var source in sources)
         {
+            // A calendar given up on because of a screen's save leaves the context cleared.
+            if (db.Entry(source).State == EntityState.Detached)
+            {
+                db.Attach(source);
+            }
+
             try
             {
                 await SyncCalendarAsync(source, accessToken, cancellationToken);
@@ -93,8 +101,18 @@ public sealed class CalendarSync(
         return true;
     }
 
+    /// <remarks>
+    /// Google is read outside any transaction, so a screen's save can commit while this sync waits
+    /// for Google, and what Google said may be older than that save. The family's change number is
+    /// read before Google is asked; the cache is replaced in a repeatable-read transaction only if the
+    /// number has not moved since, and a save committing while it is replaced makes PostgreSQL refuse
+    /// one of them. Either way the sync gives up on this calendar and leaves its sync token as it was,
+    /// so the next pass reads it again. The saves themselves never wait for Google's read.
+    /// </remarks>
     private async Task SyncCalendarAsync(CalendarSource source, string accessToken, CancellationToken cancellationToken)
     {
+        var seen = await ChangeNumberAsync(source.FamilyId, cancellationToken);
+
         // Asking what changed comes first, so a change made while the window is read shows next time.
         GoogleChanges changes;
         try
@@ -108,15 +126,43 @@ public sealed class CalendarSync(
         }
 
         var now = time.GetUtcNow();
-        if (changes.Changed || source.ListedAt is not { } listedAt || now - listedAt >= ListEvery)
+        var events = changes.Changed || source.ListedAt is not { } listedAt || now - listedAt >= ListEvery
+            ? await FetchAsync(source, accessToken, cancellationToken)
+            : null;
+
+        await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead, cancellationToken);
+        if (await ChangeNumberAsync(source.FamilyId, cancellationToken) != seen)
         {
-            await ListAsync(source, accessToken, cancellationToken);
+            logger.LogInformation("A save changed family {FamilyId} while calendar {CalendarSourceId} was read; reading it again next pass", source.FamilyId, source.Id);
+            return;
+        }
+
+        if (events is not null)
+        {
+            await ReplaceEventsAsync(source, events, cancellationToken);
+            source.ListedAt = now;
         }
 
         source.SyncToken = changes.NextSyncToken;
         source.LastSyncedAt = now;
-        await db.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch (Exception exception) when (IsConcurrentSave(exception))
+        {
+            logger.LogInformation("A save changed family {FamilyId} while calendar {CalendarSourceId} was replaced; reading it again next pass", source.FamilyId, source.Id);
+            db.ChangeTracker.Clear();
+        }
     }
+
+    private Task<long> ChangeNumberAsync(Guid familyId, CancellationToken cancellationToken) =>
+        db.Families.IgnoreQueryFilters().Where(f => f.Id == familyId).Select(f => f.CalendarChangeNumber).SingleAsync(cancellationToken);
+
+    private static bool IsConcurrentSave(Exception exception) =>
+        exception is PostgresException { SqlState: PostgresErrorCodes.SerializationFailure or PostgresErrorCodes.DeadlockDetected }
+        || exception.InnerException is { } inner && IsConcurrentSave(inner);
 
     /// <summary>
     /// Reads the calendar's events in the window and replaces its cache with them, without saving.
@@ -124,6 +170,14 @@ public sealed class CalendarSync(
     /// a new version, and often a new id.
     /// </summary>
     public async Task ListAsync(CalendarSource source, string accessToken, CancellationToken cancellationToken)
+    {
+        var now = time.GetUtcNow();
+        await ReplaceEventsAsync(source, await FetchAsync(source, accessToken, cancellationToken), cancellationToken);
+        source.ListedAt = now;
+    }
+
+    /// <summary>The calendar's events in the window as Google has them, each occurrence with its series' rule.</summary>
+    private async Task<IReadOnlyList<GoogleEvent>> FetchAsync(CalendarSource source, string accessToken, CancellationToken cancellationToken)
     {
         var now = time.GetUtcNow();
         var events = await google.ListEventsAsync(accessToken, source.GoogleCalendarId, now - Behind, now + Ahead, cancellationToken);
@@ -135,11 +189,9 @@ public sealed class CalendarSync(
             rules[seriesId] = (await google.GetEventAsync(accessToken, source.GoogleCalendarId, seriesId, cancellationToken))?.Recurrence;
         }
 
-        events = events
+        return events
             .Select(e => e.RecurringEventId is { } seriesId ? e with { Recurrence = rules[seriesId] } : e)
             .ToList();
-        await ReplaceEventsAsync(source, events, cancellationToken);
-        source.ListedAt = now;
     }
 
     /// <summary>
