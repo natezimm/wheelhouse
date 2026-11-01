@@ -104,10 +104,12 @@ test('renaming all events of a series on the phone renames every one', async ({ 
   await page.reload();
 
   // Today's events that ended over an hour ago fold behind "N earlier events" on the phone.
+  // Depending on the time of day the fold shows alongside the series, instead of it, or not
+  // at all, so wait for either and open the fold only when the series is behind it.
   const series = page.getByRole('button', { name: /Stack series check/ }).first();
   const earlier = page.getByRole('button', { name: /earlier event/ });
-  await expect(series.or(earlier)).toBeVisible();
-  if (await earlier.isVisible()) await earlier.click();
+  await expect(series.or(earlier).first()).toBeVisible();
+  if (!(await series.isVisible()) && (await earlier.isVisible())) await earlier.click();
   await series.click();
   await page.getByRole('dialog', { name: 'Stack series check' }).getByRole('button', { name: 'Edit event', exact: true }).click();
   const sheet = page.locator('app-event-sheet');
