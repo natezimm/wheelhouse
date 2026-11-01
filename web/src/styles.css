@@ -655,6 +655,16 @@ body {
   font-family: var(--font-body);
 }
 
+/* What index.html shows until the app has started and replaced it. */
+.app-starting {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  margin: 0;
+  color: var(--muted);
+  font-size: 18px;
+}
+
 /* Shared building blocks for the phone's forms and lists. */
 .card {
   background: var(--surface);
