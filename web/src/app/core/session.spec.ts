@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { SessionStore, VISIT_RETRIES, VISIT_RETRY_MS } from './session';
+import { START_TIMEOUT_MS, SessionStore, VISIT_RETRIES, VISIT_RETRY_MS } from './session';
 
 describe('SessionStore', () => {
   let session: SessionStore;
@@ -94,6 +94,44 @@ describe('SessionStore', () => {
       await starting;
 
       expect(session.demoUnavailable()).toBe('failed');
+      expect(session.isDemo()).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('gives up on a check-in that never answers, so the app still starts and says so', async () => {
+    vi.useFakeTimers();
+    try {
+      const starting = session.start();
+
+      http.expectOne('/api/session').flush({ mode: 'Demo', signedIn: false });
+      await vi.advanceTimersByTimeAsync(0);
+      for (let attempt = 0; attempt <= VISIT_RETRIES; attempt++) {
+        const visit = http.expectOne({ method: 'POST', url: '/api/demo/visit' });
+        await vi.advanceTimersByTimeAsync(START_TIMEOUT_MS + VISIT_RETRY_MS);
+        expect(visit.cancelled).toBe(true);
+      }
+      await starting;
+
+      expect(session.demoUnavailable()).toBe('failed');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('starts without a session when the server never answers', async () => {
+    vi.useFakeTimers();
+    try {
+      let started = false;
+      const starting = session.start().then(() => (started = true));
+
+      const asked = http.expectOne('/api/session');
+      await vi.advanceTimersByTimeAsync(START_TIMEOUT_MS);
+      await starting;
+
+      expect(asked.cancelled).toBe(true);
+      expect(started).toBe(true);
       expect(session.isDemo()).toBe(false);
     } finally {
       vi.useRealTimers();
