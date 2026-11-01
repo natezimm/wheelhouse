@@ -36,6 +36,21 @@ internal sealed class FakeGoogle : IGoogleCalendar
     private readonly HashSet<string> _cancelled = [];
     private readonly Dictionary<string, int> _versions = [];
 
+    /// <summary>
+    /// Changes that fail as if the connection dropped, by kind ("patch", "delete", or "patch, after
+    /// saving it" for an answer lost once Google made the change): each is taken off as it fails,
+    /// so a retry gets through.
+    /// </summary>
+    public List<string> Failing { get; } = [];
+
+    private void FailIfAsked(string change)
+    {
+        if (Failing.Remove(change))
+        {
+            throw new HttpRequestException($"The connection dropped during a {change}.");
+        }
+    }
+
     /// <summary>Every change a screen made in Google: what was done, to which calendar and event, and the etag it sent.</summary>
     public List<(string Change, string CalendarId, string EventId, string? IfMatch)> Writes { get; } = [];
 
@@ -206,6 +221,7 @@ internal sealed class FakeGoogle : IGoogleCalendar
     public Task<GoogleEvent> PatchEventAsync(
         string accessToken, string calendarId, string eventId, string? etag, GoogleEventDraft draft, CancellationToken cancellationToken)
     {
+        FailIfAsked("patch");
         Writes.Add(("patch", calendarId, eventId, etag));
         var current = Current(calendarId, eventId, etag);
         if (draft.Recurrence is { } rule)
@@ -221,6 +237,7 @@ internal sealed class FakeGoogle : IGoogleCalendar
             Private = draft.Private ?? current.Private,
             Countdown = draft.Countdown ?? current.Countdown,
         });
+        FailIfAsked("patch, after saving it");
         return Task.FromResult(Find(calendarId, eventId)!);
     }
 
@@ -242,6 +259,7 @@ internal sealed class FakeGoogle : IGoogleCalendar
 
     public Task DeleteEventAsync(string accessToken, string calendarId, string eventId, string? etag, CancellationToken cancellationToken)
     {
+        FailIfAsked("delete");
         Writes.Add(("delete", calendarId, eventId, etag));
         if (Find(calendarId, eventId) is { } found)
         {

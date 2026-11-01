@@ -1013,6 +1013,72 @@ public sealed class EventTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task A_split_that_fails_halfway_takes_its_new_series_back_out()
+    {
+        await using var family = await ConnectedAsync();
+        var practices = await SyncedSeriesAsync(family, "Practice");
+        var second = practices[1];
+        var day = Local(second, TimeZoneInfo.Utc).Day;
+        var request = new EventRequest(second.CalendarId, "Practice, new field", null, false, day, new(9, 0), day, new(10, 0), CreationId: Guid.NewGuid());
+        family.Google.Failing.Add("patch");
+
+        var failed = await ChangeFollowingAsync(family.Parent, second.Id, request);
+
+        Assert.Equal(HttpStatusCode.Conflict, failed.StatusCode);
+        Assert.Contains("nothing changed", await failed.Content.ReadAsStringAsync());
+        Assert.Equal(["insert", "delete"], family.Google.Writes.Select(w => w.Change));
+        Assert.Equal("RRULE:FREQ=WEEKLY", family.Google.RuleOf("practice"));
+        await family.SyncAsync();
+        Assert.DoesNotContain((await CalendarOf(family.Parent, Day, 21)).Events, e => e.Title == "Practice, new field");
+
+        // Saving again is a new change, and leaves one new series.
+        var retried = await ChangeFollowingAsync(family.Parent, second.Id, request with { CreationId = Guid.NewGuid() });
+        Assert.Equal(HttpStatusCode.OK, retried.StatusCode);
+        await family.SyncAsync();
+        Assert.Equal(2, (await CalendarOf(family.Parent, Day, 21)).Events.Count(e => e.Title == "Practice, new field"));
+    }
+
+    [Fact]
+    public async Task A_split_whose_answer_was_lost_after_google_ended_the_old_series_keeps_both_halves()
+    {
+        await using var family = await ConnectedAsync();
+        var practices = await SyncedSeriesAsync(family, "Practice");
+        var second = practices[1];
+        var day = Local(second, TimeZoneInfo.Utc).Day;
+        family.Google.Failing.Add("patch, after saving it");
+
+        var failed = await ChangeFollowingAsync(family.Parent, second.Id,
+            new EventRequest(second.CalendarId, "Practice, new field", null, false, day, new(9, 0), day, new(10, 0), CreationId: Guid.NewGuid()));
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, failed.StatusCode);
+        Assert.Equal(["insert", "patch"], family.Google.Writes.Select(w => w.Change));
+        await family.SyncAsync();
+        Assert.Equal(["Practice", "Practice, new field", "Practice, new field"],
+            (await CalendarOf(family.Parent, Day, 21)).Events.Where(e => e.Title.StartsWith("Practice")).Select(e => e.Title));
+    }
+
+    [Fact]
+    public async Task Retrying_a_split_whose_new_series_could_not_be_taken_back_finishes_it_without_another()
+    {
+        await using var family = await ConnectedAsync();
+        var practices = await SyncedSeriesAsync(family, "Practice");
+        var second = practices[1];
+        var day = Local(second, TimeZoneInfo.Utc).Day;
+        var request = new EventRequest(second.CalendarId, "Practice, new field", null, false, day, new(9, 0), day, new(10, 0), CreationId: Guid.NewGuid());
+        family.Google.Failing.AddRange(["patch", "delete"]);
+
+        var failed = await ChangeFollowingAsync(family.Parent, second.Id, request);
+        var retried = await ChangeFollowingAsync(family.Parent, second.Id, request);
+
+        Assert.Equal((HttpStatusCode.ServiceUnavailable, HttpStatusCode.OK), (failed.StatusCode, retried.StatusCode));
+        Assert.Equal(["insert", "patch"], family.Google.Writes.Select(w => w.Change));
+        Assert.StartsWith("RRULE:FREQ=WEEKLY;UNTIL=", family.Google.RuleOf("practice"));
+        await family.SyncAsync();
+        var shown = (await CalendarOf(family.Parent, Day, 21)).Events.Where(e => e.Title.StartsWith("Practice")).ToList();
+        Assert.Equal(["Practice", "Practice, new field", "Practice, new field"], shown.Select(e => e.Title));
+    }
+
+    [Fact]
     public async Task Deleting_an_event_and_those_after_it_in_google_ends_the_series()
     {
         await using var family = await ConnectedAsync();

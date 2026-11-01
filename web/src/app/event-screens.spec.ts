@@ -282,6 +282,8 @@ describe('event screens', () => {
 
       const request = http.expectOne({ method: 'PUT', url: `/api/calendar/events/${soccer.id}?following=true` });
       expect(request.request.body).toMatchObject({ calendarId: 'c2', startDate: '2026-10-15' });
+      // The new series' id, so a retry finds the series this try made.
+      expect(request.request.body.creationId).toMatch(/^[0-9a-f-]{36}$/);
     });
 
     it('deletes an event only once it is confirmed', async () => {
