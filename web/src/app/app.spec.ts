@@ -60,15 +60,15 @@ describe('routes', () => {
     expect(page.querySelector('app-pairing-screen')).toBeNull();
   });
 
-  it('leads from the phone to Settings along the bottom', async () => {
+  it('leads from the phone to Settings by a button beside the view switch, with no tabs along the bottom', async () => {
     const { page, settle } = await open('/');
 
     http.expectOne('/api/family').flush(marlowes);
     await settle();
 
-    const links = page.querySelectorAll('nav[aria-label="Sections"] a');
-    expect(text(links)).toEqual(['Calendar', 'Settings']);
-    expect(links[1].getAttribute('href')).toBe('/settings');
+    expect(page.querySelector('nav[aria-label="Sections"]')).toBeNull();
+    const settings = page.querySelector('.switch-bar a[aria-label="Settings"]');
+    expect(settings?.getAttribute('href')).toBe('/settings');
   });
 
   it('shows a pairing code on the wall when it is not signed in to a family', async () => {

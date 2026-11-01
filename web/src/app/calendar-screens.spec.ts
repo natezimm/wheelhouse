@@ -567,12 +567,12 @@ describe('calendar screens', () => {
 
     afterEach(() => (window.matchMedia = original));
 
-    it('opens on the week, with a rail instead of the bottom tabs', async () => {
+    it('opens on the week, with a rail instead of the phone’s Settings button', async () => {
       const { page } = await open('/', { from: '2026-10-12', to: '2026-10-19' });
 
       expect(shownTitle(page)).toBe('October 12 – 18 2026');
       expect(texts(page.querySelectorAll('nav.rail a'))).toEqual(['Calendar', 'Settings']);
-      expect(page.querySelector('app-phone-nav')).toBeNull();
+      expect(page.querySelector('.switch-bar .settings')).toBeNull();
       expect(column(page, 'Monday, October 12')).toContain('Dentist');
     });
 
@@ -641,7 +641,8 @@ describe('calendar screens', () => {
       widthChanged!({ matches: false });
       await settle();
 
-      expect(page.querySelector('app-phone-nav')).not.toBeNull();
+      expect(page.querySelector('nav.rail')).toBeNull();
+      expect(page.querySelector('.switch-bar .settings')?.getAttribute('href')).toBe('/settings');
       expect(page.querySelector('h1')?.textContent).toBe('Oct 19 – 25');
       expect(localStorage.getItem(VIEW_STORAGE_KEY)).toBeNull();
 

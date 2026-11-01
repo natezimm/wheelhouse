@@ -121,7 +121,7 @@ for (const [theme, nightMode] of ['Daylight', 'Groovy', 'Classic', 'Bold'].flatM
     const smallest = wall ? 56 : 44;
     const controls = wall
       ? page.locator('app-calendar-toolbar button, app-calendar-filter button')
-      : page.locator('header button, .view-switch button, app-calendar-filter button');
+      : page.locator('header button, .view-switch button, .switch-bar .settings, app-calendar-filter button');
     const sizes = await controls.evaluateAll((buttons) =>
       buttons.filter((b) => b.offsetParent).map((b) => [b.textContent.trim() || b.getAttribute('aria-label'), b.getBoundingClientRect().height]),
     );

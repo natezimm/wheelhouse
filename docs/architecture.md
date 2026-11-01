@@ -42,7 +42,7 @@ What runs, and what calls what. Each instance (the demo, or one family) is its o
 ```mermaid
 flowchart TB
   Wall["Wall display<br/>Angular /wall, 1920 x 1080 touch"]
-  Phone["Phone and desktop<br/>Angular /, bottom tabs or rail"]
+  Phone["Phone and desktop<br/>Angular /, Settings button or rail"]
 
   subgraph Instance["One instance (Docker Compose)"]
     Web["web<br/>nginx: Angular build, CSP,<br/>proxies /api, /hubs, /health, /robots.txt"]

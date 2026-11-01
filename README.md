@@ -14,7 +14,7 @@ A family calendar for the kitchen wall and every phone in the house, built on th
 ## What it does
 
 - **A wall display** (a 1920 × 1080 touch screen in kiosk mode) with Day, Week and Month views, each person's events in their own color, today's weather and countdown chips for big days.
-- **A phone and desktop calendar** at `/`: bottom tabs on a phone, a side rail from 768 px, and keyboard shortcuts on a desktop.
+- **A phone and desktop calendar** at `/`: a Settings button beside the view switch on a phone, a side rail from 768 px, and keyboard shortcuts on a desktop.
 - **Edit from anywhere.** Add, change, duplicate and delete events, drag them to another time or day, pull an edge to change the length, and set repeats from "every weekday" to "the second Tuesday, ten times". Undo for ten seconds after changing or deleting one event.
 - **Live everywhere.** A change on one screen appears on every other within a second or two, and edits made in Google's own apps arrive within two minutes.
 - **Family settings** on the phone: members and their colors and pictures, which Google calendars show and whose they are, paired wall displays, private events, and four themes (Daylight, Groovy, Classic, Bold), each with a night look.
