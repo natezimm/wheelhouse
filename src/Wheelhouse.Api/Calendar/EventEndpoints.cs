@@ -130,12 +130,22 @@ public static class EventEndpoints
         {
             var id = creationId ?? Guid.NewGuid().ToString("N");
             var zone = Zone(draft);
+            if (DemoRepeatErrors(draft, request.StartDate, Today(time, zone)) is { } repeatErrors)
+            {
+                return TypedResults.ValidationProblem(repeatErrors);
+            }
+
             var first = draft.Recurrence is null
                 ? RowFor(new GoogleEvent(id, null, draft.Title, draft.Location, draft.StartsAt, draft.EndsAt, draft.StartDate, draft.EndDate,
                     Description: draft.Description, MemberIds: draft.MemberIds, Private: draft.Private ?? false, Countdown: draft.Countdown ?? false))
                 : EventSeries.Occurrences(draft, id, Today(time, zone).AddDays(CalendarSync.Ahead.Days), zone)
                     .Select(RowFor)
                     .ToList()[0];
+            if (await DemoFullAsync(db, instance, cancellationToken) is { } full)
+            {
+                return full;
+            }
+
             await db.SaveChangesAsync(cancellationToken);
             if (creationTransaction is not null) await creationTransaction.CommitAsync(cancellationToken);
             return TypedResults.Created($"/api/calendar/events/{first.Id}", EventResponse.From(first, source!));
@@ -235,6 +245,11 @@ public static class EventEndpoints
             request = request with { Private = null };
         }
 
+        if (await StaleAsync(row, request.Version, db, cancellationToken) is { } stale)
+        {
+            return stale;
+        }
+
         series &= row.RecurringEventId is not null;
         following &= row.RecurringEventId is not null && !series;
         var (draft, errors) = await DraftAsync(request, db, cancellationToken);
@@ -285,9 +300,19 @@ public static class EventEndpoints
 
         if (IsDemo(instance))
         {
+            if ((startsSeries || newRule) && DemoRepeatErrors(draft!, request.StartDate, Today(time, Zone(draft!))) is { } repeatErrors)
+            {
+                return TypedResults.ValidationProblem(repeatErrors);
+            }
+
             if (newRule)
             {
                 var onDay = await RepeatAgainAsync(row, draft!, to!, Today(time, Zone(draft!)), db, cancellationToken);
+                if (await DemoFullAsync(db, instance, cancellationToken) is { } full)
+                {
+                    return full;
+                }
+
                 await db.SaveChangesAsync(cancellationToken);
                 return TypedResults.Ok(EventResponse.From(onDay, to!));
             }
@@ -326,6 +351,11 @@ public static class EventEndpoints
                     draft.StartsAt, draft.EndsAt, draft.StartDate, draft.EndDate, Description: draft.Description ?? row.Description,
                     MemberIds: draft.MemberIds ?? row.MemberIds, Private: draft.Private ?? row.IsPrivate, Countdown: draft.Countdown ?? row.Countdown));
                 row.CalendarSourceId = to!.Id;
+            }
+
+            if (await DemoFullAsync(db, instance, cancellationToken) is { } tooMany)
+            {
+                return tooMany;
             }
 
             await db.SaveChangesAsync(cancellationToken);
@@ -455,7 +485,8 @@ public static class EventEndpoints
         ClaimsPrincipal user,
         CancellationToken cancellationToken,
         bool series = false,
-        bool following = false)
+        bool following = false,
+        string? version = null)
     {
         var row = await db.EventInstances.SingleOrDefaultAsync(e => e.Id == id, cancellationToken);
         if (row is null)
@@ -466,6 +497,11 @@ public static class EventEndpoints
         if (user.IsDisplay() && await TouchesPrivateAsync(row, series || following, db, cancellationToken))
         {
             return PrivateOnDisplay();
+        }
+
+        if (await StaleAsync(row, version, db, cancellationToken) is { } stale)
+        {
+            return stale;
         }
 
         series &= row.RecurringEventId is not null;
@@ -577,6 +613,11 @@ public static class EventEndpoints
                     Today(time, zone).AddDays(CalendarSync.Ahead.Days), zone)
                 .Select(occurrence => NewRow(row.FamilyId, to, occurrence, db))
                 .ToList();
+            if (await DemoFullAsync(db, instance, cancellationToken) is { } full)
+            {
+                return full;
+            }
+
             await db.SaveChangesAsync(cancellationToken);
             return TypedResults.Ok(EventResponse.From(newRows[0], to));
         }
@@ -862,6 +903,41 @@ public static class EventEndpoints
 
     private static bool IsDemo(IOptions<InstanceOptions> instance) => instance.Value.Mode == InstanceMode.Demo;
 
+    /// <summary>
+    /// On the demo, which expands a series itself, what is wrong with a series starting on
+    /// <paramref name="first"/>: like Google's sync window, the demo keeps the last
+    /// <see cref="CalendarSync.Behind"/> and no more, so an old start cannot fill a copy with
+    /// years of occurrences in one request.
+    /// </summary>
+    private static Dictionary<string, string[]>? DemoRepeatErrors(GoogleEventDraft draft, DateOnly first, DateOnly today)
+    {
+        var earliest = today.AddDays(-CalendarSync.Behind.Days);
+        return draft.Recurrence is not null && first < earliest
+            ? new() { ["startDate"] = [$"In the demo a repeating event starts on {earliest:MMMM d, yyyy} or later."] }
+            : null;
+    }
+
+    /// <summary>
+    /// On the demo, a refusal when saving would leave the visitor's copy holding more than
+    /// <see cref="InstanceOptions.MaxDemoEvents"/> events; nothing is saved then. Rate limits
+    /// bound how often a visitor writes, this how much they keep.
+    /// </summary>
+    private static async Task<ValidationProblem?> DemoFullAsync(WheelhouseDbContext db, IOptions<InstanceOptions> instance, CancellationToken cancellationToken)
+    {
+        var entries = db.ChangeTracker.Entries<EventInstance>().ToList();
+        var growth = entries.Count(e => e.State == EntityState.Added) - entries.Count(e => e.State == EntityState.Deleted);
+        if (growth <= 0 || await db.EventInstances.CountAsync(cancellationToken) + growth <= instance.Value.MaxDemoEvents)
+        {
+            return null;
+        }
+
+        db.ChangeTracker.Clear();
+        return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+        {
+            ["recurrence"] = [$"The demo keeps up to {instance.Value.MaxDemoEvents} events. Delete some, or repeat this less often."],
+        });
+    }
+
     /// <summary>The event as Google is to store it, in the family's time zone, or what is wrong with the request.</summary>
     private static async Task<(GoogleEventDraft? Draft, Dictionary<string, string[]>? Errors)> DraftAsync(
         EventRequest request, WheelhouseDbContext db, CancellationToken cancellationToken)
@@ -956,6 +1032,23 @@ public static class EventEndpoints
         }
 
         return errors.Count == 0 ? (draft! with { Description = description, Recurrence = rule, MemberIds = memberIds, Private = request.Private, Countdown = request.Countdown }, null) : (null, errors);
+    }
+
+    /// <summary>
+    /// A 409 with the event as it is now when the screen's change or delete was made from an older
+    /// <paramref name="seen"/> version of it, so a draft opened before someone else's save cannot
+    /// overwrite that save. Google's own <c>If-Match</c> still guards against changes made in Google.
+    /// Null when the screen saw the current version, or sent none.
+    /// </summary>
+    private static async Task<Conflict<EventResponse>?> StaleAsync(EventInstance row, string? seen, WheelhouseDbContext db, CancellationToken cancellationToken)
+    {
+        if (seen is null || seen == EventVersion.Of(row))
+        {
+            return null;
+        }
+
+        var source = await db.CalendarSources.SingleAsync(s => s.Id == row.CalendarSourceId, cancellationToken);
+        return TypedResults.Conflict(EventResponse.From(row, source));
     }
 
     /// <summary>A display shows a private event only as busy, so it may not change or delete one.</summary>

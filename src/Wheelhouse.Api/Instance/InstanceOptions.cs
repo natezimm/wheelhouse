@@ -15,6 +15,13 @@ public sealed class InstanceOptions
     public int MaxDemoCopies { get; set; } = 1000;
 
     /// <summary>
+    /// On a demo instance, the most events one visitor's copy holds, counting each occurrence of a
+    /// series. The fictional family starts with under a hundred, and a daily series adds at most
+    /// about 490, since the demo keeps the same days as Google's sync window.
+    /// </summary>
+    public int MaxDemoEvents { get; set; } = 2000;
+
+    /// <summary>
     /// On a family instance, the Google accounts allowed to sign in as parents, as email
     /// addresses separated by commas. Nobody else can sign in, and removing an address here
     /// signs that parent out on their next request.

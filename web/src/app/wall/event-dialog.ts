@@ -655,6 +655,8 @@ export class EventDialog {
 
   /** The event to change, or null to add one. */
   readonly event = input<CalendarEvent | null>(null);
+  /** The version of the event on screen once a refusal showed someone else's; until then the one opened. */
+  private readonly seen = signal<string | null>(null);
 
   /** The day a new event goes on. */
   readonly day = input.required<Day>();
@@ -822,7 +824,7 @@ export class EventDialog {
       return;
     }
     const event = this.event();
-    const request = requestOf(draft);
+    const request = { ...requestOf(draft), ...(event ? { version: this.seen() ?? event.version } : {}) };
     this.edits.set(draft);
     this.busy.set(true);
     (event ? this.calendar.update(event.id, request, this.following() ? 'following' : this.series(), this.operationId) : this.calendar.add(request, this.operationId)).subscribe({
@@ -837,7 +839,7 @@ export class EventDialog {
       return;
     }
     this.busy.set(true);
-    this.calendar.remove(event.id, this.following() ? 'following' : this.series(), this.operationId).subscribe({
+    this.calendar.remove(event.id, this.following() ? 'following' : this.series(), this.operationId, this.seen() ?? event.version).subscribe({
       next: () => this.closed.emit(),
       error: (error: HttpErrorResponse) => this.refused(error),
     });
@@ -847,6 +849,10 @@ export class EventDialog {
     this.busy.set(false);
     this.confirmingDelete.set(false);
     const refusal = eventRefusal(error);
+    if (refusal.changed) {
+      // Saving again is a decision made with their version in front of them.
+      this.seen.set(refusal.changed.version ?? null);
+    }
     if (refusal.changed) {
       // Show Google's version, so whoever is at the wall decides again with it in front of them.
       const family = this.family.family();

@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, firstValueFrom, retry, tap, throwError, timer } from 'rxjs';
+import { Observable, TimeoutError, firstValueFrom, retry, tap, throwError, timeout, timer } from 'rxjs';
 
 export interface Session {
   /** Demo: the public instance with a fictional family. Family: a real family's private one. */
@@ -18,6 +18,12 @@ export interface Session {
  */
 export const VISIT_RETRIES = 2;
 export const VISIT_RETRY_MS = 1000;
+
+/**
+ * How long the first screen waits for each startup request. A request that hangs rather than
+ * fails counts as no answer, so the app always starts and says what went wrong.
+ */
+export const START_TIMEOUT_MS = 8000;
 
 type SessionState =
   | { status: 'unknown' }
@@ -63,7 +69,7 @@ export class SessionStore {
    */
   async start(): Promise<void> {
     try {
-      const session = await firstValueFrom(this.http.get<Session>('/api/session'));
+      const session = await firstValueFrom(this.http.get<Session>('/api/session').pipe(timeout(START_TIMEOUT_MS)));
       if (session.mode !== 'Demo') {
         this.current.set({
           status: 'family',
@@ -77,10 +83,11 @@ export class SessionStore {
       try {
         await firstValueFrom(
           this.http.post('/api/demo/visit', null).pipe(
+            timeout(START_TIMEOUT_MS),
             retry({
               count: VISIT_RETRIES,
               delay: (error) =>
-                error instanceof HttpErrorResponse && (error.status === 0 || error.status >= 500)
+                error instanceof TimeoutError || (error instanceof HttpErrorResponse && (error.status === 0 || error.status >= 500))
                   ? timer(VISIT_RETRY_MS)
                   : throwError(() => error),
             }),

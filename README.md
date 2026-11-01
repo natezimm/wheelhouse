@@ -30,7 +30,7 @@ A family calendar for the kitchen wall and every phone in the house, built on th
 
 ## Engineering highlights
 
-- **Google Calendar is the source of truth.** The API keeps a cache that it syncs with Google's incremental sync tokens, and every write goes to Google first with the cached etag in `If-Match`. If someone changed the event in Google first, the screen gets Google's version back as a 409 instead of overwriting it. ([ADR 0001](docs/adr/0001-google-calendar-is-the-source-of-truth.md), [`EventEndpoints.cs`](src/Wheelhouse.Api/Calendar/EventEndpoints.cs))
+- **Google Calendar is the source of truth.** The API keeps a cache that it syncs with Google's incremental sync tokens, and every write goes to Google first with the cached etag in `If-Match`. Each change also sends back the version of the event it was made from, so a draft opened before someone else's save gets their version back as a 409 instead of overwriting it, and so does a change made in Google first. ([ADR 0001](docs/adr/0001-google-calendar-is-the-source-of-truth.md), [`EventEndpoints.cs`](src/Wheelhouse.Api/Calendar/EventEndpoints.cs))
 - **Optimistic edits with idempotent retries.** The screen draws a change at once over the last confirmed snapshot and rolls back only the edit that failed. A save that timed out offers Check save, which reads the day before retrying, and a retried create reuses the same `creationId`, which maps to one deterministic Google event id, so it cannot make a duplicate. ([`calendar.ts`](web/src/app/core/calendar.ts), [`EventIdentity.cs`](src/Wheelhouse.Api/Calendar/EventIdentity.cs))
 - **Live updates from committed change numbers.** Each family has a change number that advances in the same transaction as the calendar change. A background service publishes committed numbers over SignalR, carrying no event data, and clients fetch their visible days, so only committed state is ever announced and the read path's privacy rules are the only ones. ([ADR 0003](docs/adr/0003-per-family-change-numbers.md))
 - **Family isolation by default.** Every family-owned table gets an EF Core query filter on the signed-in family, so a query that forgets the family returns nothing rather than someone else's events. ([ADR 0002](docs/adr/0002-family-scoping-in-the-db-context.md), [`WheelhouseDbContext.cs`](src/Wheelhouse.Api/Data/WheelhouseDbContext.cs))
@@ -124,7 +124,7 @@ Every pull request runs three jobs, and every merge to `main` runs them again be
 
 | Job | What it checks |
 | --- | --- |
-| `api` | About 190 xUnit integration tests against a real PostgreSQL started by Testcontainers, plus the deploy scripts' own tests |
+| `api` | About 250 xUnit integration tests against a real PostgreSQL started by Testcontainers, plus the deploy scripts' own tests |
 | `web` | The production Angular build, unit tests (grid engine, family-zone day math, live recovery, contrast for every theme and member color), and Playwright checks at wall and phone sizes for optimistic saves, drag, repeats, undo and reconnects |
 | `stack` | The whole app from `docker compose`, a smoke check, then add, reload, delete, drag and series edits against the real API and database, and a check that a family instance shows nothing signed out |
 

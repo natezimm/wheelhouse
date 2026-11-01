@@ -66,6 +66,34 @@ public sealed class CalendarSyncTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task A_save_made_while_google_is_read_is_not_undone_by_the_older_answer()
+    {
+        await using var family = await ConnectedAsync();
+        family.Google.Put("alex-cal", Timed("swim", "Swim practice", Soon));
+        await family.SyncAsync();
+        var swim = (await CalendarOf(family.Parent)).Events.Single();
+        var day = DateOnly.FromDateTime(Soon.UtcDateTime);
+        // Google has changed since, so the next sync reads the calendar in full.
+        family.Google.Put("family-cal", AllDay("fair", "County fair", Today.AddDays(3)));
+        family.Google.Put("alex-cal", Timed("other", "Something else", Soon.AddHours(3)));
+        family.Google.AfterListing = async () =>
+        {
+            var saved = await family.Parent.PutAsJsonAsync($"/api/calendar/events/{swim.Id}",
+                new EventRequest(swim.CalendarId, "Swim practice, pool B", null, false, day, new(15, 0), day, new(16, 0)), ApiFactory.Json);
+            saved.EnsureSuccessStatusCode();
+        };
+
+        await family.SyncAsync();
+
+        Assert.Null(family.Google.AfterListing);
+        Assert.Contains((await CalendarOf(family.Parent)).Events, e => e.Title == "Swim practice, pool B");
+        // The next pass reads Google again and brings in what that read missed.
+        await family.SyncAsync();
+        Assert.Equal(["County fair", "Something else", "Swim practice, pool B"],
+            (await CalendarOf(family.Parent)).Events.Select(e => e.Title).Order());
+    }
+
+    [Fact]
     public async Task The_calendar_says_which_days_the_sync_window_holds()
     {
         await using var family = await ConnectedAsync();
