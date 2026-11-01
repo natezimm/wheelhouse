@@ -13,7 +13,7 @@ namespace Wheelhouse.Api.Tests;
 public sealed class AccessTests(ApiFactory factory)
 {
     [Fact]
-    public void Only_health_the_session_the_demo_visit_google_sign_in_and_a_displays_pairing_are_open()
+    public void Only_health_robots_the_session_the_demo_visit_google_sign_in_and_a_displays_pairing_are_open()
     {
         var open = factory.Services.GetRequiredService<EndpointDataSource>().Endpoints
             .OfType<RouteEndpoint>()
@@ -21,7 +21,7 @@ public sealed class AccessTests(ApiFactory factory)
             .Select(endpoint => endpoint.RoutePattern.RawText);
 
         Assert.Equal(
-            ["/api/auth/google", "/api/demo/visit", "/api/pairing/", "/api/pairing/{id:guid}/finish", "/api/session", "/health"],
+            ["/api/auth/google", "/api/demo/visit", "/api/pairing/", "/api/pairing/{id:guid}/finish", "/api/session", "/health", "/robots.txt"],
             open.Order());
     }
 
