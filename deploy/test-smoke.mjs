@@ -21,7 +21,9 @@ for (const scenario of ['demo', 'family', 'old-ui', 'missing-wall-event', 'runti
         return res.end(JSON.stringify({events:[{title:'Fictional calendar event'}]}));
       }
       if (path === '/calendar' && scenario !== 'old-ui') { res.writeHead(302, { Location: '/' }); return res.end(); }
-      const nav = '<nav aria-label="Sections">' + [['Calendar','/'],['Settings','/settings']].map(([name,href]) => `<a href="${href}">${name}</a>`).join('') + '</nav>';
+      // A desktop window has a rail of sections; a phone only a Settings button beside the view switch.
+      const rail = '<nav aria-label="Sections">' + [['Calendar','/'],['Settings','/settings']].map(([name,href]) => `<a href="${href}">${name}</a>`).join('') + '</nav>';
+      const nav = `<div id="nav"></div><script>document.getElementById("nav").innerHTML = innerWidth >= 768 ? ${JSON.stringify(rail)} : '<a href="/settings" aria-label="Settings">⚙</a>'</script>`;
       let content = '<h1>Calendar</h1>';
       if (family) content = '<a href="/api/auth/google">Sign in with Google</a>';
       else if (scenario === 'old-ui') content = '<h1>Today</h1><app-today-events>Today content</app-today-events>';
