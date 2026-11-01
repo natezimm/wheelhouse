@@ -1,6 +1,8 @@
 using System.Threading.Channels;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
+using Microsoft.EntityFrameworkCore;
+using Wheelhouse.Api.Data;
 using Wheelhouse.Api.Instance;
 
 namespace Wheelhouse.Api.Calendar;
@@ -43,18 +45,43 @@ public sealed class CalendarSyncTrigger
 }
 
 /// <summary>
-/// Reports the last sync pass on <c>/health</c>: degraded when the pass failed or a family's
-/// Google connection needs a parent to connect again, so an uptime monitor notices before the
-/// wall's calendar goes stale.
+/// The calendar's part of <c>/health</c>: degraded while a family's Google connection needs a
+/// parent to connect it again, while a connected family's calendar has not synced for
+/// <see cref="StaleAfter"/> (Google no longer shows it to the account, or every pass fails), or
+/// when the last pass failed. The first two are read from the database on each check, so they
+/// hold across passes: a pass skips a connection that needs reconnecting and a calendar Google
+/// no longer has, and so cannot clear them by succeeding at everything else.
 /// </summary>
-public sealed class CalendarSyncHealth : IHealthCheck
+public sealed class CalendarSyncHealth(IServiceScopeFactory scopes, TimeProvider time, IOptions<CalendarSyncOptions> options) : IHealthCheck
 {
     private volatile string? _problem;
 
+    /// <summary>How long a calendar may go without a sync before health says so: several missed passes, never under ten minutes.</summary>
+    public TimeSpan StaleAfter => TimeSpan.FromTicks(Math.Max(TimeSpan.FromMinutes(10).Ticks, 5 * options.Value.Interval.Ticks));
+
     public void Report(string? problem) => _problem = problem;
 
-    public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default) =>
-        Task.FromResult(_problem is { } problem ? HealthCheckResult.Degraded(problem) : HealthCheckResult.Healthy());
+    public async Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
+    {
+        await using var scope = scopes.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<WheelhouseDbContext>();
+        // No request, so no current family: every query names what it reads across families.
+        var connections = db.GoogleConnections.IgnoreQueryFilters();
+        if (await connections.AnyAsync(c => c.Status == GoogleConnectionStatus.NeedsReauth, cancellationToken))
+        {
+            return HealthCheckResult.Degraded("A family's Google connection needs connecting again.");
+        }
+
+        var connected = connections.Where(c => c.Status == GoogleConnectionStatus.Connected).Select(c => c.FamilyId);
+        var staleBefore = time.GetUtcNow() - StaleAfter;
+        if (await db.CalendarSources.IgnoreQueryFilters()
+            .AnyAsync(s => connected.Contains(s.FamilyId) && s.LastSyncedAt != null && s.LastSyncedAt < staleBefore, cancellationToken))
+        {
+            return HealthCheckResult.Degraded($"A calendar has not synced for over {StaleAfter.TotalMinutes:0} minutes.");
+        }
+
+        return _problem is { } problem ? HealthCheckResult.Degraded(problem) : HealthCheckResult.Healthy();
+    }
 }
 
 /// <summary>On a family instance, keeps every connected family's calendar in sync with Google. Does nothing on the demo.</summary>
