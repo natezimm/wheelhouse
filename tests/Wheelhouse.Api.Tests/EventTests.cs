@@ -299,6 +299,48 @@ public sealed class EventTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task A_draft_opened_before_another_screens_save_cannot_overwrite_it()
+    {
+        await using var family = await ConnectedAsync();
+        var seen = await SyncedAsync(family, "alex-cal", "swim", "Swim");
+        var first = Timed(seen.CalendarId, "Swim, indoors", new(9, 0), new(10, 0)) with { Version = seen.Version };
+
+        var saved = await ChangeAsync(family.Parent, seen.Id, first);
+        var stale = await ChangeAsync(family.Parent, seen.Id, first with { Title = "Swim", StartTime = new(18, 0), EndTime = new(19, 0) });
+        var staleDelete = await family.Parent.DeleteAsync($"/api/calendar/events/{seen.Id}?version={Uri.EscapeDataString(seen.Version!)}");
+
+        Assert.Equal(HttpStatusCode.OK, saved.StatusCode);
+        var current = (await saved.Content.ReadFromJsonAsync<EventResponse>(ApiFactory.Json))!;
+        Assert.NotEqual(seen.Version, current.Version);
+        Assert.Equal(HttpStatusCode.Conflict, stale.StatusCode);
+        Assert.Equal("Swim, indoors", (await stale.Content.ReadFromJsonAsync<EventResponse>(ApiFactory.Json))!.Title);
+        Assert.Equal(HttpStatusCode.Conflict, staleDelete.StatusCode);
+        Assert.Equal("Swim, indoors", family.Google.Find("alex-cal", "swim")!.Title);
+        Assert.Single(family.Google.Writes);
+        // With the version it was shown, the next change goes through.
+        var again = await ChangeAsync(family.Parent, seen.Id, first with { Title = "Swim, outdoors", Version = current.Version });
+        Assert.Equal(HttpStatusCode.OK, again.StatusCode);
+    }
+
+    [Fact]
+    public async Task A_demo_visitors_stale_draft_is_refused_too()
+    {
+        using var visitor = await factory.DemoVisitorAsync();
+        var milos = await CalendarIdAsync(visitor, "Milo — School & Sports");
+        var added = await AddAsync(visitor, Timed(milos, "Haircut", new(15, 0), new(15, 30)));
+
+        var renamed = await ChangeAsync(visitor, added.Id, Timed(milos, "Haircut at Kim's", new(15, 0), new(15, 30)) with { Version = added.Version });
+        var moved = await ChangeAsync(visitor, added.Id, Timed(milos, "Haircut", new(16, 0), new(16, 30)) with { Version = added.Version });
+        var unversioned = await ChangeAsync(visitor, added.Id, Timed(milos, "Haircut at Kim's", new(16, 0), new(16, 30)));
+
+        Assert.Equal(HttpStatusCode.OK, renamed.StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, moved.StatusCode);
+        Assert.Equal("Haircut at Kim's", (await moved.Content.ReadFromJsonAsync<EventResponse>(ApiFactory.Json))!.Title);
+        // Older screens that send no version are still accepted.
+        Assert.Equal(HttpStatusCode.OK, unversioned.StatusCode);
+    }
+
+    [Fact]
     public async Task A_change_made_in_google_first_is_shown_instead_of_overwritten()
     {
         await using var family = await ConnectedAsync();
