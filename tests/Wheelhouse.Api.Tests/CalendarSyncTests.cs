@@ -1,7 +1,9 @@
+using System.Net;
 using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Wheelhouse.Api.Auth;
 using Wheelhouse.Api.Calendar;
+using Wheelhouse.Api.Health;
 
 namespace Wheelhouse.Api.Tests;
 
@@ -188,6 +190,47 @@ public sealed class CalendarSyncTests(ApiFactory factory)
         Assert.Equal(["Swim practice"], calendar.Events.Select(e => e.Title));
         var connection = await family.Parent.GetFromJsonAsync<GoogleConnectionResponse>("/api/calendar/google", ApiFactory.Json);
         Assert.Equal(GoogleConnectionStatus.NeedsReauth, connection!.Status);
+    }
+
+    private static async Task<HealthResponse> HealthOf(GoogleFamily family)
+    {
+        using var client = family.WithFake.CreateClient();
+        var response = await client.GetAsync("/health");
+        // Degraded still serves; only a broken API answers 503.
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        return (await response.Content.ReadFromJsonAsync<HealthResponse>())!;
+    }
+
+    [Fact]
+    public async Task Health_stays_degraded_while_a_connection_needs_reconnecting()
+    {
+        await using var family = await ConnectedAsync();
+        await family.SyncAsync();
+        Assert.Equal("Healthy", (await HealthOf(family)).Checks["calendar"]);
+        family.Google.Revoked = true;
+
+        await family.SyncAsync();
+        // Later passes skip the connection, which must not make it look fixed.
+        await family.SyncAsync();
+
+        var health = await HealthOf(family);
+        Assert.Equal(("Degraded", "Degraded"), (health.Status, health.Checks["calendar"]));
+    }
+
+    [Fact]
+    public async Task Health_says_so_when_a_calendar_has_stopped_syncing()
+    {
+        await using var family = await ConnectedAsync();
+        await family.SyncAsync(new ManualTime(DateTimeOffset.UtcNow - TimeSpan.FromHours(1)));
+        family.Google.Gone.Add("alex-cal");
+
+        // The other calendar syncs, but Alex's keeps its old sync time.
+        Assert.True(await family.SyncAsync());
+
+        Assert.Equal("Degraded", (await HealthOf(family)).Checks["calendar"]);
+        family.Google.Gone.Clear();
+        await family.SyncAsync();
+        Assert.Equal("Healthy", (await HealthOf(family)).Checks["calendar"]);
     }
 
     [Fact]
