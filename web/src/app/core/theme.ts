@@ -37,6 +37,24 @@ const GROUNDS: Record<Theme, [light: string, dark: string]> = {
   Bold: ['#efefe6', '#161616'],
 };
 
+/**
+ * Where the family's look is kept in this browser, so index.html's splash (public/boot.js) wears
+ * it before the app has asked the server. boot.js reads exactly these fields.
+ */
+export const LOOK_KEY = 'wheelhouse.look';
+
+export interface SavedLook {
+  theme: string;
+  nightMode: NightMode;
+  nightFrom: string;
+  nightTo: string;
+  timeZone: string;
+  /** The browser's color around the page, light and dark. */
+  grounds: [light: string, dark: string];
+  /** The theme's web fonts, as Google Fonts' query, or null for Daylight's, which index.html loads. */
+  fonts: string | null;
+}
+
 /** Minutes since midnight of a time written HH:mm or HH:mm:ss. */
 function minutesOf(time: string): number {
   const [hours, minutes] = time.split(':').map(Number);
@@ -79,6 +97,8 @@ export class ThemeService {
 
   constructor() {
     effect(() => {
+      // While the family is on its way, the look boot.js set from what this browser saved stays.
+      if (this.family.state().status === 'loading') return;
       const theme = this.theme();
       const night = this.night();
       const root = this.document.documentElement;
@@ -87,6 +107,28 @@ export class ThemeService {
       this.loadFonts(theme);
       this.document.querySelector('meta[name="theme-color"]')?.setAttribute('content', GROUNDS[theme][night ? 1 : 0]);
     });
+    effect(() => {
+      const family = this.family.family();
+      if (family) this.save(family);
+    });
+  }
+
+  /** Keeps the family's look for the next start's splash. A browser that keeps nothing just starts in Daylight. */
+  private save(family: Family): void {
+    const look: SavedLook = {
+      theme: family.theme.toLowerCase(),
+      nightMode: family.nightMode,
+      nightFrom: family.nightModeFrom,
+      nightTo: family.nightModeTo,
+      timeZone: family.timeZone,
+      grounds: GROUNDS[family.theme],
+      fonts: FONTS[family.theme] ?? null,
+    };
+    try {
+      this.document.defaultView?.localStorage.setItem(LOOK_KEY, JSON.stringify(look));
+    } catch {
+      // Storage may be full, blocked or private; the splash then starts in Daylight.
+    }
   }
 
   /** Loads a theme's fonts, once. Settings loads every theme's for its previews. */
@@ -94,6 +136,8 @@ export class ThemeService {
     const families = FONTS[theme];
     if (!families || this.loaded.has(theme)) return;
     this.loaded.add(theme);
+    // boot.js has already asked for the saved theme's fonts, for the splash.
+    if (this.document.head.querySelector(`link[data-fonts="${theme.toLowerCase()}"]`)) return;
     const link = this.document.createElement('link');
     link.rel = 'stylesheet';
     link.href = `https://fonts.googleapis.com/css2?${families}&display=swap`;

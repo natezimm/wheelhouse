@@ -11,6 +11,15 @@ public sealed class WeatherForecasts(OpenMeteo openMeteo, IMemoryCache cache)
 {
     public static readonly TimeSpan KeepFor = TimeSpan.FromMinutes(30);
 
+    /// <summary>
+    /// How long a failure to reach Open-Meteo is remembered for a place. Each screen asks on every
+    /// load, and without this each held a request open for the client's whole timeout.
+    /// </summary>
+    public static readonly TimeSpan FailureKeptFor = TimeSpan.FromMinutes(2);
+
+    /// <summary>Open-Meteo failed for this place moments ago, so it is not asked again yet.</summary>
+    public sealed class RecentlyFailedException() : Exception("Open-Meteo failed for this place moments ago.");
+
     public async Task<WeatherResponse> GetAsync(Family family, CancellationToken cancellationToken)
     {
         // About a kilometer apart is the same place.
@@ -23,7 +32,24 @@ public sealed class WeatherForecasts(OpenMeteo openMeteo, IMemoryCache cache)
             return cached!;
         }
 
-        var forecast = await openMeteo.GetAsync(latitude, longitude, family.Units, family.TimeZone, cancellationToken);
+        var failedKey = (key, "failed");
+        if (cache.TryGetValue(failedKey, out _))
+        {
+            throw new RecentlyFailedException();
+        }
+
+        OpenMeteo.Forecast forecast;
+        try
+        {
+            forecast = await openMeteo.GetAsync(latitude, longitude, family.Units, family.TimeZone, cancellationToken);
+        }
+        catch (Exception exception) when (!cancellationToken.IsCancellationRequested
+            && exception is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        {
+            cache.Set(failedKey, true, FailureKeptFor);
+            throw;
+        }
+
         var (description, icon) = Describe(forecast.Current.WeatherCode, forecast.Current.IsDay == 1);
         var weather = new WeatherResponse(
             (int)Math.Round(forecast.Current.Temperature),

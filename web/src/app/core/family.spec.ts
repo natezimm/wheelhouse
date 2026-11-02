@@ -32,6 +32,37 @@ describe('FamilyStore', () => {
     expect(store.members().map((member) => member.displayName)).toEqual(['Ben', 'Tess', 'Milo']);
   });
 
+  it('shares a read already under way', () => {
+    store.load();
+    store.load();
+    http.expectOne('/api/family').flush(marlowes);
+
+    store.load();
+    http.expectOne('/api/family').flush(marlowes);
+  });
+
+  it('reads again once the first screen has opened without taking the startup read', () => {
+    store.prefetch();
+    http.expectOne('/api/family').flush(marlowes);
+    store.endPrefetch();
+
+    store.load();
+    http.expectOne('/api/family').flush(null, { status: 401, statusText: 'Unauthorized' });
+    expect(store.state()).toEqual({ status: 'private' });
+  });
+
+  it('gives the startup read to the first screen that asks, and reads again for later ones', () => {
+    store.prefetch();
+    http.expectOne('/api/family').flush(marlowes);
+
+    store.load();
+    http.expectNone('/api/family');
+    expect(store.state()).toEqual({ status: 'ready', family: marlowes });
+
+    store.load();
+    http.expectOne('/api/family').flush(marlowes);
+  });
+
   it('is private when the server answers 401', () => {
     store.load();
     http.expectOne('/api/family').flush(null, { status: 401, statusText: 'Unauthorized' });

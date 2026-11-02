@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { marlowes } from '../testing/marlowes';
 import { FamilyStore } from './family';
-import { ThemeService, isNight } from './theme';
+import { LOOK_KEY, ThemeService, isNight } from './theme';
 
 describe('isNight', () => {
   // The Marlowes live in New York; night is 9:30 PM to 6:30 AM there, across midnight.
@@ -61,9 +61,11 @@ describe('ThemeService', () => {
 
   it('dresses the page in the family’s theme and loads only that theme’s fonts', () => {
     vi.setSystemTime(new Date('2026-10-23T16:00:00Z')); // noon in New York
+    root.dataset['theme'] = 'bold';
     TestBed.inject(ThemeService);
     TestBed.tick();
-    expect(root.dataset['theme']).toBe('daylight');
+    // Until the family arrives, the look boot.js saved is left alone.
+    expect(root.dataset['theme']).toBe('bold');
 
     load({ theme: 'Groovy' });
 
@@ -73,6 +75,33 @@ describe('ThemeService', () => {
       'groovy',
     ]);
     expect(document.querySelector<HTMLLinkElement>('link[data-fonts]')!.href).toContain('family=Fraunces');
+  });
+
+  it('keeps the family’s look for the next start’s splash', () => {
+    localStorage.removeItem(LOOK_KEY);
+    TestBed.inject(ThemeService);
+    load({ theme: 'Bold', nightMode: 'Always' });
+
+    expect(JSON.parse(localStorage.getItem(LOOK_KEY)!)).toEqual({
+      theme: 'bold',
+      nightMode: 'Always',
+      nightFrom: marlowes.nightModeFrom,
+      nightTo: marlowes.nightModeTo,
+      timeZone: marlowes.timeZone,
+      grounds: ['#efefe6', '#161616'],
+      fonts: expect.stringContaining('family=Space+Grotesk'),
+    });
+    localStorage.removeItem(LOOK_KEY);
+  });
+
+  it('asks for no fonts the splash has already asked for', () => {
+    const early = document.createElement('link');
+    early.dataset['fonts'] = 'groovy';
+    document.head.appendChild(early);
+    TestBed.inject(ThemeService);
+    load({ theme: 'Groovy' });
+
+    expect(document.querySelectorAll('link[data-fonts]').length).toBe(1);
   });
 
   it('turns Night on as the family’s clock reaches its night hours, and off again in the morning', async () => {

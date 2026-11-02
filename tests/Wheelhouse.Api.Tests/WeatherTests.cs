@@ -106,6 +106,20 @@ public sealed class WeatherTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task A_failure_to_reach_open_meteo_is_remembered_for_a_while()
+    {
+        var openMeteo = new FakeOpenMeteo(HttpStatusCode.BadGateway, "");
+        using var visitor = await VisitorAsync(openMeteo);
+
+        var first = await visitor.GetAsync("/api/weather");
+        var second = await visitor.GetAsync("/api/weather");
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, first.StatusCode);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, second.StatusCode);
+        Assert.Single(openMeteo.Requests);
+    }
+
+    [Fact]
     public async Task A_parent_sets_the_place_to_about_a_kilometre()
     {
         using var visitor = await factory.DemoVisitorAsync();

@@ -14,7 +14,7 @@ public static class WeatherEndpoints
         {
             client.BaseAddress = new Uri(OpenMeteo.BaseAddress);
             client.Timeout = TimeSpan.FromSeconds(10);
-        });
+        }).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { ConnectCallback = OpenMeteo.ConnectAsync });
         services.AddScoped<WeatherForecasts>();
         return services;
     }
@@ -51,6 +51,10 @@ public static class WeatherEndpoints
         try
         {
             return TypedResults.Ok(await forecasts.GetAsync(family, cancellationToken));
+        }
+        catch (WeatherForecasts.RecentlyFailedException)
+        {
+            return TypedResults.StatusCode(StatusCodes.Status503ServiceUnavailable);
         }
         catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
         {

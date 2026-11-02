@@ -1,6 +1,6 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { Observable, tap } from 'rxjs';
+import { Observable, Subscription, tap } from 'rxjs';
 
 export interface Member {
   id: string;
@@ -85,8 +85,35 @@ export class FamilyStore {
     return state.status === 'ready' ? state.family.members : [];
   });
 
+  /** The read under way, which a screen asking meanwhile shares rather than repeating. */
+  private loading?: Subscription;
+  /** The app's own read at startup, kept for the first screen that asks. */
+  private prefetched = false;
+
+  /**
+   * Started by the app as soon as the visitor is checked in, before the first screen's code has
+   * arrived. The first screen's load() then takes this read, finished or not, instead of another.
+   */
+  prefetch(): void {
+    this.load();
+    this.prefetched = true;
+  }
+
+  /**
+   * Called once the first screen has opened: a later screen, or the first one after a sign-out,
+   * reads the family again rather than taking the startup read.
+   */
+  endPrefetch(): void {
+    this.prefetched = false;
+  }
+
   load(): void {
-    this.http.get<Family>('/api/family').subscribe({
+    if (this.prefetched) {
+      this.prefetched = false;
+      return;
+    }
+    if (this.loading && !this.loading.closed) return;
+    this.loading = this.http.get<Family>('/api/family').subscribe({
       next: (family) => this.current.set({ status: 'ready', family }),
       error: (error: HttpErrorResponse) =>
         this.current.set({ status: error.status === 401 ? 'private' : 'unavailable' }),
