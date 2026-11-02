@@ -578,7 +578,7 @@ export class CalendarHome {
     this.media?.addEventListener('change', follow);
     inject(DestroyRef).onDestroy(() => this.media?.removeEventListener('change', follow));
 
-    this.family.ensureLoaded();
+    this.family.load();
     effect(() => {
       const state = this.family.state();
       if (state.status === 'ready') {

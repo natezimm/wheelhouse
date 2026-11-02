@@ -85,25 +85,31 @@ export class FamilyStore {
     return state.status === 'ready' ? state.family.members : [];
   });
 
-  /** The load under way, so a screen asking while the app's own first load is out waits for that one. */
+  /** The read under way, which a screen asking meanwhile shares rather than repeating. */
   private loading?: Subscription;
+  /** The app's own read at startup, kept for the first screen that asks. */
+  private prefetched = false;
 
   /**
-   * Reads the family. The app starts this as soon as the visitor is checked in, before the first
-   * screen's code has arrived, and a screen that asks again while that read is out shares it.
+   * Started by the app as soon as the visitor is checked in, before the first screen's code has
+   * arrived. The first screen's load() then takes this read, finished or not, instead of another.
    */
+  prefetch(): void {
+    this.load();
+    this.prefetched = true;
+  }
+
   load(): void {
+    if (this.prefetched) {
+      this.prefetched = false;
+      return;
+    }
     if (this.loading && !this.loading.closed) return;
     this.loading = this.http.get<Family>('/api/family').subscribe({
       next: (family) => this.current.set({ status: 'ready', family }),
       error: (error: HttpErrorResponse) =>
         this.current.set({ status: error.status === 401 ? 'private' : 'unavailable' }),
     });
-  }
-
-  /** What a screen calls as it opens: reads the family unless it is already here or on its way. */
-  ensureLoaded(): void {
-    if (this.current().status !== 'ready') this.load();
   }
 
   /**

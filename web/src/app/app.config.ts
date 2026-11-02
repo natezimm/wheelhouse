@@ -31,7 +31,7 @@ export const appConfig: ApplicationConfig = {
       const live = inject(CalendarLive);
       preloadFirstScreen(location.pathname);
       return session.start().then(() => {
-        family.load();
+        family.prefetch();
         live.start();
       });
     }),

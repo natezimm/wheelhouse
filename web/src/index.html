@@ -27,9 +27,189 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <!-- Before anything else is drawn: the family's saved theme and night look, for the splash. -->
+  <script src="boot.js"></script>
+  <style>
+    /* The splash, drawn before the app's code arrives and faded by core/splash.ts once the first
+       screen has something to show. Its colors and fonts are the theme's tokens from styles.css. */
+    .splash {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background: var(--ground);
+      color: var(--ink);
+      transition: opacity 500ms ease, visibility 0s 500ms;
+    }
+    .splash::before,
+    .splash::after {
+      content: '';
+      position: absolute;
+      width: 70vmax;
+      height: 70vmax;
+      border-radius: 50%;
+      opacity: 0.55;
+      animation: splash-drift 16s ease-in-out infinite alternate;
+    }
+    .splash::before {
+      left: -28vmax;
+      top: -30vmax;
+      background: radial-gradient(closest-side, color-mix(in srgb, #2563eb 16%, transparent), transparent);
+    }
+    .splash::after {
+      right: -30vmax;
+      bottom: -32vmax;
+      background: radial-gradient(closest-side, color-mix(in srgb, #db2777 13%, transparent), transparent);
+      animation-delay: -8s;
+    }
+    .splash-body {
+      position: relative;
+      display: grid;
+      justify-items: center;
+      gap: clamp(18px, 3vmin, 30px);
+      opacity: 0;
+      animation: splash-arrive 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 150ms forwards;
+    }
+    .splash-mark {
+      width: clamp(132px, 22vmin, 236px);
+      height: auto;
+      overflow: visible;
+    }
+    .splash-dial line {
+      stroke: var(--muted);
+      stroke-width: 1.6;
+      stroke-linecap: round;
+      opacity: 0.18;
+      animation: splash-hour 2.4s linear infinite;
+      animation-delay: calc(var(--i) * 0.1s - 2.4s);
+    }
+    .splash-wheel {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: splash-helm 5.4s infinite;
+    }
+    .splash-handles {
+      stroke: var(--ink);
+      stroke-width: 9;
+      stroke-linecap: round;
+    }
+    .splash-spokes {
+      stroke: var(--ink);
+      stroke-width: 4.5;
+    }
+    .splash-rim circle {
+      fill: none;
+      stroke-width: 13;
+      stroke-dashoffset: 62.1;
+      animation: splash-draw 900ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
+      animation-delay: calc(250ms + var(--i) * 140ms);
+    }
+    .splash-hub { fill: var(--ink); }
+    .splash-pin { fill: var(--ground); }
+    .splash-name {
+      margin: 0;
+      font: var(--display-weight) clamp(28px, 4.6vmin, 50px)/1 var(--font-display);
+      font-variation-settings: var(--display-variation);
+      letter-spacing: -0.015em;
+    }
+    .splash-tagline {
+      margin: -8px 0 0;
+      color: var(--muted);
+      font: 600 clamp(11px, 1.3vmin, 14px)/1 var(--font-body);
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+    }
+    /* Said only to a screen reader; the name says it to everyone else. */
+    .splash-status {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    /* Shows only if the start is slow, so a quick one never flickers it. */
+    .splash-slow {
+      position: absolute;
+      top: calc(100% + clamp(20px, 4vmin, 40px));
+      margin: 0;
+      white-space: nowrap;
+      color: var(--muted);
+      font: 400 clamp(14px, 1.6vmin, 17px)/1.4 var(--font-body);
+      opacity: 0;
+      animation: splash-arrive 600ms ease 5s forwards;
+    }
+    .splash-leaving {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    .splash-leaving .splash-body { animation: splash-depart 500ms cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+    [data-night] .splash::before,
+    [data-night] .splash::after { opacity: 0.8; }
+    @keyframes splash-arrive {
+      from { opacity: 0; transform: translateY(6px) scale(0.97); }
+      to { opacity: 1; transform: none; }
+    }
+    @keyframes splash-depart {
+      from { opacity: 1; transform: none; }
+      to { opacity: 0; transform: scale(1.05); }
+    }
+    @keyframes splash-draw { to { stroke-dashoffset: 0; } }
+    /* A helmsman's turns: a deliberate eighth of a turn, a breath, and on. */
+    @keyframes splash-helm {
+      0% { transform: rotate(0deg); animation-timing-function: cubic-bezier(0.6, 0, 0.25, 1); }
+      28% { transform: rotate(135deg); }
+      40% { transform: rotate(135deg); animation-timing-function: cubic-bezier(0.6, 0, 0.25, 1); }
+      68% { transform: rotate(270deg); }
+      80% { transform: rotate(270deg); animation-timing-function: cubic-bezier(0.6, 0, 0.25, 1); }
+      100% { transform: rotate(360deg); }
+    }
+    /* The hours light in turn around the dial, like a day going by. */
+    @keyframes splash-hour {
+      0% { opacity: 0.85; }
+      45%, 100% { opacity: 0.18; }
+    }
+    @keyframes splash-drift {
+      to { transform: translate(6vmax, 4vmax) scale(1.08); }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .splash::before,
+      .splash::after,
+      .splash-wheel,
+      .splash-dial line { animation: none; }
+      .splash-dial line { opacity: 0.4; }
+      .splash-rim circle { animation: none; stroke-dashoffset: 0; }
+      .splash-body,
+      .splash-leaving .splash-body { animation: none; opacity: 1; }
+      .splash-slow { animation-name: splash-fade; animation-duration: 1ms; }
+      .splash { transition-duration: 200ms, 0s; transition-delay: 0s, 200ms; }
+      @keyframes splash-fade { to { opacity: 1; } }
+    }
+  </style>
 </head>
 <body>
-  <!-- Shown until the app starts, which replaces it. -->
-  <app-root><p class="app-starting" role="status">Starting Wheelhouse…</p></app-root>
+  <!-- Over the app until its first screen is ready (core/splash.ts). -->
+  <div class="splash" id="splash">
+    <div class="splash-body">
+      <svg class="splash-mark" viewBox="-100 -100 200 200" aria-hidden="true" focusable="false">
+        <g class="splash-dial"><line style="--i:0" x1="0.00" y1="-82.00" x2="0.00" y2="-93.00"/><line style="--i:1" x1="22.26" y1="-83.07" x2="24.07" y2="-89.83"/><line style="--i:2" x1="43.00" y1="-74.48" x2="46.50" y2="-80.54"/><line style="--i:3" x1="60.81" y1="-60.81" x2="65.76" y2="-65.76"/><line style="--i:4" x1="74.48" y1="-43.00" x2="80.54" y2="-46.50"/><line style="--i:5" x1="83.07" y1="-22.26" x2="89.83" y2="-24.07"/><line style="--i:6" x1="82.00" y1="0.00" x2="93.00" y2="0.00"/><line style="--i:7" x1="83.07" y1="22.26" x2="89.83" y2="24.07"/><line style="--i:8" x1="74.48" y1="43.00" x2="80.54" y2="46.50"/><line style="--i:9" x1="60.81" y1="60.81" x2="65.76" y2="65.76"/><line style="--i:10" x1="43.00" y1="74.48" x2="46.50" y2="80.54"/><line style="--i:11" x1="22.26" y1="83.07" x2="24.07" y2="89.83"/><line style="--i:12" x1="0.00" y1="82.00" x2="0.00" y2="93.00"/><line style="--i:13" x1="-22.26" y1="83.07" x2="-24.07" y2="89.83"/><line style="--i:14" x1="-43.00" y1="74.48" x2="-46.50" y2="80.54"/><line style="--i:15" x1="-60.81" y1="60.81" x2="-65.76" y2="65.76"/><line style="--i:16" x1="-74.48" y1="43.00" x2="-80.54" y2="46.50"/><line style="--i:17" x1="-83.07" y1="22.26" x2="-89.83" y2="24.07"/><line style="--i:18" x1="-82.00" y1="0.00" x2="-93.00" y2="0.00"/><line style="--i:19" x1="-83.07" y1="-22.26" x2="-89.83" y2="-24.07"/><line style="--i:20" x1="-74.48" y1="-43.00" x2="-80.54" y2="-46.50"/><line style="--i:21" x1="-60.81" y1="-60.81" x2="-65.76" y2="-65.76"/><line style="--i:22" x1="-43.00" y1="-74.48" x2="-46.50" y2="-80.54"/><line style="--i:23" x1="-22.26" y1="-83.07" x2="-24.07" y2="-89.83"/></g>
+        <g class="splash-wheel">
+          <path class="splash-handles" d="M0.00 -50.00L0.00 -70.00M35.36 -35.36L49.50 -49.50M50.00 0.00L70.00 0.00M35.36 35.36L49.50 49.50M0.00 50.00L0.00 70.00M-35.36 35.36L-49.50 49.50M-50.00 0.00L-70.00 0.00M-35.36 -35.36L-49.50 -49.50"/>
+          <path class="splash-spokes" d="M0 0L0.00 -44.00M0 0L31.11 -31.11M0 0L44.00 0.00M0 0L31.11 31.11M0 0L0.00 44.00M0 0L-31.11 31.11M0 0L-44.00 0.00M0 0L-31.11 -31.11"/>
+          <g class="splash-rim"><circle style="--i:0" r="44" stroke="#2563eb" stroke-dasharray="62.12 276.46" transform="rotate(-130.44)"/><circle style="--i:1" r="44" stroke="#0d9488" stroke-dasharray="62.12 276.46" transform="rotate(-40.44)"/><circle style="--i:2" r="44" stroke="#d97706" stroke-dasharray="62.12 276.46" transform="rotate(49.56)"/><circle style="--i:3" r="44" stroke="#db2777" stroke-dasharray="62.12 276.46" transform="rotate(139.56)"/></g>
+          <circle class="splash-hub" r="11"/>
+          <circle class="splash-pin" r="4"/>
+        </g>
+      </svg>
+      <p class="splash-name">Wheelhouse</p>
+      <p class="splash-tagline">The family calendar</p>
+      <p class="splash-status" role="status">Starting Wheelhouse…</p>
+      <p class="splash-slow" aria-hidden="true">Still getting things ready…</p>
+    </div>
+  </div>
+  <app-root></app-root>
 </body>
 </html>

@@ -1,4 +1,6 @@
 using System.Globalization;
+using System.Net;
+using System.Net.Sockets;
 using System.Text.Json.Serialization;
 using Wheelhouse.Api.Families;
 
@@ -14,6 +16,40 @@ public sealed class OpenMeteo(HttpClient http)
 
     /// <summary>How many days the forecast covers, today first: a week on the wall.</summary>
     public const int Days = 7;
+
+    /// <summary>How long one of Open-Meteo's addresses gets to answer before the next is tried.</summary>
+    public static readonly TimeSpan ConnectEach = TimeSpan.FromSeconds(3);
+
+    /// <summary>
+    /// Connects to Open-Meteo's IPv4 addresses first, each given <see cref="ConnectEach"/>, then its
+    /// IPv6 ones. .NET otherwise tries addresses in the resolver's order and waits on each, so a host
+    /// whose IPv6 route goes nowhere spends the client's whole timeout there. The demo's server timed
+    /// out on every request while Open-Meteo answered elsewhere in a tenth of a second; a dead IPv6
+    /// route is the likely cause, though not confirmed on the server itself.
+    /// </summary>
+    public static async ValueTask<Stream> ConnectAsync(SocketsHttpConnectionContext context, CancellationToken cancellationToken)
+    {
+        var addresses = await Dns.GetHostAddressesAsync(context.DnsEndPoint.Host, cancellationToken);
+        Exception? last = null;
+        foreach (var address in addresses.OrderBy(address => address.AddressFamily == AddressFamily.InterNetwork ? 0 : 1))
+        {
+            var socket = new Socket(address.AddressFamily, SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+            using var attempt = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            attempt.CancelAfter(ConnectEach);
+            try
+            {
+                await socket.ConnectAsync(new IPEndPoint(address, context.DnsEndPoint.Port), attempt.Token);
+                return new NetworkStream(socket, ownsSocket: true);
+            }
+            catch (Exception exception) when (exception is SocketException or OperationCanceledException && !cancellationToken.IsCancellationRequested)
+            {
+                socket.Dispose();
+                last = exception;
+            }
+        }
+
+        throw new HttpRequestException($"Could not connect to {context.DnsEndPoint.Host}.", last);
+    }
 
     public async Task<Forecast> GetAsync(double latitude, double longitude, Units units, string timeZone, CancellationToken cancellationToken)
     {
