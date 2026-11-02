@@ -378,7 +378,7 @@ export class WallShell {
   });
 
   constructor() {
-    this.family.load();
+    this.family.ensureLoaded();
     const timer = setInterval(() => {
       this.family.refresh();
       this.weather.refresh();
