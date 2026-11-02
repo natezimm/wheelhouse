@@ -26,8 +26,13 @@ import { RepeatPicker } from '../shared/repeat-picker';
         (submit)="$event.preventDefault(); save()"
       >
         <header>
-          <h1>{{ heading() }}</h1>
-          <span class="saves">{{ savesTo() }}</span>
+          <div class="titles">
+            <h1>{{ heading() }}</h1>
+            <span class="saves">{{ savesTo() }}</span>
+          </div>
+          <button type="button" class="close" aria-label="Close" [disabled]="busy()" (click)="closed.emit()">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+          </button>
         </header>
 
         <fieldset [disabled]="busy() || uncertain()">
@@ -177,9 +182,36 @@ import { RepeatPicker } from '../shared/repeat-picker';
 
     header {
       display: flex;
-      align-items: baseline;
+      align-items: flex-start;
       justify-content: space-between;
       gap: 12px;
+    }
+
+    .titles {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+
+    /* The same round close button as the event details sheet. */
+    .close {
+      flex-shrink: 0;
+      width: 44px;
+      height: 44px;
+      border: 0;
+      border-radius: 22px;
+      background: var(--soft);
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .close:disabled {
+      opacity: 0.45;
+      cursor: default;
     }
 
     h1 {

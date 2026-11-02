@@ -20,12 +20,10 @@ import { SignIn } from './sign-in';
   imports: [DatePipe, MemberAvatar, NgTemplateOutlet, ReactiveFormsModule, RouterLink, SignIn],
   template: `
     <header>
-      <a class="back" routerLink="/" aria-label="Back to the calendar">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
-          <path d="M15 6l-6 6 6 6" />
-        </svg>
-      </a>
       <h1>Settings</h1>
+      <a class="close" routerLink="/" aria-label="Close Settings">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+      </a>
     </header>
 
     <main>
@@ -304,6 +302,7 @@ import { SignIn } from './sign-in';
     header {
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 8px;
     }
 
@@ -316,7 +315,11 @@ import { SignIn } from './sign-in';
       letter-spacing: -0.02em;
     }
 
-    .back {
+    /* Closes back to the calendar, like the event details and editors; pages under Settings go back with a chevron.
+       It sits on the page's ground rather than a card, so it takes a card's surface and outline. */
+    .close {
+      flex-shrink: 0;
+      box-sizing: border-box;
       width: 44px;
       height: 44px;
       border-radius: 22px;
