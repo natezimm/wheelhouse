@@ -50,6 +50,36 @@ test('the splash covers the start until the calendar answers, then fades away', 
   await expect(splash(page)).toHaveCount(0);
 });
 
+test('a quick start never shows the wheel, not even as the splash fades', async ({ page }) => {
+  // Records the most the splash's body has shown, frame by frame, and when the splash began to leave.
+  await page.addInitScript(() => {
+    window.splashSeen = { most: 0, leftAt: null };
+    const start = performance.now();
+    const watch = () => {
+      const splash = document.getElementById('splash');
+      const body = splash?.querySelector('.splash-body');
+      if (!splash) return;
+      if (body) {
+        const shown = Number(getComputedStyle(body).opacity) * Number(getComputedStyle(splash).opacity);
+        window.splashSeen.most = Math.max(window.splashSeen.most, shown);
+      }
+      if (splash.classList.contains('splash-leaving') && window.splashSeen.leftAt === null) {
+        window.splashSeen.leftAt = performance.now() - start;
+      }
+      requestAnimationFrame(watch);
+    };
+    requestAnimationFrame(watch);
+  });
+  const release = await stub(page);
+  release();
+  await page.goto('/');
+  await expect(splash(page)).toHaveCount(0);
+
+  const seen = await page.evaluate(() => window.splashSeen);
+  test.skip(seen.leftAt === null || seen.leftAt > 500, `This start took ${seen.leftAt} ms, too slow to say anything about a quick one.`);
+  expect(seen.most).toBe(0);
+});
+
 test('a later start wears the family’s theme, dark at its night hours, before the app has asked', async ({ page }) => {
   // 11 PM in New York: inside the family's night hours.
   await page.clock.install({ time: new Date('2026-10-13T03:00:00Z') });

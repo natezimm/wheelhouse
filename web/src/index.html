@@ -77,6 +77,7 @@
       width: clamp(132px, 22vmin, 236px);
       height: auto;
       overflow: visible;
+      transition: transform 500ms cubic-bezier(0.4, 0, 0.2, 1);
     }
     .splash-dial line {
       stroke: var(--muted);
@@ -147,16 +148,15 @@
       visibility: hidden;
       pointer-events: none;
     }
-    .splash-leaving .splash-body { animation: splash-depart 500ms cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+    /* The whole splash fades; its body keeps whatever opacity its entrance had reached, so a quick
+       start that ends before the wheel appears never shows it on the way out. */
+    .splash-leaving .splash-mark { transform: scale(1.05); }
+    .splash-leaving .splash-body { animation-play-state: paused; }
     [data-night] .splash::before,
     [data-night] .splash::after { opacity: 0.8; }
     @keyframes splash-arrive {
       from { opacity: 0; transform: translateY(6px) scale(0.97); }
       to { opacity: 1; transform: none; }
-    }
-    @keyframes splash-depart {
-      from { opacity: 1; transform: none; }
-      to { opacity: 0; transform: scale(1.05); }
     }
     @keyframes splash-draw { to { stroke-dashoffset: 0; } }
     /* A helmsman's turns: a deliberate eighth of a turn, a breath, and on. */
@@ -186,7 +186,7 @@
       .splash-dial line { opacity: 0.4; }
       .splash-rim circle { animation: none; stroke-dashoffset: 0; }
       .splash-body { animation: splash-glow 300ms ease 600ms backwards; opacity: 1; }
-      .splash-leaving .splash-body { animation: none; opacity: 1; }
+      .splash-leaving .splash-mark { transform: none; }
       .splash-slow { animation-name: splash-fade; animation-duration: 1ms; }
       .splash { transition-duration: 200ms, 0s; transition-delay: 0s, 200ms; }
       @keyframes splash-fade { to { opacity: 1; } }
