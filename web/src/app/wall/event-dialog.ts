@@ -53,6 +53,9 @@ import { RepeatPicker } from '../shared/repeat-picker';
         <div class="top">
           <h1>{{ heading() }}</h1>
           <span class="saves"><span class="dot" aria-hidden="true"></span>{{ savesTo() }}</span>
+          <button type="button" class="close" aria-label="Close" [disabled]="busy()" (click)="closed.emit()">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+          </button>
         </div>
 
         <div class="fields">
@@ -294,7 +297,31 @@ import { RepeatPicker } from '../shared/repeat-picker';
     .top {
       display: flex;
       align-items: center;
-      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .top .saves {
+      margin-left: auto;
+    }
+
+    /* The same round close button as the event details drawer. */
+    .close {
+      flex-shrink: 0;
+      width: 56px;
+      height: 56px;
+      border: 0;
+      border-radius: 28px;
+      background: var(--soft);
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    .close:disabled {
+      opacity: 0.45;
+      cursor: default;
     }
 
     h1 {
