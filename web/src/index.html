@@ -51,7 +51,7 @@
       height: 70vmax;
       border-radius: 50%;
       opacity: 0.55;
-      animation: splash-drift 16s ease-in-out infinite alternate;
+      animation: splash-glow 800ms ease 600ms backwards, splash-drift 16s ease-in-out infinite alternate;
     }
     .splash::before {
       left: -28vmax;
@@ -62,15 +62,16 @@
       right: -30vmax;
       bottom: -32vmax;
       background: radial-gradient(closest-side, color-mix(in srgb, var(--mark-4) 13%, transparent), transparent);
-      animation-delay: -8s;
+      animation-delay: 600ms, -8s;
     }
+    /* Nothing but the plain ground for the first 600 ms, so a quick start never flickers the wheel. */
     .splash-body {
       position: relative;
       display: grid;
       justify-items: center;
       gap: clamp(18px, 3vmin, 30px);
       opacity: 0;
-      animation: splash-arrive 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 150ms forwards;
+      animation: splash-arrive 700ms cubic-bezier(0.2, 0.8, 0.2, 1) 600ms forwards;
     }
     .splash-mark {
       width: clamp(132px, 22vmin, 236px);
@@ -104,7 +105,7 @@
       stroke-width: 13;
       stroke-dashoffset: 62.1;
       animation: splash-draw 900ms cubic-bezier(0.65, 0, 0.35, 1) forwards;
-      animation-delay: calc(250ms + var(--i) * 140ms);
+      animation-delay: calc(700ms + var(--i) * 140ms);
     }
     .splash-hub { fill: var(--ink); }
     .splash-pin { fill: var(--ground); }
@@ -172,17 +173,19 @@
       0% { opacity: 0.85; }
       45%, 100% { opacity: 0.18; }
     }
+    @keyframes splash-glow { from { opacity: 0; } }
     @keyframes splash-drift {
       to { transform: translate(6vmax, 4vmax) scale(1.08); }
     }
     @media (prefers-reduced-motion: reduce) {
-      .splash::before,
-      .splash::after,
       .splash-wheel,
       .splash-dial line { animation: none; }
+      /* Still nothing for a quick start, then a plain fade rather than motion. */
+      .splash::before,
+      .splash::after { animation: splash-glow 300ms ease 600ms backwards; }
       .splash-dial line { opacity: 0.4; }
       .splash-rim circle { animation: none; stroke-dashoffset: 0; }
-      .splash-body,
+      .splash-body { animation: splash-glow 300ms ease 600ms backwards; opacity: 1; }
       .splash-leaving .splash-body { animation: none; opacity: 1; }
       .splash-slow { animation-name: splash-fade; animation-duration: 1ms; }
       .splash { transition-duration: 200ms, 0s; transition-delay: 0s, 200ms; }
