@@ -99,6 +99,14 @@ export class FamilyStore {
     this.prefetched = true;
   }
 
+  /**
+   * Called once the first screen has opened: a later screen, or the first one after a sign-out,
+   * reads the family again rather than taking the startup read.
+   */
+  endPrefetch(): void {
+    this.prefetched = false;
+  }
+
   load(): void {
     if (this.prefetched) {
       this.prefetched = false;

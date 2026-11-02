@@ -61,9 +61,11 @@ describe('ThemeService', () => {
 
   it('dresses the page in the family’s theme and loads only that theme’s fonts', () => {
     vi.setSystemTime(new Date('2026-10-23T16:00:00Z')); // noon in New York
+    root.dataset['theme'] = 'bold';
     TestBed.inject(ThemeService);
     TestBed.tick();
-    expect(root.dataset['theme']).toBe('daylight');
+    // Until the family arrives, the look boot.js saved is left alone.
+    expect(root.dataset['theme']).toBe('bold');
 
     load({ theme: 'Groovy' });
 

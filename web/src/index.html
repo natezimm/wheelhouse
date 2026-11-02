@@ -56,12 +56,12 @@
     .splash::before {
       left: -28vmax;
       top: -30vmax;
-      background: radial-gradient(closest-side, color-mix(in srgb, #2563eb 16%, transparent), transparent);
+      background: radial-gradient(closest-side, color-mix(in srgb, var(--mark-1) 16%, transparent), transparent);
     }
     .splash::after {
       right: -30vmax;
       bottom: -32vmax;
-      background: radial-gradient(closest-side, color-mix(in srgb, #db2777 13%, transparent), transparent);
+      background: radial-gradient(closest-side, color-mix(in srgb, var(--mark-4) 13%, transparent), transparent);
       animation-delay: -8s;
     }
     .splash-body {
@@ -199,7 +199,7 @@
         <g class="splash-wheel">
           <path class="splash-handles" d="M0.00 -50.00L0.00 -70.00M35.36 -35.36L49.50 -49.50M50.00 0.00L70.00 0.00M35.36 35.36L49.50 49.50M0.00 50.00L0.00 70.00M-35.36 35.36L-49.50 49.50M-50.00 0.00L-70.00 0.00M-35.36 -35.36L-49.50 -49.50"/>
           <path class="splash-spokes" d="M0 0L0.00 -44.00M0 0L31.11 -31.11M0 0L44.00 0.00M0 0L31.11 31.11M0 0L0.00 44.00M0 0L-31.11 31.11M0 0L-44.00 0.00M0 0L-31.11 -31.11"/>
-          <g class="splash-rim"><circle style="--i:0" r="44" stroke="#2563eb" stroke-dasharray="62.12 276.46" transform="rotate(-130.44)"/><circle style="--i:1" r="44" stroke="#0d9488" stroke-dasharray="62.12 276.46" transform="rotate(-40.44)"/><circle style="--i:2" r="44" stroke="#d97706" stroke-dasharray="62.12 276.46" transform="rotate(49.56)"/><circle style="--i:3" r="44" stroke="#db2777" stroke-dasharray="62.12 276.46" transform="rotate(139.56)"/></g>
+          <g class="splash-rim"><circle style="--i:0" r="44" stroke="var(--mark-1)" stroke-dasharray="62.12 276.46" transform="rotate(-130.44)"/><circle style="--i:1" r="44" stroke="var(--mark-2)" stroke-dasharray="62.12 276.46" transform="rotate(-40.44)"/><circle style="--i:2" r="44" stroke="var(--mark-3)" stroke-dasharray="62.12 276.46" transform="rotate(49.56)"/><circle style="--i:3" r="44" stroke="var(--mark-4)" stroke-dasharray="62.12 276.46" transform="rotate(139.56)"/></g>
           <circle class="splash-hub" r="11"/>
           <circle class="splash-pin" r="4"/>
         </g>

@@ -41,6 +41,16 @@ describe('FamilyStore', () => {
     http.expectOne('/api/family').flush(marlowes);
   });
 
+  it('reads again once the first screen has opened without taking the startup read', () => {
+    store.prefetch();
+    http.expectOne('/api/family').flush(marlowes);
+    store.endPrefetch();
+
+    store.load();
+    http.expectOne('/api/family').flush(null, { status: 401, statusText: 'Unauthorized' });
+    expect(store.state()).toEqual({ status: 'private' });
+  });
+
   it('gives the startup read to the first screen that asks, and reads again for later ones', () => {
     store.prefetch();
     http.expectOne('/api/family').flush(marlowes);

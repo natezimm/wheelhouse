@@ -1,6 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { ApplicationConfig, ErrorHandler, inject, provideAppInitializer, provideBrowserGlobalErrorListeners } from '@angular/core';
-import { provideRouter, withComponentInputBinding } from '@angular/router';
+import { NavigationEnd, Router, provideRouter, withComponentInputBinding } from '@angular/router';
+import { filter, take } from 'rxjs';
 import { routes } from './app.routes';
 import { CalendarLive } from './core/calendar-live';
 import { ReportingErrorHandler } from './core/error-reporting';
@@ -30,6 +31,10 @@ export const appConfig: ApplicationConfig = {
       const family = inject(FamilyStore);
       const live = inject(CalendarLive);
       preloadFirstScreen(location.pathname);
+      // Only the first screen takes the startup read; it has opened once its navigation ends.
+      inject(Router)
+        .events.pipe(filter((event) => event instanceof NavigationEnd), take(1))
+        .subscribe(() => family.endPrefetch());
       return session.start().then(() => {
         family.prefetch();
         live.start();

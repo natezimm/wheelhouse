@@ -97,6 +97,8 @@ export class ThemeService {
 
   constructor() {
     effect(() => {
+      // While the family is on its way, the look boot.js set from what this browser saved stays.
+      if (this.family.state().status === 'loading') return;
       const theme = this.theme();
       const night = this.night();
       const root = this.document.documentElement;

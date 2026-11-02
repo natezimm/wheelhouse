@@ -120,6 +120,11 @@
 
   --font-display: 'Outfit', system-ui, sans-serif;
   --font-body: 'Figtree', system-ui, sans-serif;
+  /* The ship's wheel's four rim colors, as on the favicon, which the splash draws in index.html. */
+  --mark-1: #2563eb;
+  --mark-2: #0d9488;
+  --mark-3: #d97706;
+  --mark-4: #db2777;
   /* Times on events and the hour labels. */
   --font-time: var(--font-body);
   --display-weight: 600;

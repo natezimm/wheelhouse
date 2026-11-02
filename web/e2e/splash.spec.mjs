@@ -58,12 +58,17 @@ test('a later start wears the family’s theme, dark at its night hours, before 
   release();
   await expect(splash(page)).toHaveCount(0);
 
-  // Nothing answers this time, so only what the browser kept can dress the splash.
+  // The app starts this time but the family never arrives, so only what the browser kept can dress the splash.
   await page.unrouteAll({ behavior: 'ignoreErrors' });
-  await page.route('**/api/**', () => {});
+  await page.route('**/api/**', (route) => {
+    const url = new URL(route.request().url()).pathname;
+    if (url === '/api/session') return route.fulfill({ json: { mode: 'Demo', signedIn: true, canSignIn: false } });
+    if (url === '/api/demo/visit') return route.fulfill({ status: 204 });
+  });
   await page.route('https://fonts.googleapis.com/**', (route) => route.fulfill({ status: 200, body: '', contentType: 'text/css' }));
   await page.reload();
 
+  await expect(page.locator('app-root')).not.toBeEmpty();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'groovy');
   await expect(page.locator('html')).toHaveAttribute('data-night', '');
   await expect(splash(page)).toHaveCSS('background-color', await page.evaluate(() => getComputedStyle(document.body).backgroundColor));
