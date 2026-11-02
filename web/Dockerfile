@@ -6,6 +6,6 @@ RUN npm ci
 COPY web/ ./
 RUN npm run build
 
-FROM nginx:1.29-alpine
+FROM nginx:1.31-alpine
 COPY web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /web/dist/web/browser /usr/share/nginx/html
