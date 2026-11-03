@@ -56,7 +56,12 @@ export function shortcutOf(event: KeyboardEvent): Shortcut | null {
   template: `
     <button type="button" class="scrim" tabindex="-1" aria-label="Close shortcuts" (click)="closed.emit()"></button>
     <section class="panel" appModalFocus tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
-      <h2 id="shortcuts-title">Keyboard shortcuts</h2>
+      <div class="top">
+        <h2 id="shortcuts-title">Keyboard shortcuts</h2>
+        <button type="button" class="close" aria-label="Close" (click)="closed.emit()">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+        </button>
+      </div>
       <dl>
         @for (shortcut of shortcuts; track shortcut.does) {
           <div>
@@ -72,7 +77,6 @@ export function shortcutOf(event: KeyboardEvent): Shortcut | null {
           </div>
         }
       </dl>
-      <button type="button" class="close" (click)="closed.emit()">Close</button>
     </section>
   `,
   styles: `
@@ -107,6 +111,14 @@ export function shortcutOf(event: KeyboardEvent): Shortcut | null {
       display: flex;
       flex-direction: column;
       gap: 14px;
+    }
+
+    .top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: -8px -10px 0 0;
     }
 
     h2 {
@@ -160,15 +172,16 @@ export function shortcutOf(event: KeyboardEvent): Shortcut | null {
     }
 
     .close {
-      align-self: flex-end;
+      flex-shrink: 0;
+      width: 44px;
       height: 44px;
-      padding: 0 24px;
-      border: var(--control-border);
-      border-radius: var(--pill);
-      background: var(--surface);
-      box-shadow: var(--control-shadow);
+      border: 0;
+      border-radius: 22px;
+      background: var(--soft);
       color: var(--ink);
-      font: 700 16px var(--font-body);
+      display: flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
     }
   `,
