@@ -96,3 +96,9 @@ public sealed record EventRequest(
     bool? Private = null,
     bool? Countdown = null,
     string? Version = null);
+
+/// <summary>
+/// What a search found: up to <see cref="CalendarEndpoints.MaxSearchResults"/> events, one per
+/// series, upcoming first, and how many series matched in all.
+/// </summary>
+public sealed record SearchResponse(IReadOnlyList<EventResponse> Events, int Total);

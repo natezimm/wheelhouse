@@ -18,6 +18,7 @@ import { DemoNotice } from '../shared/demo-notice';
 import { DemoTour } from '../shared/demo-tour';
 import { DemoWelcome, rememberWelcomeSeen, welcomeSeen } from '../shared/demo-welcome';
 import { EventDetails } from '../shared/event-details';
+import { EventSearch } from '../shared/event-search';
 import { ShortcutHelp, shortcutOf } from '../shared/shortcut-help';
 import { WeatherIcon } from '../shared/weather-icon';
 import { DayView } from '../wall/day-view';
@@ -50,6 +51,7 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
     DemoWelcome,
     EventDetails,
     EventDialog,
+    EventSearch,
     EventSheet,
     MonthView,
     PhoneDay,
@@ -71,6 +73,10 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"></rect><path d="M3.5 10h17M8 3v4M16 3v4"></path></svg>
           Calendar
         </a>
+        <button type="button" (click)="searching.set(true)" [attr.aria-pressed]="searching()" title="Search events (/)">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.6-3.6"></path></svg>
+          Search
+        </button>
         <a routerLink="/settings">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
           Settings
@@ -176,8 +182,11 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
                 <button type="button" [attr.aria-pressed]="view() === option.view" (click)="choose(option.view)">{{ option.label }}</button>
               }
             </div>
+            <button type="button" class="round search" aria-label="Search events" title="Search events" (click)="searching.set(true)">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.6-3.6"></path></svg>
+            </button>
             <!-- The phone's only other section; Settings leads back here. -->
-            <a class="settings" routerLink="/settings" aria-label="Settings" title="Settings">
+            <a class="round settings" routerLink="/settings" aria-label="Settings" title="Settings">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
             </a>
           </div>
@@ -203,6 +212,10 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
       @if (selected(); as id) {
         <app-event-details [eventId]="id" layout="phone" (closed)="selected.set(null)" (edit)="edit($event)" (remove)="edit($event, true)" (duplicate)="duplicate($event)" />
       }
+    }
+
+    @if (searching()) {
+      <app-event-search [layout]="wide() ? 'desktop' : 'phone'" (closed)="searching.set(false)" (picked)="pick($event)" />
     }
 
     @if (touring()) {
@@ -345,9 +358,11 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
       padding: 0 8px;
     }
 
-    /* A round button as tall as the switch, drawn like the header's Today button. */
-    .settings {
+    /* Round buttons as tall as the switch, drawn like the header's Today button. */
+    .round {
       flex-shrink: 0;
+      padding: 0;
+      cursor: pointer;
       align-self: stretch;
       width: 52px;
       box-sizing: border-box;
@@ -419,8 +434,14 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
       font-weight: 700;
     }
 
-    .rail a {
+    .rail a,
+    .rail button {
       width: 60px;
+      padding: 0;
+      border: 0;
+      background: none;
+      font-family: inherit;
+      cursor: pointer;
       height: 56px;
       border-radius: 16px;
       display: flex;
@@ -434,6 +455,7 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
       text-decoration: none;
     }
 
+    .rail button[aria-pressed='true'],
     .rail a.current {
       background: var(--segment);
       box-shadow: var(--raised);
@@ -539,6 +561,9 @@ export class CalendarHome {
   /** The event being added (no event) or changed, and whether it opened in the desktop editor. */
   protected readonly editing = signal<{ event: CalendarEvent | null; day: Day; wide: boolean; at: string | null; deleting: boolean; copy?: CalendarEvent } | null>(null);
 
+  /** Whether search is open. */
+  protected readonly searching = signal(false);
+
   /** Whether the list of keyboard shortcuts is open. */
   protected readonly helping = signal(false);
 
@@ -548,7 +573,7 @@ export class CalendarHome {
   private readonly welcomeClosed = signal(welcomeSeen());
   // It steps aside while details, an editor or the shortcuts are open, so it never covers their buttons.
   protected readonly welcoming = computed(
-    () => this.session.isDemo() && this.shown() !== null && !this.welcomeClosed() && !this.selected() && !this.editing() && !this.helping(),
+    () => this.session.isDemo() && this.shown() !== null && !this.welcomeClosed() && !this.selected() && !this.editing() && !this.helping() && !this.searching(),
   );
 
   protected closeWelcome(): void {
@@ -631,7 +656,7 @@ export class CalendarHome {
    */
   protected shortcut(event: KeyboardEvent): void {
     const action = shortcutOf(event);
-    if (!action || !this.wide() || this.signingIn() || this.editing() || this.helping() || this.touring() || !this.period()) {
+    if (!action || !this.wide() || this.signingIn() || this.editing() || this.helping() || this.searching() || this.touring() || !this.period()) {
       return;
     }
     const id = this.selected();
@@ -665,6 +690,9 @@ export class CalendarHome {
       case 'create':
         this.add();
         break;
+      case 'search':
+        this.searching.set(true);
+        break;
       case 'help':
         this.helping.set(true);
         break;
@@ -689,6 +717,19 @@ export class CalendarHome {
     this.selected.set(null);
     this.focus.set(day);
     this.choose('day');
+  }
+
+  /**
+   * An event picked in search: its day in view, on a phone as Day, with its details open once
+   * that day is read.
+   */
+  protected pick(event: CalendarEvent): void {
+    const family = this.family.family();
+    if (!family) return;
+    this.searching.set(false);
+    this.focus.set(event.startDate ?? dayIn(family.timeZone, event.startsAt!));
+    if (!this.wide()) this.choose('day');
+    this.selected.set(event.id);
   }
 
   /** A new event goes on the day in view, or on today when it is in the week shown, or the week's first day. */
