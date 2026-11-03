@@ -10,6 +10,8 @@ const family = {
   units: 'Imperial',
   latitude: null,
   longitude: null,
+  theme: 'Daylight',
+  nightMode: 'Off',
   members: [{ id: 'm3', displayName: 'Milo', initial: 'M', role: 'Kid', color: '#137A6D' }],
 };
 const swim = {
@@ -33,6 +35,11 @@ async function stub(page, mode = 'Demo') {
   await page.clock.install({ time: new Date('2026-10-12T19:22:00Z') });
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path === '/api/family/theme') {
+      Object.assign(family, route.request().postDataJSON());
+      await route.fulfill({ status: 200, json: family });
+      return;
+    }
     const body =
       path === '/api/session'
         ? { mode, signedIn: true, canSignIn: mode === 'Family' }
@@ -55,16 +62,30 @@ test('a first demo visit is welcomed once, and the welcome stays closed', async 
   await page.goto('/');
   const welcome = page.getByRole('region', { name: 'Meet the Marlowes' });
   await expect(welcome).toBeVisible();
-  await expect(welcome.getByRole('link', { name: 'Open the wall display' })).toHaveAttribute('href', '/wall');
-  await expect(welcome.getByRole('link', { name: 'Try a theme' })).toHaveAttribute('href', '/settings');
-  // Each link takes a 44 px finger: a tap 20 px above or below its text's middle still lands on it.
-  for (const name of ['Open the wall display', 'Try a theme']) {
-    const link = welcome.getByRole('link', { name });
-    const box = await link.boundingBox();
-    for (const dy of [-20, 20]) {
-      const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('a')?.textContent ?? null, [box.x + box.width / 2, box.y + box.height / 2 + dy]);
-      expect(hit).toBe(name);
-    }
+  await expect(welcome.getByRole('link', { name: /Open the wall display/ })).toHaveAttribute('href', '/wall');
+  // Each look is a finger-sized swatch, and a tap puts it on the calendar behind the card.
+  const looks = welcome.getByRole('group', { name: 'Try a look' });
+  for (const button of await looks.getByRole('button').all()) {
+    expect((await button.boundingBox()).height).toBeGreaterThanOrEqual(44);
+  }
+  await expect(looks.getByRole('button', { name: 'Daylight' })).toHaveAttribute('aria-pressed', 'true');
+  await looks.getByRole('button', { name: 'Groovy' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'groovy');
+  await expect(looks.getByRole('button', { name: 'Groovy' })).toHaveAttribute('aria-pressed', 'true');
+  await page.screenshot({ path: testInfo.outputPath('welcome-groovy.png') });
+  await looks.getByRole('button', { name: 'Daylight' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'daylight');
+
+  // On a desktop window, Show me plays a drag on a real event without saving it.
+  if (testInfo.project.name === 'wall') {
+    await page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'Week' }).click();
+    await welcome.getByRole('button', { name: 'Show me' }).click();
+    await expect(page.locator('.welcome-ghost')).toHaveCount(1);
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: testInfo.outputPath('welcome-drag.png') });
+    await expect(page.locator('.welcome-ghost')).toHaveCount(0, { timeout: 4000 });
+  } else {
+    await expect(welcome.getByRole('button', { name: 'Show me' })).toHaveCount(0);
   }
   await page.screenshot({ path: testInfo.outputPath('welcome.png') });
 
