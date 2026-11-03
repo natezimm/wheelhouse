@@ -8,8 +8,8 @@ import { AvatarFace } from '../shared/avatar-face';
 
 /** How each layout sizes a week's row: the date, a row of bars, and a line of a day's events. */
 const LAYOUTS = {
-  wall: { head: 44, bar: 32, line: 26, foot: 6, fallbackLines: 4 },
-  desktop: { head: 34, bar: 26, line: 22, foot: 4, fallbackLines: 4 },
+  wall: { head: 44, bar: 32, line: 26, more: 20, foot: 6, fallbackLines: 4 },
+  desktop: { head: 34, bar: 26, line: 22, more: 17, foot: 4, fallbackLines: 4 },
 };
 
 /**
@@ -88,12 +88,14 @@ const LAYOUTS = {
       --head: 44px;
       --bar: 32px;
       --line: 26px;
+      --more: 20px;
     }
 
     :host(.desktop) {
       --head: 34px;
       --bar: 26px;
       --line: 22px;
+      --more: 17px;
     }
 
     .dows {
@@ -326,9 +328,10 @@ const LAYOUTS = {
       font-weight: 600;
     }
 
+    /* "+N more" takes a shorter line than an event, so a day keeps one more event when it can. */
     .more {
       flex-shrink: 0;
-      height: calc(var(--line) - 2px);
+      height: calc(var(--more) - 2px);
       display: flex;
       align-items: center;
       padding-left: 15px;
@@ -368,14 +371,13 @@ const LAYOUTS = {
     }
 
     /* A bar that runs on into the week before or after is squared off on that side. */
+    /* It keeps its margin, so it never runs into the card's rounded edge. */
     .bar.before {
-      margin-left: 0;
       border-top-left-radius: 0;
       border-bottom-left-radius: 0;
     }
 
     .bar.after {
-      margin-right: 0;
       border-top-right-radius: 0;
       border-bottom-right-radius: 0;
     }
@@ -462,8 +464,10 @@ export class MonthView {
 
     // How many lines fit in a row under its bars, from the height the weeks have on screen.
     const rowHeight = this.height() / weekCount;
-    const room = (lanes: number) =>
-      rowHeight > 0 ? Math.floor((rowHeight - layout.head - lanes * layout.bar - layout.foot) / layout.line) : layout.fallbackLines - lanes;
+    const space = (lanes: number) => rowHeight - layout.head - lanes * layout.bar - layout.foot;
+    const room = (lanes: number) => (rowHeight > 0 ? Math.floor(space(lanes) / layout.line) : layout.fallbackLines - lanes);
+    const roomBesideMore = (lanes: number) =>
+      rowHeight > 0 ? Math.floor((space(lanes) - layout.more) / layout.line) : layout.fallbackLines - lanes - 1;
 
     // Every event a day holds, for the day's name read aloud.
     const counts = new Map<Day, number>();
@@ -480,7 +484,7 @@ export class MonthView {
     const weeks = [];
     for (let weekStart = start; weekStart < end; weekStart = addDays(weekStart, 7)) {
       const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-      const row = monthWeek(events, days, zone, room);
+      const row = monthWeek(events, days, zone, room, 2, roomBesideMore);
       weeks.push({
         start: weekStart,
         rows: `var(--head)${' var(--bar)'.repeat(row.lanes)} minmax(0, 1fr)`,

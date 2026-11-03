@@ -235,8 +235,9 @@ export interface MonthDay {
 /**
  * One week of the month: all-day and long events as bars across their days, then each day's
  * timed events as lines, starting under the last bar over that day. <code>room(lanes)</code>
- * says how many lines fit under that many rows of bars. A day with more than fits shows one
- * line fewer and counts the rest as "+N more", bars that did not fit included.
+ * says how many lines fit under that many rows of bars, and <code>roomBesideMore(lanes)</code>
+ * how many still fit above a "+N more" line, which may be shorter than an event's. A day with
+ * more than fits shows that many and counts the rest as "+N more", bars that did not fit included.
  */
 export function monthWeek(
   events: readonly CalendarEvent[],
@@ -244,6 +245,7 @@ export function monthWeek(
   timeZone: string,
   room: (lanes: number) => number,
   maxLanes = 2,
+  roomBesideMore: (lanes: number) => number = (lanes) => room(lanes) - 1,
 ): { bars: DayBar[]; lanes: number; days: MonthDay[] } {
   // Never so many rows of bars that a day has no line left to say what else it holds.
   while (maxLanes > 0 && room(maxLanes) < 1) {
@@ -262,7 +264,7 @@ export function monthWeek(
       if (timed.length <= fits && hidden[i] === 0) {
         return { day, lanes: dayLanes, segments: timed, more: 0 };
       }
-      const shown = Math.max(0, Math.min(timed.length, fits - 1));
+      const shown = Math.max(0, Math.min(timed.length, roomBesideMore(dayLanes)));
       return { day, lanes: dayLanes, segments: timed.slice(0, shown), more: timed.length - shown + hidden[i] };
     }),
   };
