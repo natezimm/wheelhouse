@@ -75,7 +75,7 @@ const LAYOUTS = {
         }
       </div>
       @if (note(); as note) {
-        <p class="note" [class.waiting]="note.waiting" role="status">{{ note.text }}</p>
+        <p class="note" [class.waiting]="note.waiting" role="status">{{ note.text }}@if (note.detail) {<span class="detail">{{ note.detail }}</span>}</p>
       }
     }
   `,
@@ -146,6 +146,20 @@ const LAYOUTS = {
 
     :host(.desktop) .note {
       font-size: 19px;
+    }
+
+    .note .detail {
+      display: block;
+      margin-top: 4px;
+      font-family: var(--font-body);
+      font-size: 16px;
+      font-weight: 500;
+      font-variation-settings: normal;
+      color: var(--faint);
+    }
+
+    :host(.desktop) .note .detail {
+      font-size: 14px;
     }
 
     .note.waiting {
@@ -407,7 +421,7 @@ export class MonthView {
   /** Said over the days while the month loads or when it could not. */
   protected readonly note = computed(() => {
     const status = this.calendar.state().status;
-    return status === 'loading' ? { text: 'Loading the month…', waiting: true } : status === 'unavailable' ? { text: "Couldn't load the month", waiting: false } : null;
+    return status === 'loading' ? { text: 'Loading the month…', waiting: true } : status === 'unavailable' ? { text: "Couldn't load the month", waiting: false, detail: 'Trying again on its own' } : null;
   });
 
   private readonly weeksElement = viewChild<ElementRef<HTMLElement>>('weeks');
