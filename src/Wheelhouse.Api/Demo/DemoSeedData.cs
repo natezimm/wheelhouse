@@ -373,7 +373,7 @@ public static class DemoSeedData
 
         events.Add(anchor.AllDayEvent(
             familyId, calendars.District.Id,
-            title: "Early dismissal — 12:30 PM",
+            title: "Early dismissal — 12:30 pm",
             startDate: anchor.NextWeekday(DayOfWeek.Friday, 1), endDateExclusive: anchor.NextWeekday(DayOfWeek.Friday, 1).AddDays(1)));
 
         events.Add(anchor.AllDayEvent(

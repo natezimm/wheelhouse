@@ -143,7 +143,7 @@ for (const layout of ['wall', 'desktop']) {
     await page.mouse.down();
     await page.mouse.move(from.x, from.y + hour * 0.75, { steps: 8 });
     const preview = page.locator('app-week-view .preview');
-    await expect(preview).toContainText('5:30 PM – 7:00 PM');
+    await expect(preview).toContainText('5:30 pm – 7 pm');
     await page.screenshot({ path: testInfo.outputPath('resize.png') });
     await page.mouse.up();
 
@@ -160,7 +160,7 @@ for (const layout of ['wall', 'desktop']) {
     await page.mouse.move(again.x + again.width / 2, again.y + again.height / 2);
     await page.mouse.down();
     await page.mouse.move(again.x + again.width / 2, again.y - hour * 3, { steps: 8 });
-    await expect(preview).toContainText('5:30 PM – 5:45 PM');
+    await expect(preview).toContainText('5:30 pm – 5:45 pm');
     await page.keyboard.press('Escape');
     await page.mouse.up();
     expect(writes.length).toBe(1);

@@ -59,38 +59,38 @@ for (const where of ['wall', 'desktop']) {
     const editor = page.locator('app-event-dialog form');
     const start = editor.getByRole('textbox', { name: 'Start time' });
     const end = editor.getByRole('textbox', { name: /^End time/ });
-    await expect(start).toHaveValue('5:30 PM');
+    await expect(start).toHaveValue('5:30 pm');
 
     await start.fill('4pm');
     await start.press('Tab');
-    await expect(start).toHaveValue('4:00 PM');
-    await expect(end).toHaveValue('4:45 PM');
+    await expect(start).toHaveValue('4:00 pm');
+    await expect(end).toHaveValue('4:45 pm');
     await end.fill('5:30');
     await end.press('Enter');
-    await expect(end).toHaveValue('5:30 PM');
+    await expect(end).toHaveValue('5:30 pm');
     await editor.getByRole('button', { name: 'Start later', exact: true }).click();
-    await expect(start).toHaveValue('4:15 PM');
-    await expect(end).toHaveValue('5:45 PM');
+    await expect(start).toHaveValue('4:15 pm');
+    await expect(end).toHaveValue('5:45 pm');
 
     await start.fill('later');
     await start.press('Tab');
-    await expect(start).toHaveValue('4:15 PM');
-    await expect(editor.getByRole('alert')).toHaveText('Type a time such as 3:30 PM or 15:30.');
+    await expect(start).toHaveValue('4:15 pm');
+    await expect(editor.getByRole('alert')).toHaveText('Type a time such as 3:30 pm or 15:30.');
     await start.focus();
     await page.keyboard.press('ArrowDown');
-    await expect(start).toHaveValue('4:00 PM');
+    await expect(start).toHaveValue('4:00 pm');
     await expect(editor.getByRole('alert')).toHaveCount(0);
     // The widest times still fit their fields.
     await end.fill('11:45pm');
     await end.press('Tab');
-    await expect(end).toHaveValue('11:45 PM');
+    await expect(end).toHaveValue('11:45 pm');
     for (const field of [start, end]) {
       expect(await field.evaluate((input) => input.scrollWidth <= input.clientWidth)).toBe(true);
     }
     // An end before the start is the next day, named under the time.
     await end.fill('1am');
     await end.press('Tab');
-    await expect(editor.getByRole('textbox', { name: 'End time, Tue, Oct 13' })).toHaveValue('1:00 AM');
+    await expect(editor.getByRole('textbox', { name: 'End time, Tue, Oct 13' })).toHaveValue('1:00 am');
 
     if (where === 'wall') {
       for (const name of ['Start earlier', 'Start later']) {

@@ -1,7 +1,7 @@
 import { Component, computed, inject, input, output } from '@angular/core';
 import { CalendarStore, colorOf, namesOf, peopleOf, showsOn, spanOf } from '../core/calendar';
 import { inAllDayLane } from '../core/calendar-grid';
-import { Day, dayIn, timeIn } from '../core/days';
+import { Day, dayIn, timeIn, timeText } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { AvatarFace } from '../shared/avatar-face';
 
@@ -130,7 +130,7 @@ export class CompactAgenda {
       const member = peopleOf(event, family.members)[0];
       const whole = allDay(event);
       const startsToday = !whole && dayIn(zone, event.startsAt!) === day;
-      const time = whole ? 'All day' : startsToday ? timeIn(zone, event.startsAt!).replace(/\s?([AP]M)$/, (_, half: string) => ` ${half.toLowerCase()}`) : 'Until';
+      const time = whole ? 'All day' : startsToday ? timeText(zone, event.startsAt!) : 'Until';
       return {
         id: event.id,
         title: event.title,

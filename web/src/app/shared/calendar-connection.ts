@@ -2,7 +2,7 @@ import { Component, computed, inject, input } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { CalendarStore } from '../core/calendar';
 import { CalendarLive } from '../core/calendar-live';
-import { formatDay, timeIn } from '../core/days';
+import { formatDay, timeIn, timeText } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { SessionStore } from '../core/session';
 import { StatusLine } from './status-line';
@@ -332,11 +332,11 @@ export class CalendarConnection {
     () => this.calendar.state().status === 'unavailable' || (this.live.available() && (this.offline() || this.calendar.refreshFailed())),
   );
 
-  /** " · showing 4:32 PM": when the calendar on screen was read, in the family's time. */
+  /** " · showing 4:32 pm": when the calendar on screen was read, in the family's time. */
   protected readonly showing = computed(() => {
     const at = this.calendar.shownAt();
     const family = this.family.family();
-    return at && family ? ` · showing ${timeIn(family.timeZone, at)}` : '';
+    return at && family ? ` · showing ${timeText(family.timeZone, at)}` : '';
   });
 
   /** "Synced through Nov 30, 2027" when the days on screen reach past the days the server keeps. */

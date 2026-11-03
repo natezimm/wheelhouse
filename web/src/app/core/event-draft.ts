@@ -301,10 +301,10 @@ export function parseClock(text: string, after = '07:00'): string | null {
   return morning >= after ? morning : afternoon >= after ? afternoon : morning;
 }
 
-/** A time such as '17:30' as the family reads it, "5:30 PM". */
+/** A time such as '17:30' as an editor's field shows it, "5:30 pm" (minutes kept, even on the hour). */
 export function clockLabel(time: string): string {
   const [hours, minutes] = time.split(':').map(Number);
-  return `${hours % 12 || 12}:${String(minutes).padStart(2, '0')} ${hours < 12 ? 'AM' : 'PM'}`;
+  return `${hours % 12 || 12}:${String(minutes).padStart(2, '0')} ${hours < 12 ? 'am' : 'pm'}`;
 }
 
 /** A calendar an event can go in, labelled by whose it is. */

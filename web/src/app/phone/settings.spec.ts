@@ -218,7 +218,7 @@ describe('Settings', () => {
         'Always',
       ]);
       expect(nightButton(page, 'At night').getAttribute('aria-pressed')).toBe('true');
-      expect(page.querySelector('.night')?.textContent).toContain('Daylight turns dark from 9:30 PM to 6:30 AM');
+      expect(page.querySelector('.night')?.textContent).toContain('Daylight turns dark from 9:30 pm to 6:30 am');
     });
 
     it('saves a chosen theme at once, keeping the night mode as it was', async () => {

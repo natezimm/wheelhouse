@@ -111,7 +111,7 @@ test('dragging an event moves it to another day and time, keeping its length', a
   await page.mouse.down();
   await page.mouse.move(from.x + columns[1].x - columns[0].x, from.y + hour, { steps: 8 });
   const preview = page.locator('app-week-view .preview');
-  await expect(preview).toContainText('6:30 PM – 7:15 PM');
+  await expect(preview).toContainText('6:30 pm – 7:15 pm');
   await expect(swim).toHaveClass(/lifted/);
   const box = await preview.boundingBox();
   expect(Math.abs(box.x - columns[1].x)).toBeLessThan(8);
@@ -160,7 +160,7 @@ test('a repeating event asks whether to move it alone or the whole series, and E
   await page.mouse.move(from.x, from.y + hour / 2, { steps: 6 });
   await page.mouse.up();
   const chooser = page.getByRole('dialog', { name: 'Move a repeating event' });
-  await expect(chooser).toContainText('10:30 AM');
+  await expect(chooser).toContainText('10:30 am');
   await expect(chooser.getByRole('button', { name: 'This event' })).toBeFocused();
   for (const name of ['This event', 'All events', 'Cancel']) {
     expect((await chooser.getByRole('button', { name }).boundingBox()).height).toBeGreaterThanOrEqual(wall ? 56 : 44);
@@ -218,9 +218,9 @@ test('a read-only event stays put, and a finger picks an event up by holding it'
   // Held still, it lifts the event, which then follows the finger.
   await touch('pointerdown', s.x, s.y);
   await page.clock.runFor(400);
-  await expect(page.locator('app-week-view .preview')).toContainText('5:30 PM – 6:15 PM');
+  await expect(page.locator('app-week-view .preview')).toContainText('5:30 pm – 6:15 pm');
   await touch('pointermove', s.x, s.y - hour);
-  await expect(page.locator('app-week-view .preview')).toContainText('4:30 PM – 5:15 PM');
+  await expect(page.locator('app-week-view .preview')).toContainText('4:30 pm – 5:15 pm');
   await touch('pointerup', s.x, s.y - hour);
   await expect.poll(() => writes.length).toBe(1);
   expect(writes[0].body).toMatchObject({ startDate: '2026-10-12', startTime: '16:30:00', endTime: '17:15:00' });
@@ -241,7 +241,7 @@ test('on Day an event moves in time and stays in its person’s column', async (
   // Across into Ben's column and an hour and a quarter earlier.
   await page.mouse.move(from.x - box.width, from.y - hour * 1.25, { steps: 8 });
   const preview = page.locator('app-day-view .preview');
-  await expect(preview).toContainText('4:15 PM – 5:00 PM');
+  await expect(preview).toContainText('4:15 pm – 5 pm');
   expect(Math.abs((await preview.boundingBox()).x - box.x)).toBeLessThan(8);
   await page.screenshot({ path: testInfo.outputPath('day.png') });
   await page.mouse.up();

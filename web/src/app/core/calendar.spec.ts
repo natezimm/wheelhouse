@@ -20,7 +20,7 @@ describe('calendar events', () => {
   });
 
   it('do not spill into the next day when they end at midnight', () => {
-    // 8 PM to midnight in New York.
+    // 8 pm to midnight in New York.
     expect(daysOf(timed('Late', 'm1', '2026-10-13T00:00:00Z', '2026-10-13T04:00:00Z'), zone)).toEqual(['2026-10-12']);
   });
 
@@ -36,8 +36,8 @@ describe('calendar events', () => {
   it('say when they happen on each day they cover', () => {
     const trip = timed('Chicago trip', 'm1', '2026-10-15T10:10:00Z', '2026-10-17T00:00:00Z');
 
-    expect(whenOn(trip, '2026-10-15', zone)).toBe('6:10 AM');
-    expect(whenOn(trip, '2026-10-16', zone)).toBe('Until 8:00 PM');
+    expect(whenOn(trip, '2026-10-15', zone)).toBe('6:10 am');
+    expect(whenOn(trip, '2026-10-16', zone)).toBe('Until 8 pm');
     expect(whenOn(allDay('Trash', null, '2026-10-13', '2026-10-14'), '2026-10-13', zone)).toBe('All day');
   });
 

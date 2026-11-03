@@ -1,7 +1,7 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal, untracked } from '@angular/core';
 import { Observable, catchError, defer, of, shareReplay, switchMap, tap, throwError, timeout } from 'rxjs';
-import { Day, addDays, dayIn, minutesIn, timeIn } from './days';
+import { Day, addDays, dayIn, minutesIn, timeIn, timeText } from './days';
 import { FamilyStore, Member, refusalMessage } from './family';
 import { overlaps, previewEvent, previewOccurrences, previewSeries } from './calendar-preview';
 import { RepeatRule, parseRule } from './repeat-rule';
@@ -205,15 +205,15 @@ export function whenOn(event: CalendarEvent, day: Day, timeZone: string): string
   const starts = dayIn(timeZone, event.startsAt!) === day;
   const ends = dayIn(timeZone, new Date(new Date(event.endsAt!).getTime() - 1)) === day;
   if (starts) {
-    return timeIn(timeZone, event.startsAt!);
+    return timeText(timeZone, event.startsAt!);
   }
-  return ends ? `Until ${timeIn(timeZone, event.endsAt!)}` : 'All day';
+  return ends ? `Until ${timeText(timeZone, event.endsAt!)}` : 'All day';
 }
 
-/** A timed event's times, such as "10:30 – 11:15 AM", or "11:30 AM – 12:15 PM" across noon. */
+/** A timed event's times, such as "10:30 – 11:15 am", or "11:30 am – 12:15 pm" across noon. */
 export function timeRange(event: CalendarEvent, timeZone: string): string {
-  const start = timeIn(timeZone, event.startsAt!);
-  const end = timeIn(timeZone, event.endsAt!);
+  const start = timeText(timeZone, event.startsAt!);
+  const end = timeText(timeZone, event.endsAt!);
   return start.slice(-2) === end.slice(-2) ? `${start.slice(0, -3)} – ${end}` : `${start} – ${end}`;
 }
 

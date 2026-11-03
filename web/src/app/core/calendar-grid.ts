@@ -1,5 +1,5 @@
 import { CalendarEvent, daysOf, spanOf } from './calendar';
-import { Day, addDays, dayIn, minutesIn } from './days';
+import { Day, addDays, clockText, dayIn, minutesIn } from './days';
 
 /**
  * Where events sit on an hour grid, worked out without any screen: which family days each
@@ -218,10 +218,10 @@ export function hourRange(segments: Iterable<TimedSegment>, first = FIRST_HOUR, 
   return { first: Math.max(0, first), last: Math.min(24, last) };
 }
 
-/** An hour on the grid's gutter, such as "7 AM" or "12 PM". */
+/** An hour on the grid's gutter, such as "7 am" or "12 pm". */
 export function hourLabel(hour: number): string {
   const h = hour % 24;
-  return `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? 'AM' : 'PM'}`;
+  return `${h % 12 === 0 ? 12 : h % 12} ${h < 12 ? 'am' : 'pm'}`;
 }
 
 /** One day of a month row: the rows of bars over it, its timed events in order, and how many of its events did not fit. */
@@ -268,7 +268,7 @@ export function monthWeek(
   };
 }
 
-/** "3:30 PM" as "3:30p" and "9:00 AM" as "9a", for a line in a month's day. */
+/** A time for a line in a month's day, written as everywhere else: "3:30 pm", "9 am". */
 export function compactTime(time: string): string {
-  return time.replace(':00', '').replace(/\s?(AM|PM)$/, (_, half: string) => (half === 'AM' ? 'a' : 'p'));
+  return clockText(time);
 }

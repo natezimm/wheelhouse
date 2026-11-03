@@ -8,7 +8,7 @@ import { CalendarEvent } from './core/calendar';
 import { marloweCalendars, timed } from './testing/calendar';
 import { marlowes } from './testing/marlowes';
 
-/** Adding, changing and deleting events, with the clock at 5:22 PM on Monday, October 12, 2026 in New York. */
+/** Adding, changing and deleting events, with the clock at 5:22 pm on Monday, October 12, 2026 in New York. */
 describe('event screens', () => {
   let http: HttpTestingController;
 
@@ -104,8 +104,8 @@ describe('event screens', () => {
       expect(button(dialog, 'Weekly').getAttribute('aria-pressed')).toBe('true');
       expect(Array.from(dialog.querySelectorAll('.stepper > span'), (s) => s.querySelector('input')?.value ?? s.textContent?.trim())).toEqual([
         'Tue, Oct 13',
-        '6:00 PM',
-        '7:00 PM',
+        '6:00 pm',
+        '7:00 pm',
       ]);
       button(dialog, 'Save event').click();
 
@@ -186,19 +186,19 @@ describe('event screens', () => {
         input.value = value;
         input.dispatchEvent(new Event('change'));
       };
-      expect([start.value, end().value]).toEqual(['5:30 PM', '6:15 PM']);
+      expect([start.value, end().value]).toEqual(['5:30 pm', '6:15 pm']);
 
       commit(start, '4pm');
       await settle();
-      expect([start.value, end().value]).toEqual(['4:00 PM', '4:45 PM']);
+      expect([start.value, end().value]).toEqual(['4:00 pm', '4:45 pm']);
       commit(end(), '5:30');
       await settle();
-      expect(end().value).toBe('5:30 PM');
+      expect(end().value).toBe('5:30 pm');
 
       commit(start, 'after school');
       await settle();
-      expect(start.value).toBe('4:00 PM');
-      expect(dialog.querySelector('[role="alert"]')?.textContent).toBe('Type a time such as 3:30 PM or 15:30.');
+      expect(start.value).toBe('4:00 pm');
+      expect(dialog.querySelector('[role="alert"]')?.textContent).toBe('Type a time such as 3:30 pm or 15:30.');
 
       // Enter takes the time without saving, and the arrow keys step it like the buttons.
       start.value = '16:15';
@@ -208,7 +208,7 @@ describe('event screens', () => {
       start.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
       await settle();
       expect(dialog.querySelector('[role="alert"]')).toBeNull();
-      expect([start.value, end().value]).toEqual(['4:30 PM', '6:00 PM']);
+      expect([start.value, end().value]).toEqual(['4:30 pm', '6:00 pm']);
       http.expectNone({ method: 'PUT' });
 
       commit(end(), '1:00 AM');

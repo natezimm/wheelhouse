@@ -365,7 +365,7 @@ export class WallShell {
     const [time, meridiem] = timeIn(family.timeZone, this.clock.now()).split(/\s/);
     return {
       time,
-      meridiem,
+      meridiem: meridiem.toLowerCase(),
       weekday: formatDay(today, { weekday: 'long' }),
       date: formatDay(today, { month: 'long', day: 'numeric' }),
     };

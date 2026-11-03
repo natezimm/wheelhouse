@@ -93,7 +93,7 @@ test('an event opens its details first, with finger-sized controls, then the edi
 
   const details = page.getByRole('dialog', { name: 'Swim lesson' });
   await expect(details).toContainText('Pool');
-  await expect(details).toContainText('5:30 – 6:15 PM');
+  await expect(details).toContainText('5:30 – 6:15 pm');
   await expect(page.locator(wall ? 'app-event-dialog' : 'app-event-sheet')).toHaveCount(0);
   for (const name of ['Close', 'Edit event', 'Delete']) {
     const box = await details.getByRole('button', { name, exact: true }).boundingBox();

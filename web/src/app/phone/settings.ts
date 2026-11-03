@@ -3,6 +3,7 @@ import { Component, computed, effect, inject, input, signal } from '@angular/cor
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Clock } from '../core/clock';
+import { clockText } from '../core/days';
 import { Display, DisplayStore, ONLINE_WITHIN_MS } from '../core/displays';
 import { Family, FamilySettings, FamilyStore, MEMBER_COLORS, NightMode, Theme, refusalMessage } from '../core/family';
 import { GOOGLE_CONNECT_URL, GoogleStore } from '../core/google';
@@ -932,10 +933,10 @@ export class Settings {
   }
 }
 
-/** A time of day for people, such as "9:30 PM". */
+/** A time of day for people, written as everywhere else: "9:30 pm", "10 pm". */
 function clockTime(time: string): string {
   const [hours, minutes] = time.split(':').map(Number);
-  return `${((hours + 11) % 12) + 1}:${String(minutes).padStart(2, '0')} ${hours < 12 ? 'AM' : 'PM'}`;
+  return clockText(`${((hours + 11) % 12) + 1}:${String(minutes).padStart(2, '0')} ${hours < 12 ? 'AM' : 'PM'}`);
 }
 
 /** The server speaks HH:mm:ss; a time input speaks HH:mm. */
