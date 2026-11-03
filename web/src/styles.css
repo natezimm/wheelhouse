@@ -827,3 +827,20 @@ select {
 [data-modal]:focus {
   outline: none;
 }
+
+/* A row that scrolls sideways fades at the edge that has more to show (shared/scroll-fade.ts). */
+[data-fade] {
+  --fade-edge: 28px;
+}
+
+[data-fade='end'] {
+  mask-image: linear-gradient(to right, #000 calc(100% - var(--fade-edge)), transparent);
+}
+
+[data-fade='start'] {
+  mask-image: linear-gradient(to left, #000 calc(100% - var(--fade-edge)), transparent);
+}
+
+[data-fade='both'] {
+  mask-image: linear-gradient(to right, transparent, #000 var(--fade-edge), #000 calc(100% - var(--fade-edge)), transparent);
+}
