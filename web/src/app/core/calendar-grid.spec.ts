@@ -152,6 +152,14 @@ describe('calendar grid', () => {
     expect(row.days[3].more).toBe(0);
   });
 
+  it('keeps one more line when a short "+N more" line leaves room for it', () => {
+    const day = '2026-10-22';
+    const events = [0, 1, 2, 3, 4].map((i) => at(`Event ${i}`, day, `0${i + 1}:00`, `0${i + 1}:30`));
+    const row = monthWeek(events, week, zone, () => 3, 2, () => 3);
+    expect(row.days[3].segments.length).toBe(3);
+    expect(row.days[3].more).toBe(2);
+  });
+
   it('gives bars their rows and counts bars that did not fit as more', () => {
     const events = [
       allDay('Grandma visiting', null, '2026-10-19', '2026-10-22'),
