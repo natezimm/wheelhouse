@@ -35,6 +35,7 @@ const LAYOUTS = {
 /** The widest hour-label gutter, and how wide a Week day must be to put three events side by side. */
 const GUTTER = 76;
 const THREE_LANES = 165;
+const WALL_TOUCH = 56;
 
 /** How far a mouse or pen moves before a press becomes a drag, and a finger before a long press gives way to scrolling. */
 const DRAG_SLOP = 6;
@@ -646,10 +647,7 @@ export interface GridMore {
       justify-content: center;
       padding: 6px 0 0;
       background: var(--surface);
-      box-shadow:
-        inset 0 0 0 1px var(--line),
-        3px 3px 0 -1px var(--soft),
-        3px 3px 0 0 var(--line);
+      box-shadow: var(--stack-shadow);
       color: var(--ink);
       font-size: 15px;
       font-weight: 700;
@@ -1011,8 +1009,10 @@ export class HourGrid {
 
     // A Week day is narrow: past two side by side the rest fold into "+N", so titles stay readable.
     // A day wide enough for three short titles (the wall, a wide desktop window) takes three.
+    // On the wall each of the three must still be a 56 px finger wide, gaps included.
     const dayWidth = (this.bodyWidth() - GUTTER) / Math.max(1, columns.length);
-    const weekLanes = this.variant() === 'week' ? (dayWidth >= THREE_LANES ? 3 : 2) : 3;
+    const threeLanes = layout.reach ? 3 * (WALL_TOUCH + 2 * layout.gap) : THREE_LANES;
+    const weekLanes = this.variant() === 'week' ? (dayWidth >= threeLanes ? 3 : 2) : 3;
 
     const across = (lane: number, lanes: number) => ({
       left: `calc(${(lane * 100) / lanes}% + ${layout.gap}px)`,
