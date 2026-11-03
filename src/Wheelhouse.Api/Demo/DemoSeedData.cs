@@ -13,6 +13,9 @@ public static class DemoSeedData
 {
     public const string DefaultTimeZoneId = "America/New_York";
 
+    /// <summary>How far back and ahead of the copy's first day the weekly series are expanded.</summary>
+    public const int SeriesDaysBack = 42, SeriesDaysAhead = 91;
+
     /// <summary>
     /// Builds a complete, cohesive demo dataset anchored to <paramref name="utcNow"/> in the family's time zone.
     /// </summary>
@@ -293,10 +296,10 @@ public static class DemoSeedData
             date: today.AddDays(-30), start: new(8, 0), end: new(9, 0),
             location: "Valley Auto"));
 
-        // --- EXPANDED RECURRING SERIES (-42 days to +42 days, so any month on screen shows them) ---
+        // --- EXPANDED RECURRING SERIES (six weeks back to three months ahead, so a visitor stepping ahead keeps finding them) ---
         // 1. Nora's Tue/Thu Soccer Practice (Weekly series)
         var soccerSeriesId = Guid.NewGuid().ToString("N");
-        for (var offset = -42; offset <= 42; offset++)
+        for (var offset = -SeriesDaysBack; offset <= SeriesDaysAhead; offset++)
         {
             var d = today.AddDays(offset);
             if (d.DayOfWeek is DayOfWeek.Tuesday or DayOfWeek.Thursday)
@@ -314,7 +317,7 @@ public static class DemoSeedData
 
         // 2. Garbage & Recycling Night (Weekly on Wednesday evening)
         var trashSeriesId = Guid.NewGuid().ToString("N");
-        for (var offset = -42; offset <= 42; offset++)
+        for (var offset = -SeriesDaysBack; offset <= SeriesDaysAhead; offset++)
         {
             var d = today.AddDays(offset);
             if (d.DayOfWeek == DayOfWeek.Wednesday)
@@ -334,7 +337,7 @@ public static class DemoSeedData
         {
             var seriesId = Guid.NewGuid().ToString("N");
             var byDay = string.Join(",", days.Select(d => d.ToString()[..2].ToUpperInvariant()));
-            for (var offset = -42; offset <= 42; offset++)
+            for (var offset = -SeriesDaysBack; offset <= SeriesDaysAhead; offset++)
             {
                 var d = today.AddDays(offset);
                 if (days.Contains(d.DayOfWeek))
