@@ -15,6 +15,7 @@ import { CalendarFilter } from '../shared/calendar-filter';
 import { CalendarSaveStatus } from '../shared/calendar-save-status';
 import { CalendarToolbar } from '../shared/calendar-toolbar';
 import { DemoNotice } from '../shared/demo-notice';
+import { DemoTour } from '../shared/demo-tour';
 import { DemoWelcome, rememberWelcomeSeen, welcomeSeen } from '../shared/demo-welcome';
 import { EventDetails } from '../shared/event-details';
 import { ShortcutHelp, shortcutOf } from '../shared/shortcut-help';
@@ -45,6 +46,7 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
     CalendarToolbar,
     DayView,
     DemoNotice,
+    DemoTour,
     DemoWelcome,
     EventDetails,
     EventDialog,
@@ -134,7 +136,7 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
           }
         </section>
         @if (welcoming()) {
-          <app-demo-welcome layout="desktop" (closed)="closeWelcome()" />
+          <app-demo-welcome layout="desktop" (closed)="closeWelcome()" (tour)="startTour()" />
         }
       } @else {
         <header>
@@ -164,7 +166,7 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
         <app-calendar-connection layout="phone" show="problems" />
 
         @if (welcoming()) {
-          <app-demo-welcome (closed)="closeWelcome()" />
+          <app-demo-welcome (closed)="closeWelcome()" (tour)="startTour()" />
         }
 
         @if (shown(); as day) {
@@ -201,6 +203,10 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
       @if (selected(); as id) {
         <app-event-details [eventId]="id" layout="phone" (closed)="selected.set(null)" (edit)="edit($event)" (remove)="edit($event, true)" (duplicate)="duplicate($event)" />
       }
+    }
+
+    @if (touring()) {
+      <app-demo-tour [layout]="wide() ? 'desktop' : 'phone'" (closed)="touring.set(false)" />
     }
 
     @if (editing(); as open) {
@@ -550,6 +556,16 @@ export class CalendarHome {
     this.welcomeClosed.set(true);
   }
 
+  /** The demo's guided tour, which the welcome offers; it closes the welcome for good. */
+  protected readonly touring = signal(false);
+
+  protected startTour(): void {
+    this.closeWelcome();
+    // Its drag stop needs the hour grid, which a desktop's Month does not have.
+    if (this.wide() && this.view() === 'month') this.choose('week');
+    this.touring.set(true);
+  }
+
   protected readonly signingIn = computed(() => this.family.state().status === 'private' && !this.session.demoUnavailable());
 
   private readonly today = computed(() => {
@@ -615,7 +631,7 @@ export class CalendarHome {
    */
   protected shortcut(event: KeyboardEvent): void {
     const action = shortcutOf(event);
-    if (!action || !this.wide() || this.signingIn() || this.editing() || this.helping() || !this.period()) {
+    if (!action || !this.wide() || this.signingIn() || this.editing() || this.helping() || this.touring() || !this.period()) {
       return;
     }
     const id = this.selected();
