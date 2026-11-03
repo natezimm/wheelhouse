@@ -138,6 +138,10 @@ export interface GridMore {
         </div>
         @for (column of grid().columns; track column.key) {
           <div class="column" role="group" [attr.aria-label]="column.name" [class.today]="column.isToday && tintToday()" [class.adds]="canAdd()" (click)="tapped($event, column.source)">
+            <!-- The now line runs behind events, so it never strikes through a title; its dot stays in front. -->
+            @if (column.isToday && grid().now; as now) {
+              <span class="now-line" [style.top.px]="now.top" aria-hidden="true"></span>
+            }
             @for (block of column.blocks; track block.key) {
               <button
                 type="button"
@@ -238,7 +242,7 @@ export interface GridMore {
               }
             }
             @if (column.isToday && grid().now; as now) {
-              <span class="now-line" [style.top.px]="now.top" aria-hidden="true"></span>
+              <span class="now-dot" [style.top.px]="now.top" aria-hidden="true"></span>
             }
           </div>
         }
@@ -763,14 +767,14 @@ export interface GridMore {
       background: var(--now);
       box-shadow: 0 0 0 1px var(--now-edge);
       pointer-events: none;
-      z-index: 2;
     }
 
-    .now-line::before {
-      content: '';
+    .now-dot {
       position: absolute;
+      z-index: 2;
+      pointer-events: none;
       left: -6px;
-      top: -5px;
+      margin-top: -6px;
       width: 12px;
       height: 12px;
       border-radius: 6px;
@@ -859,7 +863,7 @@ export interface GridMore {
     }
 
     /* Only the first column's line starts with a dot; the rest carry it across. */
-    :host(.day) .column ~ .column .now-line::before {
+    :host(.day) .column ~ .column .now-dot {
       display: none;
     }
   `,

@@ -111,6 +111,7 @@ describe('calendar screens', () => {
       expect(block('Book club').classList.contains('soon')).toBe(false);
       expect(page.querySelectorAll('[aria-label="Monday, October 12"] .now-line')).toHaveLength(1);
       expect(page.querySelectorAll('.now-line')).toHaveLength(1);
+      expect(page.querySelectorAll('.now-dot')).toHaveLength(1);
       expect(page.querySelector('.now-label')?.textContent).toBe('5:22');
     });
 
