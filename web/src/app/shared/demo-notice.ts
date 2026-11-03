@@ -9,7 +9,7 @@ import { SessionStore } from '../core/session';
       @if (short()) {
         <span title="Your own copy of a fictional family, cleared after a day">Demo</span>
       } @else {
-        <span>Demo · your own copy of a fictional family, cleared after a day</span>
+        <span class="quiet">Demo · your own fictional family, cleared after a day</span>
       }
     } @else if (session.demoUnavailable() === 'busy') {
       <span>Too many new demo visits from your network. Please try again later.</span>
@@ -26,6 +26,15 @@ import { SessionStore } from '../core/session';
       color: var(--on-ink);
       font-size: 14px;
       font-weight: 600;
+    }
+
+    /* The phone's line under the calendar: a note, not a warning, so it does not compete with events. */
+    .quiet {
+      padding: 6px 14px;
+      background: var(--notice);
+      color: var(--notice-ink);
+      font-size: 13px;
+      font-weight: 500;
     }
   `,
 })

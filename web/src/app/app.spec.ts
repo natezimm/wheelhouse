@@ -124,7 +124,7 @@ describe('routes', () => {
       await settle();
 
       expect(page.querySelector('app-demo-notice')?.textContent?.trim()).toBe(
-        'Demo · your own copy of a fictional family, cleared after a day',
+        'Demo · your own fictional family, cleared after a day',
       );
     });
 

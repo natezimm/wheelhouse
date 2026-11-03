@@ -285,7 +285,8 @@ describe('calendar screens', () => {
       http.expectOne((r) => r.params.get('from') === '2026-10-13').flush(null, { status: 503, statusText: 'Unavailable' });
       await settle();
 
-      expect(page.querySelector('app-day-view .note')?.textContent).toBe("Couldn't load Tuesday");
+      expect(page.querySelector('app-day-view .note')?.textContent).toBe("Couldn't load TuesdayTrying again on its own");
+      expect(page.querySelector('app-day-view .note .detail')?.textContent).toBe('Trying again on its own');
       expect(texts(page.querySelectorAll('app-day-view .head .count'))).toEqual(['', '', '', '']);
     });
 

@@ -363,7 +363,7 @@ export class DayView {
       status === 'loading'
         ? { text: `Loading ${isToday ? 'today' : weekday}…`, waiting: true }
         : status === 'unavailable'
-          ? { text: `Couldn't load ${isToday ? 'today' : weekday}` }
+          ? { text: `Couldn't load ${isToday ? 'today' : weekday}`, detail: 'Trying again on its own' }
           : people.length === 0
             ? { text: 'Choose someone above to see their day' }
             : events.length === 0

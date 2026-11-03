@@ -390,7 +390,7 @@ export class WeekView {
   /** Over the grid while the week loads, or when it could not: an empty grid would read as an empty week. */
   protected readonly note = computed<GridNote | null>(() => {
     const status = this.calendar.state().status;
-    return status === 'loading' ? { text: 'Loading the week…', waiting: true } : status === 'unavailable' ? { text: "Couldn't load the week" } : null;
+    return status === 'loading' ? { text: 'Loading the week…', waiting: true } : status === 'unavailable' ? { text: "Couldn't load the week", detail: 'Trying again on its own' } : null;
   });
 
   protected readonly week = computed(() => {

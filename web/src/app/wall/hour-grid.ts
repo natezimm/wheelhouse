@@ -93,6 +93,8 @@ export interface GridColumn {
 export interface GridNote {
   text: string;
   waiting?: boolean;
+  /** A quieter second line, such as what happens next after a failed read. */
+  detail?: string;
 }
 
 /** Events that did not fit side by side in a column, from a "+N" block. */
@@ -238,7 +240,7 @@ export interface GridMore {
       </div>
     </div>
     @if (note(); as note) {
-      <p class="note" [class.waiting]="note.waiting" role="status">{{ note.text }}</p>
+      <p class="note" [class.waiting]="note.waiting" role="status">{{ note.text }}@if (note.detail) {<span class="detail">{{ note.detail }}</span>}</p>
     }
   `,
   styles: `
@@ -768,12 +770,19 @@ export interface GridMore {
 
     /* A quiet note over the grid, such as an empty day or one still loading. It stays put as the
        grid scrolls, and taps reach the hours beneath. */
+    /* A card like Month's, centered over the days, so an empty or failed grid reads as a message. */
     .note {
       position: absolute;
       top: 96px;
-      left: var(--gutter);
-      right: 0;
+      left: calc(50% + var(--gutter) / 2);
+      transform: translateX(-50%);
+      max-width: calc(100% - var(--gutter) - 48px);
+      box-sizing: border-box;
       margin: 0;
+      padding: 14px 26px;
+      border-radius: 18px;
+      background: var(--surface);
+      box-shadow: var(--card-shadow);
       text-align: center;
       font-family: var(--font-display);
       font-size: 24px;
@@ -787,6 +796,20 @@ export interface GridMore {
     :host(.desktop) .note {
       top: 72px;
       font-size: 19px;
+    }
+
+    .note .detail {
+      display: block;
+      margin-top: 4px;
+      font-family: var(--font-body);
+      font-size: 16px;
+      font-weight: 500;
+      font-variation-settings: normal;
+      color: var(--faint);
+    }
+
+    :host(.desktop) .note .detail {
+      font-size: 14px;
     }
 
     /* Loading is only worth saying when it takes a moment, so a quick read never flashes it. */
