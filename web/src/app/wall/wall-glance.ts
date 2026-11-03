@@ -1,4 +1,6 @@
-import { Component, computed, inject, input, output } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Component, DestroyRef, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
+import { timeout } from 'rxjs';
 import { CalendarEvent, CalendarStore, colorOf, peopleOf, showsOn, whenOn } from '../core/calendar';
 import { Clock } from '../core/clock';
 import { Day, addDays, dayIn, formatDay, minutesIn, timeIn, timeText } from '../core/days';
@@ -11,6 +13,9 @@ import { WeatherIcon } from '../shared/weather-icon';
 
 /** From 6 pm, a day with only all-day events left is done, and the glance looks to tomorrow. */
 export const EVENING_MINUTES = 18 * 60;
+
+/** How long the glance waits before reading its days again after a failed read. */
+export const GLANCE_RETRY_MS = 30_000;
 
 /** The most events the glance lists; the rest are counted. */
 export const GLANCE_EVENTS = 5;
@@ -378,6 +383,7 @@ export class WallGlance {
   private readonly clock = inject(Clock);
   private readonly family = inject(FamilyStore);
   private readonly calendar = inject(CalendarStore);
+  private readonly http = inject(HttpClient);
   protected readonly weather = inject(WeatherStore);
 
   /** Night: dark, dim and down to the essentials. */
@@ -420,20 +426,60 @@ export class WallGlance {
   protected readonly plan = computed(() => {
     const family = this.family.family();
     const today = this.today();
+    const read = this.read();
     if (!family || !today) return { heading: 'Today', items: [] as GlanceItem[], empty: '' };
-    const state = this.calendar.state();
+    if (!read || read.from !== today) {
+      return { heading: 'Today', items: [] as GlanceItem[], empty: this.failed() ? 'Today’s events could not be loaded. Trying again on its own.' : 'Loading today…' };
+    }
     const now = this.clock.now();
-    const events = this.calendar.allEvents();
-    const rest = restOf(events, today, family.timeZone, now, family.members);
+    const rest = restOf(read.events, today, family.timeZone, now, family.members);
     const evening = minutesIn(family.timeZone, now) >= EVENING_MINUTES;
     if (rest.some((item) => !evening || item.when !== 'All day')) return { heading: 'Still to come today', items: rest, empty: '' };
-    const tomorrow = addDays(today, 1);
-    const reaches = state.status === 'ready' && state.from <= tomorrow && tomorrow < state.to;
-    const next = reaches ? restOf(events, tomorrow, family.timeZone, now, family.members) : [];
+    const next = restOf(read.events, addDays(today, 1), family.timeZone, now, family.members);
     if (next.length) return { heading: 'Tomorrow', items: next, empty: '' };
     if (rest.length) return { heading: 'Today', items: rest, empty: '' };
-    return { heading: 'Today', items: [], empty: state.status === 'ready' ? 'Nothing else today.' : '' };
+    return { heading: 'Today', items: [], empty: 'Nothing else today.' };
   });
+
+  /**
+   * Today and tomorrow, read on their own, whatever days the calendar under the glance shows.
+   * Read again when the family's day turns and with each newer calendar change, so it follows
+   * the live updates; a failed read keeps what was shown and tries again after a while.
+   */
+  private readonly read = signal<{ from: Day; events: CalendarEvent[] } | null>(null);
+  private readonly failed = signal(false);
+  private retry?: ReturnType<typeof setTimeout>;
+
+  constructor() {
+    effect(() => {
+      const today = this.today();
+      this.calendar.changeNumber();
+      if (today) untracked(() => this.load(today));
+    });
+    inject(DestroyRef).onDestroy(() => clearTimeout(this.retry));
+  }
+
+  private asked = 0;
+
+  private load(from: Day): void {
+    clearTimeout(this.retry);
+    const ask = ++this.asked;
+    this.http
+      .get<{ events: CalendarEvent[] }>('/api/calendar', { params: { from, to: addDays(from, 2) } })
+      .pipe(timeout(15_000))
+      .subscribe({
+        next: (snapshot) => {
+          if (ask !== this.asked) return;
+          this.read.set({ from, events: snapshot.events });
+          this.failed.set(false);
+        },
+        error: () => {
+          if (ask !== this.asked) return;
+          this.failed.set(true);
+          this.retry = setTimeout(() => this.load(from), GLANCE_RETRY_MS);
+        },
+      });
+  }
 
   /** At night just the next event; otherwise the first few. */
   protected readonly shown = computed(() => this.plan().items.slice(0, this.dim() ? 1 : GLANCE_EVENTS));

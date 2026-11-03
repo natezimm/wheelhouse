@@ -422,6 +422,15 @@ describe('calendar screens', () => {
       await settle();
     }
 
+    /** Answers the glance's own read of today and tomorrow. */
+    async function answerGlance(settle: () => Promise<unknown>, from: string, response: object | null = { calendars: marloweCalendars, events }) {
+      const to = new Date(Date.parse(from + 'T00:00:00Z') + 2 * 86_400_000).toISOString().slice(0, 10);
+      const request = http.expectOne((r) => r.url === '/api/calendar' && r.params.get('from') === from && r.params.get('to') === to);
+      if (response) request.flush(response);
+      else request.flush('Down', { status: 503, statusText: 'Unavailable' });
+      await settle();
+    }
+
     const glanceRows = (page: HTMLElement) =>
       Array.from(page.querySelectorAll('app-wall-glance .events li'), (li) =>
         [li.querySelector('.when')?.textContent?.replace(/\s+/g, ' ').trim(), li.querySelector('.title')?.textContent].join(' · '),
@@ -434,6 +443,7 @@ describe('calendar screens', () => {
       expect(page.querySelector('app-wall-glance')).toBeNull();
 
       await leaveAlone(page, settle);
+      await answerGlance(settle, '2026-10-12');
       const glance = page.querySelector<HTMLElement>('app-wall-glance')!;
       expect(glance.getAttribute('aria-label')).toBe('Today at a glance');
       expect(glance.querySelector('.clock')?.textContent?.replace(/\s+/g, '')).toBe('5:22pm');
@@ -449,16 +459,19 @@ describe('calendar screens', () => {
       const { page, settle } = await open('/wall', { from: '2026-10-12', to: '2026-10-19' });
       page.querySelector<HTMLButtonElement>('[aria-label="Show today at a glance"]')!.click();
       await settle();
+      await answerGlance(settle, '2026-10-12');
 
       expect(glanceRows(page)[1]).toBe('NowUntil 4 pm · Dentist');
       expect(page.querySelector('app-wall-glance .underway')).not.toBeNull();
     });
 
-    it('shows tomorrow once today is done, and turns dark and dim in the night hours', async () => {
+    it('shows tomorrow once today is done, whatever the view, and turns dark and dim in the night hours', async () => {
       vi.setSystemTime(new Date('2026-10-13T03:00:00Z'));
-      const { page, settle } = await open('/wall', { from: '2026-10-12', to: '2026-10-19' });
+      const { page, settle } = await switchTo('Day', { from: '2026-10-12', to: '2026-10-13' });
       page.querySelector<HTMLButtonElement>('[aria-label="Show today at a glance"]')!.click();
       await settle();
+      // The Day view holds only today; the glance reads tomorrow itself.
+      await answerGlance(settle, '2026-10-12');
 
       const glance = page.querySelector<HTMLElement>('app-wall-glance')!;
       expect(glance.querySelector('h2')?.textContent).toBe('Tomorrow');
@@ -472,12 +485,24 @@ describe('calendar screens', () => {
       const { page, settle } = await open('/wall', { from: '2026-10-12', to: '2026-10-19' });
       page.querySelector<HTMLButtonElement>('[aria-label="Show today at a glance"]')!.click();
       await settle();
+      await answerGlance(settle, '2026-10-12');
 
       page.querySelector<HTMLElement>('app-wall-glance')!.click();
       await settle();
 
       expect(page.querySelector('app-wall-glance')).toBeNull();
       expect(column(page, 'Monday, October 12')).toContain('Dentist');
+    });
+
+    it('says when today could not be loaded rather than showing an empty day', async () => {
+      const { page, settle } = await open('/wall', { from: '2026-10-12', to: '2026-10-19' });
+      page.querySelector<HTMLButtonElement>('[aria-label="Show today at a glance"]')!.click();
+      await settle();
+      expect(page.querySelector('app-wall-glance .empty')?.textContent).toBe('Loading today…');
+
+      await answerGlance(settle, '2026-10-12', null);
+      expect(page.querySelector('app-wall-glance .empty')?.textContent).toBe('Today’s events could not be loaded. Trying again on its own.');
+      expect(glanceRows(page)).toEqual([]);
     });
 
     it('waits with the glance while an editor holds a half-typed event', async () => {
