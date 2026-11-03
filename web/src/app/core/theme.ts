@@ -67,6 +67,11 @@ function minutesOf(time: string): number {
  */
 export function isNight(family: Family, now: Date): boolean {
   if (family.nightMode !== 'AtNight') return family.nightMode === 'Always';
+  return inNightHours(family, now);
+}
+
+/** Whether the family's clock is within its night hours, from nightModeFrom up to, not including, nightModeTo, whatever Night mode is set to. */
+export function inNightHours(family: Family, now: Date): boolean {
   const from = minutesOf(family.nightModeFrom);
   const to = minutesOf(family.nightModeTo);
   const minute = minutesIn(family.timeZone, now);

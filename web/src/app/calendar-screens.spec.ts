@@ -8,7 +8,7 @@ import { shortcutOf } from './shared/shortcut-help';
 import { CalendarEvent, CalendarStore } from './core/calendar';
 import { FamilyStore } from './core/family';
 import { VIEW_STORAGE_KEY } from './core/view-preferences';
-import { RETURN_AFTER_MS } from './wall/wall-shell';
+import { GLANCE_AFTER_MS, RETURN_AFTER_MS } from './wall/wall-shell';
 import { allDay, marloweCalendars, timed } from './testing/calendar';
 import { marlowes } from './testing/marlowes';
 
@@ -410,6 +410,82 @@ describe('calendar screens', () => {
     it('keeps an editor with a half-typed event open when the wall comes back to now', async () => {
       const page = await leaveEditor('Bake sale');
 
+      expect(page.querySelector<HTMLInputElement>('app-event-dialog #event-title')?.value).toBe('Bake sale');
+    });
+
+    /** Leaves the wall alone long enough for today at a glance. */
+    async function leaveAlone(page: HTMLElement, settle: () => Promise<unknown>, ms = GLANCE_AFTER_MS) {
+      vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+      page.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      vi.advanceTimersByTime(ms);
+      vi.useFakeTimers({ toFake: ['Date'] });
+      await settle();
+    }
+
+    const glanceRows = (page: HTMLElement) =>
+      Array.from(page.querySelectorAll('app-wall-glance .events li'), (li) =>
+        [li.querySelector('.when')?.textContent?.replace(/\s+/g, ' ').trim(), li.querySelector('.title')?.textContent].join(' · '),
+      );
+
+    it('shows today at a glance after a while untouched: the time and what is left of today', async () => {
+      const { page, settle } = await open('/wall', { from: '2026-10-12', to: '2026-10-19' });
+
+      await leaveAlone(page, settle, GLANCE_AFTER_MS - 1);
+      expect(page.querySelector('app-wall-glance')).toBeNull();
+
+      await leaveAlone(page, settle);
+      const glance = page.querySelector<HTMLElement>('app-wall-glance')!;
+      expect(glance.getAttribute('aria-label')).toBe('Today at a glance');
+      expect(glance.querySelector('.clock')?.textContent?.replace(/\s+/g, '')).toBe('5:22pm');
+      expect(glance.querySelector('.date')?.textContent).toBe('Monday, October 12');
+      expect(glance.querySelector('h2')?.textContent).toBe('Still to come today');
+      // The dentist at 3 pm is over; the all-day visit comes first.
+      expect(glanceRows(page)).toEqual(['All day · Grandma in town', '5:30 pm · Swim lesson', '7 pm · Book club']);
+      expect(glance.classList.contains('dim')).toBe(false);
+    });
+
+    it('marks an event under way as now, with when it ends', async () => {
+      vi.setSystemTime(new Date('2026-10-12T19:30:00Z'));
+      const { page, settle } = await open('/wall', { from: '2026-10-12', to: '2026-10-19' });
+      page.querySelector<HTMLButtonElement>('[aria-label="Show today at a glance"]')!.click();
+      await settle();
+
+      expect(glanceRows(page)[1]).toBe('NowUntil 4 pm · Dentist');
+      expect(page.querySelector('app-wall-glance .underway')).not.toBeNull();
+    });
+
+    it('shows tomorrow once today is done, and turns dark and dim in the night hours', async () => {
+      vi.setSystemTime(new Date('2026-10-13T03:00:00Z'));
+      const { page, settle } = await open('/wall', { from: '2026-10-12', to: '2026-10-19' });
+      page.querySelector<HTMLButtonElement>('[aria-label="Show today at a glance"]')!.click();
+      await settle();
+
+      const glance = page.querySelector<HTMLElement>('app-wall-glance')!;
+      expect(glance.querySelector('h2')?.textContent).toBe('Tomorrow');
+      expect(glance.classList.contains('dim')).toBe(true);
+      expect(glance.hasAttribute('data-night')).toBe(true);
+      // At night only what is next shows.
+      expect(glanceRows(page)).toEqual(['All day · Grandma in town']);
+    });
+
+    it('brings the calendar back at a touch', async () => {
+      const { page, settle } = await open('/wall', { from: '2026-10-12', to: '2026-10-19' });
+      page.querySelector<HTMLButtonElement>('[aria-label="Show today at a glance"]')!.click();
+      await settle();
+
+      page.querySelector<HTMLElement>('app-wall-glance')!.click();
+      await settle();
+
+      expect(page.querySelector('app-wall-glance')).toBeNull();
+      expect(column(page, 'Monday, October 12')).toContain('Dentist');
+    });
+
+    it('waits with the glance while an editor holds a half-typed event', async () => {
+      const page = await leaveEditor('Bake sale');
+      const settle = () => Promise.resolve();
+      await leaveAlone(page, settle);
+
+      expect(page.querySelector('app-wall-glance')).toBeNull();
       expect(page.querySelector<HTMLInputElement>('app-event-dialog #event-title')?.value).toBe('Bake sale');
     });
 
