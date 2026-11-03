@@ -212,8 +212,20 @@ export function rememberWelcomeSeen(): void {
     }
 
     a {
+      position: relative;
       color: var(--accent);
       font-weight: 600;
+    }
+
+    /* The link reads as text but takes a 44 px finger, reaching above and below its line. */
+    a::after {
+      content: '';
+      position: absolute;
+      left: -6px;
+      right: -6px;
+      top: 50%;
+      height: 44px;
+      transform: translateY(-50%);
     }
 
     .start {

@@ -57,6 +57,15 @@ test('a first demo visit is welcomed once, and the welcome stays closed', async 
   await expect(welcome).toBeVisible();
   await expect(welcome.getByRole('link', { name: 'Open the wall display' })).toHaveAttribute('href', '/wall');
   await expect(welcome.getByRole('link', { name: 'Try a theme' })).toHaveAttribute('href', '/settings');
+  // Each link takes a 44 px finger: a tap 20 px above or below its text's middle still lands on it.
+  for (const name of ['Open the wall display', 'Try a theme']) {
+    const link = welcome.getByRole('link', { name });
+    const box = await link.boundingBox();
+    for (const dy of [-20, 20]) {
+      const hit = await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest('a')?.textContent ?? null, [box.x + box.width / 2, box.y + box.height / 2 + dy]);
+      expect(hit).toBe(name);
+    }
+  }
   await page.screenshot({ path: testInfo.outputPath('welcome.png') });
 
   // It steps aside while an event's details are open, so it never covers their buttons.
