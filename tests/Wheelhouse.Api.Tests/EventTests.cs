@@ -95,7 +95,7 @@ public sealed class EventTests(ApiFactory factory)
     {
         await using var demo = factory.WithWebHostBuilder(builder => builder
             .UseSetting("Wheelhouse:Mode", InstanceMode.Demo)
-            .UseSetting("Wheelhouse:MaxDemoEvents", "600"));
+            .UseSetting("Wheelhouse:MaxDemoEvents", "900"));
         using var visitor = demo.CreateClient();
         (await visitor.PostAsync("/api/demo/visit", content: null)).EnsureSuccessStatusCode();
         var milos = await CalendarIdAsync(visitor, "Milo — School & Sports");
@@ -107,7 +107,7 @@ public sealed class EventTests(ApiFactory factory)
 
         Assert.Equal(HttpStatusCode.Created, first.StatusCode);
         Assert.Equal(HttpStatusCode.BadRequest, second.StatusCode);
-        Assert.Contains("600 events", await second.Content.ReadAsStringAsync());
+        Assert.Contains("900 events", await second.Content.ReadAsStringAsync());
         Assert.Equal(HttpStatusCode.Created, oneOff.StatusCode);
         Assert.Single((await CalendarOf(visitor, Day, 1)).Events, e => e.Title == "Stretch");
     }
