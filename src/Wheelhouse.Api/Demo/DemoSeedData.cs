@@ -328,6 +328,87 @@ public static class DemoSeedData
             }
         }
 
+        // 3. The family's other weekly routines, so a week or month ahead looks as lived-in as this one.
+        // None of them touches 1 to 2 PM, the hour the full-stack browser checks add their events at.
+        void Weekly(Guid calendarId, string title, DayOfWeek[] days, TimeOnly start, TimeOnly end, string? location = null, string? description = null)
+        {
+            var seriesId = Guid.NewGuid().ToString("N");
+            var byDay = string.Join(",", days.Select(d => d.ToString()[..2].ToUpperInvariant()));
+            for (var offset = -42; offset <= 42; offset++)
+            {
+                var d = today.AddDays(offset);
+                if (days.Contains(d.DayOfWeek))
+                {
+                    events.Add(anchor.TimedEvent(
+                        familyId, calendarId, title: title, date: d, start: start, end: end,
+                        location: location, description: description,
+                        seriesId: seriesId, repeatRule: $"RRULE:FREQ=WEEKLY;BYDAY={byDay}"));
+                }
+            }
+        }
+
+        Weekly(calendars.Julian.Id, "Gym — strength session", [DayOfWeek.Monday, DayOfWeek.Wednesday, DayOfWeek.Friday],
+            new(7, 0), new(7, 45), location: "Maplewood Fitness");
+        Weekly(calendars.Clara.Id, "1:1 with Priya", [DayOfWeek.Thursday], new(11, 0), new(11, 30),
+            location: "Meet", description: "Weekly check-in: hiring plan, roadmap risks, anything blocked.");
+        Weekly(calendars.Milo.Id, "Math circle", [DayOfWeek.Wednesday], new(15, 30), new(16, 30),
+            location: "Maplewood Middle School Library");
+        Weekly(calendars.Nora.Id, "Dance class", [DayOfWeek.Friday], new(16, 0), new(17, 0),
+            location: "Maplewood Dance Studio", description: "Hair in a bun; pink tights are in the blue bag.");
+        Weekly(calendars.Julian.Id, "Guitar lesson", [DayOfWeek.Tuesday], new(19, 0), new(19, 45), location: "Maple Music Co.");
+        Weekly(calendars.Clara.Id, "Yoga flow", [DayOfWeek.Saturday], new(7, 30), new(8, 30), location: "Studio Breathe");
+        Weekly(calendars.Milo.Id, "Swim team", [DayOfWeek.Monday], new(17, 30), new(18, 30), location: "Riverside Rec Center");
+        Weekly(calendars.Family.Id, "Sunday pancake breakfast", [DayOfWeek.Sunday], new(9, 0), new(10, 0), location: "Home");
+
+        // --- LATER THIS SEASON (one-off plans in the weeks after next) ---
+        events.Add(anchor.TimedEvent(
+            familyId, calendars.Milo.Id,
+            title: "Parent–teacher conference",
+            date: anchor.NextWeekday(DayOfWeek.Thursday, 1), start: new(18, 45), end: new(19, 15),
+            location: "Maplewood Middle School, Room 114",
+            people: [calendars.Clara.MemberId!.Value]));
+
+        events.Add(anchor.AllDayEvent(
+            familyId, calendars.District.Id,
+            title: "Early dismissal — 12:30 PM",
+            startDate: anchor.NextWeekday(DayOfWeek.Friday, 1), endDateExclusive: anchor.NextWeekday(DayOfWeek.Friday, 1).AddDays(1)));
+
+        events.Add(anchor.AllDayEvent(
+            familyId, calendars.Julian.Id,
+            title: "Work trip — Chicago",
+            startDate: anchor.NextWeekday(DayOfWeek.Monday, 2), endDateExclusive: anchor.NextWeekday(DayOfWeek.Monday, 2).AddDays(2),
+            description: "Back on the late flight; Clara has school pickup both days."));
+
+        events.Add(anchor.TimedEvent(
+            familyId, calendars.Family.Id,
+            title: "Milo's winter band concert",
+            date: anchor.NextWeekday(DayOfWeek.Thursday, 2), start: new(19, 0), end: new(20, 30),
+            location: "Maplewood Middle School Auditorium"));
+
+        events.Add(anchor.TimedEvent(
+            familyId, calendars.Nora.Id,
+            title: "Eye exam — Dr. Okafor",
+            date: anchor.NextWeekday(DayOfWeek.Tuesday, 3), start: new(15, 30), end: new(16, 15),
+            location: "Clearview Optometry"));
+
+        events.Add(anchor.TimedEvent(
+            familyId, calendars.Family.Id,
+            title: "Holiday lights drive",
+            date: anchor.NextWeekday(DayOfWeek.Saturday, 3), start: new(18, 0), end: new(19, 30),
+            description: "Hot cocoa in the thermos. Start on Ridgewood Rd."));
+
+        events.Add(anchor.TimedEvent(
+            familyId, calendars.Clara.Id,
+            title: "Quarterly planning offsite",
+            date: anchor.NextWeekday(DayOfWeek.Wednesday, 4), start: new(9, 0), end: new(12, 0),
+            location: "Montclair Commons, Room B"));
+
+        events.Add(anchor.TimedEvent(
+            familyId, calendars.Family.Id,
+            title: "Ice skating at the town rink",
+            date: anchor.NextWeekday(DayOfWeek.Sunday, 5), start: new(10, 30), end: new(12, 0),
+            location: "Maplewood Memorial Park Rink"));
+
         return events;
     }
 
