@@ -604,6 +604,10 @@ describe('calendar screens', () => {
       help.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       await settle();
       expect(page.querySelector('app-shortcut-help')).toBeNull();
+      await press('?');
+      page.querySelector<HTMLButtonElement>('app-shortcut-help [aria-label="Close"]')!.click();
+      await settle();
+      expect(page.querySelector('app-shortcut-help')).toBeNull();
 
       // E edits the open event; typing in its editor is only typing.
       page.querySelector<HTMLButtonElement>('[aria-label^="Swim lesson"]')!.click();

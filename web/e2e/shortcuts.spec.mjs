@@ -98,6 +98,17 @@ test('a desktop window lists its shortcuts with ?', async ({ page }, testInfo) =
   await page.screenshot({ path: testInfo.outputPath('shortcuts.png') });
   await page.keyboard.press('Escape');
   await expect(help).toHaveCount(0);
+
+  // It closes from an X in its top-right corner, as the details and editors do.
+  await page.keyboard.press('Shift+Slash');
+  const close = help.getByRole('button', { name: 'Close', exact: true });
+  const [box, panel] = [await close.boundingBox(), await help.boundingBox()];
+  expect(box.width).toBeGreaterThanOrEqual(44);
+  expect(box.height).toBeGreaterThanOrEqual(44);
+  expect(panel.x + panel.width - (box.x + box.width)).toBeLessThanOrEqual(20);
+  expect(box.y - panel.y).toBeLessThanOrEqual(20);
+  await close.click();
+  await expect(help).toHaveCount(0);
   await page.keyboard.press('m');
   await expect(page.locator('app-month-view')).toBeVisible();
 });
