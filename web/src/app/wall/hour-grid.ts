@@ -383,8 +383,10 @@ export interface GridMore {
       height: calc(16px + var(--grip-below, 0px));
     }
 
+    /* In the event's bottom padding, below its last line of words. */
     :host(.wall) .resize::before {
-      bottom: calc(6px + var(--grip-below, 0px));
+      bottom: calc(2px + var(--grip-below, 0px));
+      height: 3px;
       opacity: 0.45;
     }
 
@@ -1090,7 +1092,7 @@ export class HourGrid {
       untracked(() => {
         cancelAnimationFrame(frame);
         frame = requestAnimationFrame(() => {
-          body.scrollTop = scrolls ? this.openingTop() : 0;
+          body.scrollTop = scrolls ? this.openingTop(body.clientHeight) : 0;
         });
       });
     });
@@ -1353,20 +1355,27 @@ export class HourGrid {
     this.scrollRequest.update((n) => n + 1);
   }
 
-  private openingTop(): number {
+  private openingTop(viewHeight: number): number {
     const family = this.family.family();
     const { first, hour } = this.scale();
     if (!family) {
       return 0;
     }
+    const starts = this.segments().map((segment) => segment.start);
+    const firstEvent = (starts.length ? Math.min(...starts) : 8 * 60) - 30;
     let minutes: number;
     if (this.columns().some((column) => column.day === this.today())) {
       const now = minutesIn(family.timeZone, this.clock.now());
       // Desktop opens a little above the previous whole hour, so the hour's label and its events show from their start.
       minutes = Math.floor(now / 60) * 60 - (this.layout() === 'desktop' ? 75 : 30);
+      // A tall window that holds both the first event and the next hour opens at the first event, so the
+      // morning is not cut off just to show the night below.
+      const shown = ((viewHeight - 2 * PAD) / hour) * 60;
+      if (firstEvent < minutes && now + 60 <= firstEvent + shown) {
+        minutes = firstEvent;
+      }
     } else {
-      const starts = this.segments().map((segment) => segment.start);
-      minutes = (starts.length ? Math.min(...starts) : 8 * 60) - 30;
+      minutes = firstEvent;
     }
     return Math.max(0, (minutes - first * 60) * (hour / 60));
   }
