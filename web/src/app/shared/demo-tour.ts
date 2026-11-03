@@ -221,6 +221,9 @@ export function placeCard(hole: Box | null, card: { width: number; height: numbe
       position: fixed;
       box-sizing: border-box;
       width: min(360px, calc(100vw - 32px));
+      /* A short screen, such as a phone on its side, scrolls the card rather than losing its buttons. */
+      max-height: calc(100dvh - 32px);
+      overflow-y: auto;
       padding: 18px 20px 16px;
       border-radius: var(--card-radius);
       border: var(--card-border);

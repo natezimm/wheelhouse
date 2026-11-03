@@ -161,6 +161,13 @@ test('the tour lights up one part of the calendar at a time', async ({ page }, t
     await expect(tour.getByRole('heading')).toHaveText('And on the kitchen wall');
     await expect(tour.getByRole('link', { name: 'Open the wall' })).toHaveAttribute('href', '/wall');
     await shot('5-wall');
+    // On a short screen, such as a phone on its side, the card scrolls rather than losing its buttons.
+    await page.setViewportSize({ width: 844, height: 390 });
+    const open = tour.getByRole('link', { name: 'Open the wall' });
+    await open.scrollIntoViewIfNeeded();
+    const box = await open.boundingBox();
+    expect(box.y + box.height).toBeLessThanOrEqual(390);
+    await expect(open).toBeInViewport();
   } else {
     await expect(tour.getByRole('button', { name: 'Done' })).toBeVisible();
   }
