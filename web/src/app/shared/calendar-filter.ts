@@ -2,6 +2,7 @@ import { Component, computed, inject, input } from '@angular/core';
 import { CalendarStore, FAMILY, FAMILY_COLOR } from '../core/calendar';
 import { FamilyStore } from '../core/family';
 import { AvatarFace } from './avatar-face';
+import { ScrollFade } from './scroll-fade';
 
 /**
  * A chip per person, plus one for the whole family's calendar, that shows or hides their
@@ -11,6 +12,7 @@ import { AvatarFace } from './avatar-face';
 @Component({
   selector: 'app-calendar-filter',
   imports: [AvatarFace],
+  hostDirectives: [ScrollFade],
   template: `
     @for (chip of chips(); track chip.owner) {
       <button

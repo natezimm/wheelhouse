@@ -2,6 +2,7 @@ import { Component, computed, inject, input } from '@angular/core';
 import { FAMILY_COLOR } from '../core/calendar';
 import { CountdownStore } from '../core/countdowns';
 import { FamilyStore } from '../core/family';
+import { ScrollFade } from './scroll-fade';
 
 /**
  * The events the family counts down to, each a chip in its owner's color with the days left:
@@ -9,11 +10,12 @@ import { FamilyStore } from '../core/family';
  */
 @Component({
   selector: 'app-countdown-strip',
+  imports: [ScrollFade],
   host: { '[class]': 'layout()' },
   template: `
     @if (chips().length) {
       <!-- The phone's row scrolls sideways, so a keyboard can take it to scroll. -->
-      <ul aria-label="Counting down to" [attr.tabindex]="layout() === 'phone' ? 0 : null">
+      <ul appScrollFade aria-label="Counting down to" [attr.tabindex]="layout() === 'phone' ? 0 : null">
         @for (chip of chips(); track chip.id) {
           <li [style.--member]="chip.color" [attr.aria-label]="chip.title + ', ' + (chip.days <= 0 ? 'today' : chip.days === 1 ? 'tomorrow' : 'in ' + chip.left)">
             <span class="left">{{ chip.left }}</span>
