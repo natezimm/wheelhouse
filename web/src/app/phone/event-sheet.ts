@@ -1,8 +1,8 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, input, linkedSignal, output, signal } from '@angular/core';
 import { CalendarEvent, CalendarStore, eventRefusal } from '../core/calendar';
-import { Day } from '../core/days';
-import { EventDraft, copyOf, draftOf, newDraft, onDayOf, peopleChoices, problemWith, requestOf, revise, togglePerson, writableCalendars } from '../core/event-draft';
+import { Day, formatDay } from '../core/days';
+import { EventDraft, clockLabel, copyOf, draftOf, newDraft, onDayOf, peopleChoices, problemWith, requestOf, revise, togglePerson, writableCalendars } from '../core/event-draft';
 import { FamilyStore } from '../core/family';
 import { SessionStore } from '../core/session';
 import { ModalFocus } from '../shared/modal-focus';
@@ -108,12 +108,20 @@ import { RepeatPicker } from '../shared/repeat-picker';
         <div class="pair">
           <label class="field">
             {{ draft.allDay ? 'First day' : 'Starts' }}
-            <input type="date" [value]="draft.startDate" [disabled]="series()" (change)="setStartDate($any($event.target).value)" />
+            <span class="picker" [class.off]="series()">
+              <span class="face" aria-hidden="true">{{ dateFace(draft.startDate) }}</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"></rect><path d="M3.5 10h17M8 3v4M16 3v4"></path></svg>
+              <input type="date" [value]="draft.startDate" [disabled]="series()" (click)="openPicker($event)" (keydown.enter)="openPicker($event)" (change)="setStartDate($any($event.target).value)" />
+            </span>
           </label>
           @if (!draft.allDay) {
             <label class="field">
               <span class="sr-only">Start time</span>&nbsp;
-              <input type="time" step="300" [value]="draft.startTime" (change)="set({ startTime: $any($event.target).value })" />
+              <span class="picker">
+                <span class="face" aria-hidden="true">{{ timeFace(draft.startTime) }}</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg>
+                <input type="time" step="300" [value]="draft.startTime" (click)="openPicker($event)" (keydown.enter)="openPicker($event)" (change)="set({ startTime: $any($event.target).value })" />
+              </span>
             </label>
           }
         </div>
@@ -121,12 +129,20 @@ import { RepeatPicker } from '../shared/repeat-picker';
         <div class="pair">
           <label class="field">
             {{ draft.allDay ? 'Last day' : 'Ends' }}
-            <input type="date" [value]="draft.endDate" [disabled]="series() && !draft.allDay" (change)="set({ endDate: $any($event.target).value })" />
+            <span class="picker" [class.off]="series() && !draft.allDay">
+              <span class="face" aria-hidden="true">{{ dateFace(draft.endDate) }}</span>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5"></rect><path d="M3.5 10h17M8 3v4M16 3v4"></path></svg>
+              <input type="date" [value]="draft.endDate" [disabled]="series() && !draft.allDay" (click)="openPicker($event)" (keydown.enter)="openPicker($event)" (change)="set({ endDate: $any($event.target).value })" />
+            </span>
           </label>
           @if (!draft.allDay) {
             <label class="field">
               <span class="sr-only">End time</span>&nbsp;
-              <input type="time" step="300" [value]="draft.endTime" (change)="set({ endTime: $any($event.target).value })" />
+              <span class="picker">
+                <span class="face" aria-hidden="true">{{ timeFace(draft.endTime) }}</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg>
+                <input type="time" step="300" [value]="draft.endTime" (click)="openPicker($event)" (keydown.enter)="openPicker($event)" (change)="set({ endTime: $any($event.target).value })" />
+              </span>
             </label>
           }
         </div>
@@ -225,6 +241,64 @@ import { RepeatPicker } from '../shared/repeat-picker';
     .saves {
       font-size: 13px;
       color: var(--muted);
+    }
+
+    /*
+     * Dates and times read like the rest of the app ("Tue, Nov 3", "4:00 pm") on a field of our own,
+     * while the browser's own input lies invisibly over it, so a tap still opens the phone's picker.
+     */
+    .picker {
+      position: relative;
+      box-sizing: border-box;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface);
+      color: var(--ink);
+      font: 400 16px var(--font-body);
+    }
+
+    .picker svg {
+      flex-shrink: 0;
+      color: var(--muted);
+    }
+
+    .picker .face {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+
+    .picker:focus-within {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+
+    .picker.off {
+      background: var(--field);
+      color: var(--muted);
+    }
+
+    .field .picker input {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    .field .picker input:disabled {
+      cursor: default;
     }
 
     .pair {
@@ -400,6 +474,26 @@ export class EventSheet {
   protected readonly busy = signal(false);
   protected readonly confirmingDelete = linkedSignal(() => this.deleting());
   protected readonly message = signal<string | null>(null);
+
+  /** A date as the app writes it, "Tue, Nov 3", on the face of its picker. */
+  protected dateFace(day: Day): string {
+    return day ? formatDay(day, { weekday: 'short', month: 'short', day: 'numeric' }) : '';
+  }
+
+  /** A time as an editor's field shows it, "4:00 pm". */
+  protected timeFace(time: string): string {
+    return time ? clockLabel(time) : '';
+  }
+
+  /** Desktop browsers open their picker only from its icon, which lies hidden here, so open it on any click. */
+  protected openPicker(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    try {
+      input.showPicker?.();
+    } catch {
+      // Not allowed here (or not supported): the field still takes the browser's own handling.
+    }
+  }
 
   protected set(change: Partial<EventDraft>): void {
     if (this.busy() || this.uncertain()) return;
