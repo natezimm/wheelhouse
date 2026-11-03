@@ -32,6 +32,11 @@ const LAYOUTS = {
   desktop: { gap: 3, minHour: 48, fallbackHour: 48, shortBelow: 42, minBlock: 18, lineHeight: 16, titleTop: 25, reach: 0, dayLine: 18, dayTime: 17 },
 };
 
+/** The widest hour-label gutter, and how wide a Week day must be to put three events side by side. */
+const GUTTER = 76;
+const THREE_LANES = 165;
+const WALL_TOUCH = 56;
+
 /** How far a mouse or pen moves before a press becomes a drag, and a finger before a long press gives way to scrolling. */
 const DRAG_SLOP = 6;
 const TOUCH_SLOP = 10;
@@ -635,11 +640,15 @@ export interface GridMore {
       font-size: 12px;
     }
 
+    /* "+N" reads as a stack of the cards that did not fit. */
     .more {
-      padding: 0;
-      background: var(--soft);
-      box-shadow: inset 0 0 0 1px var(--line);
-      color: var(--quiet);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 6px 0 0;
+      background: var(--surface);
+      box-shadow: var(--stack-shadow);
+      color: var(--ink);
       font-size: 15px;
       font-weight: 700;
       text-align: center;
@@ -953,6 +962,7 @@ export class HourGrid {
 
   private readonly body = viewChild<ElementRef<HTMLElement>>('body');
   private readonly bodyHeight = signal(0);
+  private readonly bodyWidth = signal(0);
 
   /** Bumped to scroll the grid back to now, as the wall does when it has been left alone. */
   private readonly scrollRequest = signal(0);
@@ -997,6 +1007,13 @@ export class HourGrid {
     const nowMinutes = minutesIn(zone, now);
     const showsNow = columns.some((column) => column.day === today) && nowMinutes >= first * 60 && nowMinutes <= last * 60;
 
+    // A Week day is narrow: past two side by side the rest fold into "+N", so titles stay readable.
+    // A day wide enough for three short titles (the wall, a wide desktop window) takes three.
+    // On the wall each of the three must still be a 56 px finger wide, gaps included.
+    const dayWidth = (this.bodyWidth() - GUTTER) / Math.max(1, columns.length);
+    const threeLanes = layout.reach ? 3 * (WALL_TOUCH + 2 * layout.gap) : THREE_LANES;
+    const weekLanes = this.variant() === 'week' ? (dayWidth >= threeLanes ? 3 : 2) : 3;
+
     const across = (lane: number, lanes: number) => ({
       left: `calc(${(lane * 100) / lanes}% + ${layout.gap}px)`,
       width: `calc(${100 / lanes}% - ${2 * layout.gap}px)`,
@@ -1014,8 +1031,7 @@ export class HourGrid {
       })),
       now: showsNow ? { top: y(nowMinutes), label: timeIn(zone, now).replace(/\s?[AP]M$/, '') } : null,
       columns: columns.map((column) => {
-        // A Week day is narrow: past two side by side the rest fold into "+N", so titles stay readable.
-        const { placed, more } = arrange(column.segments, this.variant() === 'week' ? 2 : 3);
+        const { placed, more } = arrange(column.segments, weekLanes);
         const weekday = formatDay(column.day, { weekday: 'long' });
         return {
           key: column.key,
@@ -1096,7 +1112,10 @@ export class HourGrid {
       if (!body || typeof ResizeObserver === 'undefined') {
         return;
       }
-      const observer = new ResizeObserver(() => this.bodyHeight.set(body.clientHeight));
+      const observer = new ResizeObserver(() => {
+        this.bodyHeight.set(body.clientHeight);
+        this.bodyWidth.set(body.clientWidth);
+      });
       observer.observe(body);
       onCleanup(() => observer.disconnect());
     });
