@@ -15,6 +15,7 @@ import { CalendarFilter } from '../shared/calendar-filter';
 import { CalendarSaveStatus } from '../shared/calendar-save-status';
 import { CalendarToolbar } from '../shared/calendar-toolbar';
 import { DemoNotice } from '../shared/demo-notice';
+import { DemoWelcome, rememberWelcomeSeen, welcomeSeen } from '../shared/demo-welcome';
 import { EventDetails } from '../shared/event-details';
 import { ShortcutHelp, shortcutOf } from '../shared/shortcut-help';
 import { WeatherIcon } from '../shared/weather-icon';
@@ -44,6 +45,7 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
     CalendarToolbar,
     DayView,
     DemoNotice,
+    DemoWelcome,
     EventDetails,
     EventDialog,
     EventSheet,
@@ -131,6 +133,9 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
             <app-event-details [eventId]="id" layout="desktop" (closed)="selected.set(null)" (edit)="edit($event)" (remove)="edit($event, true)" (duplicate)="duplicate($event)" />
           }
         </section>
+        @if (welcoming()) {
+          <app-demo-welcome layout="desktop" (closed)="closeWelcome()" />
+        }
       } @else {
         <header>
           <div class="title">
@@ -157,6 +162,10 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
         </header>
 
         <app-calendar-connection layout="phone" show="problems" />
+
+        @if (welcoming()) {
+          <app-demo-welcome (closed)="closeWelcome()" />
+        }
 
         @if (shown(); as day) {
           <div class="switch-bar">
@@ -528,6 +537,18 @@ export class CalendarHome {
   protected readonly helping = signal(false);
 
   protected readonly canAdd = computed(() => this.calendar.calendars().some((calendar) => calendar.canWrite));
+
+  /** The demo's welcome, until this browser closes it once. */
+  private readonly welcomeClosed = signal(welcomeSeen());
+  // It steps aside while details, an editor or the shortcuts are open, so it never covers their buttons.
+  protected readonly welcoming = computed(
+    () => this.session.isDemo() && this.shown() !== null && !this.welcomeClosed() && !this.selected() && !this.editing() && !this.helping(),
+  );
+
+  protected closeWelcome(): void {
+    rememberWelcomeSeen();
+    this.welcomeClosed.set(true);
+  }
 
   protected readonly signingIn = computed(() => this.family.state().status === 'private' && !this.session.demoUnavailable());
 

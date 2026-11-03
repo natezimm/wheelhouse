@@ -109,6 +109,9 @@ describe.each(Object.entries(themes))('contrast, in the %s theme', (_, theme) =>
     ['the notice pill', 'notice-ink', 'notice'],
     ['the save toast', 'on-ink', 'ink'],
     ['Delete in the details', 'danger-text', 'surface'],
+    ['the demo welcome’s links and label', 'accent', 'surface'],
+    ['the demo welcome’s lead', 'muted', 'surface'],
+    ['the demo welcome’s icons', 'ink', 'track'],
   ])('keeps %s at 4.5:1', (_, text, background) => {
     expect(contrast(color(theme, text), color(theme, background))).toBeGreaterThanOrEqual(4.5);
   });
