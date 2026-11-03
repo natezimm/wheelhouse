@@ -5,6 +5,7 @@ import { Clock } from '../core/clock';
 import { Day, dayIn, formatDay, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { SessionStore } from '../core/session';
+import { inNightHours } from '../core/theme';
 import { ViewPreferences } from '../core/view-preferences';
 import { WeatherStore } from '../core/weather';
 import { CalendarConnection } from '../shared/calendar-connection';
@@ -18,11 +19,15 @@ import { DayView } from './day-view';
 import { EventDialog } from './event-dialog';
 import { MonthView } from './month-view';
 import { PairingScreen } from './pairing-screen';
+import { WallGlance } from './wall-glance';
 import { WallWeather } from './wall-weather';
 import { GridSlot, WeekView } from './week-view';
 
 /** How long the wall stays on another day, week or month after the last touch before it comes back to now. */
 export const RETURN_AFTER_MS = 2 * 60_000;
+
+/** How long the wall stays on the calendar after the last touch before it shows today at a glance. */
+export const GLANCE_AFTER_MS = 10 * 60_000;
 
 /** How often the wall checks in: it picks up changes from the phones, and the server sees it is still there. */
 export const CHECK_IN_EVERY_MS = 5 * 60_000;
@@ -47,6 +52,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
     EventDialog,
     MonthView,
     PairingScreen,
+    WallGlance,
     WallWeather,
     WeekView,
   ],
@@ -57,7 +63,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
       <header>
         <div class="now">
           @if (now(); as now) {
-            <span class="clock">{{ now.time }}<span class="meridiem">{{ now.meridiem }}</span></span>
+            <button type="button" class="clock" aria-label="Show today at a glance" (click)="glance()">{{ now.time }}<span class="meridiem">{{ now.meridiem }}</span></button>
             <span class="date">
               <span class="weekday">{{ now.weekday }}</span>
               <span class="detail">{{ now.date }}@if (family.family(); as f) { · {{ f.name }}}</span>
@@ -139,6 +145,9 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
       @if (editing(); as open) {
         <app-event-dialog [event]="open.event" [day]="open.day" [at]="open.at" [deleting]="open.deleting" [copy]="open.copy ?? null" (closed)="editing.set(null)" />
       }
+      @if (glancing()) {
+        <app-wall-glance [dim]="night()" (woken)="wake()" />
+      }
     }
   `,
   host: { '(pointerdown)': 'touched()' },
@@ -173,6 +182,12 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
     }
 
     .clock {
+      min-height: 56px;
+      padding: 0;
+      border: 0;
+      background: none;
+      color: inherit;
+      cursor: pointer;
       font-family: var(--font-display);
       font-size: 64px;
       font-weight: var(--display-weight);
@@ -377,8 +392,18 @@ export class WallShell {
     return family && today ? periodOf(this.view(), this.focus() ?? today, today, family.weekStartsOn) : null;
   });
 
+  /** Whether today at a glance covers the calendar. */
+  protected readonly glancing = signal(false);
+
+  /** The family's night hours, when the glance turns dark and dim. */
+  protected readonly night = computed(() => {
+    const family = this.family.family();
+    return !!family && inNightHours(family, this.clock.now());
+  });
+
   constructor() {
     this.family.load();
+    this.touched();
     const timer = setInterval(() => {
       this.family.refresh();
       this.weather.refresh();
@@ -386,15 +411,44 @@ export class WallShell {
     inject(DestroyRef).onDestroy(() => {
       clearInterval(timer);
       clearTimeout(this.idle);
+      clearTimeout(this.resting);
     });
   }
 
   private idle?: ReturnType<typeof setTimeout>;
+  private resting?: ReturnType<typeof setTimeout>;
 
-  /** Any touch restarts the wait before the wall comes back to now, so nobody leaves it on next month. */
+  /**
+   * Any touch restarts the wait before the wall comes back to now, so nobody leaves it on next
+   * month, and the longer wait before it shows today at a glance.
+   */
   protected touched(): void {
     clearTimeout(this.idle);
+    clearTimeout(this.resting);
     this.idle = setTimeout(() => this.returnToNow(), RETURN_AFTER_MS);
+    this.resting = setTimeout(() => this.rest(), GLANCE_AFTER_MS);
+  }
+
+  /** Left alone long enough: today at a glance, unless an editor holds work or a save is still going. */
+  private rest(): void {
+    if ((this.editing() && this.dialog()?.holdsWork()) || this.calendar.pending().length > 0) {
+      this.resting = setTimeout(() => this.rest(), GLANCE_AFTER_MS);
+      return;
+    }
+    this.glance();
+  }
+
+  /** Shows today at a glance now, over the calendar brought back to now. */
+  protected glance(): void {
+    if (this.family.state().status !== 'ready') return;
+    this.returnToNow();
+    this.glancing.set(true);
+  }
+
+  /** A touch on the glance brings the calendar back. */
+  protected wake(): void {
+    this.glancing.set(false);
+    this.touched();
   }
 
   /**

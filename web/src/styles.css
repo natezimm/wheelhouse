@@ -112,6 +112,8 @@
   --toast-shadow: 0 10px 30px rgba(31, 35, 40, 0.22);
 
   /* Event details: a drawer or sheet over a scrim, with a soft close button and an outlined Delete. */
+  /* The wall's glance at night: how faintly it shows on the dark look. */
+  --glance-dim: 0.55;
   --scrim: rgba(31, 35, 40, 0.16);
   --scrim-strong: rgba(31, 35, 40, 0.38);
   --drawer-shadow: -18px 0 48px rgba(31, 35, 40, 0.16);
