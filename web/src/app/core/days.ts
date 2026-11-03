@@ -28,6 +28,19 @@ export function timeIn(timeZone: string, instant: Date | string): string {
   return format.format(new Date(instant));
 }
 
+/**
+ * A clock time as every screen writes it: lower case, and no ":00" on the hour, so "3:00 PM" is
+ * "3 pm" and "9:30 AM" is "9:30 am". Editor fields keep their minutes ("4:00 pm") and write it themselves.
+ */
+export function clockText(time: string): string {
+  return time.replace(/:00(?=\s?[AP]M$)/i, '').replace(/\s?([AP]M)$/i, (_, half: string) => ` ${half.toLowerCase()}`);
+}
+
+/** An instant's clock time in the family's zone as the screens write it, such as "3 pm". */
+export function timeText(timeZone: string, instant: Date | string): string {
+  return clockText(timeIn(timeZone, instant));
+}
+
 /** Days are counted at noon UTC, so adding one never lands on the same or a skipped date. */
 function noon(day: Day): Date {
   return new Date(`${day}T12:00:00Z`);

@@ -5,8 +5,8 @@ import { clockLabel, copyOf, draftOf, endAt, moveDays, moveEnd, moveStart, moved
 describe('event drafts', () => {
   const zone = 'America/New_York';
 
-  it('start a new event at the next half hour today, and at 9 AM on another day', () => {
-    const now = new Date('2026-10-12T21:22:00Z'); // 5:22 PM in New York
+  it('start a new event at the next half hour today, and at 9 am on another day', () => {
+    const now = new Date('2026-10-12T21:22:00Z'); // 5:22 pm in New York
 
     expect(newDraft('2026-10-12', 'c1', zone, now)).toMatchObject({ startTime: '17:30', endDate: '2026-10-12', endTime: '18:30' });
     expect(newDraft('2026-10-12', 'c1', zone, new Date('2026-10-12T21:40:00Z'))).toMatchObject({ startTime: '18:00' });
@@ -55,14 +55,15 @@ describe('event drafts', () => {
     expect(moveStart(late, 60)).toMatchObject({ startTime: '23:30', endDate: '2026-10-15', endTime: '00:30' });
     expect(moveStart(late, 24 * 60)).toMatchObject({ startDate: '2026-10-14', startTime: '23:45' });
     expect(moveEnd(late, -120)).toMatchObject({ endDate: '2026-10-14', endTime: '22:45' });
-    expect(clockLabel('00:30')).toBe('12:30 AM');
-    expect(clockLabel('17:05')).toBe('5:05 PM');
+    expect(clockLabel('00:30')).toBe('12:30 am');
+    expect(clockLabel('17:05')).toBe('5:05 pm');
   });
 
   it('read typed times in the usual ways, and nothing that is not a time', () => {
     for (const [typed, time] of [
       ['3pm', '15:00'], ['3 PM', '15:00'], ['3:30 PM', '15:30'], ['3:30p', '15:30'], ['3.30 p.m.', '15:30'], ['330pm', '15:30'],
       ['12am', '00:00'], ['12:15 AM', '00:15'], ['12pm', '12:00'], ['9a', '09:00'], ['15:30', '15:30'], ['1530', '15:30'],
+      ['3:30 pm', '15:30'], ['4:00 pm', '16:00'],
       ['0930', '09:30'], ['00:45', '00:45'], ['23', '23:00'], ['noon', '12:00'], ['Midnight', '00:00'], [' 5:05 pm ', '17:05'],
     ]) {
       expect(parseClock(typed), typed).toBe(time);
@@ -103,7 +104,7 @@ describe('event drafts', () => {
 
     expect(movedTo(swim, '2026-10-16', '09:00', zone)).toMatchObject({ startDate: '2026-10-16', startTime: '09:00', endDate: '2026-10-16', endTime: '09:45' });
     expect(movedTo(swim, '2026-10-16', '23:45', zone)).toMatchObject({ endDate: '2026-10-17', endTime: '00:30' });
-    // 1:30 to 3:30 AM on the spring-forward day lasts an hour, and stays an hour.
+    // 1:30 to 3:30 am on the spring-forward day lasts an hour, and stays an hour.
     const early = timed('Early', 'm1', '2026-03-08T06:30:00Z', '2026-03-08T07:30:00Z');
     expect(movedTo(early, '2026-03-09', '09:00', zone)).toMatchObject({ startTime: '09:00', endDate: '2026-03-09', endTime: '10:00' });
     // 1:45 EDT to 1:15 EST on the fall-back day lasts half an hour.
@@ -212,7 +213,7 @@ describe('event drafts', () => {
   });
 
   it('end a resized event at the new time on its own day, or at the midnight that ends it', () => {
-    const swim = timed('Swim', 'm3', '2026-10-12T21:30:00Z', '2026-10-12T22:15:00Z'); // 5:30 to 6:15 PM
+    const swim = timed('Swim', 'm3', '2026-10-12T21:30:00Z', '2026-10-12T22:15:00Z'); // 5:30 to 6:15 pm
 
     expect(resizedTo(swim, 19 * 60, zone)).toMatchObject({ startDate: '2026-10-12', startTime: '17:30', endDate: '2026-10-12', endTime: '19:00' });
     expect(resizedTo(swim, 24 * 60, zone)).toMatchObject({ startTime: '17:30', endDate: '2026-10-13', endTime: '00:00' });

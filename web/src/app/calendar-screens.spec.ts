@@ -12,7 +12,7 @@ import { RETURN_AFTER_MS } from './wall/wall-shell';
 import { allDay, marloweCalendars, timed } from './testing/calendar';
 import { marlowes } from './testing/marlowes';
 
-/** The calendar on the wall and the phone, with the clock at 5:22 PM on Monday, October 12, 2026 in New York. */
+/** The calendar on the wall and the phone, with the clock at 5:22 pm on Monday, October 12, 2026 in New York. */
 describe('calendar screens', () => {
   let http: HttpTestingController;
 
@@ -89,7 +89,7 @@ describe('calendar screens', () => {
       expect(column(page, 'Monday, October 12')).toEqual(['Dentist', 'Swim lesson', 'Book club']);
       expect(column(page, 'Tuesday, October 13')).toEqual([]);
       expect(Array.from(page.querySelectorAll('[aria-label="Thursday, October 15"] .event'), (e) => e.getAttribute('aria-label'))).toEqual([
-        'Flight to Chicago, Thursday 6:10 – 8:40 AM, Ben',
+        'Flight to Chicago, Thursday 6:10 – 8:40 am, Ben',
       ]);
     });
 
@@ -98,9 +98,9 @@ describe('calendar screens', () => {
       const block = (title: string) =>
         Array.from(page.querySelectorAll<HTMLElement>('.event')).find((e) => e.querySelector('.title')?.textContent === title)!;
 
-      // The 6:10 AM flight moves the first hour from 7 AM to 6. At 50 px an hour below 10 px of
-      // room, 3 PM is 9 hours down, and an hour-long event is 50 px less 3 px of gap.
-      expect(texts(page.querySelectorAll('.hours span')).slice(0, 2)).toEqual(['6 AM', '7 AM']);
+      // The 6:10 am flight moves the first hour from 7 am to 6. At 50 px an hour below 10 px of
+      // room, 3 pm is 9 hours down, and an hour-long event is 50 px less 3 px of gap.
+      expect(texts(page.querySelectorAll('.hours span')).slice(0, 2)).toEqual(['6 am', '7 am']);
       expect([block('Dentist').style.top, block('Dentist').style.height]).toEqual(['461px', '47px']);
       // An hour at 50 px leaves too little room for the time row and a title line, so it reads on one line.
       expect(block('Dentist').classList.contains('short')).toBe(true);
@@ -125,7 +125,7 @@ describe('calendar screens', () => {
       expect(texts(details.querySelectorAll('.day, h2, .when, .facts li'))).toEqual([
         'Monday, October 12',
         'Swim lesson',
-        '5:30 – 6:15 PM',
+        '5:30 – 6:15 pm',
         'Riverside Rec Center',
         'Does not repeat',
         'Milo',
@@ -192,14 +192,14 @@ describe('calendar screens', () => {
       const { page, settle } = await open('/wall', { from: '2026-10-12', to: '2026-10-19' });
       const wednesday = page.querySelector<HTMLElement>('[role="group"][aria-label="Wednesday, October 14"]')!;
 
-      // 10 px of room, then 50 px an hour from 6 AM: 445 px is 8 hours and 42 minutes in.
+      // 10 px of room, then 50 px an hour from 6 am: 445 px is 8 hours and 42 minutes in.
       Object.defineProperty(MouseEvent.prototype, 'offsetY', { configurable: true, get: () => 445 });
       wednesday.dispatchEvent(new MouseEvent('click', { bubbles: true }));
       delete (MouseEvent.prototype as { offsetY?: number }).offsetY;
       await settle();
 
       const dialog = page.querySelector<HTMLElement>('app-event-dialog form')!;
-      expect(Array.from(dialog.querySelectorAll('.stepper > span'), (s) => s.querySelector('input')?.value ?? s.textContent?.trim())).toEqual(['Wed, Oct 14', '2:30 PM', '3:30 PM']);
+      expect(Array.from(dialog.querySelectorAll('.stepper > span'), (s) => s.querySelector('input')?.value ?? s.textContent?.trim())).toEqual(['Wed, Oct 14', '2:30 pm', '3:30 pm']);
     });
 
     it("hides a person's events when their chip is tapped", async () => {
@@ -256,8 +256,8 @@ describe('calendar screens', () => {
       expect(shownTitle(page)).toBe('Monday, October 12 2026');
       expect(rows(page.querySelectorAll('app-day-view .head .who'))).toEqual(['Ben 1 today', 'Tess 1 today', 'Milo 1 today', 'Family 1 today']);
       expect(texts(page.querySelectorAll('app-day-view .all-day .bar'))).toEqual(['Grandma in town']);
-      expect(rows(page.querySelectorAll('[role="group"][aria-label="Milo"] .event .content'))).toEqual(['Swim lesson In 8 min · 5:30 – 6:15 PM']);
-      expect(rows(page.querySelectorAll('[role="group"][aria-label="Tess"] .event .content'))).toEqual(['Book club 7:00 – 9:00 PM']);
+      expect(rows(page.querySelectorAll('[role="group"][aria-label="Milo"] .event .content'))).toEqual(['Swim lesson In 8 min · 5:30 – 6:15 pm']);
+      expect(rows(page.querySelectorAll('[role="group"][aria-label="Tess"] .event .content'))).toEqual(['Book club 7 – 9 pm']);
       // The now line crosses every person's column, with the time in the gutter.
       expect(page.querySelectorAll('app-day-view .now-line').length).toBe(4);
       expect(page.querySelector('app-day-view .now-label')?.textContent).toBe('5:22');
@@ -313,8 +313,8 @@ describe('calendar screens', () => {
       expect(cell('Monday, October 12').getAttribute('aria-label')).toBe('Monday, October 12, 4 events');
       // All-day events are bars across their days; timed ones a line each with a short time.
       expect(texts(page.querySelectorAll('app-month-view .bar .title'))).toEqual(['Grandma in town', 'Grandma in town', 'Trash & recycling']);
-      expect(lines('2026-10-12')).toEqual(['3p Dentist', '5:30p Swim lesson', '7p Book club']);
-      expect(lines('2026-10-15')).toEqual(['6:10a Flight to Chicago']);
+      expect(lines('2026-10-12')).toEqual(['3 pm Dentist', '5:30 pm Swim lesson', '7 pm Book club']);
+      expect(lines('2026-10-15')).toEqual(['6:10 am Flight to Chicago']);
 
       cell('Tuesday, October 13').click();
       await settle();
@@ -454,7 +454,7 @@ describe('calendar screens', () => {
           .filter(Boolean)
           .join(' '),
       );
-      expect(agenda).toEqual(['5:22p', '5:30p 6:15p Swim lesson Milo · Riverside Rec Center', '7:00p 9:00p Book club Tess']);
+      expect(agenda).toEqual(['5:22 pm', '5:30 pm 6:15 pm Swim lesson Milo · Riverside Rec Center', '7 pm 9 pm Book club Tess']);
 
       button(page, '1 earlier event').click();
       await settle();
@@ -499,9 +499,9 @@ describe('calendar screens', () => {
       expect(cards[0].classList).toContain('is-today');
       expect(rows(cards[0].querySelectorAll('app-compact-agenda button'))).toEqual([
         'All day F Grandma in town',
-        '3:00 pm B Dentist',
+        '3 pm B Dentist',
         '5:30 pm M Swim lesson',
-        '7:00 pm T Book club',
+        '7 pm T Book club',
       ]);
       expect(cards[2].querySelector('app-compact-agenda .empty')?.textContent).toBe('Nothing planned');
     });

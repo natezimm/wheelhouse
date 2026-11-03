@@ -1,6 +1,6 @@
 import { Component, ElementRef, computed, effect, inject, input, output, viewChild } from '@angular/core';
 import { CalendarEvent, CalendarStore, FAMILY_COLOR, colorOf, namesOf, peopleOf, spanOf, timeRange } from '../core/calendar';
-import { formatDay, timeIn } from '../core/days';
+import { formatDay, timeIn, timeText } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { notesText } from '../core/notes';
 import { describeRule } from '../core/repeat-rule';
@@ -511,6 +511,6 @@ function whenOf(event: CalendarEvent, zone: string): { day: string; when: string
   }
   return {
     day: `${formatDay(first, brief)} – ${formatDay(last, brief)}`,
-    when: `${formatDay(first, { weekday: 'short' })} ${timeIn(zone, event.startsAt!)} – ${formatDay(last, { weekday: 'short' })} ${timeIn(zone, event.endsAt!)}`,
+    when: `${formatDay(first, { weekday: 'short' })} ${timeText(zone, event.startsAt!)} – ${formatDay(last, { weekday: 'short' })} ${timeText(zone, event.endsAt!)}`,
   };
 }

@@ -794,7 +794,7 @@ export class EventDialog {
     const time = parseClock(input.value, which === 'end' ? draft.startTime : undefined);
     if (time === null) {
       input.value = clockLabel(which === 'start' ? draft.startTime : draft.endTime);
-      this.message.set('Type a time such as 3:30 PM or 15:30.');
+      this.message.set('Type a time such as 3:30 pm or 15:30.');
       return;
     }
     this.change(which === 'start' ? startAt(draft, time) : endAt(draft, time));

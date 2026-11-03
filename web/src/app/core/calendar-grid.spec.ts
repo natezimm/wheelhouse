@@ -16,7 +16,7 @@ describe('calendar grid', () => {
   });
 
   it('splits an overnight event into a segment on each day, one event behind both', () => {
-    const late = timed('Red-eye', 'm1', '2026-10-23T02:00:00Z', '2026-10-23T10:30:00Z'); // 10 PM to 6:30 AM
+    const late = timed('Red-eye', 'm1', '2026-10-23T02:00:00Z', '2026-10-23T10:30:00Z'); // 10 pm to 6:30 am
     const segments = segmentsOf(late);
     expect(segments.get('2026-10-22')).toEqual([expect.objectContaining({ start: 22 * 60, end: 24 * 60, continuesAfter: true })]);
     expect(segments.get('2026-10-23')).toEqual([expect.objectContaining({ start: 0, end: 6 * 60 + 30, continuesBefore: true })]);
@@ -37,7 +37,7 @@ describe('calendar grid', () => {
 
   it('measures days across daylight saving in the family’s clock', () => {
     const fallBack = timedSegments([timed('Early', 'm1', '2026-11-01T05:30:00Z', '2026-11-01T07:30:00Z')], ['2026-11-01'], zone);
-    // 1:30 AM EDT to 2:30 AM EST: two real hours that the clock shows as one.
+    // 1:30 am EDT to 2:30 am EST: two real hours that the clock shows as one.
     expect(fallBack.get('2026-11-01')).toEqual([expect.objectContaining({ start: 90, end: 150 })]);
   });
 
@@ -132,7 +132,7 @@ describe('calendar grid', () => {
   });
 
   it('labels hours the way the family reads them', () => {
-    expect([0, 7, 12, 15].map(hourLabel)).toEqual(['12 AM', '7 AM', '12 PM', '3 PM']);
+    expect([0, 7, 12, 15].map(hourLabel)).toEqual(['12 am', '7 am', '12 pm', '3 pm']);
   });
 
   it('lists a month day’s timed events in order and counts what does not fit', () => {
@@ -175,7 +175,7 @@ describe('calendar grid', () => {
     expect(row.days[0].more).toBe(1);
   });
 
-  it('writes times short enough for a month line', () => {
-    expect(['9:00 AM', '3:30 PM', '12:00 PM'].map(compactTime)).toEqual(['9a', '3:30p', '12p']);
+  it('writes a month line\'s times as every screen does', () => {
+    expect(['9:00 AM', '3:30 PM', '12:00 PM', '10:00 AM'].map(compactTime)).toEqual(['9 am', '3:30 pm', '12 pm', '10 am']);
   });
 });

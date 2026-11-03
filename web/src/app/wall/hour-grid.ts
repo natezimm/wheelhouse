@@ -3,7 +3,7 @@ import { CalendarEvent, CalendarStore, FAMILY_COLOR, colorOf, namesOf, peopleOf,
 import { STEP_MINUTES, clockLabel, movedTo, requestOf, resizedTo } from '../core/event-draft';
 import { TimedSegment, arrange, hourLabel, hourRange } from '../core/calendar-grid';
 import { Clock } from '../core/clock';
-import { Day, dayIn, formatDay, minutesIn, timeIn } from '../core/days';
+import { Day, clockText, dayIn, formatDay, minutesIn, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { ThemeService } from '../core/theme';
 import { AvatarFace } from '../shared/avatar-face';
@@ -589,7 +589,7 @@ export interface GridMore {
       font-weight: 700;
     }
 
-    /* On one line the title gives way to the times, so "12:15 – 1:00 PM" is never cut. */
+    /* On one line the title gives way to the times, so "12:15 – 1 pm" is never cut. */
     :host(.day) .short .title {
       flex-shrink: 1;
       min-width: 0;
@@ -922,7 +922,7 @@ export class HourGrid {
     const top = PAD + (drag.start - first * 60) * perMinute + 1;
     const height = Math.max(length * perMinute - 3, layout.minBlock);
     const draft = this.draftFor(drag);
-    const range = `${clockLabel(draft.startTime)} – ${clockLabel(draft.endTime)}`;
+    const range = `${clockText(clockLabel(draft.startTime))} – ${clockText(clockLabel(draft.endTime))}`;
     const columns = this.columns();
     const index = columns.findIndex((column) => column.key === drag.column);
     return {
@@ -933,7 +933,7 @@ export class HourGrid {
       title: drag.event.title,
       color: colorOf(drag.event, this.family.family()?.members ?? []),
       range,
-      when: resizing ? `end at ${clockLabel(draft.endTime)}` : `${drag.day === drag.fromDay ? '' : formatDay(drag.day, { weekday: 'long' }) + ' '}${clockLabel(draft.startTime)}`,
+      when: resizing ? `end at ${clockText(clockLabel(draft.endTime))}` : `${drag.day === drag.fromDay ? '' : formatDay(drag.day, { weekday: 'long' }) + ' '}${clockText(clockLabel(draft.startTime))}`,
       resizing,
       sameDay: drag.day === drag.fromDay,
       // The question opens toward the room it has: leftward from the last columns, upward near the bottom.
@@ -1420,7 +1420,7 @@ function clock(minutes: number): string {
   return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
 }
 
-/** "3:15 PM" as "3:15 pm", and "3:00 PM" as "3 pm", to fit a narrow block. */
+/** "3:15 PM" as "3:15 pm", and "3:00 PM" as "3 pm", as every screen writes times. */
 function shortTime(time: string): string {
-  return time.replace(':00', '').replace(/\s?([AP]M)$/, (_, half: string) => ` ${half.toLowerCase()}`);
+  return clockText(time);
 }

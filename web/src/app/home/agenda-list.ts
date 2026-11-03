@@ -1,7 +1,7 @@
 import { Component, computed, inject, input, linkedSignal, output } from '@angular/core';
 import { CalendarEvent, CalendarStore, colorOf, namesOf, peopleOf, showsOn, spanOf } from '../core/calendar';
 import { Clock } from '../core/clock';
-import { Day, dayIn, formatDay, timeIn } from '../core/days';
+import { Day, clockText, dayIn, formatDay, timeIn } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { AvatarFace } from '../shared/avatar-face';
 
@@ -437,7 +437,7 @@ export class AgendaList {
   }
 }
 
-/** "4:30 PM" as "4:30p", so a time fits the narrow column beside its event. */
+/** A time for the column beside an event, written as everywhere else: "4:30 pm", "5 pm". */
 function short(time: string): string {
-  return time.replace(/\s?(AM|PM)$/, (_, half: string) => (half === 'AM' ? 'a' : 'p'));
+  return clockText(time);
 }
