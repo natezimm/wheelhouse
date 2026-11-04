@@ -148,11 +148,21 @@ public static class CalendarEndpoints
     /// ones, latest first. A paired display never finds a private event, since searching for its
     /// title would tell what it is.
     /// </summary>
+    /// <remarks>
+    /// The cache holds only the sync window, so on a family instance Google is also searched before
+    /// and after it, and any time is found. Those events are not cached and come back in
+    /// <see cref="SearchResponse.NotCached"/>; a screen shows them but cannot change them. When
+    /// Google cannot be asked, the window's events still come back, with
+    /// <see cref="SearchResponse.Complete"/> false.
+    /// </remarks>
     private static async Task<Results<Ok<SearchResponse>, ValidationProblem, NotFound>> Search(
         string? q,
         DateOnly from,
         WheelhouseDbContext db,
         ClaimsPrincipal user,
+        IGoogleCalendar google,
+        GoogleTokens tokens,
+        ILoggerFactory loggers,
         CancellationToken cancellationToken)
     {
         var text = q?.Trim() ?? "";
@@ -179,26 +189,118 @@ public static class CalendarEndpoints
             .AsNoTracking()
             .Where(e => (!display || !e.IsPrivate)
                 && (EF.Functions.ILike(e.Title, pattern, @"\") || (e.Location != null && EF.Functions.ILike(e.Location, pattern, @"\"))))
-            .Join(db.CalendarSources, e => e.CalendarSourceId, source => source.Id, (e, source) => new { Event = e, Source = source })
+            .Join(db.CalendarSources, e => e.CalendarSourceId, source => source.Id, (e, source) => new Hit(e, source, false))
             .ToListAsync(cancellationToken);
 
+        var (beyond, complete) = await SearchGoogleAsync(text, display, zone, db, google, tokens, loggers, cancellationToken);
+        // The cache is the newer word on anything it holds, and any series it holds has its nearest occurrences there.
+        var cachedSeries = found.Select(SeriesKey).ToHashSet();
+        found.AddRange(beyond.Where(hit => !cachedSeries.Contains(SeriesKey(hit))));
+
         var series = found
-            .Select(e => new { e.Event, e.Source, Starts = e.Event.StartsAt ?? StartOfDay(e.Event.StartDate!.Value, zone), Ends = e.Event.EndsAt ?? StartOfDay(e.Event.EndDate!.Value, zone) })
-            .GroupBy(e => (e.Event.CalendarSourceId, e.Event.RecurringEventId ?? e.Event.GoogleEventId))
+            .Select(e => new { Hit = e, Starts = e.Event.StartsAt ?? StartOfDay(e.Event.StartDate!.Value, zone), Ends = e.Event.EndsAt ?? StartOfDay(e.Event.EndDate!.Value, zone) })
+            .GroupBy(e => SeriesKey(e.Hit))
             .Select(occurrences =>
                 occurrences.Where(e => e.Ends > fromUtc).MinBy(e => e.Starts) is { } next
                     ? (Event: next, Upcoming: true)
                     : (Event: occurrences.MaxBy(e => e.Starts)!, Upcoming: false))
             .ToList();
 
-        var upcoming = series.Where(s => s.Upcoming).OrderBy(s => s.Event.Starts).ThenBy(s => s.Event.Event.Title, StringComparer.Ordinal);
-        var past = series.Where(s => !s.Upcoming).OrderByDescending(s => s.Event.Starts).ThenBy(s => s.Event.Event.Title, StringComparer.Ordinal);
-        var events = upcoming.Concat(past)
-            .Take(MaxSearchResults)
-            .Select(s => EventResponse.From(s.Event.Event, s.Event.Source))
-            .ToList();
-        return TypedResults.Ok(new SearchResponse(events, series.Count));
+        var upcoming = series.Where(s => s.Upcoming).OrderBy(s => s.Event.Starts).ThenBy(s => s.Event.Hit.Event.Title, StringComparer.Ordinal);
+        var past = series.Where(s => !s.Upcoming).OrderByDescending(s => s.Event.Starts).ThenBy(s => s.Event.Hit.Event.Title, StringComparer.Ordinal);
+        var shown = upcoming.Concat(past).Take(MaxSearchResults).Select(s => s.Event.Hit).ToList();
+        var events = shown.Select(hit => EventResponse.From(hit.Event, hit.Source)).ToList();
+        var notCached = shown.Where(hit => hit.NotCached).Select(hit => hit.Event.Id).ToList();
+        return TypedResults.Ok(new SearchResponse(events, series.Count, notCached, complete));
     }
+
+    /// <summary>One occurrence a search found, from the cache or, when <paramref name="NotCached"/>, from Google beyond the sync window.</summary>
+    private sealed record Hit(EventInstance Event, CalendarSource Source, bool NotCached);
+
+    private static (Guid, string) SeriesKey(Hit hit) => (hit.Source.Id, hit.Event.RecurringEventId ?? hit.Event.GoogleEventId);
+
+    /// <summary>
+    /// Google's occurrences matching <paramref name="text"/> before and after the sync window, of
+    /// the family's Google calendars, as uncached rows with ids of their own. None on the demo or
+    /// without a working connection; false when Google could not be asked about all of them.
+    /// </summary>
+    private static async Task<(List<Hit> Hits, bool Complete)> SearchGoogleAsync(
+        string text,
+        bool display,
+        TimeZoneInfo zone,
+        WheelhouseDbContext db,
+        IGoogleCalendar google,
+        GoogleTokens tokens,
+        ILoggerFactory loggers,
+        CancellationToken cancellationToken)
+    {
+        var sources = await db.CalendarSources.AsNoTracking().Where(source => source.ListedAt != null).ToListAsync(cancellationToken);
+        if (CalendarSync.Window(sources.Select(source => source.ListedAt!.Value), zone) is not { } window)
+        {
+            return ([], true);
+        }
+
+        var connection = await db.GoogleConnections.AsNoTracking().SingleOrDefaultAsync(cancellationToken);
+        if (connection is not { Status: GoogleConnectionStatus.Connected })
+        {
+            return ([], false);
+        }
+
+        var logger = loggers.CreateLogger(typeof(CalendarEndpoints));
+        var hits = new List<Hit>();
+        var complete = true;
+        try
+        {
+            var accessToken = await google.AccessTokenAsync(tokens.Unprotect(connection.EncryptedRefreshToken), cancellationToken);
+            var windowFrom = StartOfDay(window.From, zone);
+            var windowTo = StartOfDay(window.To, zone);
+            var asks = sources.SelectMany(source => new[]
+            {
+                (Source: source, Search: google.SearchEventsAsync(accessToken, source.GoogleCalendarId, text, null, windowFrom, cancellationToken)),
+                (Source: source, Search: google.SearchEventsAsync(accessToken, source.GoogleCalendarId, text, windowTo, null, cancellationToken)),
+            }).ToList();
+            foreach (var (source, search) in asks)
+            {
+                try
+                {
+                    foreach (var googleEvent in await search)
+                    {
+                        var row = new EventInstance { Id = Guid.CreateVersion7(), FamilyId = source.FamilyId, CalendarSourceId = source.Id, GoogleEventId = googleEvent.Id, Title = "" };
+                        CalendarSync.CopyTo(row, googleEvent);
+                        if (Matches(row, text) && (!display || !row.IsPrivate))
+                        {
+                            hits.Add(new Hit(row, source, true));
+                        }
+                    }
+                }
+                catch (Exception exception) when (exception is GoogleCalendarGoneException or HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+                {
+                    logger.LogWarning(exception, "Google could not search calendar {CalendarSourceId}", source.Id);
+                    complete = false;
+                }
+            }
+        }
+        catch (Exception exception) when (exception is GoogleGrantRevokedException or System.Security.Cryptography.CryptographicException or HttpRequestException or TaskCanceledException && !cancellationToken.IsCancellationRequested)
+        {
+            // The sync marks a refused grant for a parent to reconnect; a search only goes without.
+            logger.LogWarning(exception, "Google could not be asked to search");
+            complete = false;
+        }
+
+        // An occurrence the window reaches into is in the cache already.
+        var windowStart = StartOfDay(window.From, zone);
+        var windowEnd = StartOfDay(window.To, zone);
+        hits.RemoveAll(hit => Ends(hit.Event, zone) > windowStart && Starts(hit.Event, zone) < windowEnd);
+        return (hits, complete);
+    }
+
+    private static DateTimeOffset Starts(EventInstance e, TimeZoneInfo zone) => e.StartsAt ?? StartOfDay(e.StartDate!.Value, zone);
+
+    private static DateTimeOffset Ends(EventInstance e, TimeZoneInfo zone) => e.EndsAt ?? StartOfDay(e.EndDate!.Value, zone);
+
+    /// <summary>Whether the title or place holds <paramref name="text"/>, ignoring case, as the cache's search matches.</summary>
+    private static bool Matches(EventInstance e, string text) =>
+        e.Title.Contains(text, StringComparison.OrdinalIgnoreCase) || e.Location?.Contains(text, StringComparison.OrdinalIgnoreCase) == true;
 
     /// <summary>The instant a local day begins in <paramref name="zone"/>, as UTC.</summary>
     public static DateTimeOffset StartOfDay(DateOnly day, TimeZoneInfo zone) => At(day, TimeOnly.MinValue, zone);

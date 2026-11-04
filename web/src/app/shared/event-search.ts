@@ -14,11 +14,22 @@ export const SEARCH_WAIT_MS = 250;
 export interface SearchResponse {
   events: CalendarEvent[];
   total: number;
+  /** Events found in Google beyond the months the calendar keeps, which can be shown but not changed. */
+  notCached?: string[];
+  /** False when Google could not be searched beyond those months. */
+  complete?: boolean;
+}
+
+/** An event picked from the results, and whether the calendar keeps it (so it can be changed). */
+export interface SearchPick {
+  event: CalendarEvent;
+  cached: boolean;
 }
 
 /** One found event as a row: its day and time, title, place and people. */
 interface Found {
   event: CalendarEvent;
+  cached: boolean;
   day: string;
   when: string;
   title: string;
@@ -64,7 +75,7 @@ type SearchState =
         <ul>
           @for (row of group.rows; track row.event.id) {
             <li>
-              <button type="button" class="row" [style.--member]="row.color" (click)="picked.emit(row.event)">
+              <button type="button" class="row" [style.--member]="row.color" (click)="picked.emit({ event: row.event, cached: row.cached })">
                 <span class="when"><span class="day">{{ row.day }}</span><span class="time">{{ row.when }}</span></span>
                 <span class="what">
                   <span class="title">{{ row.title }}</span>
@@ -281,7 +292,7 @@ export class EventSearch {
   readonly layout = input<'desktop' | 'phone'>('desktop');
   readonly closed = output<void>();
   /** An event picked from the results. */
-  readonly picked = output<CalendarEvent>();
+  readonly picked = output<SearchPick>();
 
   protected readonly query = signal('');
   private readonly state = signal<SearchState>({ status: 'idle' });
@@ -329,15 +340,16 @@ export class EventSearch {
     const state = this.state();
     switch (state.status) {
       case 'idle':
-        return 'Search titles and places, from 90 days back to a year ahead.';
+        return 'Search every event by title or place.';
       case 'searching':
         return 'Searching…';
       case 'failed':
         return 'Could not search just now. Check the connection and try again.';
       case 'done': {
-        const { events, total } = state.found;
-        if (!events.length) return `No events match “${state.q}”.`;
-        return total > events.length ? `The first ${events.length} of ${total}. Type more to narrow it down.` : '';
+        const { events, total, complete } = state.found;
+        const partly = complete === false ? 'Events more than three months back or a year ahead could not be searched just now.' : '';
+        if (!events.length) return `No events match “${state.q}”. ${partly}`.trim();
+        return total > events.length ? `The first ${events.length} of ${total}. Type more to narrow it down.` : partly;
       }
     }
   });
@@ -349,9 +361,10 @@ export class EventSearch {
     const today = this.today();
     if (state.status !== 'done' || !family || !today) return [];
     const zone = family.timeZone;
+    const notCached = new Set(state.found.notCached ?? []);
     const rows = state.found.events.map((event) => {
       const { first, last } = spanOf(event, zone);
-      return { upcoming: last >= today, row: this.rowOf(event, first, zone, today) };
+      return { upcoming: last >= today, row: this.rowOf(event, !notCached.has(event.id), first, zone, today) };
     });
     return [
       { name: 'Coming up', rows: rows.filter((r) => r.upcoming).map((r) => r.row) },
@@ -359,11 +372,12 @@ export class EventSearch {
     ].filter((group) => group.rows.length);
   });
 
-  private rowOf(event: CalendarEvent, first: Day, zone: string, today: Day): Found {
+  private rowOf(event: CalendarEvent, cached: boolean, first: Day, zone: string, today: Day): Found {
     const members = this.family.members();
     const sameYear = first.slice(0, 4) === today.slice(0, 4);
     return {
       event,
+      cached,
       day: first === today ? 'Today' : formatDay(first, sameYear ? { weekday: 'short', month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' }),
       when: event.allDay ? 'All day' : timeRange(event, zone),
       title: event.title,

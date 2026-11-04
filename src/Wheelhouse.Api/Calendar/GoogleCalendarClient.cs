@@ -46,6 +46,16 @@ public interface IGoogleCalendar
         string accessToken, string calendarId, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken);
 
     /// <summary>
+    /// Occurrences whose text holds <paramref name="text"/>, as Google's own search finds them
+    /// (it also looks in notes and guests, so callers match titles and places themselves), that
+    /// overlap <paramref name="from"/> to <paramref name="to"/>; either may be left out for no
+    /// bound. Soonest first, at most <see cref="GoogleCalendarApi.MaxSearchOccurrences"/>.
+    /// </summary>
+    /// <exception cref="GoogleCalendarGoneException">The account can no longer see the calendar.</exception>
+    Task<IReadOnlyList<GoogleEvent>> SearchEventsAsync(
+        string accessToken, string calendarId, string text, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken);
+
+    /// <summary>
     /// Adds an event to the calendar and returns it as Google stored it. A series comes back as
     /// its first event, under the series' id; its occurrences have ids of their own.
     /// </summary>
@@ -273,6 +283,34 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
         while (pageToken is not null);
 
         return events;
+    }
+
+    /// <summary>The most occurrences one calendar's search reads, so a daily series over years stays a few pages.</summary>
+    public const int MaxSearchOccurrences = 1000;
+
+    public async Task<IReadOnlyList<GoogleEvent>> SearchEventsAsync(
+        string accessToken, string calendarId, string text, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken)
+    {
+        var events = new List<GoogleEvent>();
+        string? pageToken = null;
+        do
+        {
+            var page = await GetEventsAsync(accessToken, calendarId, new Dictionary<string, string?>
+            {
+                ["q"] = text,
+                ["timeMin"] = from?.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"),
+                ["timeMax"] = to?.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"),
+                ["singleEvents"] = "true",
+                ["orderBy"] = "startTime",
+                ["maxResults"] = "250",
+                ["pageToken"] = pageToken,
+            }, cancellationToken);
+            events.AddRange((page.Items ?? []).Where(item => item.Status != "cancelled").Select(ToEvent).OfType<GoogleEvent>());
+            pageToken = page.NextPageToken;
+        }
+        while (pageToken is not null && events.Count < MaxSearchOccurrences);
+
+        return events.Take(MaxSearchOccurrences).ToList();
     }
 
     private async Task<EventsPage> GetEventsAsync(

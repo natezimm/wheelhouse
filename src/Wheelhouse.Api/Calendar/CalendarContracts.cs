@@ -99,6 +99,9 @@ public sealed record EventRequest(
 
 /// <summary>
 /// What a search found: up to <see cref="CalendarEndpoints.MaxSearchResults"/> events, one per
-/// series, upcoming first, and how many series matched in all.
+/// series, upcoming first, and how many series matched in all. <paramref name="NotCached"/> are the
+/// ids of those found in Google beyond the sync window, which no change can name; their ids last
+/// only for this answer. <paramref name="Complete"/> is false when Google could not be searched
+/// beyond the window.
 /// </summary>
-public sealed record SearchResponse(IReadOnlyList<EventResponse> Events, int Total);
+public sealed record SearchResponse(IReadOnlyList<EventResponse> Events, int Total, IReadOnlyList<Guid>? NotCached = null, bool Complete = true);
