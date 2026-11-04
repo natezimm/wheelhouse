@@ -7,7 +7,9 @@ import { ScrollFade } from './scroll-fade';
 /**
  * A chip per person, plus one for the whole family's calendar, that shows or hides their
  * events. Sized for the wall; add the <code>compact</code> class for the phone, or set
- * <code>avatars</code> for the desktop toolbar.
+ * <code>avatars</code> for the desktop toolbar. With <code>solo</code>, as on the wall, the first
+ * tap on a chip shows only that person's week, more taps add or take away people, taking away
+ * the last one shown shows everyone again, and an Everyone chip appears while any are hidden.
  */
 @Component({
   selector: 'app-calendar-filter',
@@ -21,7 +23,7 @@ import { ScrollFade } from './scroll-fade';
         [style.--member]="chip.color"
         [attr.aria-label]="avatars() ? chip.name : null"
         [attr.title]="avatars() ? chip.name : null"
-        (click)="calendar.toggle(chip.owner)"
+        (click)="pick(chip.owner)"
       >
         <span class="mark" [class.art]="!!chip.avatar" aria-hidden="true"
           ><app-avatar-face [initial]="chip.initial" [avatar]="chip.avatar" [muted]="calendar.hidden().has(chip.owner)"
@@ -30,6 +32,9 @@ import { ScrollFade } from './scroll-fade';
           {{ chip.name }}
         }
       </button>
+    }
+    @if (solo() && calendar.hidden().size) {
+      <button type="button" class="everyone" (click)="calendar.showAll()">Everyone</button>
     }
   `,
   host: { role: 'group', 'aria-label': 'Show calendars for', '[class.avatars]': 'avatars()' },
@@ -92,6 +97,15 @@ import { ScrollFade } from './scroll-fade';
       padding: 3px;
     }
 
+    /* Brings back everyone after the wall was narrowed to one person or a few. */
+    .everyone {
+      padding: 0 22px;
+      border: var(--control-border);
+      background: var(--surface);
+      box-shadow: var(--control-shadow);
+      font-weight: 700;
+    }
+
     /* The phone: one row that scrolls sideways. */
     :host(.compact) {
       flex-wrap: nowrap;
@@ -144,6 +158,8 @@ import { ScrollFade } from './scroll-fade';
 export class CalendarFilter {
   /** Initials only, for a narrow toolbar. */
   readonly avatars = input(false);
+  /** A first tap shows just that person, rather than hiding them. */
+  readonly solo = input(false);
   protected readonly calendar = inject(CalendarStore);
   private readonly family = inject(FamilyStore);
 
@@ -157,4 +173,18 @@ export class CalendarFilter {
     })),
     ...(this.calendar.hasFamilyCalendar() ? [{ owner: FAMILY, name: 'Family', initial: 'F', avatar: null, color: FAMILY_COLOR }] : []),
   ]);
+
+  protected pick(owner: string): void {
+    const hidden = this.calendar.hidden();
+    const owners = this.chips().map((chip) => chip.owner);
+    if (!this.solo()) {
+      this.calendar.toggle(owner);
+    } else if (hidden.size === 0) {
+      this.calendar.showOnly(owner, owners);
+    } else if (!hidden.has(owner) && owners.every((o) => o === owner || hidden.has(o))) {
+      this.calendar.showAll();
+    } else {
+      this.calendar.toggle(owner);
+    }
+  }
 }

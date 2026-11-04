@@ -587,6 +587,16 @@ export class CalendarStore {
       (a.startDate ?? a.startsAt!).localeCompare(b.startDate ?? b.startsAt!) || a.title.localeCompare(b.title));
   }
 
+  /** Shows only <code>owner</code>'s events, of the <code>owners</code> there are. */
+  showOnly(owner: string, owners: readonly string[]): void {
+    this.hiddenOwners.set(new Set(owners.filter((o) => o !== owner)));
+  }
+
+  /** Shows everyone's events again. */
+  showAll(): void {
+    if (this.hiddenOwners().size) this.hiddenOwners.set(new Set());
+  }
+
   toggle(owner: string): void {
     this.hiddenOwners.update((hidden) => {
       const next = new Set(hidden);

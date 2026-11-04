@@ -204,20 +204,54 @@ describe('calendar screens', () => {
       expect(Array.from(dialog.querySelectorAll('.stepper > span'), (s) => s.querySelector('input')?.value ?? s.textContent?.trim())).toEqual(['Wed, Oct 14', '2:30 pm', '3:30 pm']);
     });
 
-    it("hides a person's events when their chip is tapped", async () => {
+    it("shows one person's week when their chip is tapped, and everyone again after", async () => {
       const { page, settle } = await open('/wall', { from: '2026-10-12', to: '2026-10-19' });
       const chip = (name: string) =>
         Array.from(page.querySelectorAll<HTMLButtonElement>('app-calendar-filter button')).find((b) =>
           b.textContent?.includes(name),
         )!;
+      const pressed = () => texts(page.querySelectorAll('app-calendar-filter button[aria-pressed="true"]'));
 
       expect(texts(page.querySelectorAll('app-calendar-filter button'))).toEqual(['B Ben', 'T Tess', 'M Milo', 'F Family']);
+      chip('Ben').click();
+      await settle();
+      expect(pressed()).toEqual(['B Ben']);
+      expect(column(page, 'Monday, October 12')).toEqual(['Dentist']);
+      expect(page.querySelectorAll('.bars .bar')).toHaveLength(0);
+
+      // Another tap adds a person; taking away the last one shown brings everyone back.
+      chip('Milo').click();
+      await settle();
+      expect(column(page, 'Monday, October 12')).toEqual(['Dentist', 'Swim lesson']);
+      chip('Ben').click();
+      chip('Milo').click();
+      await settle();
+      expect(pressed()).toEqual(['B Ben', 'T Tess', 'M Milo', 'F Family']);
+      expect(chip('Everyone')).toBeUndefined();
+
+      // Everyone shows while anyone is hidden.
       chip('Family').click();
       await settle();
-
-      expect(chip('Family').getAttribute('aria-pressed')).toBe('false');
+      expect(column(page, 'Monday, October 12')).toEqual([]);
+      expect(page.querySelectorAll('.bars .bar')).toHaveLength(2);
+      chip('Everyone').click();
+      await settle();
       expect(column(page, 'Monday, October 12')).toEqual(['Dentist', 'Swim lesson', 'Book club']);
-      expect(page.querySelectorAll('.bars .bar')).toHaveLength(0);
+    });
+
+    it('shows everyone again when the wall comes back to now', async () => {
+      const { page, settle } = await open('/wall', { from: '2026-10-12', to: '2026-10-19' });
+      Array.from(page.querySelectorAll<HTMLButtonElement>('app-calendar-filter button')).find((b) => b.textContent?.includes('Milo'))!.click();
+      await settle();
+      expect(column(page, 'Monday, October 12')).toEqual(['Swim lesson']);
+
+      vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+      page.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+      vi.advanceTimersByTime(RETURN_AFTER_MS);
+      vi.useFakeTimers({ toFake: ['Date'] });
+      await settle();
+
+      expect(column(page, 'Monday, October 12')).toEqual(['Dentist', 'Swim lesson', 'Book club']);
     });
 
     it('moves a week at a time', async () => {
@@ -292,7 +326,7 @@ describe('calendar screens', () => {
       expect(texts(page.querySelectorAll('app-day-view .head .count'))).toEqual(['', '', '', '']);
     });
 
-    it("drops a hidden person's column from the day", async () => {
+    it("narrows the day to one person's column when their chip is tapped", async () => {
       const { page, settle } = await switchTo('Day', { from: '2026-10-12', to: '2026-10-13' });
 
       Array.from(page.querySelectorAll<HTMLButtonElement>('app-calendar-filter button'))
@@ -300,7 +334,7 @@ describe('calendar screens', () => {
         .click();
       await settle();
 
-      expect(texts(page.querySelectorAll('app-day-view .head .name'))).toEqual(['Ben', 'Milo', 'Family']);
+      expect(texts(page.querySelectorAll('app-day-view .head .name'))).toEqual(['Tess']);
     });
 
     it('shows the month with the first events of each day, and opens a day when it is tapped', async () => {
