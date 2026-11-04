@@ -46,7 +46,7 @@ export class PushBrowser {
   needsInstall(): boolean {
     if (typeof navigator === 'undefined') return false;
     const apple = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    const installed = matchMedia('(display-mode: standalone)').matches || (navigator as { standalone?: boolean }).standalone === true;
+    const installed = (typeof matchMedia === 'function' && matchMedia('(display-mode: standalone)').matches) || (navigator as { standalone?: boolean }).standalone === true;
     return apple && !installed;
   }
 
