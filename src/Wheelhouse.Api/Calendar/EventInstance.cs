@@ -70,5 +70,12 @@ public sealed class EventInstance : IFamilyOwned
     /// </summary>
     public bool Countdown { get; set; }
 
+    /// <summary>
+    /// When the phones are reminded of it: <see cref="EventReminders.PhoneSetting"/> for each
+    /// phone's own lead, <see cref="EventReminders.None"/> for no reminder, or minutes before it
+    /// starts. Kept in Google as the event's reminders (<see cref="EventReminders"/>).
+    /// </summary>
+    public int Remind { get; set; }
+
     public bool IsAllDay => StartDate is not null;
 }

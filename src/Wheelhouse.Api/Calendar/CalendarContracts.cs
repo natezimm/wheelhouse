@@ -28,6 +28,7 @@ public sealed record CalendarSourceResponse(Guid Id, string Name, Guid? MemberId
 /// its calendar's owner (<paramref name="MemberId"/>) and <paramref name="MemberIds"/>.
 /// <paramref name="Private"/> marks a private event; a paired display gets it <paramref name="Hidden"/>,
 /// as only a busy time (<see cref="AsBusy"/>). <paramref name="Countdown"/> asks the wall to count down to it.
+/// <paramref name="Remind"/> is when phones are reminded of it (<see cref="EventInstance.Remind"/>).
 /// <paramref name="Version"/> is opaque and changes whenever anything a screen shows of the event does
 /// (<see cref="EventVersion"/>); a change or delete sends it back.
 /// </summary>
@@ -51,10 +52,11 @@ public sealed record EventResponse(
     bool Private = false,
     bool Hidden = false,
     bool Countdown = false,
-    string? Version = null)
+    string? Version = null,
+    int Remind = EventReminders.PhoneSetting)
 {
     /// <summary>The event as a paired display sees it when it is private: its time, whose it is, and nothing more.</summary>
-    public EventResponse AsBusy() => this with { Title = "Busy", Location = null, Description = null, Hidden = true, Countdown = false, Version = null };
+    public EventResponse AsBusy() => this with { Title = "Busy", Location = null, Description = null, Hidden = true, Countdown = false, Version = null, Remind = EventReminders.PhoneSetting };
 
     /// <summary>The event as <paramref name="display"/> may see it.</summary>
     public EventResponse For(bool display) => display && Private ? AsBusy() : this;
@@ -62,7 +64,7 @@ public sealed record EventResponse(
     public static EventResponse From(EventInstance e, CalendarSource source) => new(
         e.Id, source.Id, source.MemberId, e.Title, e.Location, e.StartDate != null, e.StartsAt, e.EndsAt, e.StartDate, e.EndDate,
         e.RecurringEventId != null, EventIdentity.Series(e), EventIdentity.Creation(e), e.Description, e.Recurrence,
-        e.MemberIds.Where(id => id != source.MemberId).ToList(), e.IsPrivate, Countdown: e.Countdown, Version: EventVersion.Of(e));
+        e.MemberIds.Where(id => id != source.MemberId).ToList(), e.IsPrivate, Countdown: e.Countdown, Version: EventVersion.Of(e), Remind: e.Remind);
 }
 
 /// <summary>
@@ -75,7 +77,8 @@ public sealed record EventResponse(
 /// first of a series, and with a change to a whole series gives it that rule. Left out, a change
 /// to an event that already repeats leaves its rule as it is. <paramref name="MemberIds"/> are the
 /// members it is for besides its calendar's owner; left out, a change leaves them as they are, and
-/// so does <paramref name="Private"/>, which only a parent may set, and <paramref name="Countdown"/>.
+/// so does <paramref name="Private"/>, which only a parent may set, <paramref name="Countdown"/> and
+/// <paramref name="Remind"/> (<see cref="EventInstance.Remind"/>).
 /// <paramref name="Version"/> is the <see cref="EventResponse.Version"/> the screen changed; when it is
 /// no longer the event's, the change is refused with the event as it is now.
 /// </summary>
@@ -95,7 +98,8 @@ public sealed record EventRequest(
     IReadOnlyList<Guid>? MemberIds = null,
     bool? Private = null,
     bool? Countdown = null,
-    string? Version = null);
+    string? Version = null,
+    int? Remind = null);
 
 /// <summary>
 /// What a search found: up to <see cref="CalendarEndpoints.MaxSearchResults"/> events, one per

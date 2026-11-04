@@ -158,6 +158,9 @@ namespace Wheelhouse.Api.Data.Migrations
                         .HasMaxLength(1024)
                         .HasColumnType("character varying(1024)");
 
+                    b.Property<int>("Remind")
+                        .HasColumnType("integer");
+
                     b.Property<DateOnly?>("StartDate")
                         .HasColumnType("date");
 

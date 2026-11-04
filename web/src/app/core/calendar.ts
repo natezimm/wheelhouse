@@ -48,10 +48,18 @@ export interface CalendarEvent {
   hidden?: boolean;
   /** The wall counts down the days to it, from a hidden tag on the Google event. */
   countdown?: boolean;
+  /** When phones are reminded of it: REMIND_PHONE (0) for each phone's own lead, REMIND_NONE (-1), or minutes before. */
+  remind?: number;
   /** Opaque: changes whenever anything shown of the event does. A change or delete sends back the one it was made from. */
   version?: string | null;
   pending?: boolean;
 }
+
+/** An event's reminder that leaves it to each phone's own lead time. */
+export const REMIND_PHONE = 0;
+
+/** An event's reminder that is off on every phone. */
+export const REMIND_NONE = -1;
 
 /**
  * An event as a screen sets it, in the family's days and clock. A timed event runs from
@@ -79,6 +87,8 @@ export interface EventRequest {
   private?: boolean;
   /** Counts down to it on the wall or stops; left out, it stays as it is. */
   countdown?: boolean;
+  /** When phones are reminded of it (see CalendarEvent.remind); left out, it stays as it is. */
+  remind?: number;
   /**
    * The version of the event the change was made from. When someone else saved it since, the
    * change is refused with their version. Left out, the store sends the version it holds.
@@ -274,7 +284,7 @@ export class CalendarStore {
     const target = changed?.id ?? null;
     const moved = op.kind === 'update' && op.request!.title === original.title && (op.request!.location ?? null) === (original.location ?? null)
       && op.request!.calendarId === original.calendarId && op.request!.description === undefined && op.request!.memberIds === undefined
-      && op.request!.private === undefined && op.request!.countdown === undefined;
+      && op.request!.private === undefined && op.request!.countdown === undefined && op.request!.remind === undefined;
     this.lastChange.set({
       label: op.kind === 'remove' ? 'Event deleted' : moved ? 'Event moved' : 'Event changed',
       target,
@@ -649,13 +659,13 @@ export class CalendarStore {
 
 function sameContent(a: CalendarEvent, b: CalendarEvent, zone: string, rules = true): boolean {
   return a.title === b.title && a.location === b.location && a.calendarId === b.calendarId && a.allDay === b.allDay
-    && (a.description ?? null) === (b.description ?? null) && !!a.private === !!b.private && !!a.countdown === !!b.countdown && sameMembers(others(a), others(b)) && (!rules || sameRule(a.recurrence, b.recurrence, zone))
+    && (a.description ?? null) === (b.description ?? null) && !!a.private === !!b.private && !!a.countdown === !!b.countdown && (a.remind ?? 0) === (b.remind ?? 0) && sameMembers(others(a), others(b)) && (!rules || sameRule(a.recurrence, b.recurrence, zone))
     && (a.allDay ? a.startDate === b.startDate && a.endDate === b.endDate
       : Date.parse(a.startsAt!) === Date.parse(b.startsAt!) && Date.parse(a.endsAt!) === Date.parse(b.endsAt!));
 }
 
 /**
- * What puts an event back as it was. Notes, people, privacy and countdown go back only when <code>changed</code>
+ * What puts an event back as it was. Notes, people, privacy, countdown and reminder go back only when <code>changed</code>
  * changed them, so notes kept as HTML are never rewritten.
  */
 /** The list, or with nothing in it the fallback: an Undo's event may no longer be in the days on screen. */
@@ -681,6 +691,7 @@ function requestFor(event: CalendarEvent, zone: string, changed?: EventRequest):
     ...(!changed || changed.memberIds !== undefined ? { memberIds: others(event) } : {}),
     ...(!changed || changed.private !== undefined ? { private: !!event.private } : {}),
     ...(!changed || changed.countdown !== undefined ? { countdown: !!event.countdown } : {}),
+    ...(!changed || changed.remind !== undefined ? { remind: event.remind ?? REMIND_PHONE } : {}),
   };
 }
 

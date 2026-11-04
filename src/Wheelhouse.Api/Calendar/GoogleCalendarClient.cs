@@ -89,7 +89,8 @@ public sealed record GoogleChanges(bool Changed, string NextSyncToken);
 /// <c>RRULE:FREQ=WEEKLY;BYDAY=TU,TH</c>), which Google keeps on the series' first event only.
 /// <paramref name="MemberIds"/> are the members it is for besides its calendar's owner, and
 /// <paramref name="Private"/> says Google's visibility is private or confidential, and
-/// <paramref name="Countdown"/> that the wall counts down to it.
+/// <paramref name="Countdown"/> that the wall counts down to it. <paramref name="Remind"/> is when
+/// the phones are reminded of it, from Google's own reminders (<see cref="EventInstance.Remind"/>).
 /// </summary>
 public sealed record GoogleEvent(
     string Id,
@@ -105,7 +106,8 @@ public sealed record GoogleEvent(
     string? Recurrence = null,
     IReadOnlyList<Guid>? MemberIds = null,
     bool Private = false,
-    bool Countdown = false);
+    bool Countdown = false,
+    int Remind = EventReminders.PhoneSetting);
 
 /// <summary>
 /// What the screens set on an event: timed (<paramref name="StartsAt"/>, <paramref name="EndsAt"/>)
@@ -115,7 +117,8 @@ public sealed record GoogleEvent(
 /// <paramref name="Description"/> replaces the event's notes, or with null leaves them as they are,
 /// and <paramref name="MemberIds"/> likewise replaces the members it is for besides its calendar's owner.
 /// <paramref name="Private"/> makes it private or not, or with null leaves it as it is, and so
-/// does <paramref name="Countdown"/> for the wall's countdown.
+/// does <paramref name="Countdown"/> for the wall's countdown and <paramref name="Remind"/> for the
+/// phones' reminder (<see cref="EventInstance.Remind"/>).
 /// </summary>
 public sealed record GoogleEventDraft(
     string Title,
@@ -130,7 +133,8 @@ public sealed record GoogleEventDraft(
     string? Description = null,
     IReadOnlyList<Guid>? MemberIds = null,
     bool? Private = null,
-    bool? Countdown = null);
+    bool? Countdown = null,
+    int? Remind = null);
 
 /// <summary>Google answered 412: the event changed since the version the screen was editing.</summary>
 public sealed class GoogleEventChangedException(string eventId) : Exception($"Event {eventId} changed in Google first.");
@@ -404,6 +408,11 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
             body["visibility"] = isPrivate ? "private" : "default";
         }
 
+        if (draft.Remind is { } remind)
+        {
+            body["reminders"] = EventReminders.ToGoogle(remind);
+        }
+
         // A patch merges private properties key by key, so an empty value is how a tag is cleared.
         var tags = new Dictionary<string, string>();
         if (draft.MemberIds is { } members)
@@ -477,17 +486,18 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
         var members = MembersIn(item.ExtendedProperties?.Private);
         var isPrivate = item.Visibility is "private" or "confidential";
         var countdown = item.ExtendedProperties?.Private?.GetValueOrDefault(CountdownKey) == "1";
+        var remind = EventReminders.FromGoogle(item.Reminders?.UseDefault, item.Reminders?.Overrides?.Select(o => (o.Method, o.Minutes)));
         if (item.Start?.Date is { } startDate && item.End?.Date is { } endDate)
         {
             return new GoogleEvent(item.Id, item.RecurringEventId, title, location, null, null,
                 DateOnly.ParseExact(startDate, "yyyy-MM-dd"), DateOnly.ParseExact(endDate, "yyyy-MM-dd"), item.ETag,
-                description, RuleIn(item.Recurrence), members.Count > 0 ? members : null, isPrivate, countdown);
+                description, RuleIn(item.Recurrence), members.Count > 0 ? members : null, isPrivate, countdown, remind);
         }
 
         if (item.Start?.DateTime is { } startsAt && item.End?.DateTime is { } endsAt)
         {
             return new GoogleEvent(item.Id, item.RecurringEventId, title, location, startsAt.ToUniversalTime(), endsAt.ToUniversalTime(), null, null, item.ETag,
-                description, RuleIn(item.Recurrence), members.Count > 0 ? members : null, isPrivate, countdown);
+                description, RuleIn(item.Recurrence), members.Count > 0 ? members : null, isPrivate, countdown, remind);
         }
 
         return null;
@@ -581,7 +591,16 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
         [property: JsonPropertyName("description")] string? Description = null,
         [property: JsonPropertyName("recurrence")] List<string>? Recurrence = null,
         [property: JsonPropertyName("extendedProperties")] ExtendedProperties? ExtendedProperties = null,
-        [property: JsonPropertyName("visibility")] string? Visibility = null);
+        [property: JsonPropertyName("visibility")] string? Visibility = null,
+        [property: JsonPropertyName("reminders")] RemindersItem? Reminders = null);
+
+    private sealed record RemindersItem(
+        [property: JsonPropertyName("useDefault")] bool? UseDefault,
+        [property: JsonPropertyName("overrides")] List<ReminderOverride>? Overrides);
+
+    private sealed record ReminderOverride(
+        [property: JsonPropertyName("method")] string? Method,
+        [property: JsonPropertyName("minutes")] int Minutes);
 
     private sealed record ExtendedProperties(
         [property: JsonPropertyName("private")] Dictionary<string, string>? Private);

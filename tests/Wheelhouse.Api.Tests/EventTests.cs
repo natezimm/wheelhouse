@@ -736,6 +736,30 @@ public sealed class EventTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task An_event_keeps_its_own_reminder_time_until_a_change_gives_another()
+    {
+        using var parent = await factory.DemoVisitorAsync();
+        using var display = await PairedDisplayAsync(parent);
+        var julians = await CalendarIdAsync(parent, "Julian");
+
+        // The demo's soccer game has a reminder time of its own.
+        Assert.Contains((await CalendarOf(parent, Day, 14)).Events, e => e.Title.StartsWith("U10 Rec Soccer") && e.Remind == 60);
+
+        var lessons = await AddAsync(display, Timed(julians, "Tuba lesson", new(16, 0), new(16, 30)) with { Recurrence = "RRULE:FREQ=WEEKLY;COUNT=3", Remind = 60 });
+        Assert.Equal(60, lessons.Remind);
+        (await ChangeAsync(parent, lessons.Id, Timed(julians, "Tuba", new(16, 0), new(16, 30)), series: true)).EnsureSuccessStatusCode();
+        Assert.All((await CalendarOf(parent, Day, 21)).Events.Where(e => e.Title == "Tuba"), e => Assert.Equal(60, e.Remind));
+        (await ChangeAsync(parent, lessons.Id, Timed(julians, "Tuba", new(16, 0), new(16, 30)) with { Remind = EventReminders.None })).EnsureSuccessStatusCode();
+        Assert.Equal(EventReminders.None, (await CalendarOf(parent, Day, 1)).Events.Single(e => e.Id == lessons.Id).Remind);
+
+        foreach (var wrong in new[] { -2, EventReminders.MaxMinutes + 1 })
+        {
+            var refused = await parent.PostAsJsonAsync("/api/calendar/events", Timed(julians, "Odd", new(9, 0), new(10, 0)) with { Remind = wrong }, ApiFactory.Json);
+            Assert.Equal(HttpStatusCode.BadRequest, refused.StatusCode);
+        }
+    }
+
+    [Fact]
     public async Task The_wall_counts_down_to_the_next_marked_events_one_per_series()
     {
         using var parent = await factory.DemoVisitorAsync();

@@ -261,6 +261,7 @@ public sealed class CalendarSync(
         row.MemberIds = google.MemberIds?.ToList() ?? [];
         row.IsPrivate = google.Private;
         row.Countdown = google.Countdown;
+        row.Remind = google.Remind;
     }
 
     /// <summary>Google allows longer text than the cache's columns; the screens never show that much.</summary>

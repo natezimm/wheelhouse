@@ -159,6 +159,40 @@ public sealed class GoogleCalendarApiTests
         Assert.Equal(new GoogleEvent("trip", null, "Field trip", null, null, null, new DateOnly(2026, 10, 20), new DateOnly(2026, 10, 22), "\"2\""), stored);
     }
 
+    [Theory]
+    [InlineData(null, "", EventReminders.PhoneSetting)]
+    [InlineData(true, "popup:30", EventReminders.PhoneSetting)]
+    [InlineData(false, "", EventReminders.None)]
+    [InlineData(false, "email:60", EventReminders.None)]
+    [InlineData(false, "popup:0", EventReminders.None)]
+    [InlineData(false, "email:5,popup:60,popup:15", 15)]
+    public void Googles_reminders_become_one_lead(bool? useDefault, string overrides, int remind) =>
+        Assert.Equal(remind, EventReminders.FromGoogle(useDefault, overrides.Split(',', StringSplitOptions.RemoveEmptyEntries)
+            .Select(o => o.Split(':')).Select(o => ((string?)o[0], int.Parse(o[1])))));
+
+    [Fact]
+    public async Task A_reminder_time_is_sent_as_googles_reminders_only_when_given_and_read_back()
+    {
+        var sent = new List<string>();
+        var api = ApiOver((_, _) => (HttpStatusCode.OK, """
+            {"id":"game","etag":"\"2\"","status":"confirmed","summary":"Game","start":{"dateTime":"2026-10-20T15:00:00Z"},"end":{"dateTime":"2026-10-20T16:00:00Z"},
+             "reminders":{"useDefault":false,"overrides":[{"method":"popup","minutes":60}]}}
+            """), sent);
+        var draft = new GoogleEventDraft("Game", null, new DateTimeOffset(2026, 10, 20, 15, 0, 0, TimeSpan.Zero), new DateTimeOffset(2026, 10, 20, 16, 0, 0, TimeSpan.Zero),
+            null, null, "UTC");
+
+        var stored = await api.PatchEventAsync("access", "kid-cal", "game", null, draft with { Remind = 60 }, CancellationToken.None);
+        await api.PatchEventAsync("access", "kid-cal", "game", null, draft with { Remind = EventReminders.None }, CancellationToken.None);
+        await api.PatchEventAsync("access", "kid-cal", "game", null, draft with { Remind = EventReminders.PhoneSetting }, CancellationToken.None);
+        await api.PatchEventAsync("access", "kid-cal", "game", null, draft, CancellationToken.None);
+
+        Assert.Equal(60, stored.Remind);
+        Assert.Contains("\"reminders\":{\"useDefault\":false,\"overrides\":[{\"method\":\"popup\",\"minutes\":60}]}", sent[0]);
+        Assert.Contains("\"reminders\":{\"useDefault\":false,\"overrides\":[]}", sent[1]);
+        Assert.Contains("\"reminders\":{\"useDefault\":true}", sent[2]);
+        Assert.DoesNotContain("reminders", sent[3]);
+    }
+
     [Fact]
     public async Task A_new_series_carries_its_rule_and_a_change_never_does()
     {

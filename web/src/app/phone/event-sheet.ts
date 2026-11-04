@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, computed, inject, input, linkedSignal, output, signal } from '@angular/core';
 import { CalendarEvent, CalendarStore, eventRefusal } from '../core/calendar';
 import { Day, formatDay } from '../core/days';
-import { EventDraft, clockLabel, copyOf, draftOf, newDraft, onDayOf, peopleChoices, problemWith, requestOf, revise, togglePerson, writableCalendars } from '../core/event-draft';
+import { EventDraft, clockLabel, copyOf, draftOf, newDraft, onDayOf, peopleChoices, problemWith, requestOf, revise, remindChoices, togglePerson, writableCalendars } from '../core/event-draft';
 import { FamilyStore } from '../core/family';
 import { SessionStore } from '../core/session';
 import { ModalFocus } from '../shared/modal-focus';
@@ -104,6 +104,17 @@ import { RepeatPicker } from '../shared/repeat-picker';
           <input type="checkbox" [checked]="draft.countdown" (change)="set({ countdown: $any($event.target).checked })" />
           <span>Count down <small>The wall and phones show the days left</small></span>
         </label>
+
+        @if (!draft.allDay) {
+          <label class="field">
+            Remind phones
+            <select (change)="set({ remind: +$any($event.target).value })">
+              @for (choice of remindChoices(draft.remind); track choice.minutes) {
+                <option [value]="choice.minutes" [selected]="choice.minutes === draft.remind">{{ choice.label }}</option>
+              }
+            </select>
+          </label>
+        }
 
         <div class="pair">
           <label class="field">
@@ -458,6 +469,7 @@ export class EventSheet {
     return draft ? peopleChoices(draft, this.calendar.calendars(), this.family.members()) : [];
   });
   protected readonly togglePerson = togglePerson;
+  protected readonly remindChoices = remindChoices;
   /** A display shows private events only as busy, so it cannot make one. */
   protected readonly isDisplay = this.session.isDisplay;
 
