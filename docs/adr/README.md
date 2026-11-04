@@ -9,3 +9,4 @@ Short records of the choices that shape Wheelhouse: the context at the time, wha
 | [0003](0003-per-family-change-numbers.md) | Per-family change numbers drive live updates | Accepted |
 | [0004](0004-demo-copies-that-expire.md) | The public demo gives each visitor a copy that expires | Accepted |
 | [0005](0005-calendar-first-scope-keeps-legacy-tables.md) | Calendar-first scope keeps the legacy tables | Accepted |
+| [0006](0006-reminders-by-web-push.md) | Reminders by Web Push, with no third-party service | Accepted |

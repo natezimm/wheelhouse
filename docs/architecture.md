@@ -17,6 +17,7 @@ flowchart LR
   GoogleId["Google sign-in<br/>OpenID Connect"]
   GoogleCal["Google Calendar API<br/>shared family account"]
   Meteo["Open-Meteo<br/>forecast, no key"]
+  PushSvc["Browser push services<br/>Google, Mozilla, Apple, Microsoft"]
 
   Parent -->|"signs in, edits events, manages Settings"| Wheelhouse
   Family -->|"reads the week, adds and moves events"| Wheelhouse
@@ -24,13 +25,15 @@ flowchart LR
   Wheelhouse -->|"who is this parent"| GoogleId
   Wheelhouse <-->|"sync tokens, writes with If-Match"| GoogleCal
   Wheelhouse -->|"today and next seven days"| Meteo
+  Wheelhouse -->|"encrypted reminders"| PushSvc
+  PushSvc -->|"notification"| Parent
 
   classDef user fill:#f8fafc,stroke:#475569,color:#0f172a
   classDef server fill:#ffedd5,stroke:#c2410c,color:#7c2d12
   classDef external fill:#fee2e2,stroke:#b91c1c,color:#7f1d1d
   class Parent,Family,Visitor user
   class Wheelhouse server
-  class GoogleId,GoogleCal,Meteo external
+  class GoogleId,GoogleCal,Meteo,PushSvc external
 ```
 
 The demo never calls Google. Each visitor gets a 24-hour copy of the fictional Marlowe family, seeded relative to the day it is made ([`Demo/DemoSeedData.cs`](../src/Wheelhouse.Api/Demo/DemoSeedData.cs)).
@@ -51,6 +54,7 @@ flowchart TB
       Hub["/hubs/calendar<br/>SignalR"]
       Live["CalendarLiveService<br/>checks change numbers each second"]
       Sync["CalendarSyncService<br/>every two minutes"]
+      Remind["ReminderService<br/>every 30 seconds"]
       Ctx["WheelhouseDbContext<br/>family query filters"]
     end
     Db[("PostgreSQL<br/>cache, families, devices,<br/>change numbers")]
@@ -59,6 +63,7 @@ flowchart TB
 
   Google["Google Calendar API"]
   Meteo["Open-Meteo"]
+  Push["Browser push services"]
 
   Wall & Phone -->|"HTTPS, cookie"| Web
   Web --> Endpoints
@@ -66,6 +71,8 @@ flowchart TB
   Endpoints --> Ctx
   Live --> Ctx
   Sync --> Ctx
+  Remind --> Ctx
+  Remind -->|"Web Push, VAPID"| Push
   Ctx --> Db
   Live -->|"CalendarChanged(changeNumber)"| Hub
   Endpoints -->|"writes first"| Google
@@ -80,9 +87,9 @@ flowchart TB
   classDef external fill:#fee2e2,stroke:#b91c1c,color:#7f1d1d
   class Wall,Phone client
   class Web site
-  class Endpoints,Hub,Live,Sync,Ctx server
+  class Endpoints,Hub,Live,Sync,Remind,Ctx server
   class Db,Keys data
-  class Google,Meteo external
+  class Google,Meteo,Push external
 ```
 
 - **Browser app.** State lives in root-provided stores under [`web/src/app/core/`](../web/src/app/core/) that expose read-only signals. [`CalendarStore`](../web/src/app/core/calendar.ts) keeps the last confirmed snapshot and draws pending edits over it; [`CalendarLive`](../web/src/app/core/calendar-live.ts) owns the single SignalR connection and a 30-second recovery check.

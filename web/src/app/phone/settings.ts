@@ -10,15 +10,16 @@ import { GOOGLE_CONNECT_URL, GoogleStore } from '../core/google';
 import { SessionStore } from '../core/session';
 import { NIGHT_MODES, THEMES, ThemeService } from '../core/theme';
 import { MemberAvatar } from '../shared/member-avatar';
+import { ReminderSettingsCard } from './reminder-settings';
 import { SignIn } from './sign-in';
 
 /**
- * Phone-only: who is in the family, its wall displays, its Google calendars, its own details and
+ * Phone-only: who is in the family, this phone's reminders, its wall displays, its Google calendars, its own details and
  * where its weather is for. Parents manage them here.
  */
 @Component({
   selector: 'app-settings',
-  imports: [DatePipe, MemberAvatar, NgTemplateOutlet, ReactiveFormsModule, RouterLink, SignIn],
+  imports: [DatePipe, MemberAvatar, NgTemplateOutlet, ReactiveFormsModule, ReminderSettingsCard, RouterLink, SignIn],
   template: `
     <header>
       <h1>Settings</h1>
@@ -57,6 +58,8 @@ import { SignIn } from './sign-in';
             <li><a class="add" routerLink="/settings/members/new">Add a family member</a></li>
           </ul>
         </section>
+
+        <app-reminder-settings />
 
         <section aria-labelledby="displays-heading">
           <h2 id="displays-heading">Displays</h2>

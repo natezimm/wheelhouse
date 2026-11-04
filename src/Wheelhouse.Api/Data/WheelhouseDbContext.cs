@@ -8,6 +8,7 @@ using Wheelhouse.Api.Devices;
 using Wheelhouse.Api.Families;
 using Wheelhouse.Api.Lists;
 using Wheelhouse.Api.Meals;
+using Wheelhouse.Api.Reminders;
 
 namespace Wheelhouse.Api.Data;
 
@@ -29,6 +30,13 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
     public DbSet<EventInstance> EventInstances => Set<EventInstance>();
 
     public DbSet<GoogleConnection> GoogleConnections => Set<GoogleConnection>();
+
+    public DbSet<ReminderSubscription> ReminderSubscriptions => Set<ReminderSubscription>();
+
+    public DbSet<SentReminder> SentReminders => Set<SentReminder>();
+
+    /// <summary>The instance's VAPID key for push reminders. Not a family's: there is one row.</summary>
+    public DbSet<PushKey> PushKeys => Set<PushKey>();
 
     public DbSet<Chore> Chores => Set<Chore>();
     public DbSet<ChorePlan> ChorePlans => Set<ChorePlan>();
@@ -126,6 +134,35 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
             // One shared account per family.
             connection.HasIndex(c => c.FamilyId).IsUnique();
             connection.HasOne<Family>().WithMany().HasForeignKey(c => c.FamilyId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ReminderSubscription>(subscription =>
+        {
+            subscription.Property(s => s.Endpoint).HasMaxLength(ReminderSubscription.MaxEndpoint);
+            subscription.Property(s => s.P256dh).HasMaxLength(128);
+            subscription.Property(s => s.Auth).HasMaxLength(64);
+            subscription.Property(s => s.Site).HasMaxLength(255);
+            subscription.Property(s => s.MemberIds).HasDefaultValueSql("'{}'::uuid[]");
+            // A browser has one subscription, whichever family it is signed in to now.
+            subscription.HasIndex(s => s.Endpoint).IsUnique();
+            subscription.HasOne<Family>().WithMany().HasForeignKey(s => s.FamilyId).OnDelete(DeleteBehavior.Cascade);
+            // A parent removed from the family stops being reminded at once.
+            subscription.HasOne<UserAccount>().WithMany().HasForeignKey(s => s.AccountId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<SentReminder>(sent =>
+        {
+            sent.HasKey(s => new { s.SubscriptionId, s.EventKey });
+            sent.Property(s => s.EventKey).HasMaxLength(64);
+            sent.HasIndex(s => s.StartsAt);
+            sent.HasOne<ReminderSubscription>().WithMany().HasForeignKey(s => s.SubscriptionId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PushKey>(key =>
+        {
+            key.Property(k => k.Id).ValueGeneratedNever();
+            key.Property(k => k.PublicKey).HasMaxLength(128);
+            key.Property(k => k.EncryptedPrivateKey).HasMaxLength(1024);
         });
 
         modelBuilder.Entity<EventInstance>(instance =>

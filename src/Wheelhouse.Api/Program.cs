@@ -10,6 +10,7 @@ using Wheelhouse.Api.Diagnostics;
 using Wheelhouse.Api.Families;
 using Wheelhouse.Api.Health;
 using Wheelhouse.Api.Instance;
+using Wheelhouse.Api.Reminders;
 using Wheelhouse.Api.Sessions;
 using Wheelhouse.Api.Weather;
 
@@ -43,6 +44,7 @@ builder.Services.AddPairing();
 builder.Services.AddWeather();
 builder.Services.AddGoogleCalendar();
 builder.Services.AddCalendarLive();
+builder.Services.AddReminders();
 
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<DemoCopies>();
@@ -75,6 +77,7 @@ app.MapCalendarLive();
 app.MapCalendarEvents();
 app.MapGoogleConnection();
 app.MapWeather();
+app.MapReminders();
 app.MapClientErrors();
 
 app.Run();

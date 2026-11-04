@@ -1,5 +1,5 @@
-import { Component, DestroyRef, computed, effect, inject, input, signal } from '@angular/core';
-import { RouterLink, RouterLinkActive } from '@angular/router';
+import { Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { CalendarEvent, CalendarStore } from '../core/calendar';
 import { CalendarView, VIEWS, periodOf, stepFrom } from '../core/calendar-period';
 import { Clock } from '../core/clock';
@@ -544,6 +544,10 @@ export class CalendarHome {
   /** Set by the API when Google sent someone back without signing them in: refused or failed. */
   readonly signin = input<string>();
 
+  /** A reminder tapped on the phone opens its event: ?day=2026-10-12&event=<id>. */
+  readonly openingDay = input<string>(undefined, { alias: 'day' });
+  readonly openingEvent = input<string>(undefined, { alias: 'event' });
+
   private readonly media = typeof window.matchMedia === 'function' ? window.matchMedia(DESKTOP_QUERY) : null;
 
   /** Whether the window is desktop width. It follows resizing; the view does not. */
@@ -639,6 +643,21 @@ export class CalendarHome {
     const follow = (change: MediaQueryListEvent) => this.wide.set(change.matches);
     this.media?.addEventListener('change', follow);
     inject(DestroyRef).onDestroy(() => this.media?.removeEventListener('change', follow));
+
+    const router = inject(Router);
+    effect(() => {
+      const day = this.openingDay();
+      const id = this.openingEvent();
+      if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return;
+      untracked(() => {
+        // Its day in view, on a phone as Day, with its details open once that day is read, as a
+        // search pick does; the address goes back to plain / so a reload shows today.
+        this.focus.set(day);
+        if (!this.wide()) this.view.set('day');
+        if (id) this.selected.set(id);
+        void router.navigate([], { queryParams: { day: null, event: null }, queryParamsHandling: 'merge', replaceUrl: true });
+      });
+    });
 
     this.family.load();
     effect(() => {
