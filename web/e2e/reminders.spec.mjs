@@ -114,6 +114,9 @@ async function stub(page, saved) {
   await page.route('**/hubs/**', (route) => route.fulfill({ status: 503, body: 'Offline' }));
 }
 
+// The full browser rather than Chromium's headless shell, which has no notifications to permit or show.
+test.use({ channel: 'chromium' });
+
 test.beforeEach(({}, testInfo) => {
   test.skip(testInfo.project.name !== 'phone', 'Reminders are set from the phone.');
 });
