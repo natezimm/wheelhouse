@@ -17,6 +17,7 @@ A family calendar for the kitchen wall and every phone in the house, built on th
 - **A phone and desktop calendar** at `/`: a Settings button beside the view switch on a phone, a side rail from 768 px, keyboard shortcuts on a desktop, and search across every event by title or place.
 - **Edit from anywhere.** Add, change, duplicate and delete events, drag them to another time or day, pull an edge to change the length, and set repeats from "every weekday" to "the second Tuesday, ten times". Undo for ten seconds after changing or deleting one event.
 - **Live everywhere.** A change on one screen appears on every other within a second or two, and edits made in Google's own apps arrive within two minutes.
+- **Reminders on your phone.** Each phone chooses how early (5 minutes to 2 hours) and whose events, and gets a notification before they start; tapping it opens the event. On an iPhone, add Wheelhouse to the Home Screen first.
 - **Family settings** on the phone: members and their colors and pictures, which Google calendars show and whose they are, paired wall displays, private events, and four themes (Daylight, Groovy, Classic, Bold), each with a night look.
 
 <p>

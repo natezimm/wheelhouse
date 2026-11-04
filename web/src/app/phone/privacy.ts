@@ -57,7 +57,8 @@ import { RouterLink } from '@angular/router';
       <h2>Other services</h2>
       <p>
         For the weather, Wheelhouse sends the family's location, rounded to about a kilometer, to Open-Meteo. The screens load
-        their fonts from Google Fonts.
+        their fonts from Google Fonts. A phone with reminders on gets them through its browser maker's push service (Google,
+        Apple, Mozilla or Microsoft), encrypted so that only the phone can read the event's title, time and place.
       </p>
 
       <h2>Removing it</h2>
