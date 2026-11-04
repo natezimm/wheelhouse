@@ -49,10 +49,11 @@ public interface IGoogleCalendar
     /// Occurrences whose text holds <paramref name="text"/>, as Google's own search finds them
     /// (it also looks in notes and guests, so callers match titles and places themselves), that
     /// overlap <paramref name="from"/> to <paramref name="to"/>; either may be left out for no
-    /// bound. Soonest first, at most <see cref="GoogleCalendarApi.MaxSearchOccurrences"/>.
+    /// bound. Soonest first, at most <see cref="GoogleCalendarApi.MaxSearchOccurrences"/>, and
+    /// <see cref="GoogleSearch.Truncated"/> when Google had more.
     /// </summary>
     /// <exception cref="GoogleCalendarGoneException">The account can no longer see the calendar.</exception>
-    Task<IReadOnlyList<GoogleEvent>> SearchEventsAsync(
+    Task<GoogleSearch> SearchEventsAsync(
         string accessToken, string calendarId, string text, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken);
 
     /// <summary>
@@ -90,6 +91,9 @@ public interface IGoogleCalendar
 }
 
 public sealed record GoogleChanges(bool Changed, string NextSyncToken);
+
+/// <summary>What a search of one calendar found, soonest first, and whether Google had more than was read.</summary>
+public sealed record GoogleSearch(IReadOnlyList<GoogleEvent> Events, bool Truncated);
 
 /// <summary>
 /// One occurrence, timed (<paramref name="StartsAt"/>, <paramref name="EndsAt"/>) or all-day
@@ -288,7 +292,7 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
     /// <summary>The most occurrences one calendar's search reads, so a daily series over years stays a few pages.</summary>
     public const int MaxSearchOccurrences = 1000;
 
-    public async Task<IReadOnlyList<GoogleEvent>> SearchEventsAsync(
+    public async Task<GoogleSearch> SearchEventsAsync(
         string accessToken, string calendarId, string text, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken)
     {
         var events = new List<GoogleEvent>();
@@ -310,7 +314,7 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
         }
         while (pageToken is not null && events.Count < MaxSearchOccurrences);
 
-        return events.Take(MaxSearchOccurrences).ToList();
+        return new GoogleSearch(events.Take(MaxSearchOccurrences).ToList(), pageToken is not null || events.Count > MaxSearchOccurrences);
     }
 
     private async Task<EventsPage> GetEventsAsync(

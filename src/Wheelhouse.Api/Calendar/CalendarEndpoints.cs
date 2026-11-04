@@ -254,16 +254,21 @@ public static class CalendarEndpoints
             var accessToken = await google.AccessTokenAsync(tokens.Unprotect(connection.EncryptedRefreshToken), cancellationToken);
             var windowFrom = StartOfDay(window.From, zone);
             var windowTo = StartOfDay(window.To, zone);
-            var asks = sources.SelectMany(source => new[]
-            {
-                (Source: source, Search: google.SearchEventsAsync(accessToken, source.GoogleCalendarId, text, null, windowFrom, cancellationToken)),
-                (Source: source, Search: google.SearchEventsAsync(accessToken, source.GoogleCalendarId, text, windowTo, null, cancellationToken)),
-            }).ToList();
+            var asks = sources.SelectMany(source => SearchRanges(windowFrom, windowTo)
+                .Select(range => (Source: source, Search: google.SearchEventsAsync(accessToken, source.GoogleCalendarId, text, range.From, range.To, cancellationToken))))
+                .ToList();
             foreach (var (source, search) in asks)
             {
                 try
                 {
-                    foreach (var googleEvent in await search)
+                    var found = await search;
+                    if (found.Truncated)
+                    {
+                        // Some of what matched was not read, so the answer may miss events.
+                        complete = false;
+                    }
+
+                    foreach (var googleEvent in found.Events)
                     {
                         var row = new EventInstance { Id = Guid.CreateVersion7(), FamilyId = source.FamilyId, CalendarSourceId = source.Id, GoogleEventId = googleEvent.Id, Title = "" };
                         CalendarSync.CopyTo(row, googleEvent);
@@ -292,6 +297,27 @@ public static class CalendarEndpoints
         var windowEnd = StartOfDay(window.To, zone);
         hits.RemoveAll(hit => Ends(hit.Event, zone) > windowStart && Starts(hit.Event, zone) < windowEnd);
         return (hits, complete);
+    }
+
+    /// <summary>
+    /// The times Google is searched beyond the window: everything after it, read soonest first, and
+    /// the past in spans that grow going back. Google reads each span oldest first and stops at
+    /// <see cref="GoogleCalendarApi.MaxSearchOccurrences"/>, so a long daily series is read from the
+    /// span nearest the window too, and its latest occurrence is found there rather than lost behind
+    /// its earliest ones.
+    /// </summary>
+    private static IEnumerable<(DateTimeOffset? From, DateTimeOffset? To)> SearchRanges(DateTimeOffset windowFrom, DateTimeOffset windowTo)
+    {
+        yield return (windowTo, null);
+        var to = windowFrom;
+        foreach (var years in new[] { 1, 3, 7 })
+        {
+            var from = windowFrom.AddYears(-years);
+            yield return (from, to);
+            to = from;
+        }
+
+        yield return (null, to);
     }
 
     private static DateTimeOffset Starts(EventInstance e, TimeZoneInfo zone) => e.StartsAt ?? StartOfDay(e.StartDate!.Value, zone);

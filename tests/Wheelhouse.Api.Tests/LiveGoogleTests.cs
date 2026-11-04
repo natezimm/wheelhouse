@@ -215,11 +215,11 @@ public sealed class LiveGoogleTests : IAsyncLifetime
         for (var attempt = 0; attempt < 10 && found.Count == 0; attempt++)
         {
             await Task.Delay(TimeSpan.FromSeconds(attempt));
-            found = await google.SearchEventsAsync(token, Calendar, "harpsichord", Start.AddDays(-1), null, CancellationToken.None);
+            found = (await google.SearchEventsAsync(token, Calendar, "harpsichord", Start.AddDays(-1), null, CancellationToken.None)).Events;
         }
 
         Assert.Equal([added.Id], found.Select(e => e.Id));
-        Assert.Empty(await google.SearchEventsAsync(token, Calendar, "harpsichord", null, Start.AddDays(-1), CancellationToken.None));
+        Assert.Empty((await google.SearchEventsAsync(token, Calendar, "harpsichord", null, Start.AddDays(-1), CancellationToken.None)).Events);
         await google.DeleteEventAsync(token, Calendar, added.Id, null, CancellationToken.None);
     }
 

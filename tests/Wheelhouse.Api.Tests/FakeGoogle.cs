@@ -197,10 +197,13 @@ internal sealed class FakeGoogle : IGoogleCalendar
     /// <summary>Each search asked of Google: the calendar, the text and the range.</summary>
     public List<(string CalendarId, string Text, DateTimeOffset? From, DateTimeOffset? To)> Searched { get; } = [];
 
+    /// <summary>Every search says Google had more than it read.</summary>
+    public bool SearchTruncates { get; set; }
+
     /// <summary>Calendars whose search fails as if Google could not be reached.</summary>
     public HashSet<string> SearchFails { get; } = [];
 
-    public Task<IReadOnlyList<GoogleEvent>> SearchEventsAsync(
+    public Task<GoogleSearch> SearchEventsAsync(
         string accessToken, string calendarId, string text, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken)
     {
         Searched.Add((calendarId, text, from, to));
@@ -221,7 +224,7 @@ internal sealed class FakeGoogle : IGoogleCalendar
             .Where(e => End(e) > min && Start(e) < max)
             .Where(e => $"{e.Title} {e.Location} {e.Description}".Contains(text, StringComparison.OrdinalIgnoreCase))
             .OrderBy(Start)];
-        return Task.FromResult(found);
+        return Task.FromResult(new GoogleSearch(found, SearchTruncates));
     }
 
     /// <summary>Runs once a calendar's events are read and before they are answered, as when a save lands while Google's answer is on its way.</summary>

@@ -113,9 +113,10 @@ public sealed class GoogleCalendarApiTests
             return (HttpStatusCode.OK, $$"""{"items":[{{items}}],"nextPageToken":"{{asked.Count + 1}}"}""");
         });
 
-        var events = await api.SearchEventsAsync("access", "alex", "piano & co", null, new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero), CancellationToken.None);
+        var (events, truncated) = await api.SearchEventsAsync("access", "alex", "piano & co", null, new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero), CancellationToken.None);
 
         Assert.Equal(GoogleCalendarApi.MaxSearchOccurrences, events.Count);
+        Assert.True(truncated);
         Assert.Equal(GoogleCalendarApi.MaxSearchOccurrences / 250, asked.Count);
         Assert.Contains("q=piano%20%26%20co", asked[0]);
         Assert.Contains("orderBy=startTime", asked[0]);

@@ -347,7 +347,7 @@ export class EventSearch {
         return 'Could not search just now. Check the connection and try again.';
       case 'done': {
         const { events, total, complete } = state.found;
-        const partly = complete === false ? 'Events more than three months back or a year ahead could not be searched just now.' : '';
+        const partly = complete === false ? 'Some events more than three months back or a year ahead could not be searched.' : '';
         if (!events.length) return `No events match “${state.q}”. ${partly}`.trim();
         return total > events.length ? `The first ${events.length} of ${total}. Type more to narrow it down.` : partly;
       }

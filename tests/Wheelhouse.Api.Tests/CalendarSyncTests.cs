@@ -93,12 +93,34 @@ public sealed class CalendarSyncTests(ApiFactory factory)
         Assert.Equal((await CalendarOf(family.Parent)).Events.Single().Id, cached.Id);
         Assert.Equal((await family.FamilyAsync()).Members.Single().Id, found.Events.Single(e => e.Title == "Spring piano recital").MemberId);
 
-        // Google is asked only about the times the cache does not hold.
+        // Google is asked only about the times the cache does not hold: after it, and before it in
+        // spans growing back from it, which together leave no gap before it.
         var calendar = await CalendarOf(family.Parent);
-        Assert.Equal(4, family.Google.Searched.Count);
-        Assert.All(family.Google.Searched, search => Assert.True(search.From is null != search.To is null));
-        Assert.All(family.Google.Searched.Where(search => search.To is not null), search =>
-            Assert.Equal(calendar.SyncedFrom!.Value, DateOnly.FromDateTime(search.To!.Value.UtcDateTime)));
+        foreach (var asked in family.Google.Searched.GroupBy(search => search.CalendarId))
+        {
+            var spans = asked.OrderBy(search => search.From ?? DateTimeOffset.MinValue).ToList();
+            Assert.Equal(5, spans.Count);
+            Assert.Null(spans[0].From);
+            Assert.Null(spans[^1].To);
+            var past = spans[..^1];
+            Assert.All(past.Zip(past.Skip(1)), pair => Assert.Equal(pair.First.To, pair.Second.From));
+            Assert.Equal(calendar.SyncedFrom!.Value, DateOnly.FromDateTime(spans[^2].To!.Value.UtcDateTime));
+            Assert.Equal(calendar.SyncedTo!.Value, DateOnly.FromDateTime(spans[^1].From!.Value.UtcDateTime));
+        }
+    }
+
+    [Fact]
+    public async Task Search_says_it_is_incomplete_when_google_had_more_than_it_read()
+    {
+        await using var family = await ConnectedAsync();
+        family.Google.Put("alex-cal", Timed("lesson", "Piano lesson", Soon.AddYears(-2)));
+        await family.SyncAsync();
+        family.Google.SearchTruncates = true;
+
+        var found = await SearchOf(family.Parent, "piano");
+
+        Assert.False(found.Complete);
+        Assert.Equal(["Piano lesson"], found.Events.Select(e => e.Title));
     }
 
     [Fact]
