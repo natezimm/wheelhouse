@@ -10,12 +10,13 @@ export const SHORTCUTS: readonly { keys: string[]; does: string }[] = [
   { keys: ['W'], does: 'Week view' },
   { keys: ['M'], does: 'Month view' },
   { keys: ['C'], does: 'New event' },
+  { keys: ['/'], does: 'Search events' },
   { keys: ['E'], does: 'Edit the open event' },
   { keys: ['Delete'], does: 'Delete the open event' },
   { keys: ['?'], does: 'Show these shortcuts' },
 ];
 
-export type Shortcut = 'today' | 'next' | 'previous' | 'day' | 'week' | 'month' | 'create' | 'edit' | 'delete' | 'help';
+export type Shortcut = 'today' | 'next' | 'previous' | 'day' | 'week' | 'month' | 'create' | 'search' | 'edit' | 'delete' | 'help';
 
 const KEYS: Record<string, Shortcut> = {
   t: 'today',
@@ -27,6 +28,7 @@ const KEYS: Record<string, Shortcut> = {
   w: 'week',
   m: 'month',
   c: 'create',
+  '/': 'search',
   e: 'edit',
   Delete: 'delete',
   Backspace: 'delete',

@@ -4,6 +4,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from './app.routes';
+import { SEARCH_WAIT_MS } from './shared/event-search';
 import { shortcutOf } from './shared/shortcut-help';
 import { CalendarEvent, CalendarStore } from './core/calendar';
 import { FamilyStore } from './core/family';
@@ -737,6 +738,48 @@ describe('calendar screens', () => {
       // A key held with Ctrl or Command is the browser's.
       expect(shortcutOf(new KeyboardEvent('keydown', { key: 't', ctrlKey: true }))).toBeNull();
       expect(shortcutOf(new KeyboardEvent('keydown', { key: 'r', metaKey: true }))).toBeNull();
+    });
+
+    it('finds events with / and opens a picked one on its day, with its details', async () => {
+      const { page, settle } = await open('/', { from: '2026-10-12', to: '2026-10-19' });
+      expect(shortcutOf(new KeyboardEvent('keydown', { key: '/' }))).toBe('search');
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true }));
+      await settle();
+      const search = page.querySelector<HTMLElement>('app-event-search [role="dialog"]')!;
+      expect(search.querySelector('.status')?.textContent).toContain('Search titles and places');
+      // Keys are for typing while it is open.
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', bubbles: true, cancelable: true }));
+      expect(shownTitle(page)).toBe('October 12 – 18 2026');
+
+      vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+      const box = search.querySelector<HTMLInputElement>('input')!;
+      box.value = 'chicago';
+      box.dispatchEvent(new Event('input'));
+      vi.advanceTimersByTime(SEARCH_WAIT_MS);
+      vi.useFakeTimers({ toFake: ['Date'] });
+      await settle();
+      const flight = timed('Flight to Chicago', 'm1', '2026-10-29T10:10:00Z', '2026-10-29T12:40:00Z');
+      const past = timed('Chicago trip planning', 'm2', '2026-10-01T23:00:00Z', '2026-10-02T00:00:00Z');
+      const request = http.expectOne((r) => r.url === '/api/calendar/search');
+      expect([request.request.params.get('q'), request.request.params.get('from')]).toEqual(['chicago', '2026-10-12']);
+      request.flush({ events: [flight, past], total: 2 });
+      await settle();
+
+      expect(texts(search.querySelectorAll('h3'))).toEqual(['Coming up', 'Earlier']);
+      const parts = (selector: string) => texts(search.querySelectorAll(selector));
+      expect(parts('.row .day')).toEqual(['Thu, Oct 29', 'Thu, Oct 1']);
+      expect(parts('.row .time')).toEqual(['6:10 – 8:40 am', '7 – 8 pm']);
+      expect(parts('.row .title')).toEqual(['Flight to Chicago', 'Chicago trip planning']);
+      expect(parts('.row .detail')).toEqual(['Ben', 'Tess']);
+
+      search.querySelector<HTMLButtonElement>('.row')!.click();
+      await settle();
+      expect(page.querySelector('app-event-search')).toBeNull();
+      http.expectOne((r) => r.params.get('from') === '2026-10-26').flush({ calendars: marloweCalendars, events: [...events, flight] });
+      await settle();
+      expect(shownTitle(page)).toBe('October 26 – November 1 2026');
+      expect(page.querySelector('app-event-details h2')?.textContent).toContain('Flight to Chicago');
     });
 
     it('keeps the view and the day when the window narrows, and remembers a view for the context it is in now', async () => {

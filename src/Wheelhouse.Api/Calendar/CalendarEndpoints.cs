@@ -17,6 +17,7 @@ public static class CalendarEndpoints
     {
         app.MapGet("/api/calendar", GetCalendar).RequireAuthorization(Policies.Family);
         app.MapGet("/api/calendar/countdowns", GetCountdowns).RequireAuthorization(Policies.Family);
+        app.MapGet("/api/calendar/search", Search).RequireAuthorization(Policies.Family);
 
         return app;
     }
@@ -132,6 +133,71 @@ public static class CalendarEndpoints
             .Select(e => e.Response)
             .ToList();
         return TypedResults.Ok(next);
+    }
+
+    /// <summary>The most events one search answers with.</summary>
+    public const int MaxSearchResults = 30;
+
+    /// <summary>The longest search text, in characters.</summary>
+    public const int MaxSearchLength = 100;
+
+    /// <summary>
+    /// The family's events whose title or place holds <paramref name="q"/>, ignoring case, one per
+    /// series: the series' next occurrence from the family's day <paramref name="from"/>, or its
+    /// latest one when they are all past. Upcoming events come first, soonest first, then past
+    /// ones, latest first. A paired display never finds a private event, since searching for its
+    /// title would tell what it is.
+    /// </summary>
+    private static async Task<Results<Ok<SearchResponse>, ValidationProblem, NotFound>> Search(
+        string? q,
+        DateOnly from,
+        WheelhouseDbContext db,
+        ClaimsPrincipal user,
+        CancellationToken cancellationToken)
+    {
+        var text = q?.Trim() ?? "";
+        if (text.Length is 0 or > MaxSearchLength)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["q"] = [$"Search for 1 to {MaxSearchLength} characters."],
+            });
+        }
+
+        var timeZone = await db.Families.AsNoTracking().Select(f => f.TimeZone).SingleOrDefaultAsync(cancellationToken);
+        if (timeZone is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        var zone = TimeZoneInfo.FindSystemTimeZoneById(timeZone);
+        var fromUtc = StartOfDay(from, zone);
+        // LIKE's own characters are matched as themselves.
+        var pattern = "%" + text.Replace(@"\", @"\\").Replace("%", @"\%").Replace("_", @"\_") + "%";
+        var display = user.IsDisplay();
+        var found = await db.EventInstances
+            .AsNoTracking()
+            .Where(e => (!display || !e.IsPrivate)
+                && (EF.Functions.ILike(e.Title, pattern, @"\") || (e.Location != null && EF.Functions.ILike(e.Location, pattern, @"\"))))
+            .Join(db.CalendarSources, e => e.CalendarSourceId, source => source.Id, (e, source) => new { Event = e, Source = source })
+            .ToListAsync(cancellationToken);
+
+        var series = found
+            .Select(e => new { e.Event, e.Source, Starts = e.Event.StartsAt ?? StartOfDay(e.Event.StartDate!.Value, zone), Ends = e.Event.EndsAt ?? StartOfDay(e.Event.EndDate!.Value, zone) })
+            .GroupBy(e => (e.Event.CalendarSourceId, e.Event.RecurringEventId ?? e.Event.GoogleEventId))
+            .Select(occurrences =>
+                occurrences.Where(e => e.Ends > fromUtc).MinBy(e => e.Starts) is { } next
+                    ? (Event: next, Upcoming: true)
+                    : (Event: occurrences.MaxBy(e => e.Starts)!, Upcoming: false))
+            .ToList();
+
+        var upcoming = series.Where(s => s.Upcoming).OrderBy(s => s.Event.Starts).ThenBy(s => s.Event.Event.Title, StringComparer.Ordinal);
+        var past = series.Where(s => !s.Upcoming).OrderByDescending(s => s.Event.Starts).ThenBy(s => s.Event.Event.Title, StringComparer.Ordinal);
+        var events = upcoming.Concat(past)
+            .Take(MaxSearchResults)
+            .Select(s => EventResponse.From(s.Event.Event, s.Event.Source))
+            .ToList();
+        return TypedResults.Ok(new SearchResponse(events, series.Count));
     }
 
     /// <summary>The instant a local day begins in <paramref name="zone"/>, as UTC.</summary>

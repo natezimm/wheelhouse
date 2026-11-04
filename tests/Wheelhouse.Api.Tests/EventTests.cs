@@ -768,6 +768,40 @@ public sealed class EventTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Search_finds_events_by_title_or_place_one_per_series_upcoming_first()
+    {
+        using var parent = await factory.DemoVisitorAsync();
+        using var display = await PairedDisplayAsync(parent);
+        var julians = await CalendarIdAsync(parent, "Julian");
+        Task<SearchResponse> SearchAsync(HttpClient client, string q) =>
+            client.GetFromJsonAsync<SearchResponse>($"/api/calendar/search?q={Uri.EscapeDataString(q)}&from={Day:yyyy-MM-dd}", ApiFactory.Json)!;
+
+        var lessons = await AddAsync(parent, Timed(julians, "Trumpet lesson", new(16, 0), new(16, 30), "Hall 100%_B") with { Recurrence = "RRULE:FREQ=WEEKLY;COUNT=3" });
+        var earlier = await AddAsync(parent, Timed(julians, "Trumpet tuning", new(9, 0), new(9, 30)) with { StartDate = Day.AddDays(-2), EndDate = Day.AddDays(-2) });
+        var later = await AddAsync(parent, AllDay(julians, "Trumpet recital", Day.AddDays(10), 1));
+
+        // Any case, one per series, upcoming soonest first, then past ones.
+        var found = await SearchAsync(parent, "TRUMPET");
+        Assert.Equal(["Trumpet lesson", "Trumpet recital", "Trumpet tuning"], found.Events.Select(e => e.Title));
+        Assert.Equal(3, found.Total);
+        Assert.Equal((lessons.Id, later.Id, earlier.Id), (found.Events[0].Id, found.Events[1].Id, found.Events[2].Id));
+
+        // The place counts, and LIKE's own characters are only themselves.
+        Assert.Equal(["Trumpet lesson"], (await SearchAsync(parent, "100%_b")).Events.Select(e => e.Title));
+        Assert.Empty((await SearchAsync(parent, "1_0")).Events);
+
+        // A display never finds a private event, by its title or as Busy.
+        var claras = await CalendarIdAsync(parent, "Clara");
+        await AddAsync(parent, Timed(claras, "Trumpet surprise", new(18, 0), new(19, 0)) with { Private = true });
+        Assert.Contains((await SearchAsync(parent, "surprise")).Events, e => e.Title == "Trumpet surprise");
+        Assert.Empty((await SearchAsync(display, "surprise")).Events);
+        Assert.Equal(3, (await SearchAsync(display, "trumpet")).Total);
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await parent.GetAsync($"/api/calendar/search?q=%20&from={Day:yyyy-MM-dd}")).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await parent.GetAsync($"/api/calendar/search?q={new string('a', 101)}&from={Day:yyyy-MM-dd}")).StatusCode);
+    }
+
+    [Fact]
     public async Task A_display_cannot_reach_a_private_occurrence_through_its_series()
     {
         using var parent = await factory.DemoVisitorAsync();
