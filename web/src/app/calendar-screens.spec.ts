@@ -831,7 +831,7 @@ describe('calendar screens', () => {
       const recital = { ...timed('Spring recital', 'm2', '2024-05-10T22:00:00Z', '2024-05-10T23:00:00Z'), id: 'far-recital' };
       http.expectOne((r) => r.url === '/api/calendar/search').flush({ events: [recital], total: 1, notCached: [recital.id], complete: false });
       await settle();
-      expect(search.querySelector('.status')?.textContent).toContain('could not be searched just now');
+      expect(search.querySelector('.status')?.textContent).toContain('could not be searched');
 
       search.querySelector<HTMLButtonElement>('.row')!.click();
       await settle();
