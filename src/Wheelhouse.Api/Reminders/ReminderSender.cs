@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
+using Wheelhouse.Api.Auth;
 using Wheelhouse.Api.Data;
 
 namespace Wheelhouse.Api.Reminders;
@@ -14,7 +15,7 @@ public sealed record ReminderMessage(string Title, string Body, string Url, stri
 /// lead time, once. An event added or moved into that time is reminded at the next pass, however
 /// soon it starts. All-day events have no time to be early for, so they are left out.
 /// </summary>
-public sealed class ReminderSender(WheelhouseDbContext db, WebPush push, TimeProvider time, ILogger<ReminderSender> logger)
+public sealed class ReminderSender(WheelhouseDbContext db, WebPush push, ParentSignIn parents, TimeProvider time, ILogger<ReminderSender> logger)
 {
     /// <summary>Sends what is due now, across every family. Returns how many reminders went out.</summary>
     public async Task<int> SendDueAsync(CancellationToken cancellationToken)
@@ -23,19 +24,45 @@ public sealed class ReminderSender(WheelhouseDbContext db, WebPush push, TimePro
         // No request, so no current family: every query names what it reads across families.
         var subscriptions = await db.ReminderSubscriptions.IgnoreQueryFilters().AsNoTracking().ToListAsync(cancellationToken);
         var due = new List<(ReminderSubscription To, SentReminder Sent, ReminderMessage Message)>();
+        var revoked = new HashSet<Guid>();
 
-        foreach (var family in subscriptions.GroupBy(s => s.FamilyId))
+        foreach (var all in subscriptions.GroupBy(s => s.FamilyId))
         {
-            var until = now.AddMinutes(family.Max(s => s.LeadMinutes));
-            var zoneId = await db.Families.IgnoreQueryFilters().Where(f => f.Id == family.Key).Select(f => f.TimeZone).SingleOrDefaultAsync(cancellationToken);
-            if (zoneId is null)
+            var found = await db.Families.IgnoreQueryFilters().Where(f => f.Id == all.Key)
+                .Select(f => new { f.TimeZone, f.ExpiresAt }).SingleOrDefaultAsync(cancellationToken);
+            if (found is null || found.ExpiresAt <= now)
             {
                 continue;
             }
 
-            var zone = TimeZoneInfo.FindSystemTimeZoneById(zoneId);
+            // Only browsers that could still read the calendar hear about it: as on every request, a
+            // parent demoted or taken off the parent list loses access at once. A browser with no
+            // account is a demo visitor's, on a copy that has not expired.
+            var family = new List<ReminderSubscription>();
+            foreach (var subscription in all)
+            {
+                var allowed = subscription.AccountId is { } account
+                    ? await parents.IsStillAllowedAsync(account, cancellationToken)
+                    : found.ExpiresAt is not null;
+                if (allowed)
+                {
+                    family.Add(subscription);
+                }
+                else
+                {
+                    revoked.Add(subscription.Id);
+                }
+            }
+
+            if (family.Count == 0)
+            {
+                continue;
+            }
+
+            var until = now.AddMinutes(family.Max(s => s.LeadMinutes));
+            var zone = TimeZoneInfo.FindSystemTimeZoneById(found.TimeZone);
             var events = await db.EventInstances.IgnoreQueryFilters()
-                .Where(e => e.FamilyId == family.Key && e.StartDate == null && e.StartsAt > now && e.StartsAt <= until)
+                .Where(e => e.FamilyId == all.Key && e.StartDate == null && e.StartsAt > now && e.StartsAt <= until)
                 .Join(db.CalendarSources.IgnoreQueryFilters(), e => e.CalendarSourceId, s => s.Id,
                     (e, s) => new { e.Id, e.CalendarSourceId, e.GoogleEventId, e.Title, e.Location, StartsAt = e.StartsAt!.Value, Owner = s.MemberId, e.MemberIds })
                 .ToListAsync(cancellationToken);
@@ -62,6 +89,12 @@ public sealed class ReminderSender(WheelhouseDbContext db, WebPush push, TimePro
                     }
                 }
             }
+        }
+
+        if (revoked.Count > 0)
+        {
+            await db.ReminderSubscriptions.IgnoreQueryFilters().Where(s => revoked.Contains(s.Id)).ExecuteDeleteAsync(cancellationToken);
+            logger.LogInformation("Removed {Count} reminder subscriptions whose browsers no longer have access", revoked.Count);
         }
 
         // Kept before sending, so a pass that fails halfway never reminds anyone twice.

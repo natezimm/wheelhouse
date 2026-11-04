@@ -10,7 +10,9 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Wheelhouse.Api.Auth;
 using Wheelhouse.Api.Calendar;
+using Wheelhouse.Api.Data;
 using Wheelhouse.Api.Families;
 using Wheelhouse.Api.Reminders;
 
@@ -155,6 +157,32 @@ public sealed class ReminderTests(ApiFactory factory)
 
         Assert.Equal(HttpStatusCode.NotFound, (await first.PostAsJsonAsync("/api/reminders/current", new ReminderEndpointRequest(browser.Endpoint), ApiFactory.Json)).StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await second.PostAsJsonAsync("/api/reminders/current", new ReminderEndpointRequest(browser.Endpoint), ApiFactory.Json)).StatusCode);
+    }
+
+    [Fact]
+    public async Task A_parent_who_loses_access_is_no_longer_reminded()
+    {
+        var push = new FakePushService();
+        using var instance = factory.NewFamilyInstance("alex@example.com, sam@example.com");
+        await using var host = instance.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
+            services.AddHttpClient<WebPush>().ConfigurePrimaryHttpMessageHandler(() => push)));
+        using var alex = await ApiFactory.ParentAsync(host, new GoogleIdentity("google-alex", "alex@example.com", EmailVerified: true, "Alex", "Alex Rivera"));
+        using var sam = await ApiFactory.ParentAsync(host, new GoogleIdentity("google-sam", "sam@example.com", EmailVerified: true, "Sam", "Sam Rivera"));
+        var alexBrowser = new FakeBrowser();
+        var samBrowser = new FakeBrowser();
+        (await alex.PutAsJsonAsync("/api/reminders", alexBrowser.Subscribe(15, []), ApiFactory.Json)).EnsureSuccessStatusCode();
+        (await sam.PutAsJsonAsync("/api/reminders", samBrowser.Subscribe(15, []), ApiFactory.Json)).EnsureSuccessStatusCode();
+
+        var family = await FamilyOf(sam);
+        var alexMember = family.Members.Single(m => m.DisplayName == "Alex");
+        (await sam.PutAsJsonAsync($"/api/family/members/{alexMember.Id}", new MemberRequest("Alex", alexMember.Color, MemberRole.Kid), ApiFactory.Json))
+            .EnsureSuccessStatusCode();
+        await SendDueAsync(host);
+
+        await using var scope = host.Services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<WheelhouseDbContext>();
+        var left = await db.ReminderSubscriptions.IgnoreQueryFilters().Select(s => s.Endpoint).ToListAsync();
+        Assert.Equal([samBrowser.Endpoint], left);
     }
 
     [Theory]
