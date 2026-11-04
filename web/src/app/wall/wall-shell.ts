@@ -70,7 +70,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
             </span>
           }
         </div>
-        <app-calendar-filter />
+        <app-calendar-filter [solo]="true" />
         <div class="end">
           <app-wall-weather />
           @if (session.isDemo()) {
@@ -452,12 +452,13 @@ export class WallShell {
   }
 
   /**
-   * Keeps the view but shows the current day, week or month again, scrolled to now, with any
-   * details closed. An editor closes only if nothing in it has changed and no save is still
+   * Keeps the view but shows the current day, week or month again, scrolled to now, for
+   * everyone, with any details closed. An editor closes only if nothing in it has changed and no save is still
    * going, so a half-typed event is never lost.
    */
   private returnToNow(): void {
     this.focus.set(null);
+    this.calendar.showAll();
     this.selected.set(null);
     this.week()?.scrollToNow();
     this.dayView()?.scrollToNow();

@@ -140,10 +140,10 @@ test('recovery preserves calendar view, filters and an open draft', async ({ pag
   } else {
     await page.getByRole('button', { name: 'Tuesday, October 13', exact: true }).click();
   }
-  const ben = page
-    .getByRole('group', { name: 'Show calendars for' })
-    .getByRole('button', { name: 'Ben', exact: true });
-  await ben.click();
+  const chips = page.getByRole('group', { name: 'Show calendars for' });
+  const ben = chips.getByRole('button', { name: 'Ben', exact: true });
+  // Ben's events are hidden: the wall's first tap shows only the person tapped, so it taps Milo.
+  await (wall ? chips.getByRole('button', { name: 'Milo', exact: true }) : ben).click();
   await expect(ben).toHaveAttribute('aria-pressed', 'false');
   const heading = page.locator(wall ? 'app-calendar-toolbar h1' : 'app-calendar-home main > header h1');
   const selected = await heading.textContent();
