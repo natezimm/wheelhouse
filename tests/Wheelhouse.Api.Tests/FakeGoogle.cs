@@ -185,8 +185,46 @@ internal sealed class FakeGoogle : IGoogleCalendar
         }
 
         Listed.Add((calendarId, from, to));
-        IReadOnlyList<GoogleEvent> listed = [.. Occurrences(calendarId, from - TimeSpan.FromDays(1), to)];
+        IReadOnlyList<GoogleEvent> listed = [.. Occurrences(calendarId, from - TimeSpan.FromDays(1), to).Where(e => End(e) > from && Start(e) < to)];
         return AfterListing is { } after ? AnswerLate(after, listed) : Task.FromResult(listed);
+    }
+
+    // Like Google, which compares in each event's own zone, all-day dates are taken as UTC here; a day either way is no test's concern.
+    private static DateTimeOffset Start(GoogleEvent e) => e.StartsAt ?? new DateTimeOffset(e.StartDate!.Value.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+
+    private static DateTimeOffset End(GoogleEvent e) => e.EndsAt ?? new DateTimeOffset(e.EndDate!.Value.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
+
+    /// <summary>Each search asked of Google: the calendar, the text and the range.</summary>
+    public List<(string CalendarId, string Text, DateTimeOffset? From, DateTimeOffset? To)> Searched { get; } = [];
+
+    /// <summary>Every search says Google had more than it read.</summary>
+    public bool SearchTruncates { get; set; }
+
+    /// <summary>Calendars whose search fails as if Google could not be reached.</summary>
+    public HashSet<string> SearchFails { get; } = [];
+
+    public Task<GoogleSearch> SearchEventsAsync(
+        string accessToken, string calendarId, string text, DateTimeOffset? from, DateTimeOffset? to, CancellationToken cancellationToken)
+    {
+        Searched.Add((calendarId, text, from, to));
+        if (SearchFails.Contains(calendarId))
+        {
+            throw new HttpRequestException("Google could not be reached.");
+        }
+
+        if (Gone.Contains(calendarId))
+        {
+            throw new GoogleCalendarGoneException(calendarId);
+        }
+
+        var min = from ?? DateTimeOffset.UnixEpoch;
+        var max = to ?? DateTimeOffset.UtcNow.AddYears(10);
+        // Google's own search also looks in notes, which the caller has to filter out.
+        IReadOnlyList<GoogleEvent> found = [.. Occurrences(calendarId, min - TimeSpan.FromDays(1), max)
+            .Where(e => End(e) > min && Start(e) < max)
+            .Where(e => $"{e.Title} {e.Location} {e.Description}".Contains(text, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(Start)];
+        return Task.FromResult(new GoogleSearch(found, SearchTruncates));
     }
 
     /// <summary>Runs once a calendar's events are read and before they are answered, as when a save lands while Google's answer is on its way.</summary>

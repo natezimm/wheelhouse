@@ -65,6 +65,80 @@ public sealed class CalendarSyncTests(ApiFactory factory)
         Assert.Equal(CalendarSync.Behind + CalendarSync.Ahead, to - from);
     }
 
+    private static async Task<SearchResponse> SearchOf(HttpClient client, string q) =>
+        (await client.GetFromJsonAsync<SearchResponse>($"/api/calendar/search?q={Uri.EscapeDataString(q)}&from={Today:yyyy-MM-dd}", ApiFactory.Json))!;
+
+    [Fact]
+    public async Task Search_finds_events_in_google_before_and_after_the_sync_window()
+    {
+        await using var family = await ConnectedAsync();
+        var longAgo = Soon.AddYears(-3);
+        var farAhead = Soon.AddDays(600);
+        family.Google.Put("alex-cal", Timed("lesson", "Piano lesson", Soon));
+        family.Google.Put("alex-cal", Timed("recital", "Spring piano recital", farAhead));
+        family.Google.Put("family-cal", Timed("graduation", "Graduation party", longAgo) with { Location = "Piano bar" });
+        family.Google.Put("family-cal", Timed("notes-only", "Band practice", longAgo) with { Description = "Bring the piano music" });
+        family.Google.PutSeries("alex-cal", Timed("old-lessons", "Old piano lessons", longAgo), "RRULE:FREQ=WEEKLY;COUNT=5", "UTC");
+        await family.SyncAsync();
+
+        var found = await SearchOf(family.Parent, "PIANO");
+
+        Assert.True(found.Complete);
+        Assert.Equal(["Piano lesson", "Spring piano recital", "Old piano lessons", "Graduation party"], found.Events.Select(e => e.Title));
+        Assert.Equal(4, found.Total);
+        // A series is found once, at its latest occurrence when all are past; a match in the notes alone is not one.
+        Assert.Equal(longAgo.AddDays(28), found.Events.Single(e => e.Title == "Old piano lessons").StartsAt);
+        var cached = found.Events.Single(e => e.Title == "Piano lesson");
+        Assert.Equal(found.Events.Where(e => e != cached).Select(e => e.Id).Order(), found.NotCached!.Order());
+        Assert.Equal((await CalendarOf(family.Parent)).Events.Single().Id, cached.Id);
+        Assert.Equal((await family.FamilyAsync()).Members.Single().Id, found.Events.Single(e => e.Title == "Spring piano recital").MemberId);
+
+        // Google is asked only about the times the cache does not hold: after it, and before it in
+        // spans growing back from it, which together leave no gap before it.
+        var calendar = await CalendarOf(family.Parent);
+        foreach (var asked in family.Google.Searched.GroupBy(search => search.CalendarId))
+        {
+            var spans = asked.OrderBy(search => search.From ?? DateTimeOffset.MinValue).ToList();
+            Assert.Equal(5, spans.Count);
+            Assert.Null(spans[0].From);
+            Assert.Null(spans[^1].To);
+            var past = spans[..^1];
+            Assert.All(past.Zip(past.Skip(1)), pair => Assert.Equal(pair.First.To, pair.Second.From));
+            Assert.Equal(calendar.SyncedFrom!.Value, DateOnly.FromDateTime(spans[^2].To!.Value.UtcDateTime));
+            Assert.Equal(calendar.SyncedTo!.Value, DateOnly.FromDateTime(spans[^1].From!.Value.UtcDateTime));
+        }
+    }
+
+    [Fact]
+    public async Task Search_says_it_is_incomplete_when_google_had_more_than_it_read()
+    {
+        await using var family = await ConnectedAsync();
+        family.Google.Put("alex-cal", Timed("lesson", "Piano lesson", Soon.AddYears(-2)));
+        await family.SyncAsync();
+        family.Google.SearchTruncates = true;
+
+        var found = await SearchOf(family.Parent, "piano");
+
+        Assert.False(found.Complete);
+        Assert.Equal(["Piano lesson"], found.Events.Select(e => e.Title));
+    }
+
+    [Fact]
+    public async Task Search_still_answers_from_the_cache_when_google_cannot_be_searched()
+    {
+        await using var family = await ConnectedAsync();
+        family.Google.Put("alex-cal", Timed("lesson", "Piano lesson", Soon));
+        family.Google.Put("family-cal", Timed("recital", "Piano recital", Soon.AddYears(-3)));
+        await family.SyncAsync();
+        family.Google.SearchFails.Add("family-cal");
+
+        var found = await SearchOf(family.Parent, "piano");
+
+        Assert.False(found.Complete);
+        Assert.Equal(["Piano lesson"], found.Events.Select(e => e.Title));
+        Assert.Empty(found.NotCached!);
+    }
+
     [Fact]
     public async Task A_save_made_while_google_is_read_is_not_undone_by_the_older_answer()
     {

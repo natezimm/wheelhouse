@@ -80,7 +80,9 @@ import { AvatarFace } from './avatar-face';
           @if (event.hidden) {
             <p class="note">Only a parent can see or change a private event, from their phone.</p>
           } @else {
-            @if (!event.canWrite) {
+            @if (event.faraway) {
+              <p class="note">Wheelhouse keeps three months back and a year ahead, so change this event in Google Calendar.</p>
+            } @else if (!event.canWrite) {
               <p class="note">This event comes from the {{ event.calendar }} calendar, which Wheelhouse can show but not change.</p>
             } @else if (event.saving) {
               <p class="note" role="status">{{ event.saving }}</p>
@@ -429,6 +431,12 @@ export class EventDetails {
   /** The event to show, by id; it follows the calendar as the event changes. */
   readonly eventId = input.required<string>();
 
+  /**
+   * The event as search found it, for one beyond the months the calendar keeps: shown when the
+   * calendar has no event by that id, and never changed from here.
+   */
+  readonly copy = input<CalendarEvent | null>(null);
+
   /** A drawer on the wall and a desktop, a sheet on a phone. */
   readonly layout = input<'wall' | 'desktop' | 'phone'>('wall');
 
@@ -444,7 +452,9 @@ export class EventDetails {
 
   protected readonly shown = computed(() => {
     const family = this.family.family();
-    const event = this.calendar.allEvents().find((e) => e.id === this.eventId());
+    const kept = this.calendar.allEvents().find((e) => e.id === this.eventId());
+    const copy = this.copy();
+    const event = kept ?? (copy?.id === this.eventId() ? copy : undefined);
     if (!family || !event) {
       return null;
     }
@@ -467,7 +477,8 @@ export class EventDetails {
       repeats: event.recurring ? describeRule(event.recurrence, zone) : 'Does not repeat',
       notes: notesText(event.description),
       calendar: source?.name ?? 'Unknown',
-      canWrite: !!source?.canWrite,
+      canWrite: !!kept && !!source?.canWrite,
+      faraway: !kept,
       private: !!event.private,
       countdown: !!event.countdown,
       hidden: !!event.hidden,

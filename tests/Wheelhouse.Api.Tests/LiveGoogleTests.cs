@@ -205,6 +205,24 @@ public sealed class LiveGoogleTests : IAsyncLifetime
         await google.DeleteEventAsync(token, Calendar, id, null, CancellationToken.None);
     }
 
+    [LiveGoogleFact]
+    public async Task A_search_finds_an_event_by_its_title_from_the_bound_given()
+    {
+        var added = await google.InsertEventAsync(token, Calendar, Draft("harpsichord tuning", Start), CancellationToken.None);
+
+        // Google's search index can lag a write by a moment.
+        IReadOnlyList<GoogleEvent> found = [];
+        for (var attempt = 0; attempt < 10 && found.Count == 0; attempt++)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(attempt));
+            found = (await google.SearchEventsAsync(token, Calendar, "harpsichord", Start.AddDays(-1), null, CancellationToken.None)).Events;
+        }
+
+        Assert.Equal([added.Id], found.Select(e => e.Id));
+        Assert.Empty((await google.SearchEventsAsync(token, Calendar, "harpsichord", null, Start.AddDays(-1), CancellationToken.None)).Events);
+        await google.DeleteEventAsync(token, Calendar, added.Id, null, CancellationToken.None);
+    }
+
     private async Task<List<GoogleEvent>> OccurrencesAsync(string seriesId) =>
         (await google.ListEventsAsync(token, Calendar, Start.AddDays(-1), Start.AddDays(60), CancellationToken.None))
             .Where(e => e.RecurringEventId == seriesId)

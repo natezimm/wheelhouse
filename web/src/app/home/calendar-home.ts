@@ -18,7 +18,7 @@ import { DemoNotice } from '../shared/demo-notice';
 import { DemoTour } from '../shared/demo-tour';
 import { DemoWelcome, rememberWelcomeSeen, welcomeSeen } from '../shared/demo-welcome';
 import { EventDetails } from '../shared/event-details';
-import { EventSearch } from '../shared/event-search';
+import { EventSearch, SearchPick } from '../shared/event-search';
 import { ShortcutHelp, shortcutOf } from '../shared/shortcut-help';
 import { WeatherIcon } from '../shared/weather-icon';
 import { DayView } from '../wall/day-view';
@@ -138,7 +138,7 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
             <app-shortcut-help (closed)="helping.set(false)" />
           }
           @if (selected(); as id) {
-            <app-event-details [eventId]="id" layout="desktop" (closed)="selected.set(null)" (edit)="edit($event)" (remove)="edit($event, true)" (duplicate)="duplicate($event)" />
+            <app-event-details [eventId]="id" [copy]="pickedCopy()" layout="desktop" (closed)="selected.set(null)" (edit)="edit($event)" (remove)="edit($event, true)" (duplicate)="duplicate($event)" />
           }
         </section>
         @if (welcoming()) {
@@ -210,7 +210,7 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
 
     @if (!wide()) {
       @if (selected(); as id) {
-        <app-event-details [eventId]="id" layout="phone" (closed)="selected.set(null)" (edit)="edit($event)" (remove)="edit($event, true)" (duplicate)="duplicate($event)" />
+        <app-event-details [eventId]="id" [copy]="pickedCopy()" layout="phone" (closed)="selected.set(null)" (edit)="edit($event)" (remove)="edit($event, true)" (duplicate)="duplicate($event)" />
       }
     }
 
@@ -561,6 +561,8 @@ export class CalendarHome {
 
   /** The event whose details are open, by id: a drawer on a desktop, a sheet on a phone. */
   protected readonly selected = signal<string | null>(null);
+  /** An event search found beyond the months the calendar keeps, which details show from search's answer. */
+  protected readonly pickedCopy = signal<CalendarEvent | null>(null);
 
   /** The event being added (no event) or changed, and whether it opened in the desktop editor. */
   protected readonly editing = signal<{ event: CalendarEvent | null; day: Day; wide: boolean; at: string | null; deleting: boolean; copy?: CalendarEvent } | null>(null);
@@ -742,9 +744,10 @@ export class CalendarHome {
    * An event picked in search: its day in view, on a phone as Day, with its details open once
    * that day is read.
    */
-  protected pick(event: CalendarEvent): void {
+  protected pick({ event, cached }: SearchPick): void {
     const family = this.family.family();
     if (!family) return;
+    this.pickedCopy.set(cached ? null : event);
     this.searching.set(false);
     this.focus.set(event.startDate ?? dayIn(family.timeZone, event.startsAt!));
     if (!this.wide()) this.choose('day');

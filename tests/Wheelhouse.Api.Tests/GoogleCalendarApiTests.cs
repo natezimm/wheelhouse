@@ -102,6 +102,30 @@ public sealed class GoogleCalendarApiTests
     }
 
     [Fact]
+    public async Task A_search_asks_google_for_the_text_soonest_first_with_only_the_bounds_given_and_stops_after_enough_pages()
+    {
+        var asked = new List<string>();
+        var api = ApiOver((request, _) =>
+        {
+            asked.Add(request.RequestUri!.AbsoluteUri);
+            var items = string.Join(",", Enumerable.Range(0, 250).Select(i =>
+                $$$"""{"id":"lesson_{{{asked.Count}}}_{{{i}}}","status":"confirmed","summary":"Piano","recurringEventId":"lesson","start":{"date":"2020-01-01"},"end":{"date":"2020-01-02"}}"""));
+            return (HttpStatusCode.OK, $$"""{"items":[{{items}}],"nextPageToken":"{{asked.Count + 1}}"}""");
+        });
+
+        var (events, truncated) = await api.SearchEventsAsync("access", "alex", "piano & co", null, new DateTimeOffset(2026, 8, 1, 0, 0, 0, TimeSpan.Zero), CancellationToken.None);
+
+        Assert.Equal(GoogleCalendarApi.MaxSearchOccurrences, events.Count);
+        Assert.True(truncated);
+        Assert.Equal(GoogleCalendarApi.MaxSearchOccurrences / 250, asked.Count);
+        Assert.Contains("q=piano%20%26%20co", asked[0]);
+        Assert.Contains("orderBy=startTime", asked[0]);
+        Assert.Contains("singleEvents=true", asked[0]);
+        Assert.Contains("timeMax=2026-08-01T00%3A00%3A00Z", asked[0]);
+        Assert.DoesNotContain("timeMin", asked[0]);
+    }
+
+    [Fact]
     public async Task Asking_what_changed_reads_every_page_and_returns_the_next_sync_token()
     {
         var asked = new List<string>();

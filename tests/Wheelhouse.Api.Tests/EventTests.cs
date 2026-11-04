@@ -785,6 +785,9 @@ public sealed class EventTests(ApiFactory factory)
         Assert.Equal(["Trumpet lesson", "Trumpet recital", "Trumpet tuning"], found.Events.Select(e => e.Title));
         Assert.Equal(3, found.Total);
         Assert.Equal((lessons.Id, later.Id, earlier.Id), (found.Events[0].Id, found.Events[1].Id, found.Events[2].Id));
+        // The demo's cache is all there is, so nothing is left to ask Google.
+        Assert.True(found.Complete);
+        Assert.Empty(found.NotCached!);
 
         // The place counts, and LIKE's own characters are only themselves.
         Assert.Equal(["Trumpet lesson"], (await SearchAsync(parent, "100%_b")).Events.Select(e => e.Title));

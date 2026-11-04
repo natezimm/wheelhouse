@@ -781,7 +781,7 @@ describe('calendar screens', () => {
       document.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true }));
       await settle();
       const search = page.querySelector<HTMLElement>('app-event-search [role="dialog"]')!;
-      expect(search.querySelector('.status')?.textContent).toContain('Search titles and places');
+      expect(search.querySelector('.status')?.textContent).toContain('Search every event by title or place');
       // Keys are for typing while it is open.
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', bubbles: true, cancelable: true }));
       expect(shownTitle(page)).toBe('October 12 – 18 2026');
@@ -814,6 +814,36 @@ describe('calendar screens', () => {
       await settle();
       expect(shownTitle(page)).toBe('October 26 – November 1 2026');
       expect(page.querySelector('app-event-details h2')?.textContent).toContain('Flight to Chicago');
+    });
+
+    it('shows an event search found beyond the months kept, read-only, and says when Google could not be searched', async () => {
+      const { page, settle } = await open('/', { from: '2026-10-12', to: '2026-10-19' });
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true }));
+      await settle();
+      const search = page.querySelector<HTMLElement>('app-event-search [role="dialog"]')!;
+      vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
+      const box = search.querySelector<HTMLInputElement>('input')!;
+      box.value = 'recital';
+      box.dispatchEvent(new Event('input'));
+      vi.advanceTimersByTime(SEARCH_WAIT_MS);
+      vi.useFakeTimers({ toFake: ['Date'] });
+      await settle();
+      const recital = { ...timed('Spring recital', 'm2', '2024-05-10T22:00:00Z', '2024-05-10T23:00:00Z'), id: 'far-recital' };
+      http.expectOne((r) => r.url === '/api/calendar/search').flush({ events: [recital], total: 1, notCached: [recital.id], complete: false });
+      await settle();
+      expect(search.querySelector('.status')?.textContent).toContain('could not be searched');
+
+      search.querySelector<HTMLButtonElement>('.row')!.click();
+      await settle();
+      // The calendar keeps no such day, so the week comes back without it, and details show search's copy.
+      http.expectOne((r) => r.params.get('from') === '2024-05-06').flush({ calendars: marloweCalendars, events: [] });
+      await settle();
+      const details = page.querySelector<HTMLElement>('app-event-details')!;
+      expect(details.querySelector('h2')?.textContent).toContain('Spring recital');
+      expect(details.querySelector('.note')?.textContent).toContain('change this event in Google Calendar');
+      expect(details.querySelector('.edit')).toBeNull();
+      expect(details.querySelector('.delete')).toBeNull();
+      expect(details.querySelector('.duplicate')).not.toBeNull();
     });
 
     it('keeps the view and the day when the window narrows, and remembers a view for the context it is in now', async () => {
