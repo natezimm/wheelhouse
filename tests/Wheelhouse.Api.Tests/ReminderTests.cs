@@ -107,6 +107,31 @@ public sealed class ReminderTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task An_events_own_reminder_time_wins_over_the_phones_and_can_turn_its_reminder_off()
+    {
+        var push = new FakePushService();
+        await using var host = HostWith(push);
+        using var visitor = await VisitorAsync(host);
+        var browser = new FakeBrowser();
+        var family = await FamilyOf(visitor);
+
+        (await visitor.PutAsJsonAsync("/api/reminders", browser.Subscribe(10, []), ApiFactory.Json)).EnsureSuccessStatusCode();
+        await AddEventAsync(family.Id, "Marlowe Household", "Reminder plain", TimeSpan.FromMinutes(5));
+        await AddEventAsync(family.Id, "Marlowe Household", "Reminder an hour early", TimeSpan.FromMinutes(50), remind: 60);
+        await AddEventAsync(family.Id, "Marlowe Household", "Reminder a day early", TimeSpan.FromHours(24) - TimeSpan.FromSeconds(15), remind: 1440);
+        await AddEventAsync(family.Id, "Marlowe Household", "Reminder late", TimeSpan.FromMinutes(8), remind: 5);
+        await AddEventAsync(family.Id, "Marlowe Household", "Reminder never", TimeSpan.FromMinutes(5), remind: EventReminders.None);
+
+        await SendDueAsync(host);
+
+        var sent = push.To(browser).Select(r => browser.Read(r.Body)).Where(m => m.GetProperty("title").GetString()!.StartsWith("Reminder"))
+            .ToDictionary(m => m.GetProperty("title").GetString()!, m => m.GetProperty("body").GetString()!);
+        Assert.Equal(["Reminder a day early", "Reminder an hour early", "Reminder plain"], sent.Keys.Order(StringComparer.Ordinal));
+        Assert.StartsWith("In 1 day · ", sent["Reminder a day early"]);
+        Assert.StartsWith("In 50 min · ", sent["Reminder an hour early"]);
+    }
+
+    [Fact]
     public async Task A_browser_its_push_service_no_longer_has_is_forgotten()
     {
         var push = new FakePushService { Answer = HttpStatusCode.Gone };
@@ -256,7 +281,7 @@ public sealed class ReminderTests(ApiFactory factory)
 
     /// <summary>Adds a timed event to the calendar named <paramref name="calendar"/>, starting <paramref name="from"/> now.</summary>
     private async Task<DateTimeOffset> AddEventAsync(Guid familyId, string calendar, string title, TimeSpan from,
-        string? location = null, List<Guid>? memberIds = null)
+        string? location = null, List<Guid>? memberIds = null, int remind = EventReminders.PhoneSetting)
     {
         await using var db = factory.DbContextFor(familyId);
         var source = await db.CalendarSources.SingleAsync(s => s.Name == calendar);
@@ -274,6 +299,7 @@ public sealed class ReminderTests(ApiFactory factory)
             StartsAt = startsAt,
             EndsAt = startsAt.AddHours(1),
             MemberIds = memberIds ?? [],
+            Remind = remind,
         });
         await db.SaveChangesAsync();
         return startsAt;

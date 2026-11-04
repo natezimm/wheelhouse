@@ -91,7 +91,7 @@ internal sealed class FakeGoogle : IGoogleCalendar
             var (rule, timeZone) = _series[first.Id];
             var zone = TimeZoneInfo.FindSystemTimeZoneById(timeZone);
             var draft = new GoogleEventDraft(first.Title, first.Location, first.StartsAt, first.EndsAt, first.StartDate, first.EndDate, timeZone,
-                Recurrence: rule, Description: first.Description, MemberIds: first.MemberIds, Private: first.Private, Countdown: first.Countdown);
+                Recurrence: rule, Description: first.Description, MemberIds: first.MemberIds, Private: first.Private, Countdown: first.Countdown, Remind: first.Remind);
             // Two years of occurrences is more than any test reads.
             var until = DateOnly.FromDateTime((first.StartsAt?.UtcDateTime ?? first.StartDate!.Value.ToDateTime(TimeOnly.MinValue)).AddYears(2));
             foreach (var occurrence in EventSeries.Occurrences(draft, first.Id, until, zone))
@@ -274,6 +274,7 @@ internal sealed class FakeGoogle : IGoogleCalendar
             MemberIds = draft.MemberIds ?? current.MemberIds,
             Private = draft.Private ?? current.Private,
             Countdown = draft.Countdown ?? current.Countdown,
+            Remind = draft.Remind ?? current.Remind,
         });
         FailIfAsked("patch, after saving it");
         return Task.FromResult(Find(calendarId, eventId)!);
@@ -332,5 +333,5 @@ internal sealed class FakeGoogle : IGoogleCalendar
 
     private static GoogleEvent From(GoogleEventDraft draft, string id, string? recurringEventId) =>
         new(id, recurringEventId, draft.Title, draft.Location, draft.StartsAt, draft.EndsAt, draft.StartDate, draft.EndDate,
-            Description: string.IsNullOrEmpty(draft.Description) ? null : draft.Description, MemberIds: draft.MemberIds ?? [], Private: draft.Private ?? false, Countdown: draft.Countdown ?? false);
+            Description: string.IsNullOrEmpty(draft.Description) ? null : draft.Description, MemberIds: draft.MemberIds ?? [], Private: draft.Private ?? false, Countdown: draft.Countdown ?? false, Remind: draft.Remind ?? EventReminders.PhoneSetting);
 }

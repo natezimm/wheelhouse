@@ -43,6 +43,9 @@ export interface EventDraft {
   /** Counted down to on the wall, and whether it was before this edit. */
   countdown: boolean;
   countdownFrom: boolean;
+  /** When phones are reminded of it (CalendarEvent.remind), and as it was. Sent only when it changed. */
+  remind: number;
+  remindFrom: number;
 }
 
 /** How far one tap moves a time on the wall. */
@@ -81,6 +84,8 @@ export function newDraft(day: Day, calendarId: string, timeZone: string, now: Da
     privateFrom: false,
     countdown: false,
     countdownFrom: false,
+    remind: 0,
+    remindFrom: 0,
   };
 }
 
@@ -111,6 +116,8 @@ export function draftOf(event: CalendarEvent, timeZone: string): EventDraft {
       privateFrom: !!event.private,
       countdown: !!event.countdown,
       countdownFrom: !!event.countdown,
+      remind: event.remind ?? 0,
+      remindFrom: event.remind ?? 0,
     };
   }
   return {
@@ -132,6 +139,8 @@ export function draftOf(event: CalendarEvent, timeZone: string): EventDraft {
     privateFrom: !!event.private,
     countdown: !!event.countdown,
     countdownFrom: !!event.countdown,
+    remind: event.remind ?? 0,
+    remindFrom: event.remind ?? 0,
   };
 }
 
@@ -139,7 +148,7 @@ export function draftOf(event: CalendarEvent, timeZone: string): EventDraft {
  * A new event like <code>event</code>: the same title, place, times, notes, people and privacy,
  * in <code>calendar</code>, which is its calendar when that takes new events. Copied into another
  * calendar it keeps its own calendar's owner among its people. It does not repeat, even when
- * copied from a series, and is not counted down to until marked; everything it keeps is sent, since nothing holds it yet.
+ * copied from a series, and is not counted down to until marked; everything it keeps, its reminder time included, is sent, since nothing holds it yet.
  */
 export function copyOf(event: CalendarEvent, calendar: Pick<CalendarSource, 'id' | 'memberId'>, timeZone: string): EventDraft {
   const draft = draftOf(event, timeZone);
@@ -155,6 +164,7 @@ export function copyOf(event: CalendarEvent, calendar: Pick<CalendarSource, 'id'
     privateFrom: false,
     countdown: false,
     countdownFrom: false,
+    remindFrom: 0,
   };
 }
 
@@ -183,6 +193,8 @@ export function requestOf(draft: EventDraft): EventRequest {
     ...(!sameMembers(draft.people, draft.peopleFrom) ? { memberIds: draft.people } : {}),
     ...(draft.isPrivate !== draft.privateFrom ? { private: draft.isPrivate } : {}),
     ...(draft.countdown !== draft.countdownFrom ? { countdown: draft.countdown } : {}),
+    // An all-day event has no time to be early for, so its reminder is never sent.
+    ...(!draft.allDay && draft.remind !== draft.remindFrom ? { remind: draft.remind } : {}),
   };
 }
 
@@ -390,4 +402,37 @@ function split(total: number): [Day, string] {
 
 function clock(minutes: number): string {
   return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+}
+
+/** A reminder time for an event, as the editors offer it: a full label for the phone's list and a short one for the wall's buttons. */
+export interface RemindChoice {
+  minutes: number;
+  label: string;
+  short: string;
+}
+
+/** "15 min", "1 hr 30 min" or "2 days": how long before an event its reminder comes. */
+export function remindText(minutes: number): string {
+  if (minutes % 1440 === 0) return minutes === 1440 ? '1 day' : `${minutes / 1440} days`;
+  if (minutes < 60) return `${minutes} min`;
+  return minutes % 60 === 0 ? `${minutes / 60} hr` : `${Math.floor(minutes / 60)} hr ${minutes % 60} min`;
+}
+
+const REMIND_MINUTES = [5, 10, 15, 30, 60, 120, 1440];
+
+/** The wall's buttons leave out the times between, which the phone's list has. */
+const REMIND_SHORT = new Set([15, 30, 60, 1440]);
+
+/**
+ * The reminder times the editors offer, with <code>current</code> among them when Google holds
+ * another, so an edit never changes it unasked. <code>short</code> keeps only the wall's few.
+ */
+export function remindChoices(current: number, short = false): RemindChoice[] {
+  const minutes = REMIND_MINUTES.filter((m) => !short || REMIND_SHORT.has(m));
+  if (current > 0 && !minutes.includes(current)) minutes.push(current);
+  return [
+    { minutes: 0, label: 'As set on each phone', short: 'Usual' },
+    { minutes: -1, label: 'No reminder', short: 'Off' },
+    ...minutes.sort((a, b) => a - b).map((m) => ({ minutes: m, label: `${remindText(m)} before`, short: remindText(m) })),
+  ];
 }

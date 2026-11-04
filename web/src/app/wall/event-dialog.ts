@@ -21,7 +21,7 @@ import {
   peopleChoices,
   revise,
   startAt,
-  togglePerson,
+  remindChoices, togglePerson,
   writableCalendars,
 } from '../core/event-draft';
 import { FamilyStore } from '../core/family';
@@ -219,6 +219,17 @@ import { RepeatPicker } from '../shared/repeat-picker';
               </label>
             </div>
           </fieldset>
+
+          @if (!draft.allDay) {
+            <fieldset class="field" [disabled]="busy() || uncertain()">
+              <span id="event-remind">REMIND PHONES</span>
+              <div class="segments" role="group" aria-labelledby="event-remind">
+                @for (choice of remindChoices(draft.remind, true); track choice.minutes) {
+                  <button type="button" [attr.aria-pressed]="choice.minutes === draft.remind" [attr.aria-label]="choice.label" (click)="set({ remind: choice.minutes })">{{ choice.short }}</button>
+                }
+              </div>
+            </fieldset>
+          }
 
           <fieldset class="field" [disabled]="busy() || uncertain()">
             <label for="event-location">LOCATION</label>
@@ -741,6 +752,7 @@ export class EventDialog {
     return draft ? peopleChoices(draft, this.calendar.calendars(), this.family.members()) : [];
   });
   protected readonly togglePerson = togglePerson;
+  protected readonly remindChoices = remindChoices;
   /** A display shows private events only as busy, so it cannot make one. */
   protected readonly isDisplay = this.session.isDisplay;
 

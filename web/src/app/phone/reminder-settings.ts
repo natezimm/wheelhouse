@@ -49,6 +49,7 @@ export function leadText(minutes: number): string {
                 <option [value]="minutes" [selected]="minutes === chosen().leadMinutes">{{ lead(minutes) }} before</option>
               }
             </select>
+            <span class="hint">An event can have its own time instead: set Remind phones when you edit it.</span>
           </label>
           @if (members().length > 1) {
             <div class="field">

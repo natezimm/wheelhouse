@@ -60,6 +60,7 @@ export function previewEvent(
     memberIds: othersIn(request, source, original),
     private: request.private ?? original?.private ?? false,
     countdown: request.countdown ?? original?.countdown ?? false,
+    remind: request.remind ?? original?.remind ?? 0,
     pending: true,
   };
 }
@@ -88,6 +89,7 @@ export function previewSeries(
     memberIds: othersIn(request, source, original),
     private: request.private ?? original.private ?? false,
     countdown: request.countdown ?? original.countdown ?? false,
+    remind: request.remind ?? original.remind ?? 0,
     pending: true,
     endDate: request.allDay ? addDays(day, length / 86_400_000) : null,
     startsAt,

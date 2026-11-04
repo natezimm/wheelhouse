@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Wheelhouse.Api.Calendar;
 
 namespace Wheelhouse.Api.Demo;
 
@@ -141,7 +142,8 @@ public static class DemoSeedData
             title: "Piano lesson with Ms. Alvarez",
             date: tomorrow, start: new(16, 0), end: new(16, 45),
             location: "Community Music Studio",
-            description: "Bring level 2 sight-reading book."));
+            description: "Bring level 2 sight-reading book.",
+            remind: 30));
 
         events.Add(anchor.TimedEvent(
             familyId, calendars.Julian.Id,
@@ -213,7 +215,9 @@ public static class DemoSeedData
             title: "U10 Rec Soccer vs. South Orange",
             date: comingSaturday, start: new(11, 0), end: new(12, 15),
             location: "Memorial Park Field 2",
-            description: "Nora is on orange-slice snack duty."));
+            description: "Nora is on orange-slice snack duty.",
+            // Cleats, shin guards and the snack take a while: an hour's warning.
+            remind: 60));
 
         events.Add(anchor.TimedEvent(
             familyId, calendars.Family.Id,
@@ -504,7 +508,8 @@ public sealed class DemoDateAnchor
         string? repeatRule = null,
         IReadOnlyList<Guid>? people = null,
         bool isPrivate = false,
-        bool countdown = false) => new(
+        bool countdown = false,
+        int remind = EventReminders.PhoneSetting) => new(
         Id: Guid.NewGuid(),
         FamilyId: familyId,
         CalendarSourceId: calendarSourceId,
@@ -521,7 +526,8 @@ public sealed class DemoDateAnchor
         ETag: $"\"demo-{Guid.NewGuid():N}\"",
         MemberIds: people ?? [],
         IsPrivate: isPrivate,
-        Countdown: countdown);
+        Countdown: countdown,
+        Remind: remind);
 
     public DemoEventSeed AllDayEvent(
         Guid familyId,
@@ -619,4 +625,5 @@ public sealed record DemoEventSeed(
     string ETag,
     IReadOnlyList<Guid> MemberIds,
     bool IsPrivate,
-    bool Countdown = false);
+    bool Countdown = false,
+    int Remind = EventReminders.PhoneSetting);

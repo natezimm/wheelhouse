@@ -2,6 +2,7 @@ import { Component, ElementRef, computed, effect, inject, input, output, viewChi
 import { CalendarEvent, CalendarStore, FAMILY_COLOR, colorOf, namesOf, peopleOf, spanOf, timeRange } from '../core/calendar';
 import { formatDay, timeIn, timeText } from '../core/days';
 import { FamilyStore } from '../core/family';
+import { remindText } from '../core/event-draft';
 import { notesText } from '../core/notes';
 import { describeRule } from '../core/repeat-rule';
 import { ModalFocus } from './modal-focus';
@@ -67,6 +68,12 @@ import { AvatarFace } from './avatar-face';
             <li>
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3h10M7 21h10M8 3c0 4 8 5 8 9s-8 5-8 9M16 3c0 4-8 5-8 9s8 5 8 9"></path></svg>
               <span>Counted down on the wall</span>
+            </li>
+          }
+          @if (event.reminder) {
+            <li>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15zM10 21h4"></path></svg>
+              <span>{{ event.reminder }}</span>
             </li>
           }
           @if (event.notes) {
@@ -481,6 +488,8 @@ export class EventDetails {
       faraway: !kept,
       private: !!event.private,
       countdown: !!event.countdown,
+      // Only a time of the event's own is worth a line; the usual one is each phone's.
+      reminder: event.allDay || event.hidden || !event.remind ? null : event.remind < 0 ? 'No phone reminder' : `Phones reminded ${remindText(event.remind)} before`,
       hidden: !!event.hidden,
       busy,
       saving: !busy ? null : operation?.status === 'uncertain' ? 'This change may not have saved. Check it from the save notice.' : 'Saving this change…',

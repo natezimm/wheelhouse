@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Wheelhouse.Api.Auth;
+using Wheelhouse.Api.Calendar;
 using Wheelhouse.Api.Data;
 
 namespace Wheelhouse.Api.Reminders;
@@ -12,7 +13,8 @@ public sealed record ReminderMessage(string Title, string Body, string Url, stri
 
 /// <summary>
 /// Sends each subscribed browser a push for every timed event of its people that starts within its
-/// lead time, once. An event added or moved into that time is reminded at the next pass, however
+/// lead time, or within the event's own reminder time when it has one (<see cref="EventInstance.Remind"/>,
+/// which can also turn its reminders off), once. An event added or moved into that time is reminded at the next pass, however
 /// soon it starts. All-day events have no time to be early for, so they are left out.
 /// </summary>
 public sealed class ReminderSender(WheelhouseDbContext db, WebPush push, ParentSignIn parents, TimeProvider time, ILogger<ReminderSender> logger)
@@ -60,12 +62,16 @@ public sealed class ReminderSender(WheelhouseDbContext db, WebPush push, ParentS
             }
 
             var until = now.AddMinutes(family.Max(s => s.LeadMinutes));
+            // Events with a reminder time of their own can be due weeks ahead; there are few of them.
+            var farthest = now.AddMinutes(EventReminders.MaxMinutes);
             var zone = TimeZoneInfo.FindSystemTimeZoneById(found.TimeZone);
             var events = await db.EventInstances.IgnoreQueryFilters()
-                .Where(e => e.FamilyId == all.Key && e.StartDate == null && e.StartsAt > now && e.StartsAt <= until)
+                .Where(e => e.FamilyId == all.Key && e.StartDate == null && e.StartsAt > now
+                    && ((e.Remind == EventReminders.PhoneSetting && e.StartsAt <= until) || (e.Remind > 0 && e.StartsAt <= farthest)))
                 .Join(db.CalendarSources.IgnoreQueryFilters(), e => e.CalendarSourceId, s => s.Id,
-                    (e, s) => new { e.Id, e.CalendarSourceId, e.GoogleEventId, e.Title, e.Location, StartsAt = e.StartsAt!.Value, Owner = s.MemberId, e.MemberIds })
+                    (e, s) => new { e.Id, e.CalendarSourceId, e.GoogleEventId, e.Title, e.Location, StartsAt = e.StartsAt!.Value, Owner = s.MemberId, e.MemberIds, e.Remind })
                 .ToListAsync(cancellationToken);
+            events.RemoveAll(e => e.Remind > 0 && e.StartsAt > now.AddMinutes(e.Remind));
             if (events.Count == 0)
             {
                 continue;
@@ -78,7 +84,7 @@ public sealed class ReminderSender(WheelhouseDbContext db, WebPush push, ParentS
             foreach (var subscription in family)
             {
                 var through = now.AddMinutes(subscription.LeadMinutes);
-                foreach (var e in events.Where(e => e.StartsAt <= through).OrderBy(e => e.StartsAt))
+                foreach (var e in events.Where(e => e.Remind > 0 || e.StartsAt <= through).OrderBy(e => e.StartsAt))
                 {
                     var key = KeyOf(e.CalendarSourceId, e.GoogleEventId, e.StartsAt);
                     List<Guid> people = e.Owner is { } owner ? [owner, .. e.MemberIds] : e.MemberIds;
@@ -152,14 +158,26 @@ public sealed class ReminderSender(WheelhouseDbContext db, WebPush push, ParentS
             id.ToString());
     }
 
-    /// <summary>How long until it starts, as "In 15 min" or "In 1 hr 30 min".</summary>
-    private static string In(int minutes) => minutes switch
+    /// <summary>
+    /// How long until it starts, as "In 15 min", "In 1 hr 30 min" or "In 2 days". Past an hour and a
+    /// half it is rounded to a quarter hour, since a pass can be up to half a minute late.
+    /// </summary>
+    private static string In(int minutes)
     {
-        <= 1 => "Starting now",
-        < 60 => $"In {minutes} min",
-        _ when minutes % 60 == 0 => $"In {minutes / 60} hr",
-        _ => $"In {minutes / 60} hr {minutes % 60} min",
-    };
+        if (minutes >= 90)
+        {
+            minutes = (int)Math.Round(minutes / 15.0) * 15;
+        }
+
+        return minutes switch
+        {
+            <= 1 => "Starting now",
+            < 60 => $"In {minutes} min",
+            >= 1440 when minutes % 1440 == 0 => minutes == 1440 ? "In 1 day" : $"In {minutes / 1440} days",
+            _ when minutes % 60 == 0 => $"In {minutes / 60} hr",
+            _ => $"In {minutes / 60} hr {minutes % 60} min",
+        };
+    }
 
     /// <summary>A clock time the way the screens write it: "3 pm", "3:30 pm" (core/days.ts, clockText).</summary>
     public static string ClockText(DateTimeOffset local)

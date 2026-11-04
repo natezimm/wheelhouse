@@ -1,6 +1,6 @@
 import { marloweCalendars, allDay, timed } from '../testing/calendar';
 import { marlowes } from '../testing/marlowes';
-import { clockLabel, copyOf, draftOf, endAt, moveDays, moveEnd, moveStart, movedTo, newDraft, onDayOf, parseClock, peopleChoices, problemWith, requestOf, resizedTo, revise, startAt, togglePerson, writableCalendars } from './event-draft';
+import { clockLabel, copyOf, draftOf, endAt, moveDays, moveEnd, moveStart, movedTo, newDraft, onDayOf, parseClock, peopleChoices, problemWith, remindChoices, remindText, requestOf, resizedTo, revise, startAt, togglePerson, writableCalendars } from './event-draft';
 
 describe('event drafts', () => {
   const zone = 'America/New_York';
@@ -167,6 +167,7 @@ describe('event drafts', () => {
       recurring: true,
       recurrence: 'RRULE:FREQ=WEEKLY',
       countdown: true,
+      remind: 60,
     };
     const copy = copyOf(therapy, { id: 'c1', memberId: 'm1' }, zone);
 
@@ -181,6 +182,7 @@ describe('event drafts', () => {
       // Tess's own event, copied into Ben's calendar, is still hers; Ben is its calendar's owner.
       memberIds: ['m2'],
       private: true,
+      remind: 60,
     });
     expect(requestOf(copy)).not.toHaveProperty('recurrence');
     // A copy is not counted down to unless it is marked again.
@@ -210,6 +212,26 @@ describe('event drafts', () => {
     expect(requestOf({ ...draft, countdown: false }).countdown).toBe(false);
     expect(requestOf({ ...newDraft('2026-10-13', 'c1', zone, new Date()), title: 'Party' })).not.toHaveProperty('countdown');
     expect(requestOf({ ...newDraft('2026-10-13', 'c1', zone, new Date()), title: 'Party', countdown: true }).countdown).toBe(true);
+  });
+
+  it('send the reminder time only when it changed, and never for an all-day event', () => {
+    const game = { ...timed('Game', 'm3', '2026-10-17T15:00:00Z', '2026-10-17T16:15:00Z'), remind: 60 };
+    const draft = draftOf(game, zone);
+
+    expect(draft.remind).toBe(60);
+    expect(requestOf(draft)).not.toHaveProperty('remind');
+    expect(requestOf({ ...draft, remind: -1 }).remind).toBe(-1);
+    expect(requestOf({ ...draft, remind: 0 }).remind).toBe(0);
+    expect(requestOf({ ...draft, remind: 15, allDay: true })).not.toHaveProperty('remind');
+    expect(requestOf({ ...newDraft('2026-10-13', 'c1', zone, new Date()), title: 'Party' })).not.toHaveProperty('remind');
+  });
+
+  it('offer reminder times, keeping one Google holds that is not among them', () => {
+    expect(remindChoices(0).map((c) => c.label)).toEqual([
+      'As set on each phone', 'No reminder', '5 min before', '10 min before', '15 min before', '30 min before', '1 hr before', '2 hr before', '1 day before',
+    ]);
+    expect(remindChoices(45, true).map((c) => c.short)).toEqual(['Usual', 'Off', '15 min', '30 min', '45 min', '1 hr', '1 day']);
+    expect([remindText(90), remindText(2880)]).toEqual(['1 hr 30 min', '2 days']);
   });
 
   it('end a resized event at the new time on its own day, or at the midnight that ends it', () => {

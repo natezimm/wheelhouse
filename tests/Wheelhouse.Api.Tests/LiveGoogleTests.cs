@@ -81,7 +81,7 @@ public sealed class LiveGoogleTests : IAsyncLifetime
     {
         var people = new[] { Guid.NewGuid(), Guid.NewGuid() };
         var added = await google.InsertEventAsync(token, Calendar,
-            Draft("story time", Start) with { Description = "Bring <b>library cards</b>", MemberIds = people, Private = true, Countdown = true },
+            Draft("story time", Start) with { Description = "Bring <b>library cards</b>", MemberIds = people, Private = true, Countdown = true, Remind = 45 },
             CancellationToken.None);
 
         var read = await google.GetEventAsync(token, Calendar, added.Id, CancellationToken.None);
@@ -92,6 +92,7 @@ public sealed class LiveGoogleTests : IAsyncLifetime
         Assert.Equal(people, read.MemberIds);
         Assert.True(read.Private);
         Assert.True(read.Countdown);
+        Assert.Equal(45, read.Remind);
 
         // A patch that names none of them leaves notes, people, privacy and the countdown as they were.
         var moved = await google.PatchEventAsync(token, Calendar, added.Id, read.ETag, Draft("story time", Start.AddHours(2)), CancellationToken.None);
@@ -100,6 +101,7 @@ public sealed class LiveGoogleTests : IAsyncLifetime
         Assert.Equal(people, moved.MemberIds);
         Assert.True(moved.Private);
         Assert.True(moved.Countdown);
+        Assert.Equal(45, moved.Remind);
         Assert.NotEqual(read.ETag, moved.ETag);
 
         // The version the screen was editing is gone, so Google refuses a change or delete made with it.
@@ -110,10 +112,11 @@ public sealed class LiveGoogleTests : IAsyncLifetime
 
         // An empty tag clears the people, and privacy and the countdown can be turned off.
         var cleared = await google.PatchEventAsync(token, Calendar, added.Id, moved.ETag,
-            Draft("story time", Start.AddHours(2)) with { MemberIds = [], Private = false, Countdown = false }, CancellationToken.None);
+            Draft("story time", Start.AddHours(2)) with { MemberIds = [], Private = false, Countdown = false, Remind = EventReminders.None }, CancellationToken.None);
         Assert.Null(cleared.MemberIds);
         Assert.False(cleared.Private);
         Assert.False(cleared.Countdown);
+        Assert.Equal(EventReminders.None, cleared.Remind);
 
         await google.DeleteEventAsync(token, Calendar, added.Id, cleared.ETag, CancellationToken.None);
         Assert.Null(await google.GetEventAsync(token, Calendar, added.Id, CancellationToken.None));

@@ -137,7 +137,7 @@ public static class EventEndpoints
 
             var first = draft.Recurrence is null
                 ? RowFor(new GoogleEvent(id, null, draft.Title, draft.Location, draft.StartsAt, draft.EndsAt, draft.StartDate, draft.EndDate,
-                    Description: draft.Description, MemberIds: draft.MemberIds, Private: draft.Private ?? false, Countdown: draft.Countdown ?? false))
+                    Description: draft.Description, MemberIds: draft.MemberIds, Private: draft.Private ?? false, Countdown: draft.Countdown ?? false, Remind: draft.Remind ?? EventReminders.PhoneSetting))
                 : EventSeries.Occurrences(draft, id, Today(time, zone).AddDays(CalendarSync.Ahead.Days), zone)
                     .Select(RowFor)
                     .ToList()[0];
@@ -329,7 +329,7 @@ public static class EventEndpoints
                 // Notes left out of the request stay the event's notes, in every occurrence.
                 var newSeries = EventSeries.Occurrences(
                     draft! with { Description = draft.Description ?? row.Description, MemberIds = draft.MemberIds ?? row.MemberIds, Private = draft.Private ?? row.IsPrivate,
-            Countdown = draft.Countdown ?? row.Countdown },
+            Countdown = draft.Countdown ?? row.Countdown, Remind = draft.Remind ?? row.Remind },
                     row.GoogleEventId,
                     Today(time, Zone(draft!)).AddDays(CalendarSync.Ahead.Days), Zone(draft!)).ToList();
                 for (var n = 0; n < newSeries.Count; n++)
@@ -350,7 +350,7 @@ public static class EventEndpoints
             {
                 CalendarSync.CopyTo(row, new GoogleEvent(row.GoogleEventId, row.RecurringEventId, draft!.Title, draft.Location,
                     draft.StartsAt, draft.EndsAt, draft.StartDate, draft.EndDate, Description: draft.Description ?? row.Description,
-                    MemberIds: draft.MemberIds ?? row.MemberIds, Private: draft.Private ?? row.IsPrivate, Countdown: draft.Countdown ?? row.Countdown));
+                    MemberIds: draft.MemberIds ?? row.MemberIds, Private: draft.Private ?? row.IsPrivate, Countdown: draft.Countdown ?? row.Countdown, Remind: draft.Remind ?? row.Remind));
                 row.CalendarSourceId = to!.Id;
             }
 
@@ -451,7 +451,7 @@ public static class EventEndpoints
                 // Until the next sync brings in its occurrences, the new series shows as its first event.
                 CalendarSync.CopyTo(row, new GoogleEvent(row.GoogleEventId, seriesId, startedAs.Title, startedAs.Location,
                     startedAs.StartsAt, startedAs.EndsAt, startedAs.StartDate, startedAs.EndDate, startedAs.ETag,
-                    startedAs.Description, draft!.Recurrence, startedAs.MemberIds, startedAs.IsPrivate, startedAs.Countdown));
+                    startedAs.Description, draft!.Recurrence, startedAs.MemberIds, startedAs.IsPrivate, startedAs.Countdown, startedAs.Remind));
                 row.CalendarSourceId = to!.Id;
             }
             else
@@ -592,7 +592,7 @@ public static class EventEndpoints
     {
         // Notes and people left out of the request stay the event's in the new series.
         draft = draft with { Description = draft.Description ?? row.Description, MemberIds = draft.MemberIds ?? row.MemberIds, Private = draft.Private ?? row.IsPrivate,
-            Countdown = draft.Countdown ?? row.Countdown };
+            Countdown = draft.Countdown ?? row.Countdown, Remind = draft.Remind ?? row.Remind };
         var zone = Zone(draft);
         var day = EventSeries.DayOf(row, zone);
         if (IsDemo(instance))
@@ -908,7 +908,7 @@ public static class EventEndpoints
             if (!byDay.Remove(day, out var occurrenceRow))
             {
                 // A new event of the series takes the changed event's notes unless the change gives new ones.
-                occurrenceRow = new EventInstance { Id = Guid.CreateVersion7(), FamilyId = row.FamilyId, GoogleEventId = occurrence.Id, Title = "", Description = row.Description, MemberIds = row.MemberIds, IsPrivate = row.IsPrivate, Countdown = row.Countdown };
+                occurrenceRow = new EventInstance { Id = Guid.CreateVersion7(), FamilyId = row.FamilyId, GoogleEventId = occurrence.Id, Title = "", Description = row.Description, MemberIds = row.MemberIds, IsPrivate = row.IsPrivate, Countdown = row.Countdown, Remind = row.Remind };
                 db.EventInstances.Add(occurrenceRow);
             }
 
@@ -916,6 +916,7 @@ public static class EventEndpoints
             {
                 Id = occurrenceRow.GoogleEventId, Description = draft.Description ?? occurrenceRow.Description, MemberIds = draft.MemberIds ?? occurrenceRow.MemberIds,
                 Private = draft.Private ?? occurrenceRow.IsPrivate, Countdown = draft.Countdown ?? occurrenceRow.Countdown,
+                Remind = draft.Remind ?? occurrenceRow.Remind,
             });
             occurrenceRow.CalendarSourceId = to.Id;
             kept.Add(occurrenceRow);
@@ -1035,6 +1036,11 @@ public static class EventEndpoints
             }
         }
 
+        if (request.Remind is { } remind && !EventReminders.IsValid(remind))
+        {
+            errors["remind"] = [$"Remind up to {EventReminders.MaxMinutes / 1440} days before, or not at all."];
+        }
+
         GoogleEventDraft? draft = null;
         if (request.EndDate.DayNumber - request.StartDate.DayNumber > MaxDays)
         {
@@ -1069,7 +1075,7 @@ public static class EventEndpoints
             }
         }
 
-        return errors.Count == 0 ? (draft! with { Description = description, Recurrence = rule, MemberIds = memberIds, Private = request.Private, Countdown = request.Countdown }, null) : (null, errors);
+        return errors.Count == 0 ? (draft! with { Description = description, Recurrence = rule, MemberIds = memberIds, Private = request.Private, Countdown = request.Countdown, Remind = request.Remind }, null) : (null, errors);
     }
 
     /// <summary>

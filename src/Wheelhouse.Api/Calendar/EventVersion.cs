@@ -16,7 +16,7 @@ public static class EventVersion
         var text = string.Join('\u001f',
             row.CalendarSourceId, row.RecurringEventId, row.Title, row.Location,
             row.StartsAt?.UtcTicks, row.EndsAt?.UtcTicks, row.StartDate?.DayNumber, row.EndDate?.DayNumber,
-            row.Description, row.Recurrence, string.Join(',', row.MemberIds.Order()), row.IsPrivate, row.Countdown);
+            row.Description, row.Recurrence, string.Join(',', row.MemberIds.Order()), row.IsPrivate, row.Countdown, row.Remind);
         return Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(text)), 0, 12)
             .Replace('+', '-').Replace('/', '_');
     }
