@@ -76,6 +76,10 @@ export function leadText(minutes: number): string {
               <button class="button" type="button" [disabled]="busy()" (click)="test()">Send a test</button>
               <button class="button" type="button" [disabled]="busy()" (click)="turnOff()">Turn off</button>
             </div>
+            <p class="hint">
+              Also see the family's calendars in Google Calendar? Set their notifications to none there, or this phone is told
+              twice.
+            </p>
           } @else {
             <button class="button primary" type="button" [disabled]="busy()" (click)="turnOn()">Turn on reminders</button>
           }
@@ -106,6 +110,7 @@ export function leadText(minutes: number): string {
     }
 
     .hint {
+      margin: 0;
       font-size: 13px;
       font-weight: 500;
       color: var(--muted);
