@@ -33,8 +33,19 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "500kB",
-                  "maximumError": "1MB"
+                  "maximumWarning": "420kB",
+                  "maximumError": "450kB"
+                },
+                {
+                  "type": "bundle",
+                  "name": "calendar-home",
+                  "maximumWarning": "105kB",
+                  "maximumError": "115kB"
+                },
+                {
+                  "type": "allScript",
+                  "maximumWarning": "820kB",
+                  "maximumError": "880kB"
                 },
                 {
                   "type": "anyComponentStyle",

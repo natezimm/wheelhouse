@@ -114,6 +114,15 @@ jobs:
           exit 1
       - name: Smoke check the demo
         run: SMOKE_URL=http://127.0.0.1:8080 SMOKE_MODE=Demo node deploy/smoke.mjs
+      # Before the other browser checks, so their demo copies and load do not crowd it. Over the
+      # budget fails the job; docs/performance-budget.md says what to do.
+      - name: Load budget
+        run: |
+          # The server's nginx forwards over HTTP/1.0, which once lost the app its compression.
+          script=$(curl -fsS http://127.0.0.1:8080/ | grep -o 'main-[A-Za-z0-9_-]*\.js' | head -1)
+          curl -fsS --http1.0 -H 'Accept-Encoding: gzip' -o /dev/null -D - "http://127.0.0.1:8080/$script" | grep -qi '^content-encoding: gzip' \
+            || { echo "$script is sent uncompressed over HTTP/1.0"; exit 1; }
+          LOAD_URL=http://127.0.0.1:8080 LOAD_RESULTS=load-results node web/perf/load-budget.mjs
       - name: Edit, drag and series checks against the demo
         working-directory: web
         run: npx playwright test -c playwright.stack.config.mjs
@@ -150,4 +159,5 @@ jobs:
           path: |
             web/stack-results
             smoke-results
+            load-results
           retention-days: 7
