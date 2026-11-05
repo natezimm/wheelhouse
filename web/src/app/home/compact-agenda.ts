@@ -1,7 +1,7 @@
 import { Component, computed, inject, input, output } from '@angular/core';
 import { CalendarStore, colorOf, namesOf, peopleOf, showsOn, spanOf } from '../core/calendar';
 import { inAllDayLane } from '../core/calendar-grid';
-import { Day, dayIn, timeIn, timeText } from '../core/days';
+import { Day, dayIn, timeText } from '../core/days';
 import { FamilyStore } from '../core/family';
 import { AvatarFace } from '../shared/avatar-face';
 
@@ -61,11 +61,11 @@ import { AvatarFace } from '../shared/avatar-face';
       width: 58px;
       font-size: 13px;
       font-weight: 700;
-      color: var(--notice-ink);
+      color: var(--chip-quiet);
     }
 
     .all-day .time {
-      color: var(--member-text);
+      color: var(--member-chip-text);
     }
 
     .mark {
@@ -140,7 +140,7 @@ export class CompactAgenda {
         pending: !!event.pending,
         allDay: whole,
         time,
-        label: `${event.title}, ${whole ? 'all day' : startsToday ? timeIn(zone, event.startsAt!) : `until ${timeIn(zone, event.endsAt!)}`}, ${namesOf(event, family.members)}${event.pending ? ', saving' : ''}`,
+        label: `${event.title}, ${whole ? 'all day' : startsToday ? timeText(zone, event.startsAt!) : `until ${timeText(zone, event.endsAt!)}`}, ${namesOf(event, family.members)}${event.pending ? ', saving' : ''}`,
       };
     });
   });

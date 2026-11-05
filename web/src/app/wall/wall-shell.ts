@@ -1,4 +1,4 @@
-import { Component, DestroyRef, computed, inject, signal, viewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, Injector, computed, inject, signal, viewChild } from '@angular/core';
 import { CalendarEvent, CalendarStore } from '../core/calendar';
 import { CalendarView, periodOf, stepFrom } from '../core/calendar-period';
 import { Clock } from '../core/clock';
@@ -15,6 +15,7 @@ import { CalendarToolbar } from '../shared/calendar-toolbar';
 import { CountdownStrip } from '../shared/countdown-strip';
 import { DemoNotice } from '../shared/demo-notice';
 import { EventDetails } from '../shared/event-details';
+import { keepFocus } from '../shared/keep-focus';
 import { DayView } from './day-view';
 import { EventDialog } from './event-dialog';
 import { MonthView } from './month-view';
@@ -58,7 +59,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
   ],
   template: `
     @if (showPairing()) {
-      <app-pairing-screen [cancellable]="pairingChosen()" (paired)="paired()" (cancelled)="pairingChosen.set(false)" />
+      <app-pairing-screen [cancellable]="pairingChosen()" (paired)="paired()" (cancelled)="backFromPairing()" />
     } @else {
       <header>
         <div class="now">
@@ -77,7 +78,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
             <!-- On the demo the wall starts with a copy of its own; pairing joins the phone's copy. -->
             <div class="demo">
               <span>Demo family</span>
-              <button type="button" (click)="pairingChosen.set(true)">Pair with a phone</button>
+              <button #pair type="button" (click)="pairingChosen.set(true)">Pair with a phone</button>
             </div>
           } @else {
             <app-demo-notice />
@@ -106,7 +107,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
         <app-calendar-connection layout="wall" />
       }
 
-      <section class="card" aria-label="Calendar">
+      <section #card class="card" tabindex="-1" aria-label="Calendar">
         @if (family.state().status === 'ready') {
           @switch (view()) {
             @case ('day') {
@@ -354,6 +355,9 @@ export class WallShell {
   private readonly dialog = viewChild(EventDialog);
   private readonly week = viewChild(WeekView);
   private readonly dayView = viewChild(DayView);
+  private readonly card = viewChild<ElementRef<HTMLElement>>('card');
+  private readonly pairButton = viewChild<ElementRef<HTMLElement>>('pair');
+  private readonly injector = inject(Injector);
 
   /** Whether any calendar takes new events; a family with none has nothing to add to. */
   protected readonly canAdd = computed(() => this.calendar.calendars().some((calendar) => calendar.canWrite));
@@ -509,6 +513,14 @@ export class WallShell {
     this.selected.set(null);
     this.focus.set(day);
     this.choose('day');
+    // The heading or "+N" that opened it is gone with the week, so the keyboard carries on in the day.
+    keepFocus(this.injector, () => this.card()?.nativeElement);
+  }
+
+  /** Back from the pairing screen to the family, with the keyboard back on the button that opened it. */
+  protected backFromPairing(): void {
+    this.pairingChosen.set(false);
+    keepFocus(this.injector, () => this.pairButton()?.nativeElement);
   }
 
   /** Signed in now: show the family the display was paired with. */

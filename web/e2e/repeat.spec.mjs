@@ -65,7 +65,7 @@ test('a custom repeat is set by touch, fits the screen and shows every event at 
     ? page.locator('app-week-view .event', { hasText: 'Swim lesson' })
     : page.locator('app-agenda-list li.event button', { hasText: 'Swim lesson' })).click();
   await page.getByRole('dialog', { name: 'Swim lesson' }).getByRole('button', { name: 'Edit event', exact: true }).click();
-  const editor = page.locator(wall ? 'app-event-dialog form' : 'app-event-sheet form');
+  const editor = page.locator(wall ? 'app-event-dialog [role=dialog]' : 'app-event-sheet [role=dialog]');
 
   if (wall) {
     await editor.getByRole('button', { name: 'Custom', exact: true }).click();
@@ -119,7 +119,7 @@ test('this and following changes an event and every later one, with the repeat s
     : page.locator('app-agenda-list li.event button', { hasText: 'Piano' })).click();
   await expect(page.getByRole('dialog', { name: 'Piano' })).toContainText('Every week on Wednesday');
   await page.getByRole('dialog', { name: 'Piano' }).getByRole('button', { name: 'Edit event', exact: true }).click();
-  const editor = page.locator(wall ? 'app-event-dialog form' : 'app-event-sheet form');
+  const editor = page.locator(wall ? 'app-event-dialog [role=dialog]' : 'app-event-sheet [role=dialog]');
 
   if (wall) {
     const choice = editor.getByRole('button', { name: 'This and following', exact: true });

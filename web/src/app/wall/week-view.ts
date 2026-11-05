@@ -128,6 +128,11 @@ export type { GridSlot } from './hour-grid';
       background: var(--today-head);
     }
 
+    /* Inside the ring, which the calendar's rounded card would otherwise cut off at the top. */
+    .head:focus-visible {
+      outline-offset: -3px;
+    }
+
     .head app-day-forecast {
       margin-left: auto;
     }

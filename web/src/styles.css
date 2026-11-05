@@ -96,6 +96,11 @@
   /* A member's color as text or a line on the calendar, such as the day on the details. */
   --member-text-mix: 72%;
   --member-text-base: black;
+  /* Text on a member's chip color, such as the day over an event's details: the member's text color, unless the
+     chip is too strong for it. A phone row's time sits there too, in the quiet notice ink. */
+  --chip-text-mix: var(--member-text-mix);
+  --chip-text-base: var(--member-text-base);
+  --chip-quiet: var(--notice-ink);
   /* An event's own text: its title, and its time in the member's color. */
   --event-ink: var(--ink);
   --event-time-mix: 72%;
@@ -194,6 +199,8 @@
   --member-fill: 38%;
   --member-chip: 38%;
   --member-shade: 70%;
+  --chip-text-mix: 0%;
+  --chip-text-base: var(--ink);
   --event-time-mix: 0%;
   --event-time-base: var(--ink);
   --event-radius: 12px;
@@ -345,6 +352,9 @@
   --member-fill: 48%;
   --member-chip: 48%;
   --member-shade: 70%;
+  --chip-text-mix: 0%;
+  --chip-text-base: var(--ink);
+  --chip-quiet: var(--ink);
   --member-ring: 0%;
   --member-ring-base: transparent;
   --primary-edge: var(--ink);
@@ -647,6 +657,7 @@
   --member-strong: color-mix(in srgb, var(--member) var(--member-shade), black);
   --member-text: color-mix(in srgb, var(--member) var(--member-text-mix), var(--member-text-base));
   --member-time: color-mix(in srgb, var(--member) var(--event-time-mix), var(--event-time-base));
+  --member-chip-text: color-mix(in srgb, var(--member) var(--chip-text-mix), var(--chip-text-base));
   /* An event block or bar: its ring, then the theme's offset shadow. */
   --event-outline: inset 0 0 0 1px var(--member-edge), var(--event-lift);
   --bar-outline: inset 0 0 0 1px var(--member-edge), var(--bar-lift);
@@ -772,7 +783,7 @@ select {
   border-color: transparent;
   box-shadow: none;
   background: transparent;
-  color: var(--danger);
+  color: var(--danger-text);
 }
 
 .button:disabled {

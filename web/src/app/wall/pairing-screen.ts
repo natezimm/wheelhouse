@@ -1,4 +1,4 @@
-import { Component, DestroyRef, computed, effect, inject, input, output } from '@angular/core';
+import { Component, DestroyRef, ElementRef, afterNextRender, computed, effect, inject, input, output, viewChild } from '@angular/core';
 import { WallPairing } from '../core/pairing';
 
 /**
@@ -9,7 +9,7 @@ import { WallPairing } from '../core/pairing';
   selector: 'app-pairing-screen',
   template: `
     <div class="intro">
-      <h1>Pair this display</h1>
+      <h1 #heading tabindex="-1">Pair this display</h1>
       <p>Enter this code on a parent's phone to connect it to your family.</p>
     </div>
 
@@ -61,6 +61,11 @@ import { WallPairing } from '../core/pairing';
     }
   `,
   styles: `
+    /* The heading takes focus only so the keyboard starts on this screen; it is not a control. */
+    h1:focus {
+      outline: none;
+    }
+
     /* Fills the wall's frame in place of the family. */
     :host {
       flex: 1;
@@ -210,7 +215,15 @@ export class PairingScreen {
     return state.status === 'showing' ? state.code : null;
   });
 
+  private readonly heading = viewChild.required<ElementRef<HTMLElement>>('heading');
+
   constructor() {
+    // Opened from the wall's Pair with a phone, the keyboard starts here rather than on a button that has gone.
+    afterNextRender(() => {
+      if (this.cancellable()) {
+        this.heading().nativeElement.focus({ preventScroll: true });
+      }
+    });
     this.pairing.begin();
     inject(DestroyRef).onDestroy(() => this.pairing.end());
 

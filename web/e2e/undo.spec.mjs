@@ -72,7 +72,7 @@ test('a deleted event comes back with Undo', async ({ page }, testInfo) => {
 
   await event('Swim lesson').click();
   await page.getByRole('dialog', { name: 'Swim lesson' }).getByRole('button', { name: 'Delete', exact: true }).click();
-  const editor = page.locator(wall ? 'app-event-dialog form' : 'app-event-sheet form');
+  const editor = page.locator(wall ? 'app-event-dialog [role=dialog]' : 'app-event-sheet [role=dialog]');
   await editor.getByRole('button', { name: 'Delete event', exact: true }).click();
   await expect(event('Swim lesson')).toHaveCount(0);
 
