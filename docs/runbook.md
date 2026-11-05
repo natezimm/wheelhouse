@@ -5,13 +5,21 @@ What to do when an instance misbehaves. Every instance runs on the one VM as the
 ## First look
 
 1. **Health.** `curl -s https://home.example.com/health | python3 -m json.tool`. `status` is Healthy, Degraded (works, but something needs attention) or Unhealthy (503). `checks` names each part; `details` says why one is not Healthy (`description`) and what it measured (`data`): for `calendar`, `lastPassAgeSeconds` (the worker's last pass over every family), `oldestSyncAgeSeconds` (the calendar furthest behind Google) and `needsReconnect`; for `weather`, when Open-Meteo last answered and last failed. `version` is the running release and `startedAt` when the API last started, so a recent time you did not cause means it restarted.
-2. **Containers.** On the VM: `docker compose -p wheelhouse-family ps`. All three (`db`, `api`, `web`) should be `running`; `restarting` means it keeps crashing.
+2. **Containers.** On the VM, define this for the instance first. It names the instance's own Compose file, folder and `.env` (which holds its version) as releases do, and takes the restored configuration while one is in place, so a command never picks up the newer `~/wheelhouse/compose.yaml` over a restore:
+
+   ```bash
+   i=~/wheelhouse/family
+   wh() { docker compose -p "wheelhouse-$(basename "$i")" --project-directory "$i" --env-file "$i/.env" \
+     -f "$([[ -f "$i/recovery-compose.yaml" ]] && echo "$i/recovery-compose.yaml" || echo ~/wheelhouse/compose.yaml)" "$@"; }
+   ```
+
+   Then `wh ps`. All three (`db`, `api`, `web`) should be `running`; `restarting` means it keeps crashing.
 3. **Logs.** The API writes one JSON object per line. Each request that changed something, was refused, was slow (over 2 s) or failed (Warning for a 503, Error for other 5xx) leaves a line from `Wheelhouse.Requests` with its method, path, status, time, family and device or account id; every line written during a request carries its `RequestId`.
 
    ```bash
-   docker compose -p wheelhouse-family logs --since 1h --no-log-prefix api | grep -v '"LogLevel":"Information"'
+   wh logs --since 1h --no-log-prefix api | grep -v '"LogLevel":"Information"'
    # With jq (sudo apt-get install jq): only errors, short.
-   docker compose -p wheelhouse-family logs --since 1h --no-log-prefix api | jq -c 'select(.LogLevel=="Error") | [.Timestamp, .Category, .Message]'
+   wh logs --since 1h --no-log-prefix api | jq -c 'select(.LogLevel=="Error") | [.Timestamp, .Category, .Message]'
    ```
 
    Errors a screen hit come from `Wheelhouse.ClientErrors`. To log every request, routine reads too, add `Logging__LogLevel__Wheelhouse.Requests=Debug` to the `api` service's environment for a while. The server's nginx keeps its own record in `/var/log/nginx/access.log` (status 499 means the browser gave up waiting).
@@ -21,8 +29,8 @@ What to do when an instance misbehaves. Every instance runs on the one VM as the
 The **is down** alert: `/health` has not answered 2xx from two regions for 5 minutes.
 
 - **Nothing answers at all** (connection refused or timed out): the VM is stopped or nginx is down. Check the VM in the Google Cloud console and start it; on the VM, `sudo systemctl status nginx` and `sudo nginx -t`.
-- **502 or 504 from nginx:** the instance's `web` container is down. `docker compose -p wheelhouse-family ps`, then `docker compose -p wheelhouse-family up -d` from `~/wheelhouse/family` with `--env-file .env` if it does not start on its own (the containers restart themselves after a reboot).
-- **503 with `"database":"Unhealthy"`:** the database is unreachable. `docker compose -p wheelhouse-family logs --tail 50 db`. A full disk is the usual cause (see below).
+- **502 or 504 from nginx:** the instance's `web` container is down. `wh ps`, then `wh up -d` if it does not start on its own (the containers restart themselves after a reboot).
+- **503 with `"database":"Unhealthy"`:** the database is unreachable. `wh logs --tail 50 db`. A full disk is the usual cause (see below).
 - **API restarting:** its last log lines say why. A failed migration at startup exits the process; roll back with the release snapshot (deploy/README.md, "Restore one instance") rather than starting an older image on a migrated database.
 - **Out of memory:** the API is capped at 160 MB. `docker inspect -f '{{.State.OOMKilled}}' wheelhouse-family-api-1` says whether it was killed for it; raise `mem_limit` in `deploy/compose.yaml` if it keeps happening.
 
@@ -32,7 +40,7 @@ The **calendar is behind Google** alert: `/health`'s `calendar` check has not be
 
 - **"needs connecting again":** Google refused the stored token (password changed, access removed, or the OAuth app was left in Testing for 7 days). A parent opens Settings > Calendars on their phone and taps **Connect again**. The wall shows a notice meanwhile.
 - **"A calendar has not synced":** one calendar keeps failing or the shared account can no longer see it. Check that calendar is still shared to the account in Google Calendar, then under Settings > Calendars > **Choose calendars** pick it again or drop it. The API's log names the family and calendar.
-- **"The calendar worker has not finished a pass":** the sync loop is stuck or stopped. `docker compose -p wheelhouse-family restart api`; if it comes back, look for what hung in the log before the restart.
+- **"The calendar worker has not finished a pass":** the sync loop is stuck or stopped. `wh restart api`; if it comes back, look for what hung in the log before the restart.
 - **"The last calendar sync failed":** look for `Could not sync the calendars of family` in the log. A Google outage clears by itself; a 403 for quota or a disabled Calendar API needs the Google Cloud console (APIs & Services).
 
 ## Certificate expiring
