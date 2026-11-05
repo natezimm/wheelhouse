@@ -23,7 +23,8 @@ public static class GoogleConnectionEndpoints
     public static IServiceCollection AddGoogleCalendar(this IServiceCollection services)
     {
         services.AddScoped<GoogleTokens>();
-        services.AddHttpClient<IGoogleCalendar, GoogleCalendarApi>(client => client.Timeout = TimeSpan.FromSeconds(20));
+        services.AddHttpClient<IGoogleCalendar, GoogleCalendarApi>(client => client.Timeout = TimeSpan.FromSeconds(20))
+            .AddHttpMessageHandler(provider => new GoogleRateLimitHandler(provider.GetRequiredService<TimeProvider>()));
         services.AddOptions<CalendarSyncOptions>().BindConfiguration(CalendarSyncOptions.Section);
         services.AddScoped<CalendarSync>();
         services.AddSingleton<CalendarSyncTrigger>();

@@ -159,7 +159,11 @@ public sealed class GoogleEventGoneException(string eventId) : Exception($"Event
 /// <summary>Google answered 410 Gone: the sync token is no good, and the calendar must be read in full again.</summary>
 public sealed class GoogleSyncTokenExpiredException() : Exception("Google invalidated the calendar's sync token.");
 
-/// <summary>Google answered 404 or 403 for a calendar: it was deleted, or is no longer shared with the account.</summary>
+/// <summary>
+/// Google answered 404 or 403 for a calendar: it was deleted, or is no longer shared with the
+/// account. A 403 for quota is <see cref="GoogleRateLimitedException"/> instead, so a busy moment
+/// never makes a calendar read-only.
+/// </summary>
 public sealed class GoogleCalendarGoneException(string calendarId) : Exception($"The account can no longer see calendar {calendarId}.");
 
 /// <summary>What a finished consent gives the API. Google sends a refresh token only with offline access.</summary>
@@ -329,6 +333,7 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
         using var response = await http.SendAsync(request, cancellationToken);
+        await ThrowIfRateLimitedAsync(response, cancellationToken);
 
         switch (response.StatusCode)
         {
@@ -388,7 +393,7 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
             return;
         }
 
-        ThrowForEventStatus(response, calendarId, eventId);
+        await ThrowForEventStatusAsync(response, calendarId, eventId, cancellationToken);
         response.EnsureSuccessStatusCode();
     }
 
@@ -485,7 +490,7 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
             throw new GoogleEventGoneException(eventId);
         }
 
-        ThrowForEventStatus(response, calendarId, eventId ?? "(new)");
+        await ThrowForEventStatusAsync(response, calendarId, eventId ?? "(new)", cancellationToken);
         response.EnsureSuccessStatusCode();
         var item = await response.Content.ReadFromJsonAsync<EventItem>(cancellationToken)
             ?? throw new HttpRequestException("Google sent an empty event.");
@@ -497,14 +502,27 @@ public sealed class GoogleCalendarApi(HttpClient http, IOptions<GoogleSignInOpti
         return ToEvent(item) ?? throw new HttpRequestException("Google sent an event with no start or end.");
     }
 
-    private static void ThrowForEventStatus(HttpResponseMessage response, string calendarId, string eventId)
+    private static async Task ThrowForEventStatusAsync(HttpResponseMessage response, string calendarId, string eventId, CancellationToken cancellationToken)
     {
+        await ThrowIfRateLimitedAsync(response, cancellationToken);
         switch (response.StatusCode)
         {
             case HttpStatusCode.PreconditionFailed:
                 throw new GoogleEventChangedException(eventId);
             case HttpStatusCode.NotFound or HttpStatusCode.Forbidden:
                 throw new GoogleCalendarGoneException(calendarId);
+        }
+    }
+
+    /// <summary>
+    /// <see cref="GoogleRateLimitHandler"/> already turns a refusal for quota into an exception
+    /// after its retries; this keeps the client from reading one as a calendar gone without it.
+    /// </summary>
+    private static async Task ThrowIfRateLimitedAsync(HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        if (await GoogleRateLimitHandler.IsRateLimitedAsync(response, cancellationToken))
+        {
+            throw new GoogleRateLimitedException(null);
         }
     }
 

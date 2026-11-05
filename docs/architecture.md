@@ -53,7 +53,7 @@ flowchart TB
       Endpoints["Minimal API endpoints<br/>by feature folder"]
       Hub["/hubs/calendar<br/>SignalR"]
       Live["CalendarLiveService<br/>checks change numbers each second"]
-      Sync["CalendarSyncService<br/>every two minutes"]
+      Sync["CalendarSyncService<br/>every two minutes,<br/>backing off per family"]
       Remind["ReminderService<br/>every 30 seconds"]
       Ctx["WheelhouseDbContext<br/>family query filters"]
     end
