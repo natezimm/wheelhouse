@@ -364,7 +364,7 @@ export function restOf(events: readonly CalendarEvent[], day: Day, timeZone: str
       align-self: center;
       font-size: 20px;
       font-weight: 600;
-      color: var(--faint);
+      color: var(--muted);
     }
 
     /* Night: only the clock and what is next, faint on the dark look, so the wall does not light the room. */

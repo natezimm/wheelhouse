@@ -71,7 +71,7 @@ type SearchState =
       <p class="status" role="status">{{ status() }}</p>
 
       @for (group of groups(); track group.name) {
-        <h3>{{ group.name }}</h3>
+        <h2>{{ group.name }}</h2>
         <ul>
           @for (row of group.rows; track row.event.id) {
             <li>
@@ -212,7 +212,7 @@ type SearchState =
       display: none;
     }
 
-    h3 {
+    h2 {
       margin: 8px 6px 0;
       font: 700 13px var(--font-body);
       letter-spacing: 0.06em;

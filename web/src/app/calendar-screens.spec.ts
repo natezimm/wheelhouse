@@ -800,7 +800,7 @@ describe('calendar screens', () => {
       request.flush({ events: [flight, past], total: 2 });
       await settle();
 
-      expect(texts(search.querySelectorAll('h3'))).toEqual(['Coming up', 'Earlier']);
+      expect(texts(search.querySelectorAll('h2'))).toEqual(['Coming up', 'Earlier']);
       const parts = (selector: string) => texts(search.querySelectorAll(selector));
       expect(parts('.row .day')).toEqual(['Thu, Oct 29', 'Thu, Oct 1']);
       expect(parts('.row .time')).toEqual(['6:10 – 8:40 am', '7 – 8 pm']);

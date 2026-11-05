@@ -15,7 +15,7 @@ import { RepeatPicker } from '../shared/repeat-picker';
   imports: [AvatarFace, ModalFocus, RepeatPicker],
   template: `
     @if (draft(); as draft) {
-      <form
+      <section
         class="card"
         appModalFocus
         tabindex="-1"
@@ -23,8 +23,8 @@ import { RepeatPicker } from '../shared/repeat-picker';
         aria-modal="true"
         [attr.aria-label]="heading()"
         (keydown.escape)="!busy() && closed.emit()"
-        (submit)="$event.preventDefault(); save()"
       >
+      <form (submit)="$event.preventDefault(); save()">
         <header>
           <div class="titles">
             <h1>{{ heading() }}</h1>
@@ -193,10 +193,13 @@ import { RepeatPicker } from '../shared/repeat-picker';
           }
         }
       </form>
+      </section>
     }
   `,
   styles: `
     fieldset { display: grid; gap: 16px; min-width: 0; padding: 0; margin: 0; border: 0; }
+    /* The form lays its fields out in the card, which holds the dialog role a form cannot take. */
+    form { display: contents; }
     :host {
       position: fixed;
       inset: 0;

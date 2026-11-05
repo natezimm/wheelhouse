@@ -1,4 +1,4 @@
-import { Component, DestroyRef, computed, effect, inject, input, signal, untracked } from '@angular/core';
+import { Component, DestroyRef, ElementRef, Injector, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { CalendarEvent, CalendarStore } from '../core/calendar';
 import { CalendarView, VIEWS, periodOf, stepFrom } from '../core/calendar-period';
@@ -19,6 +19,7 @@ import { DemoTour } from '../shared/demo-tour';
 import { DemoWelcome, rememberWelcomeSeen, welcomeSeen } from '../shared/demo-welcome';
 import { EventDetails } from '../shared/event-details';
 import { EventSearch, SearchPick } from '../shared/event-search';
+import { keepFocus } from '../shared/keep-focus';
 import { ShortcutHelp, shortcutOf } from '../shared/shortcut-help';
 import { WeatherIcon } from '../shared/weather-icon';
 import { DayView } from '../wall/day-view';
@@ -104,7 +105,7 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
         } @else {
           <app-calendar-connection layout="desktop" />
         }
-        <section class="card" aria-label="Calendar">
+        <section #card class="card" tabindex="-1" aria-label="Calendar">
           @if (shown(); as day) {
             @switch (view()) {
               @case ('day') {
@@ -537,6 +538,8 @@ export class CalendarHome {
   protected readonly session = inject(SessionStore);
   protected readonly weather = inject(WeatherStore);
   private readonly clock = inject(Clock);
+  private readonly injector = inject(Injector);
+  private readonly card = viewChild<ElementRef<HTMLElement>>('card');
   private readonly preferences = inject(ViewPreferences);
 
   protected readonly views = VIEWS;
@@ -738,6 +741,8 @@ export class CalendarHome {
     this.selected.set(null);
     this.focus.set(day);
     this.choose('day');
+    // The heading or "+N" that opened it is gone with the week, so the keyboard carries on in the day.
+    keepFocus(this.injector, () => this.card()?.nativeElement);
   }
 
   /**
