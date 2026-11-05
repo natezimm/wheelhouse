@@ -7,7 +7,7 @@ namespace Wheelhouse.Api.Weather;
 /// Today's weather and the week's forecast for a place, asked of Open-Meteo at most once every 30 minutes per place. The
 /// demo's visitors all share the Marlowes' city, so they share one cached forecast too.
 /// </summary>
-public sealed class WeatherForecasts(OpenMeteo openMeteo, IMemoryCache cache)
+public sealed class WeatherForecasts(OpenMeteo openMeteo, IMemoryCache cache, WeatherHealth health)
 {
     public static readonly TimeSpan KeepFor = TimeSpan.FromMinutes(30);
 
@@ -47,8 +47,11 @@ public sealed class WeatherForecasts(OpenMeteo openMeteo, IMemoryCache cache)
             && exception is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
         {
             cache.Set(failedKey, true, FailureKeptFor);
+            health.Failed();
             throw;
         }
+
+        health.Answered();
 
         var (description, icon) = Describe(forecast.Current.WeatherCode, forecast.Current.IsDay == 1);
         var weather = new WeatherResponse(

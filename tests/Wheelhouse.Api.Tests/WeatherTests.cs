@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Wheelhouse.Api.Families;
+using Wheelhouse.Api.Health;
 using Wheelhouse.Api.Weather;
 
 namespace Wheelhouse.Api.Tests;
@@ -103,6 +104,11 @@ public sealed class WeatherTests(ApiFactory factory)
         var response = await visitor.GetAsync("/api/weather");
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+        // Health says so too, without failing: the calendar works without the weather.
+        var health = await visitor.GetAsync("/health");
+        Assert.Equal(HttpStatusCode.OK, health.StatusCode);
+        var body = (await health.Content.ReadFromJsonAsync<HealthResponse>())!;
+        Assert.Equal(("Degraded", "Degraded"), (body.Status, body.Checks["weather"]));
     }
 
     [Fact]

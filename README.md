@@ -91,7 +91,7 @@ You need Docker with Compose.
 docker compose up --build -d
 ```
 
-Open http://localhost:8080 for the phone layout (or the desktop layout in a window 768 px or wider) and http://localhost:8080/wall for the wall display. Locally the app runs as the demo, so you get your own copy of the Marlowe family without signing in. `http://localhost:8080/health` reports whether the API can reach its database. `docker compose down` stops it and keeps the database volume; add `--volumes` to delete it.
+Open http://localhost:8080 for the phone layout (or the desktop layout in a window 768 px or wider) and http://localhost:8080/wall for the wall display. Locally the app runs as the demo, so you get your own copy of the Marlowe family without signing in. `http://localhost:8080/health` reports whether the API can reach its database, how far the calendar is behind Google and whether the weather answers; [docs/runbook.md](docs/runbook.md) says what to do when a deployed instance misbehaves. `docker compose down` stops it and keeps the database volume; add `--volumes` to delete it.
 
 ### From source
 
