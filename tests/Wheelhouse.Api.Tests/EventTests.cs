@@ -742,9 +742,8 @@ public sealed class EventTests(ApiFactory factory)
         using var display = await PairedDisplayAsync(parent);
         var julians = await CalendarIdAsync(parent, "Julian");
 
-        // The demo's soccer game has a reminder time of its own. It is on the coming Saturday,
-        // which can fall before Day (three days from now), so look from a week before it.
-        Assert.Contains((await CalendarOf(parent, Day.AddDays(-7), 14)).Events, e => e.Title.StartsWith("U10 Rec Soccer") && e.Remind == 60);
+        // The demo's soccer game, on the coming Saturday, has a reminder time of its own; that Saturday can come before Day.
+        Assert.Contains((await CalendarOf(parent, Day.AddDays(-4), 14)).Events, e => e.Title.StartsWith("U10 Rec Soccer") && e.Remind == 60);
 
         var lessons = await AddAsync(display, Timed(julians, "Tuba lesson", new(16, 0), new(16, 30)) with { Recurrence = "RRULE:FREQ=WEEKLY;COUNT=3", Remind = 60 });
         Assert.Equal(60, lessons.Remind);

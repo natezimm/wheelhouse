@@ -1,4 +1,4 @@
-# 0008. Nightly dumps to a bucket the server can only add to
+# 0009. Nightly dumps to a bucket the server can only add to
 
 **Status:** Accepted, November 2026
 

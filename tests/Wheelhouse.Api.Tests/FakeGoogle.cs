@@ -51,6 +51,28 @@ internal sealed class FakeGoogle : IGoogleCalendar
         }
     }
 
+    /// <summary>
+    /// Failures Google answers with, each once and in order: the call ("token", "changes", "list",
+    /// "get" or "patch"), the calendar it fails for (null for any) and what the client throws, as
+    /// <see cref="GoogleCalendarApi"/> would for that answer.
+    /// </summary>
+    public List<(string Call, string? CalendarId, Exception Error)> Faults { get; } = [];
+
+    /// <summary>Every call the sync and the screens made, with its calendar (null for a token).</summary>
+    public List<(string Call, string? CalendarId)> Calls { get; } = [];
+
+    private void Answer(string call, string? calendarId)
+    {
+        Calls.Add((call, calendarId));
+        var fault = Faults.FindIndex(f => f.Call == call && (f.CalendarId is null || f.CalendarId == calendarId));
+        if (fault >= 0)
+        {
+            var error = Faults[fault].Error;
+            Faults.RemoveAt(fault);
+            throw error;
+        }
+    }
+
     /// <summary>Every change a screen made in Google: what was done, to which calendar and event, and the etag it sent.</summary>
     public List<(string Change, string CalendarId, string EventId, string? IfMatch)> Writes { get; } = [];
 
@@ -157,11 +179,13 @@ internal sealed class FakeGoogle : IGoogleCalendar
     public Task<string> AccessTokenAsync(string refreshToken, CancellationToken cancellationToken)
     {
         LastRefreshToken = refreshToken;
+        Answer("token", null);
         return Revoked ? throw new GoogleGrantRevokedException() : Task.FromResult($"access-{refreshToken}");
     }
 
     public Task<GoogleChanges> ListChangesAsync(string accessToken, string calendarId, string? syncToken, CancellationToken cancellationToken)
     {
+        Answer("changes", calendarId);
         if (Gone.Contains(calendarId))
         {
             throw new GoogleCalendarGoneException(calendarId);
@@ -179,6 +203,7 @@ internal sealed class FakeGoogle : IGoogleCalendar
     public Task<IReadOnlyList<GoogleEvent>> ListEventsAsync(
         string accessToken, string calendarId, DateTimeOffset from, DateTimeOffset to, CancellationToken cancellationToken)
     {
+        Answer("list", calendarId);
         if (Gone.Contains(calendarId))
         {
             throw new GoogleCalendarGoneException(calendarId);
@@ -260,6 +285,7 @@ internal sealed class FakeGoogle : IGoogleCalendar
         string accessToken, string calendarId, string eventId, string? etag, GoogleEventDraft draft, CancellationToken cancellationToken)
     {
         FailIfAsked("patch");
+        Answer("patch", calendarId);
         Writes.Add(("patch", calendarId, eventId, etag));
         var current = Current(calendarId, eventId, etag);
         if (draft.Recurrence is { } rule)
@@ -316,8 +342,11 @@ internal sealed class FakeGoogle : IGoogleCalendar
         return Task.CompletedTask;
     }
 
-    public Task<GoogleEvent?> GetEventAsync(string accessToken, string calendarId, string eventId, CancellationToken cancellationToken) =>
-        Task.FromResult(Find(calendarId, eventId));
+    public Task<GoogleEvent?> GetEventAsync(string accessToken, string calendarId, string eventId, CancellationToken cancellationToken)
+    {
+        Answer("get", calendarId);
+        return Task.FromResult(Find(calendarId, eventId));
+    }
 
     /// <summary>The event as Google has it, refusing a change made against an older version as Google does.</summary>
     private GoogleEvent Current(string calendarId, string eventId, string? etag)

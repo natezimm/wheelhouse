@@ -1,5 +1,8 @@
 using System.Data;
+using System.Net;
+using System.Runtime.ExceptionServices;
 using System.Security.Cryptography;
+using System.Text.Json;
 using Npgsql;
 using Microsoft.EntityFrameworkCore;
 using Wheelhouse.Api.Data;
@@ -42,8 +45,11 @@ public sealed class CalendarSync(
     /// <summary>
     /// Syncs every calendar of <paramref name="familyId"/>. A calendar the account can no longer
     /// see is skipped and keeps what it had; a refused grant marks the connection
-    /// <see cref="GoogleConnectionStatus.NeedsReauth"/> and stops. Network errors are thrown, for
-    /// the next pass to try again.
+    /// <see cref="GoogleConnectionStatus.NeedsReauth"/> and stops. A calendar Google fails to
+    /// answer for keeps what it had and does not hold up the others; the failure is thrown once
+    /// they are done, for the next pass to try again. Google asking to slow down, or refusing the
+    /// access token, stops the pass at once, since every other calendar would be refused too.
+    /// Nothing a failed read half-finished is saved: the cache only ever holds whole answers.
     /// </summary>
     /// <returns>False when the connection needs a parent to connect again.</returns>
     public async Task<bool> SyncFamilyAsync(Guid familyId, CancellationToken cancellationToken)
@@ -79,9 +85,10 @@ public sealed class CalendarSync(
             .IgnoreQueryFilters()
             .Where(s => s.FamilyId == familyId)
             .ToListAsync(cancellationToken);
+        var failures = new List<Exception>();
         foreach (var source in sources)
         {
-            // A calendar given up on because of a screen's save leaves the context cleared.
+            // A calendar given up on, because of a screen's save or a failure, leaves the context cleared.
             if (db.Entry(source).State == EntityState.Detached)
             {
                 db.Attach(source);
@@ -96,10 +103,44 @@ public sealed class CalendarSync(
                 // A parent can choose it again or remove it in Settings; until then its events stay as they were.
                 logger.LogWarning(exception, "Calendar {CalendarSourceId} of family {FamilyId} is no longer in Google", source.Id, familyId);
             }
+            catch (Exception exception) when (StopsThePass(exception))
+            {
+                db.ChangeTracker.Clear();
+                throw;
+            }
+            catch (Exception exception) when (IsPassing(exception, cancellationToken))
+            {
+                // Whatever this calendar's read left tracked must not ride along with the next calendar's save.
+                db.ChangeTracker.Clear();
+                logger.LogWarning(exception, "Google failed to answer for calendar {CalendarSourceId} of family {FamilyId}; it keeps its events until the next pass", source.Id, familyId);
+                failures.Add(exception);
+            }
+        }
+
+        if (failures.Count == 1)
+        {
+            ExceptionDispatchInfo.Throw(failures[0]);
+        }
+
+        if (failures.Count > 1)
+        {
+            throw new AggregateException("Google failed to answer for several calendars.", failures);
         }
 
         return true;
     }
+
+    /// <summary>
+    /// Failures that every other calendar of the family would meet too: Google asking to slow
+    /// down, and an access token Google stopped accepting (the next pass asks for a new one, and
+    /// learns then whether the grant itself was revoked).
+    /// </summary>
+    private static bool StopsThePass(Exception exception) =>
+        exception is GoogleRateLimitedException or HttpRequestException { StatusCode: HttpStatusCode.Unauthorized };
+
+    /// <summary>Failures of one calendar's answer that the next pass may not meet: Google erring, timing out, sending what cannot be read, or the connection dropping.</summary>
+    private static bool IsPassing(Exception exception, CancellationToken cancellationToken) =>
+        exception is HttpRequestException or JsonException || exception is TaskCanceledException && !cancellationToken.IsCancellationRequested;
 
     /// <remarks>
     /// Google is read outside any transaction, so a screen's save can commit while this sync waits

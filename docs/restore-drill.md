@@ -1,6 +1,6 @@
 # Restore drill
 
-A backup nobody has restored is a hope, not a backup. This page says how much Wheelhouse can lose and how long it can be down, and gives the drill that proves the nightly backups meet that: about ten minutes, once a quarter and after any change to how backups are made. Why the backups work the way they do is in [ADR 0008](adr/0008-nightly-dumps-to-an-add-only-bucket.md); setting them up and the real restore are in [deploy/README.md](../deploy/README.md#nightly-off-server-backups).
+A backup nobody has restored is a hope, not a backup. This page says how much Wheelhouse can lose and how long it can be down, and gives the drill that proves the nightly backups meet that: about ten minutes, once a quarter and after any change to how backups are made. Why the backups work the way they do is in [ADR 0009](adr/0009-nightly-dumps-to-an-add-only-bucket.md); setting them up and the real restore are in [deploy/README.md](../deploy/README.md#nightly-off-server-backups).
 
 ## What is at stake
 

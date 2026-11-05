@@ -1162,6 +1162,15 @@ public static class EventEndpoints
                     statusCode: StatusCodes.Status409Conflict);
             }
 
+            if (exception is GoogleRateLimitedException)
+            {
+                // Nothing was changed, and the calendar stays writable: Google only asked to wait.
+                _logger.LogWarning(exception, "Google asked to slow down while changing an event.");
+                return TypedResults.Problem(
+                    title: "Google is busy right now. Try again in a minute.",
+                    statusCode: StatusCodes.Status503ServiceUnavailable);
+            }
+
             _logger.LogWarning(exception, "Google could not be reached to change an event.");
             return UnreachableProblem();
         }
