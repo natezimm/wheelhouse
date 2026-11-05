@@ -28,7 +28,7 @@ Pick a name (`demo` below), a domain and a mode:
 3. Once the domain points at the server, add HTTPS on the server:
 
    ```bash
-   sudo certbot --nginx -d wheelhouse.example.com
+   sudo certbot --nginx --redirect -d wheelhouse.example.com
    ```
 
 4. For a `Family` instance, set up [Google sign-in](#google-sign-in). Until it is, nobody can sign in, and each release says so.
@@ -80,7 +80,7 @@ An instance can start on one domain, such as a subdomain, and move to another la
    ```
 
    ```bash
-   sudo certbot --nginx --expand -d old.example.com -d new.example.com
+   sudo certbot --nginx --redirect --expand -d old.example.com -d new.example.com
    ```
 
 3. On a `Family` instance, add `https://<new domain>/api/auth/google/callback` and `https://<new domain>/api/calendar/google/callback` to the Google OAuth client's authorized redirect URIs, and point the app's home page and privacy policy at the new domain.

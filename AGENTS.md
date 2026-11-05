@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Guidance for coding agents working in this repository. The README covers what Wheelhouse is and how to run it; this file covers what you need to change it safely. [docs/architecture.md](docs/architecture.md) draws the same architecture for people, and [docs/adr/](docs/adr/) records why the main choices were made: when a change alters one of those, update the diagram or add a decision record in the same pull request. Finished and deferred plans live in [docs/archive/](docs/archive/).
+Guidance for coding agents working in this repository. The README covers what Wheelhouse is and how to run it; this file covers what you need to change it safely. [docs/architecture.md](docs/architecture.md) draws the same architecture for people, and [docs/adr/](docs/adr/) records why the main choices were made: when a change alters one of those, update the diagram or add a decision record in the same pull request. Finished and deferred plans live in [docs/archive/](docs/archive/). [docs/security.md](docs/security.md) is the threat model: a change that opens a way in (an open endpoint, a new secret, a new outside service or kind of sign-in) updates it in the same pull request.
 
 ## Commands
 
@@ -28,6 +28,8 @@ Run these from the repository root unless a line says otherwise.
 The Playwright browser checks use stubbed API responses to hold and reject writes at wall and phone sizes; they verify immediate rendering, draft preservation and uncertain-response reconciliation. CI installs Chromium and retains screenshots/traces in `calendar-browser-checks`. Install the browser locally with `npx playwright install chromium` before running these checks.
 
 The `stack` CI job builds the whole app with `docker compose`, runs `deploy/smoke.mjs` against the demo, runs `web/e2e-stack` (add, reload and delete; drag on the wall; renaming a whole series) against the real API and database, then restarts the API as a family instance and smoke checks that it shows nothing signed out. Last it backs up the stack's database and keys in the nightly layout and runs `deploy/restore-drill.sh` on that backup. Each browser in those checks gets its own demo copy.
+
+`security.yml` runs CodeQL (C#, TypeScript and the workflows), GitHub's dependency review on pull requests and an audit of NuGet and shipped npm packages for high or critical advisories, on pull requests, `main` and every Monday; a release does not wait on it. Locally, `dotnet list package --vulnerable --include-transitive` and, in `web/`, `npm audit --omit=dev` do the audit's part.
 
 There is no linter. Prettier settings live in `web/.prettierrc` but are not enforced, and some files do not match them, so do not reformat files you are not otherwise changing.
 

@@ -133,6 +133,8 @@ Every pull request runs three jobs, and every merge to `main` runs them again be
 | `web` | The production Angular build, unit tests (grid engine, family-zone day math, live recovery, contrast for every theme and member color), and Playwright checks at wall and phone sizes for optimistic saves, drag, repeats, undo and reconnects |
 | `stack` | The whole app from `docker compose`, a smoke check, then add, reload, delete, drag and series edits against the real API and database, and a check that a family instance shows nothing signed out |
 
+A separate `Security` workflow runs CodeQL, a dependency review and an advisory audit of the NuGet and npm packages on each pull request and every week. The threat model and its accepted risks are in [docs/security.md](docs/security.md).
+
 ```bash
 dotnet test                       # API tests; Docker must be running
 cd web && npm test -- --watch=false
@@ -162,7 +164,7 @@ Also not built yet: an offline write queue, dimming the wall to a clock at night
 
 ## Secrets
 
-Nothing secret belongs in this repository. The only password in it is the local development database default. Real credentials live in each server instance's `.env`, outside git.
+Nothing secret belongs in this repository. The only password in it is the local development database default. Real credentials live in each server instance's `.env`, outside git. To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## License
 
