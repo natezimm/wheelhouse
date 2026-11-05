@@ -14,3 +14,4 @@ Short records of the choices that shape Wheelhouse: the context at the time, wha
 | [0008](0008-the-cache-is-disposable.md) | Google is the source of truth; the cache is disposable, and sync survives Google failing | Accepted |
 | [0009](0009-nightly-dumps-to-an-add-only-bucket.md) | Nightly dumps to a bucket the server can only add to | Accepted |
 | [0010](0010-alerts-from-cloud-monitoring-uptime-checks.md) | Alerts come from Cloud Monitoring uptime checks of `/health` | Accepted |
+| [0011](0011-performance-budget-in-ci.md) | A performance budget in CI: sizes held tightly, time loosely | Accepted |
