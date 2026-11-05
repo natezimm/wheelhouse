@@ -11,3 +11,4 @@ Short records of the choices that shape Wheelhouse: the context at the time, wha
 | [0005](0005-calendar-first-scope-keeps-legacy-tables.md) | Calendar-first scope keeps the legacy tables | Accepted |
 | [0006](0006-reminders-by-web-push.md) | Reminders by Web Push, with no third-party service | Accepted |
 | [0007](0007-event-reminder-time-in-googles-field.md) | An event's own reminder time lives in Google's reminders field | Accepted |
+| [0008](0008-nightly-dumps-to-an-add-only-bucket.md) | Nightly dumps to a bucket the server can only add to | Accepted |

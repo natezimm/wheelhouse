@@ -127,6 +127,19 @@ jobs:
             sleep 2
           done
           SMOKE_URL=http://127.0.0.1:8080 SMOKE_MODE=Family SMOKE_INDEX=2 node deploy/smoke.mjs
+      - name: Restore drill of the stack's database
+        run: |
+          # The same layout nightly-backup.sh uploads, made from this stack, then drilled.
+          backup="$RUNNER_TEMP/backups/demo"
+          mkdir -p "$backup"
+          docker tag wheelhouse-api ghcr.io/natezimm/wheelhouse-api:ci
+          printf 'WHEELHOUSE_VERSION=ci\nWHEELHOUSE_MODE=Demo\nWHEELHOUSE_DB_PASSWORD=unused\nWHEELHOUSE_HTTP_PORT=8080\n' > "$backup/instance.env"
+          cp deploy/compose.yaml "$backup/compose.yaml"
+          docker compose exec -T db pg_dump -U wheelhouse -d wheelhouse -Fc --no-owner --no-acl > "$backup/database.dump"
+          docker cp "$(docker compose ps -q api):/home/app/.aspnet/DataProtection-Keys/." - > "$backup/keys.tar"
+          (cd "$backup" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS && touch COMPLETE)
+          tar -cf "$RUNNER_TEMP/backups/drill.tar" -C "$RUNNER_TEMP/backups" demo
+          bash deploy/restore-drill.sh "$RUNNER_TEMP/backups/drill.tar"
       - name: API log
         if: failure()
         run: docker compose logs api
