@@ -1,4 +1,4 @@
-# 0008. Alerts come from Cloud Monitoring uptime checks of /health
+# 0009. Alerts come from Cloud Monitoring uptime checks of /health
 
 **Status:** Accepted, November 2026
 
