@@ -139,5 +139,5 @@ From the review that wrote this page (November 2026). Nothing found was exploita
 
 These live in GitHub's settings rather than in files, so they are listed here:
 
-- **Code security**: Dependabot alerts and Dependabot security updates, secret scanning and push protection, and private vulnerability reporting (which SECURITY.md points to).
+- **Code security**: the dependency graph (the `dependency-review` job fails without it), Dependabot alerts and Dependabot security updates, secret scanning and push protection, and private vulnerability reporting (which SECURITY.md points to).
 - **Branch protection on `main`**: require a pull request and the `CI` checks (`api`, `web`, `stack`); adding the `Security` jobs as required checks is optional, since a fresh advisory would then block unrelated pull requests until it is fixed.
