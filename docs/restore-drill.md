@@ -109,4 +109,4 @@ The drill on the server proves the backup restores. To prove it restores without
 
 | Date | Instance | Backup age | Took | Result | By |
 | --- | --- | --- | --- | --- | --- |
-| | | | | | |
+| 2026-11-05 | family | 8 h (10:08 UTC backup, drilled 17:55 UTC) | 59 s | Passed: counts match live, Google token's key present, `/health` Degraded (no Google from the scratch copy) | Nathan |
