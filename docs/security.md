@@ -1,6 +1,6 @@
 # Security and threat model
 
-What Wheelhouse protects, from whom, how, and where it knowingly accepts a risk. [ADR 0011](adr/0011-threat-model-and-security-tradeoffs.md) records why the main tradeoffs were made; this page is the working copy to keep current. A change that adds a way in (an open endpoint, a new secret, a new outside service, a new kind of sign-in) updates this page in the same pull request.
+What Wheelhouse protects, from whom, how, and where it knowingly accepts a risk. [ADR 0012](adr/0012-threat-model-and-security-tradeoffs.md) records why the main tradeoffs were made; this page is the working copy to keep current. A change that adds a way in (an open endpoint, a new secret, a new outside service, a new kind of sign-in) updates this page in the same pull request.
 
 To report a vulnerability, see [SECURITY.md](../SECURITY.md).
 

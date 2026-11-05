@@ -41,15 +41,16 @@ import { RepeatPicker } from '../shared/repeat-picker';
   template: `
     <div class="scrim" aria-hidden="true" (click)="!busy() && closed.emit()"></div>
     @if (draft(); as draft) {
-      <form
+      <section
+        class="panel"
         appModalFocus
         tabindex="-1"
         role="dialog"
         aria-modal="true"
         [attr.aria-label]="heading()"
         (keydown.escape)="!busy() && closed.emit()"
-        (submit)="$event.preventDefault(); save()"
       >
+      <form (submit)="$event.preventDefault(); save()">
         <div class="top">
           <h1>{{ heading() }}</h1>
           <span class="saves"><span class="dot" aria-hidden="true"></span>{{ savesTo() }}</span>
@@ -267,6 +268,7 @@ import { RepeatPicker } from '../shared/repeat-picker';
           <p class="message" role="alert">{{ message }}</p>
         }
       </form>
+      </section>
     }
   `,
   styles: `
@@ -283,8 +285,13 @@ import { RepeatPicker } from '../shared/repeat-picker';
       background: var(--scrim-strong);
     }
 
-    /* Near the top, so the on-screen keyboard leaves the fields in view. */
+    /* The form lays its fields out in the dialog's panel, which holds the dialog role a form cannot take. */
     form {
+      display: contents;
+    }
+
+    /* Near the top, so the on-screen keyboard leaves the fields in view. */
+    .panel {
       position: absolute;
       left: 50%;
       top: 44px;
@@ -666,7 +673,7 @@ import { RepeatPicker } from '../shared/repeat-picker';
       margin-right: auto;
       border: 0;
       background: none;
-      color: var(--danger);
+      color: var(--danger-text);
     }
 
     .confirm {

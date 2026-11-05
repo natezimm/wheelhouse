@@ -1,4 +1,4 @@
-# 0011. A written threat model, and the security tradeoffs it accepts
+# 0012. A written threat model, and the security tradeoffs it accepts
 
 **Status:** Accepted, November 2026
 

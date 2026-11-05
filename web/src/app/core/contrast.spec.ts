@@ -89,6 +89,12 @@ describe.each(Object.entries(themes))('contrast, in the %s theme', (_, theme) =>
       expect(contrast(text, color(theme, 'ground'))).toBeGreaterThanOrEqual(4.5);
       expect(contrast(text, color(theme, 'surface'))).toBeGreaterThanOrEqual(4.5);
     });
+
+    it('keeps the day over an event’s details and a phone row’s time at 4.5:1 on the member’s chip color', () => {
+      const onChip = mix(member, percent(theme, 'chip-text-mix'), color(theme, 'chip-text-base'));
+      expect(contrast(onChip, chip)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(color(theme, 'chip-quiet'), chip)).toBeGreaterThanOrEqual(4.5);
+    });
   });
 
   it.each([
@@ -108,7 +114,7 @@ describe.each(Object.entries(themes))('contrast, in the %s theme', (_, theme) =>
     ['the failed pill', 'failed-ink', 'failed'],
     ['the notice pill', 'notice-ink', 'notice'],
     ['the save toast', 'on-ink', 'ink'],
-    ['Delete in the details', 'danger-text', 'surface'],
+    ['Delete in the details and editors', 'danger-text', 'surface'],
     ['the demo welcome’s links and label', 'accent', 'surface'],
     ['the demo welcome’s lead', 'muted', 'surface'],
     ['the demo welcome’s icons', 'ink', 'track'],

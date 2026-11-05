@@ -151,7 +151,6 @@ export function rememberWelcomeSeen(): void {
     .start .sub {
       font-size: 13px;
       font-weight: 500;
-      opacity: 0.8;
     }
 
     .own {

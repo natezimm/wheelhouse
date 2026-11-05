@@ -80,7 +80,7 @@ test('an event for two people names both, shows in each one’s day and takes an
   await page.screenshot({ path: testInfo.outputPath('details.png') });
   await details.getByRole('button', { name: 'Edit event', exact: true }).click();
 
-  const editor = page.locator(wall ? 'app-event-dialog form' : 'app-event-sheet form');
+  const editor = page.locator(wall ? 'app-event-dialog [role=dialog]' : 'app-event-sheet [role=dialog]');
   const who = editor.getByRole('group', { name: wall ? 'WHO' : 'Who' });
   await expect(who.getByRole('button', { name: 'Ben, owner of the calendar' })).toBeDisabled();
   await expect(who.getByRole('button', { name: 'Milo', exact: true })).toHaveAttribute('aria-pressed', 'true');

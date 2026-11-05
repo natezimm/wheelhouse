@@ -85,7 +85,7 @@ test('a parent sees a private event in full and can make another one private', a
 
   await open('Swim');
   await page.getByRole('dialog', { name: 'Swim' }).getByRole('button', { name: 'Edit event', exact: true }).click();
-  const editor = page.locator(wall ? 'app-event-dialog form' : 'app-event-sheet form');
+  const editor = page.locator(wall ? 'app-event-dialog [role=dialog]' : 'app-event-sheet [role=dialog]');
   const box = editor.getByRole('checkbox', { name: /Private/ });
   await box.check();
   await page.screenshot({ path: testInfo.outputPath('editor.png') });

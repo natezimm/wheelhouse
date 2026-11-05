@@ -56,7 +56,7 @@ for (const where of ['wall', 'desktop']) {
     await page.goto(where === 'wall' ? '/wall' : '/');
     await page.locator('app-week-view .event', { hasText: 'Swim lesson' }).click();
     await page.getByRole('dialog', { name: 'Swim lesson' }).getByRole('button', { name: 'Edit event', exact: true }).click();
-    const editor = page.locator('app-event-dialog form');
+    const editor = page.locator('app-event-dialog [role=dialog]');
     const start = editor.getByRole('textbox', { name: 'Start time' });
     const end = editor.getByRole('textbox', { name: /^End time/ });
     await expect(start).toHaveValue('5:30 pm');

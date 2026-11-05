@@ -246,7 +246,7 @@ import { AvatarFace } from './avatar-face';
     .day {
       font-size: 16px;
       font-weight: 700;
-      color: var(--member-text);
+      color: var(--member-chip-text);
     }
 
     h2 {
