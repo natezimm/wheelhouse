@@ -37,6 +37,8 @@ services:
       ConnectionStrings__Wheelhouse: Host=db;Port=5432;Database=wheelhouse;Username=wheelhouse;Password=${WHEELHOUSE_DB_PASSWORD};GSS Encryption Mode=Disable
       # Demo gives every visitor a private copy of a fictional family. Family is private: nothing is readable without signing in.
       Wheelhouse__Mode: ${WHEELHOUSE_MODE:?Set WHEELHOUSE_MODE to Demo or Family in the instance's .env}
+      # The release this instance runs, which /health and the startup log name.
+      Wheelhouse__Version: ${WHEELHOUSE_VERSION}
       # A family instance only: the Google accounts that may sign in as parents, and the OAuth
       # client they sign in through. Without them nobody can sign in. The demo leaves them empty.
       Wheelhouse__ParentEmails: ${WHEELHOUSE_PARENT_EMAILS:-}

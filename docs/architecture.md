@@ -64,8 +64,10 @@ flowchart TB
   Google["Google Calendar API"]
   Meteo["Open-Meteo"]
   Push["Browser push services"]
+  Monitor["Cloud Monitoring<br/>uptime checks, email alerts"]
 
   Wall & Phone -->|"HTTPS, cookie"| Web
+  Monitor -->|"GET /health every 5 min"| Web
   Web --> Endpoints
   Web -->|"WebSocket"| Hub
   Endpoints --> Ctx

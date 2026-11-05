@@ -160,6 +160,21 @@ docker compose --project-name wheelhouse-demo ps
 docker compose --project-name wheelhouse-demo logs --tail 100 api
 ```
 
+The API logs one JSON object per line. [docs/runbook.md](../docs/runbook.md) shows how to read them, what `/health` reports, and what to do for each alert and common failure.
+
+## Alerts
+
+[`monitoring.sh`](monitoring.sh) sets up Google Cloud Monitoring to watch each instance's `https://<domain>/health` every 5 minutes from several regions, outside the server, so it also notices the whole VM going away. It emails when an instance stops answering for 5 minutes, when its calendar check has not been Healthy for 15 minutes (Google needs reconnecting, or a calendar or the sync worker has stopped), and when its HTTPS certificate expires within 14 days. Each email links to its section of the runbook. The demo gets the same checks; its calendar check is always Healthy, since it never syncs with Google.
+
+Run it once in [Cloud Shell](https://console.cloud.google.com/?cloudshell=true), in the project that holds the server, from a checkout of this repository, with the address to email and every instance's domain:
+
+```bash
+gcloud config set project <project id>
+bash deploy/monitoring.sh <your email> <demo domain> <family domain>
+```
+
+Google emails the address once to confirm it. Running the script again, for example after adding an instance, makes only what is missing. The checks and alerts are under **Monitoring > Uptime checks** and **Monitoring > Alerting** in the console, where they can be snoozed or deleted. Uptime checks are free at this volume; Google's [Cloud Monitoring pricing](https://cloud.google.com/stackdriver/pricing) lists any charge for alert policies.
+
 ## Backups and release recovery
 
 Before any new API starts, the server pulls the candidate images, stops each existing

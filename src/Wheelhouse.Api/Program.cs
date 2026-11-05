@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Wheelhouse.Api.Auth;
 using Wheelhouse.Api.Calendar;
 using Wheelhouse.Api.Data;
@@ -25,7 +26,8 @@ builder.Services.AddDbContext<WheelhouseDbContext>((services, options) =>
 
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<WheelhouseDbContext>("database")
-    .AddCheck<CalendarSyncHealth>("calendar");
+    .AddCheck<CalendarSyncHealth>("calendar")
+    .AddCheck<WeatherHealth>("weather");
 
 // Requests reach the API through the server's nginx, which terminates HTTPS, then the web
 // container's. Take the visitor's scheme and address from the X-Forwarded headers the server's
@@ -56,9 +58,14 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 var app = builder.Build();
 
+var instance = app.Services.GetRequiredService<IOptions<InstanceOptions>>().Value;
+app.Logger.LogInformation("Wheelhouse {Version} starting as a {Mode} instance", instance.Version ?? "from source", instance.Mode);
+
 await app.PrepareDatabaseAsync();
 
 app.UseForwardedHeaders();
+// Early, so it times and records every request, including those turned away below.
+app.UseRequestLogging();
 app.UseSameOrigin();
 app.UseAuthentication();
 // Before authorization, so a request it turns away still counts.

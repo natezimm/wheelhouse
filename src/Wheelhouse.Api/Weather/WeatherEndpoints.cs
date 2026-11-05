@@ -16,6 +16,7 @@ public static class WeatherEndpoints
             client.Timeout = TimeSpan.FromSeconds(10);
         }).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { ConnectCallback = OpenMeteo.ConnectAsync });
         services.AddScoped<WeatherForecasts>();
+        services.AddSingleton<WeatherHealth>();
         return services;
     }
 

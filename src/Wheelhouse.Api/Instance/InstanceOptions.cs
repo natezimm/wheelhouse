@@ -28,6 +28,13 @@ public sealed class InstanceOptions
     /// </summary>
     public string? ParentEmails { get; set; }
 
+    /// <summary>
+    /// The release this instance runs, such as v0.9.1, which a deployed instance's Compose file
+    /// passes in from the version it pulled. <c>/health</c> and the startup log name it; empty
+    /// when running from source.
+    /// </summary>
+    public string? Version { get; set; }
+
     public bool IsParentEmail(string email) =>
         (ParentEmails ?? "")
             .Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)

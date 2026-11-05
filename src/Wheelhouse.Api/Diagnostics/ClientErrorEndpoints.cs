@@ -37,7 +37,7 @@ public static class ClientErrorEndpoints
     }
 
     /// <summary>Which display or parent it was; a demo visitor is neither.</summary>
-    private static string Who(ClaimsPrincipal user) =>
+    internal static string Who(ClaimsPrincipal user) =>
         user.FindFirstValue(WheelhouseClaims.Device) is { } device ? $"device {device}"
         : user.FindFirstValue(WheelhouseClaims.Account) is { } account ? $"account {account}"
         : "a visitor";
