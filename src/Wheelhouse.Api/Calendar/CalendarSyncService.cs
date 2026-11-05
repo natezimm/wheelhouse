@@ -47,12 +47,13 @@ public sealed class CalendarSyncTrigger
 /// <summary>
 /// The calendar's part of <c>/health</c>: degraded while a family's Google connection needs a
 /// parent to connect it again, while a connected family's calendar has not synced for
-/// <see cref="StaleAfter"/> (Google no longer shows it to the account, or every pass fails), while
-/// the worker has not finished a pass for as long (it is stuck or has stopped), or when the last
-/// pass failed. The first two are read from the database on each check, so they hold across
-/// passes: a pass skips a connection that needs reconnecting and a calendar Google no longer has,
-/// and so cannot clear them by succeeding at everything else. Its data says how old the last pass
-/// and the stalest calendar are, so an alert or a person can see how far behind Google it is.
+/// <see cref="StaleAfter"/>, or has never synced that long after the account was connected
+/// (Google no longer shows it to the account, or every pass fails), while the worker has not
+/// finished a pass for as long (it is stuck or has stopped), or when the last pass failed. The
+/// first two are read from the database on each check, so they hold across passes: a pass skips a
+/// connection that needs reconnecting and a calendar Google no longer has, and so cannot clear them
+/// by succeeding at everything else. Its data says how old the last pass and the stalest calendar
+/// are, so an alert or a person can see how far behind Google it is.
 /// </summary>
 public sealed class CalendarSyncHealth(
     IServiceScopeFactory scopes,
@@ -89,11 +90,11 @@ public sealed class CalendarSyncHealth(
         // No request, so no current family: every query names what it reads across families.
         var connections = db.GoogleConnections.IgnoreQueryFilters();
         var needsReconnect = await connections.CountAsync(c => c.Status == GoogleConnectionStatus.NeedsReauth, cancellationToken);
-        var connected = connections.Where(c => c.Status == GoogleConnectionStatus.Connected).Select(c => c.FamilyId);
+        // A calendar that has never synced counts from when the account was connected, so one that fails from the start is noticed too.
         var synced = db.CalendarSources.IgnoreQueryFilters()
-            .Where(s => connected.Contains(s.FamilyId) && s.LastSyncedAt != null);
+            .Join(connections.Where(c => c.Status == GoogleConnectionStatus.Connected), s => s.FamilyId, c => c.FamilyId, (s, c) => s.LastSyncedAt ?? c.ConnectedAt);
         var calendars = await synced.CountAsync(cancellationToken);
-        var stalest = await synced.MinAsync(s => s.LastSyncedAt, cancellationToken);
+        var stalest = calendars > 0 ? await synced.MinAsync(cancellationToken) : (DateTimeOffset?)null;
         var lastPass = LastPass;
 
         // Ages in whole seconds and no family's ids, since anyone may read /health.
@@ -137,6 +138,43 @@ public sealed class CalendarSyncHealth(
     private static long SecondsBetween(DateTimeOffset then, DateTimeOffset now) => Math.Max(0, (long)(now - then).TotalSeconds);
 }
 
+/// <summary>
+/// How long a family whose sync failed waits before the worker asks Google for it again. Each
+/// failure in a row doubles the wait, from one interval up to <see cref="Longest"/>, and Google
+/// asking to slow down doubles it once more and is never asked sooner than it said; a sync that
+/// works starts again from nothing. A family a parent asks for now (connecting, choosing
+/// calendars) is synced whatever its wait.
+/// </summary>
+public sealed class CalendarSyncBackoff(TimeProvider time, IOptions<CalendarSyncOptions> options)
+{
+    public static readonly TimeSpan Longest = TimeSpan.FromMinutes(30);
+
+    private readonly Dictionary<Guid, (int Failures, DateTimeOffset NotBefore)> _waiting = [];
+
+    /// <summary>Whether the family is still waiting out its last failure.</summary>
+    public bool IsWaiting(Guid familyId) =>
+        _waiting.TryGetValue(familyId, out var wait) && time.GetUtcNow() < wait.NotBefore;
+
+    /// <summary>When the family will next be asked for, or null when it is not waiting.</summary>
+    public DateTimeOffset? NotBefore(Guid familyId) => _waiting.TryGetValue(familyId, out var wait) ? wait.NotBefore : null;
+
+    public void Succeeded(Guid familyId) => _waiting.Remove(familyId);
+
+    public void Failed(Guid familyId, Exception exception)
+    {
+        var failures = (_waiting.TryGetValue(familyId, out var wait) ? wait.Failures : 0) + 1;
+        var limited = exception as GoogleRateLimitedException;
+        var doublings = Math.Min(failures - 1 + (limited is null ? 0 : 1), 10);
+        var delay = TimeSpan.FromTicks(Math.Min(Longest.Ticks, options.Value.Interval.Ticks << doublings));
+        if (limited?.RetryAfter is { } asked && asked > delay)
+        {
+            delay = asked;
+        }
+
+        _waiting[familyId] = (failures, time.GetUtcNow() + delay);
+    }
+}
+
 /// <summary>On a family instance, keeps every connected family's calendar in sync with Google. Does nothing on the demo.</summary>
 internal sealed class CalendarSyncService(
     IServiceScopeFactory scopes,
@@ -148,6 +186,8 @@ internal sealed class CalendarSyncService(
     ILogger<CalendarSyncService> logger)
     : BackgroundService
 {
+    private readonly CalendarSyncBackoff _backoff = new(time, options);
+
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (instance.Value.Mode != InstanceMode.Family || !options.Value.Enabled)
@@ -163,28 +203,51 @@ internal sealed class CalendarSyncService(
         }
     }
 
-    /// <summary>Syncs <paramref name="families"/>, or every connected family when null.</summary>
+    /// <summary>Syncs <paramref name="families"/>, asked for by a parent, or every connected family that is not waiting out a failure when null.</summary>
     private async Task SyncAsync(IReadOnlyList<Guid>? families, CancellationToken stoppingToken)
     {
         string? problem = null;
         try
         {
-            await using var scope = scopes.CreateAsyncScope();
-            var sync = scope.ServiceProvider.GetRequiredService<CalendarSync>();
-            foreach (var familyId in families ?? await sync.ConnectedFamiliesAsync(stoppingToken))
+            IReadOnlyList<Guid> due;
+            if (families is null)
             {
+                await using var scope = scopes.CreateAsyncScope();
+                var connected = await scope.ServiceProvider.GetRequiredService<CalendarSync>().ConnectedFamiliesAsync(stoppingToken);
+                due = connected.Where(familyId => !_backoff.IsWaiting(familyId)).ToList();
+                if (due.Count < connected.Count)
+                {
+                    // A family still waiting has not synced since it failed.
+                    problem = "A calendar sync failed and is waiting before it asks Google again.";
+                }
+            }
+            else
+            {
+                due = families;
+            }
+
+            foreach (var familyId in due)
+            {
+                // Each family gets its own context, so nothing one family's failure left tracked is saved with the next.
+                await using var scope = scopes.CreateAsyncScope();
+                var sync = scope.ServiceProvider.GetRequiredService<CalendarSync>();
                 try
                 {
                     if (!await sync.SyncFamilyAsync(familyId, stoppingToken))
                     {
                         problem = "A family's Google connection needs connecting again.";
                     }
+
+                    _backoff.Succeeded(familyId);
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException || !stoppingToken.IsCancellationRequested)
                 {
-                    // One family's failure must not hold up the others: log it and try again next pass.
-                    logger.LogError(exception, "Could not sync the calendars of family {FamilyId}", familyId);
-                    problem = "The last calendar sync failed.";
+                    // One family's failure must not hold up the others: log it and wait before asking Google again.
+                    _backoff.Failed(familyId, exception);
+                    logger.LogError(exception, "Could not sync the calendars of family {FamilyId}; trying again after {NotBefore}", familyId, _backoff.NotBefore(familyId));
+                    problem = exception is GoogleRateLimitedException
+                        ? "Google asked Wheelhouse to slow down; the calendar sync is waiting."
+                        : "The last calendar sync failed.";
                 }
             }
         }

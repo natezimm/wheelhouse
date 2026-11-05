@@ -53,7 +53,7 @@ flowchart TB
       Endpoints["Minimal API endpoints<br/>by feature folder"]
       Hub["/hubs/calendar<br/>SignalR"]
       Live["CalendarLiveService<br/>checks change numbers each second"]
-      Sync["CalendarSyncService<br/>every two minutes"]
+      Sync["CalendarSyncService<br/>every two minutes,<br/>backing off per family"]
       Remind["ReminderService<br/>every 30 seconds"]
       Ctx["WheelhouseDbContext<br/>family query filters"]
     end
@@ -193,7 +193,7 @@ The workflows are [`ci.yml`](../.github/workflows/ci.yml) and [`release.yml`](..
 | `web/src/app/core/` | Stores, the calendar grid engine, family-zone day math, live connection |
 | `web/src/app/wall/`, `home/`, `phone/`, `shared/` | The wall layout, the phone and desktop layout, Settings, and the details and editors both use |
 | `web/e2e/`, `web/e2e-stack/` | Browser checks against stubbed responses, and against the real API and database |
-| `deploy/` | Production Compose file, deploy, backup, restore and smoke scripts |
+| `deploy/` | Production Compose file, deploy, backup, restore, restore drill and smoke scripts |
 
 ## Decisions
 

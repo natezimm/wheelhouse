@@ -41,6 +41,7 @@ The **calendar is behind Google** alert: `/health`'s `calendar` check has not be
 - **"needs connecting again":** Google refused the stored token (password changed, access removed, or the OAuth app was left in Testing for 7 days). A parent opens Settings > Calendars on their phone and taps **Connect again**. The wall shows a notice meanwhile.
 - **"A calendar has not synced":** one calendar keeps failing or the shared account can no longer see it. Check that calendar is still shared to the account in Google Calendar, then under Settings > Calendars > **Choose calendars** pick it again or drop it. The API's log names the family and calendar.
 - **"The calendar worker has not finished a pass":** the sync loop is stuck or stopped. `wh restart api`; if it comes back, look for what hung in the log before the restart.
+- **"Google asked Wheelhouse to slow down":** Google rate-limited the account. The worker backs off by itself (doubling up to 30 minutes, never sooner than Google asked) and clears once a sync works; nothing to do unless it lasts hours, when the Calendar API's quota page in the Google Cloud console shows why.
 - **"The last calendar sync failed":** look for `Could not sync the calendars of family` in the log. A Google outage clears by itself; a 403 for quota or a disabled Calendar API needs the Google Cloud console (APIs & Services).
 
 ## Certificate expiring

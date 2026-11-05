@@ -336,6 +336,9 @@ docker logout ghcr.io
 
 Delete `~/restore` and the downloaded archive afterwards, and the token on GitHub.
 
+To check a backup without restoring over anything, run the [restore drill](../docs/restore-drill.md)
+(`restore-drill.sh`), which restores it into scratch containers beside the instance and verifies it.
+
 **On a new server**, set it up as in [Once per server](#once-per-server) and point the
 domain at it, then copy the operations scripts across from a checkout of the release the
 backup came from, and create the instance under the same name before restoring it:
