@@ -1,5 +1,5 @@
 # Dependency updates once a month, one grouped pull request per ecosystem, so they do not
-# eat into the monthly Actions minutes.
+# eat into the monthly Actions minutes. Security updates are grouped the same way.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -9,6 +9,9 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+      actions-security:
+        applies-to: security-updates
+        patterns: ["*"]
 
   - package-ecosystem: nuget
     directory: /
@@ -17,6 +20,9 @@ updates:
     groups:
       nuget:
         patterns: ["*"]
+      nuget-security:
+        applies-to: security-updates
+        patterns: ["*"]
 
   - package-ecosystem: npm
     directory: /web
@@ -24,6 +30,9 @@ updates:
       interval: monthly
     groups:
       npm:
+        patterns: ["*"]
+      npm-security:
+        applies-to: security-updates
         patterns: ["*"]
     # A major release can break the install (TypeScript 7 conflicts with the Angular build's
     # peer range, for one) and arrives bundled with routine updates. Take major upgrades by hand,
@@ -38,6 +47,9 @@ updates:
       interval: monthly
     groups:
       docker:
+        patterns: ["*"]
+      docker-security:
+        applies-to: security-updates
         patterns: ["*"]
     # Node's even-numbered releases are the long-term-support ones, and the Dockerfile's version
     # is kept in step with the Node version CI and the web app use. Move it by hand, to the next
