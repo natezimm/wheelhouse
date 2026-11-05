@@ -100,7 +100,7 @@ echo "Created the nginx site for $domain"
 
 echo
 echo "Next, once $domain points at this server, add HTTPS:"
-echo "  sudo certbot --nginx -d $domain"
+echo "  sudo certbot --nginx --redirect -d $domain"
 if [[ "$mode" == Family ]]; then
   echo "Then fill in the Google sign-in lines in $dir/.env."
 fi

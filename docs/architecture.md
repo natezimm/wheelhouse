@@ -153,6 +153,11 @@ flowchart LR
     WebJob["web<br/>Angular build, unit tests,<br/>Playwright at wall and phone sizes"]
     Stack["stack<br/>docker compose up, smoke check,<br/>edit, drag and series checks"]
   end
+  PR --> Security
+  subgraph Security["security.yml (also weekly)"]
+    CodeQL["CodeQL<br/>C#, TypeScript, workflows"]
+    Deps["dependency review,<br/>NuGet and npm audit"]
+  end
   CI --> Merge["Merge to main"]
   Merge --> Release
   subgraph Release["release.yml"]
@@ -174,12 +179,12 @@ flowchart LR
   classDef server fill:#ffedd5,stroke:#c2410c,color:#7c2d12
   classDef data fill:#fef3c7,stroke:#b45309,color:#78350f
   class PR,Merge repo
-  class ApiJob,WebJob,Stack,Retest,Tag,Version,Images,Demo,FamilyDeploy,Notes delivery
+  class ApiJob,WebJob,Stack,CodeQL,Deps,Retest,Tag,Version,Images,Demo,FamilyDeploy,Notes delivery
   class Server server
   class Backup data
 ```
 
-The workflows are [`ci.yml`](../.github/workflows/ci.yml) and [`release.yml`](../.github/workflows/release.yml); the server side is [`deploy/release-phase.sh`](../deploy/release-phase.sh) and [`deploy/deploy.sh`](../deploy/deploy.sh). [deploy/README.md](../deploy/README.md) covers setting up a server and an instance.
+The workflows are [`ci.yml`](../.github/workflows/ci.yml), [`release.yml`](../.github/workflows/release.yml) and [`security.yml`](../.github/workflows/security.yml), which a release does not wait on ([threat model](security.md)); the server side is [`deploy/release-phase.sh`](../deploy/release-phase.sh) and [`deploy/deploy.sh`](../deploy/deploy.sh). [deploy/README.md](../deploy/README.md) covers setting up a server and an instance.
 
 ## Source boundaries
 

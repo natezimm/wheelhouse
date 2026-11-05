@@ -1,0 +1,102 @@
+name: Security
+
+# Static analysis and dependency checks, kept apart from ci.yml so that an advisory published
+# overnight against an unchanged dependency marks pull requests red without holding a release
+# that is already tested. docs/security.md says what each job looks for and what to do when one
+# fails.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    # Mondays, so new advisories and CodeQL queries reach code nobody has touched lately.
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        # C# is read from source (build-mode none), so the job needs no .NET SDK or database.
+        # The web app's TypeScript and the workflows themselves need no build either.
+        language: [csharp, javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          # The default queries plus the extended security set, which adds checks such as
+          # missing rate limits and weaker cookie settings.
+          queries: security-extended
+          config: |
+            paths-ignore:
+              - web/node_modules
+              - "**/bin"
+              - "**/obj"
+              - "**/Migrations"
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}
+
+  # A pull request that adds or upgrades to a dependency with a known high or critical advisory
+  # fails here, for npm, NuGet, Actions and Docker alike, from GitHub's dependency graph.
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/dependency-review-action@v5.0.0
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: on-failure
+
+  # The dependencies already in the lock files, checked against today's advisories.
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: NuGet packages, direct and transitive
+        run: |
+          dotnet restore
+          dotnet list package --vulnerable --include-transitive --format json > "$RUNNER_TEMP/nuget.json"
+          found=$(jq '[.. | objects | select(has("vulnerabilities")) | .id as $id | .resolvedVersion as $v
+            | .vulnerabilities[] | select(.severity == "High" or .severity == "Critical")
+            | "\($id) \($v): \(.severity) \(.advisoryurl)"] | unique' "$RUNNER_TEMP/nuget.json")
+          if [ "$(jq length <<< "$found")" -gt 0 ]; then
+            echo "NuGet packages with high or critical advisories:"
+            jq -r '.[]' <<< "$found"
+            exit 1
+          fi
+          echo "No NuGet package has a high or critical advisory."
+      - name: npm packages the app ships
+        working-directory: web
+        # Development tools (the build, test runners) never reach a browser, so only the
+        # packages bundled into the app can fail this.
+        run: npm audit --omit=dev --audit-level=high
