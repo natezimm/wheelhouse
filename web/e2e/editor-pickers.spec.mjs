@@ -138,3 +138,54 @@ for (const where of ['wall', 'desktop']) {
     expect(writes[0].body).toMatchObject({ startDate: '2026-10-13', startTime: '16:25:00', endDate: '2026-10-14', endTime: '01:00:00' });
   });
 }
+
+// A tablet takes the phone's sheet below 768 px (an iPad mini upright) and the desktop's dialog from it;
+// either way the date opens the month calendar and the time the wheels, inside the screen.
+for (const { name, width, height, editor } of [
+  { name: 'iPad mini upright', width: 744, height: 1133, editor: 'app-event-sheet' },
+  { name: 'iPad upright', width: 820, height: 1180, editor: 'app-event-dialog' },
+  { name: 'iPad sideways', width: 1180, height: 820, editor: 'app-event-dialog' },
+]) {
+  test(`an ${name} picks days on the calendar and times on the wheels`, async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'phone', 'one run of the tablet sizes');
+    await page.setViewportSize({ width, height });
+    await stub(page);
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Add event' }).first().click();
+    const form = page.locator(`${editor} [role=dialog]`).first();
+    await expect(form).toBeVisible();
+    await expect(form.locator('input[type=date], input[type=time]')).toHaveCount(0);
+    // Every day and time shows whole, not cut short or under a stepper's buttons.
+    for (const face of await form.locator('app-date-field .face, app-time-wheel .face').all()) {
+      expect(await face.evaluate((b) => b.scrollWidth <= b.clientWidth), await face.getAttribute('aria-label')).toBe(true);
+    }
+
+    const inside = async (pop) => {
+      const box = await pop.boundingBox();
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+      expect(box.y + box.height).toBeLessThanOrEqual(height);
+    };
+    await form.getByRole('button', { name: /^(Day|Starts), / }).click();
+    const month = page.locator('app-date-field [role=dialog]');
+    await expect(month.getByRole('grid')).toBeVisible();
+    await inside(month);
+    const day = await month.getByRole('button', { name: 'Wednesday, October 14, 2026' }).boundingBox();
+    expect(Math.min(day.width, day.height)).toBeGreaterThanOrEqual(44);
+    await page.screenshot({ path: testInfo.outputPath(`tablet-${width}-calendar.png`) });
+    await month.getByRole('button', { name: 'Wednesday, October 14, 2026' }).click();
+    await expect(form.getByRole('button', { name: /^(Day|Starts), Wednesday, October 14/ })).toBeVisible();
+
+    await form.getByRole('button', { name: /^Start time, / }).click();
+    const wheels = page.locator('app-time-wheel [role=dialog]');
+    await inside(wheels);
+    await wheels.getByRole('listbox', { name: 'Hour' }).getByRole('option', { name: '4', exact: true }).click();
+    await wheels.getByRole('listbox', { name: 'Minute' }).getByRole('option', { name: '00', exact: true }).click();
+    await wheels.getByRole('listbox', { name: 'am or pm' }).getByRole('option', { name: 'pm', exact: true }).click();
+    await expect(form.getByRole('button', { name: 'Start time, 4:00 pm' })).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath(`tablet-${width}-wheels.png`) });
+    await wheels.getByRole('button', { name: 'Done', exact: true }).click();
+    await expect(wheels).toHaveCount(0);
+  });
+}

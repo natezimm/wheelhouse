@@ -450,11 +450,19 @@ import { Clock } from '../core/clock';
     /* A desktop window's narrower dialog gives the days and times the room the wall's wide buttons take. */
     .when {
       container-type: inline-size;
+      flex-wrap: wrap;
     }
 
     @container (max-width: 680px) {
       .stepper button {
         width: 44px;
+      }
+    }
+
+    /* A tablet's narrower dialog puts the day on a row of its own, above the two times. */
+    @container (max-width: 600px) {
+      .stepper.date {
+        flex: 1 1 100%;
       }
     }
 
