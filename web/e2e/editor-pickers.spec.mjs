@@ -75,6 +75,10 @@ for (const where of ['wall', 'desktop']) {
     const month = page.getByRole('dialog', { name: 'Day', exact: true });
     await expect(month.getByRole('grid', { name: 'October 2026' })).toBeVisible();
     await expect(month.getByRole('button', { name: 'Monday, October 12, 2026' })).toBeFocused();
+    if (where === 'wall') {
+      const box = await month.getByRole('button', { name: 'Tuesday, October 13, 2026' }).boundingBox();
+      expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(56);
+    }
     await page.screenshot({ path: testInfo.outputPath(`${where}-calendar.png`) });
     await month.getByRole('button', { name: 'Wednesday, October 14, 2026' }).click();
     await expect(month).toHaveCount(0);

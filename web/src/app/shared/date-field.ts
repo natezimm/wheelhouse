@@ -108,7 +108,8 @@ import { placePopover } from './popover-place';
       margin: 0;
       padding: 16px;
       box-sizing: border-box;
-      width: 404px;
+      /* Seven 56 px days, the wall's smallest touch target, and the padding. */
+      width: 424px;
       max-width: calc(100vw - 16px);
       border: var(--card-border);
       border-radius: var(--card-radius);
@@ -165,11 +166,11 @@ import { placePopover } from './popover-place';
     }
 
     .day {
-      width: 52px;
-      height: 52px;
-      margin: 1px 0;
+      width: 56px;
+      height: 56px;
+      margin: 0;
       border: 0;
-      border-radius: 26px;
+      border-radius: 28px;
       background: none;
       color: var(--ink);
       font: 600 17px var(--font-body);
