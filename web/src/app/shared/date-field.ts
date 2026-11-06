@@ -9,6 +9,7 @@ import { placePopover } from './popover-place';
  */
 @Component({
   selector: 'app-date-field',
+  host: { '[class.field]': "look() === 'field'" },
   template: `
     <button
       #face
@@ -109,8 +110,7 @@ import { placePopover } from './popover-place';
       padding: 16px;
       box-sizing: border-box;
       /* Seven 56 px days, the wall's smallest touch target, and the padding. */
-      width: 424px;
-      max-width: calc(100vw - 16px);
+      width: min(424px, calc(100vw - 16px));
       border: var(--card-border);
       border-radius: var(--card-radius);
       background: var(--surface);
@@ -165,9 +165,12 @@ import { placePopover } from './popover-place';
       justify-content: center;
     }
 
+    /* 56 px on the wall; on a phone as wide as its column allows, never under the phone's 44 px. */
     .day {
-      width: 56px;
-      height: 56px;
+      width: 100%;
+      max-width: 56px;
+      aspect-ratio: 1;
+      height: auto;
       margin: 0;
       border: 0;
       border-radius: 28px;
@@ -199,6 +202,33 @@ import { placePopover } from './popover-place';
       opacity: 0.35;
       cursor: default;
     }
+
+    /* In a phone form's field: the field's own box, text from its start, and the whole box a button. */
+    :host(.field) {
+      align-self: center;
+    }
+
+    :host(.field) .face {
+      padding: 0;
+      text-align: start;
+      align-items: flex-start;
+      font: 400 16px var(--font-body);
+    }
+
+    :host(.field) .face:hover,
+    :host(.field) .face[aria-expanded='true'] {
+      background: none;
+    }
+
+    :host(.field) .face:focus-visible {
+      outline: none;
+    }
+
+    :host(.field) .face::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+    }
   `,
 })
 export class DateField {
@@ -211,6 +241,8 @@ export class DateField {
   /** The first day that can be chosen. */
   readonly min = input<Day | null>(null);
   readonly disabled = input(false);
+  /** 'stepper' sits centred between a stepper's buttons; 'field' fills a phone form's field, which it makes all one button. */
+  readonly look = input<'stepper' | 'field'>('stepper');
   readonly weekStartsOn = input<'Sunday' | 'Monday'>('Monday');
   /** The family's today, ringed in the calendar. */
   readonly today = input<Day | null>(null);

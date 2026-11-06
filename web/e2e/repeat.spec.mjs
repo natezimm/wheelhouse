@@ -130,7 +130,9 @@ test('this and following changes an event and every later one, with the repeat s
   } else {
     await editor.getByLabel('Change').selectOption('following');
     await expect(editor.getByLabel('Repeat', { exact: true })).toHaveValue('weekly');
-    await editor.locator('input[type="time"]').first().fill('10:15');
+    await editor.getByRole('button', { name: /^Start time, / }).click();
+    await page.getByRole('dialog', { name: 'Start time', exact: true }).getByRole('listbox', { name: 'Minute' }).getByRole('option', { name: '15', exact: true }).click();
+    await page.getByRole('dialog', { name: 'Start time', exact: true }).getByRole('button', { name: 'Done', exact: true }).click();
   }
   await page.screenshot({ path: testInfo.outputPath('this-and-following.png'), fullPage: true });
 

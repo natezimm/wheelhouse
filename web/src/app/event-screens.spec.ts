@@ -355,7 +355,7 @@ describe('event screens', () => {
       change.value = 'all';
       change.dispatchEvent(new Event('change'));
       await settle();
-      expect(sheet.querySelector<HTMLInputElement>('input[type="date"]')!.disabled).toBe(true);
+      expect(sheet.querySelector<HTMLButtonElement>('app-date-field button')!.disabled).toBe(true);
       button(sheet, 'Delete event').click();
       await settle();
       button(sheet, 'Delete all events').click();

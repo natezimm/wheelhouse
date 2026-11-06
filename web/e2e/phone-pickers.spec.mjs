@@ -35,21 +35,45 @@ async function stub(page) {
   await page.route('**/hubs/**', (route) => route.fulfill({ status: 503, body: 'Offline' }));
 }
 
-test('the phone editor writes dates and times as the app does, over the phone’s own pickers', async ({ page }, testInfo) => {
+test('the phone editor picks days on the same calendar and times on the same wheels as the wall', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'phone', 'the phone sheet only');
   await stub(page);
   await page.goto('/');
   await page.getByRole('button', { name: 'Add event' }).first().click();
   const sheet = page.getByRole('dialog', { name: 'New event' });
-  const starts = sheet.locator('.picker').nth(0);
-  const startTime = sheet.locator('.picker').nth(1);
-  await expect(starts.locator('.face')).toHaveText('Mon, Oct 12');
-  await expect(startTime.locator('.face')).toHaveText(/^3:30 pm$/i);
+  const starts = sheet.getByRole('button', { name: /^Starts, / });
+  const startTime = sheet.getByRole('button', { name: /^Start time, / });
+  const endTime = sheet.getByRole('button', { name: /^End time, / });
+  await expect(starts).toHaveText('Mon, Oct 12');
+  await expect(startTime).toHaveText('3:30 pm');
+  await expect(sheet.locator('input[type=date], input[type=time]')).toHaveCount(0);
   await page.screenshot({ path: testInfo.outputPath('phone-pickers.png') });
 
-  // The browser's own input lies over each face, labelled, and choosing in it changes the face.
-  await sheet.getByLabel('Start time').fill('16:00');
-  await expect(startTime.locator('.face')).toHaveText(/^4:00 pm$/i);
-  await sheet.getByLabel('Starts').fill('2026-10-14');
-  await expect(starts.locator('.face')).toHaveText('Wed, Oct 14');
+  // A tap anywhere on the field opens a month calendar that fits the phone, with 44 px days.
+  const field = sheet.locator('.picker').first();
+  const box = await field.boundingBox();
+  await page.mouse.click(box.x + box.width - 12, box.y + box.height / 2);
+  const month = page.getByRole('dialog', { name: 'Starts', exact: true });
+  await expect(month.getByRole('grid', { name: 'October 2026' })).toBeVisible();
+  const pop = await month.boundingBox();
+  expect(pop.x).toBeGreaterThanOrEqual(0);
+  expect(pop.x + pop.width).toBeLessThanOrEqual(390);
+  const day = await month.getByRole('button', { name: 'Wednesday, October 14, 2026' }).boundingBox();
+  expect(Math.min(day.width, day.height)).toBeGreaterThanOrEqual(44);
+  await page.screenshot({ path: testInfo.outputPath('phone-calendar.png') });
+  await month.getByRole('button', { name: 'Wednesday, October 14, 2026' }).click();
+  await expect(starts).toHaveText('Wed, Oct 14');
+  await expect(sheet.getByRole('button', { name: /^Ends, / })).toHaveText('Wed, Oct 14');
+
+  // Times on wheels: a new start keeps the length.
+  await startTime.click();
+  const wheels = page.getByRole('dialog', { name: 'Start time', exact: true });
+  await wheels.getByRole('listbox', { name: 'Hour' }).getByRole('option', { name: '4', exact: true }).click();
+  await wheels.getByRole('listbox', { name: 'Minute' }).getByRole('option', { name: '00', exact: true }).click();
+  await expect(startTime).toHaveText('4:00 pm');
+  await expect(endTime).toHaveText('5:00 pm');
+  await page.screenshot({ path: testInfo.outputPath('phone-wheels.png') });
+  await wheels.getByRole('button', { name: 'Done', exact: true }).click();
+  await expect(wheels).toHaveCount(0);
+  await expect(sheet).toBeVisible();
 });

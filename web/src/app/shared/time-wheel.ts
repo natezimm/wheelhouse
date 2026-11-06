@@ -24,6 +24,7 @@ interface Column {
  */
 @Component({
   selector: 'app-time-wheel',
+  host: { '[class.field]': "look() === 'field'" },
   template: `
     <button
       #face
@@ -197,6 +198,33 @@ interface Column {
       font: 700 18px var(--font-body);
       cursor: pointer;
     }
+
+    /* In a phone form's field: the field's own box, text from its start, and the whole box a button. */
+    :host(.field) {
+      align-self: center;
+    }
+
+    :host(.field) .face {
+      padding: 0;
+      text-align: start;
+      align-items: flex-start;
+      font: 400 16px var(--font-body);
+    }
+
+    :host(.field) .face:hover,
+    :host(.field) .face[aria-expanded='true'] {
+      background: none;
+    }
+
+    :host(.field) .face:focus-visible {
+      outline: none;
+    }
+
+    :host(.field) .face::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+    }
   `,
 })
 export class TimeWheel {
@@ -207,6 +235,8 @@ export class TimeWheel {
   /** A word under the time, such as the day an end falls on. */
   readonly note = input<string | null>(null);
   readonly disabled = input(false);
+  /** 'stepper' sits centred between a stepper's buttons; 'field' fills a phone form's field, which it makes all one button. */
+  readonly look = input<'stepper' | 'field'>('stepper');
 
   readonly timeChange = output<string>();
 
