@@ -1,11 +1,10 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, ElementRef, computed, inject, input, linkedSignal, output, signal, viewChild } from '@angular/core';
 import { CalendarEvent, CalendarStore, eventRefusal } from '../core/calendar';
-import { Day, formatDay } from '../core/days';
+import { Day, dayIn, formatDay } from '../core/days';
 import {
   EventDraft,
   STEP_MINUTES,
-  clockLabel,
   copyOf,
   draftOf,
   endAt,
@@ -15,7 +14,6 @@ import {
   moveStart,
   newDraft,
   onDayOf,
-  parseClock,
   problemWith,
   requestOf,
   peopleChoices,
@@ -29,15 +27,18 @@ import { SessionStore } from '../core/session';
 import { ModalFocus } from '../shared/modal-focus';
 import { AvatarFace } from '../shared/avatar-face';
 import { RepeatPicker } from '../shared/repeat-picker';
+import { DateField } from '../shared/date-field';
+import { TimeWheel } from '../shared/time-wheel';
+import { Clock } from '../core/clock';
 
 /**
  * The wall's dialog for adding an event, or changing or deleting one, which a desktop window uses
- * too. Everything works by touch: days and times move with steppers, since a wall has no
- * comfortable date picker. A time can also be typed ("3pm", "15:30"), and arrow keys step it.
+ * too. Everything works by touch and nothing is typed but words: days and times move with steppers,
+ * and tapping one opens a month calendar for the day or wheels for the time, as a phone's pickers do.
  */
 @Component({
   selector: 'app-event-dialog',
-  imports: [AvatarFace, ModalFocus, RepeatPicker],
+  imports: [AvatarFace, DateField, ModalFocus, RepeatPicker, TimeWheel],
   template: `
     <div class="scrim" aria-hidden="true" (click)="!busy() && closed.emit()"></div>
     @if (draft(); as draft) {
@@ -81,7 +82,14 @@ import { RepeatPicker } from '../shared/repeat-picker';
                 <button type="button" [attr.aria-label]="draft.allDay ? 'First day earlier' : 'A day earlier'" [disabled]="series()" (click)="adjust(moveDays, -1)">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
                 </button>
-                <span>{{ dayLabel(draft.startDate) }}</span>
+                <app-date-field
+                  [day]="draft.startDate"
+                  [label]="draft.allDay ? 'First day' : 'Day'"
+                  [disabled]="series()"
+                  [weekStartsOn]="weekStartsOn()"
+                  [today]="today()"
+                  (dayChange)="adjust(moveDays, daysFrom(draft.startDate, $event))"
+                />
                 <button type="button" [attr.aria-label]="draft.allDay ? 'First day later' : 'A day later'" [disabled]="series()" (click)="adjust(moveDays, 1)">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
                 </button>
@@ -91,7 +99,15 @@ import { RepeatPicker } from '../shared/repeat-picker';
                   <button type="button" aria-label="Last day earlier" (click)="adjust(moveLastDay, -1)">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"></path></svg>
                   </button>
-                  <span>{{ draft.endDate === draft.startDate ? 'One day' : 'to ' + dayLabel(draft.endDate) }}</span>
+                  <app-date-field
+                    [day]="draft.endDate"
+                    label="Last day"
+                    [text]="draft.endDate === draft.startDate ? 'One day' : 'to ' + dayLabel(draft.endDate)"
+                    [min]="draft.startDate"
+                    [weekStartsOn]="weekStartsOn()"
+                    [today]="today()"
+                    (dayChange)="adjust(moveLastDay, daysFrom(draft.endDate, $event))"
+                  />
                   <button type="button" aria-label="Last day later" (click)="adjust(moveLastDay, 1)">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
                   </button>
@@ -101,20 +117,7 @@ import { RepeatPicker } from '../shared/repeat-picker';
                   <button type="button" aria-label="Start earlier" (click)="adjust(moveStart, -step)">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path></svg>
                   </button>
-                  <span>
-                    <input
-                      type="text"
-                      class="time"
-                      aria-label="Start time"
-                      autocomplete="off"
-                      spellcheck="false"
-                      [value]="clockLabel(draft.startTime)"
-                      (change)="typeTime('start', $any($event.target))"
-                      (keydown.enter)="$event.preventDefault(); typeTime('start', $any($event.target))"
-                      (keydown.arrowup)="$event.preventDefault(); adjust(moveStart, step)"
-                      (keydown.arrowdown)="$event.preventDefault(); adjust(moveStart, -step)"
-                    />
-                  </span>
+                  <app-time-wheel [time]="draft.startTime" label="Start time" (timeChange)="setTime('start', $event)" />
                   <button type="button" aria-label="Start later" (click)="adjust(moveStart, step)">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
                   </button>
@@ -123,23 +126,12 @@ import { RepeatPicker } from '../shared/repeat-picker';
                   <button type="button" aria-label="End earlier" (click)="adjust(moveEnd, -step)">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path></svg>
                   </button>
-                  <span>
-                    <input
-                      type="text"
-                      class="time"
-                      autocomplete="off"
-                      spellcheck="false"
-                      [attr.aria-label]="draft.endDate !== draft.startDate ? 'End time, ' + dayLabel(draft.endDate) : 'End time'"
-                      [value]="clockLabel(draft.endTime)"
-                      (change)="typeTime('end', $any($event.target))"
-                      (keydown.enter)="$event.preventDefault(); typeTime('end', $any($event.target))"
-                      (keydown.arrowup)="$event.preventDefault(); adjust(moveEnd, step)"
-                      (keydown.arrowdown)="$event.preventDefault(); adjust(moveEnd, -step)"
-                    />
-                    @if (draft.endDate !== draft.startDate) {
-                      <small>{{ shortDay(draft.endDate) }}</small>
-                    }
-                  </span>
+                  <app-time-wheel
+                    [time]="draft.endTime"
+                    [label]="draft.endDate !== draft.startDate ? 'End time, ' + dayLabel(draft.endDate) : 'End time'"
+                    [note]="draft.endDate !== draft.startDate ? shortDay(draft.endDate) : null"
+                    (timeChange)="setTime('end', $event)"
+                  />
                   <button type="button" aria-label="End later" (click)="adjust(moveEnd, step)">
                     <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
                   </button>
@@ -442,57 +434,6 @@ import { RepeatPicker } from '../shared/repeat-picker';
       flex: 1.25;
     }
 
-    .stepper > span {
-      flex: 1;
-      min-width: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      font-size: 19px;
-      font-weight: 600;
-      line-height: 1.1;
-      white-space: nowrap;
-    }
-
-    /* A typed time takes the stepper's whole height between its buttons, so it is as easy to tap. */
-    .stepper > span:has(> input.time) {
-      align-self: stretch;
-      position: relative;
-    }
-
-    .stepper input.time {
-      width: 100%;
-      height: 100%;
-      padding: 0;
-      border: 0;
-      border-radius: 10px;
-      background: none;
-      color: var(--ink);
-      font: 600 19px var(--font-body);
-      text-align: center;
-    }
-
-    .stepper input.time:has(+ small) {
-      padding-bottom: 16px;
-    }
-
-    .stepper input.time + small {
-      position: absolute;
-      inset: auto 0 10px;
-      text-align: center;
-      pointer-events: none;
-    }
-
-    .stepper input.time:hover:not(:focus) {
-      background: var(--surface);
-    }
-
-    .stepper small {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--muted);
-    }
-
     .stepper button {
       flex-shrink: 0;
       width: 56px;
@@ -506,14 +447,22 @@ import { RepeatPicker } from '../shared/repeat-picker';
       cursor: pointer;
     }
 
-    /* A desktop window's narrower dialog gives the typed times the room the wall's wide buttons take. */
+    /* A desktop window's narrower dialog gives the days and times the room the wall's wide buttons take. */
     .when {
       container-type: inline-size;
+      flex-wrap: wrap;
     }
 
     @container (max-width: 680px) {
       .stepper button {
         width: 44px;
+      }
+    }
+
+    /* A tablet's narrower dialog puts the day on a row of its own, above the two times. */
+    @container (max-width: 600px) {
+      .stepper.date {
+        flex: 1 1 100%;
       }
     }
 
@@ -697,6 +646,7 @@ export class EventDialog {
   private readonly calendar = inject(CalendarStore);
   private readonly family = inject(FamilyStore);
   private readonly session = inject(SessionStore);
+  private readonly clock = inject(Clock);
 
   /** The event to change, or null to add one. */
   readonly event = input<CalendarEvent | null>(null);
@@ -718,7 +668,6 @@ export class EventDialog {
   readonly closed = output<void>();
 
   protected readonly step = STEP_MINUTES;
-  protected readonly clockLabel = clockLabel;
   protected readonly moveDays = moveDays;
   protected readonly moveLastDay = moveLastDay;
   protected readonly moveStart = moveStart;
@@ -752,6 +701,12 @@ export class EventDialog {
       return copyOf(copy, calendar, family.timeZone);
     }
     return first ? newDraft(this.day(), first.id, family.timeZone, new Date(), this.at()) : null;
+  });
+
+  protected readonly weekStartsOn = computed(() => this.family.family()?.weekStartsOn ?? 'Monday');
+  protected readonly today = computed(() => {
+    const family = this.family.family();
+    return family ? dayIn(family.timeZone, this.clock.now()) : null;
   });
 
   protected readonly people = computed(() => {
@@ -801,24 +756,17 @@ export class EventDialog {
     }
   }
 
-  /**
-   * Sets the start or end from what was typed in it, then shows it the family's way. Something
-   * that is not a time puts the field back as it was and says how to type one.
-   */
-  protected typeTime(which: 'start' | 'end', input: HTMLInputElement): void {
+  /** Starts or ends the event at a time picked on the wheels. */
+  protected setTime(which: 'start' | 'end', time: string): void {
     const draft = this.draft();
-    if (!draft || this.busy() || this.uncertain()) {
-      return;
+    if (draft) {
+      this.change(which === 'start' ? startAt(draft, time) : endAt(draft, time));
     }
-    const time = parseClock(input.value, which === 'end' ? draft.startTime : undefined);
-    if (time === null) {
-      input.value = clockLabel(which === 'start' ? draft.startTime : draft.endTime);
-      this.message.set('Type a time such as 3:30 pm or 15:30.');
-      return;
-    }
-    this.change(which === 'start' ? startAt(draft, time) : endAt(draft, time));
-    const changed = this.draft()!;
-    input.value = clockLabel(which === 'start' ? changed.startTime : changed.endTime);
+  }
+
+  /** How many days <code>to</code> is after <code>from</code>, for moving by a day picked on the calendar. */
+  protected daysFrom(from: Day, to: Day): number {
+    return Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000);
   }
 
   /**

@@ -264,7 +264,7 @@ export function moveEnd(draft: EventDraft, minutes: number): EventDraft {
 }
 
 /**
- * Starts the event at <code>time</code> ('HH:mm') on its own day, keeping its length, as typing a
+ * Starts the event at <code>time</code> ('HH:mm') on its own day, keeping its length, as picking a
  * start does.
  */
 export function startAt(draft: EventDraft, time: string): EventDraft {
@@ -274,7 +274,7 @@ export function startAt(draft: EventDraft, time: string): EventDraft {
 }
 
 /**
- * Ends the event at <code>time</code> ('HH:mm'), as typing an end does: at the first such time
+ * Ends the event at <code>time</code> ('HH:mm'), as picking an end does: at the first such time
  * from its start, so a time before the start ends it the next day. An event a day long or more keeps
  * its last day while the time still falls after the start.
  */
@@ -285,32 +285,6 @@ export function endAt(draft: EventDraft, time: string): EventDraft {
     : minutesOf(draft.startDate, time) + (time < draft.startTime ? DAY_MINUTES : 0);
   const [endDate, endTime] = split(end);
   return { ...draft, endDate, endTime };
-}
-
-/**
- * A typed time as 'HH:mm', or null when it is not one: "3pm", "3:30 PM", "3.30p", "330pm", "15:30",
- * "1530", "noon" or "midnight". An hour from 1 to 11 with no AM or PM, such as "3" or "3:30", is the
- * first of its morning and afternoon times from <code>after</code> ('HH:mm'), so by default "8" is
- * 8 AM and "3" is 3 PM, and an end after a 9 AM start reads "1" as 1 PM.
- */
-export function parseClock(text: string, after = '07:00'): string | null {
-  const typed = text.trim().toLowerCase().replace(/\s+/g, '').replace(/\./g, (dot, at, all) => (/\d/.test(all[at - 1] ?? '') && /\d/.test(all[at + 1] ?? '') ? ':' : ''));
-  if (typed === 'noon') return '12:00';
-  if (typed === 'midnight') return '00:00';
-  const match = /^(\d{1,2})(?::?(\d{2}))?(am?|pm?)?$/.exec(typed);
-  if (!match) return null;
-  const [, hourText, minuteText = '00', half] = match;
-  const hour = Number(hourText);
-  const minute = Number(minuteText);
-  if (minute > 59) return null;
-  if (half) {
-    return hour < 1 || hour > 12 ? null : clock(((hour % 12) + (half.startsWith('p') ? 12 : 0)) * 60 + minute);
-  }
-  if (hour > 23) return null;
-  if (hour === 0 || hour >= 12 || hourText.startsWith('0')) return clock(hour * 60 + minute);
-  const morning = clock(hour * 60 + minute);
-  const afternoon = clock((hour + 12) * 60 + minute);
-  return morning >= after ? morning : afternoon >= after ? afternoon : morning;
 }
 
 /** A time such as '17:30' as an editor's field shows it, "5:30 pm" (minutes kept, even on the hour). */

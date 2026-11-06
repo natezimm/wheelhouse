@@ -54,10 +54,16 @@ test('an event added on the screen is saved, survives a reload and can be delete
   if (wall) {
     // At 1 PM, like addAt1's events: at the default time, now, a Saturday morning's demo events
     // would fold it into "+N" on Week and the check below could not find it.
-    for (const [field, time] of [['Start time', '1:00 PM'], ['End time', '2:00 PM']]) {
-      await editor.getByRole('textbox', { name: field }).fill(time);
-      await editor.getByRole('textbox', { name: field }).press('Enter');
+    // Times are picked on wheels, a tap on each part.
+    for (const [field, hour] of [['Start time', '1'], ['End time', '2']]) {
+      await editor.getByRole('button', { name: new RegExp(`^${field}`) }).click();
+      const wheels = page.getByRole('dialog', { name: new RegExp(`^${field}`) });
+      for (const [wheel, value] of [['am or pm', 'pm'], ['Hour', hour], ['Minute', '00']]) {
+        await wheels.getByRole('listbox', { name: wheel }).getByRole('option', { name: value, exact: true }).click();
+      }
+      await wheels.getByRole('button', { name: 'Done', exact: true }).click();
     }
+    await expect(editor.getByRole('button', { name: 'End time, 2:00 pm', exact: true })).toBeVisible();
   }
   await editor.getByRole('button', { name: wall ? 'Save event' : 'Save', exact: true }).click();
   await saved(page);

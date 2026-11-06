@@ -102,7 +102,7 @@ describe('event screens', () => {
       button(dialog, 'Weekly').click();
       await settle();
       expect(button(dialog, 'Weekly').getAttribute('aria-pressed')).toBe('true');
-      expect(Array.from(dialog.querySelectorAll('.stepper > span'), (s) => s.querySelector('input')?.value ?? s.textContent?.trim())).toEqual([
+      expect(Array.from(dialog.querySelectorAll('.stepper .face'), (s) => s.textContent?.trim())).toEqual([
         'Tue, Oct 13',
         '6:00 pm',
         '7:00 pm',
@@ -175,49 +175,59 @@ describe('event screens', () => {
       expect(Array.from(swims, (t) => t.textContent)).toEqual(['Swim lesson']);
     });
 
-    it('takes typed start and end times, and puts back one that is not a time', async () => {
+    it('picks the day on a month calendar and the times on wheels, with no typing', async () => {
       const { page, settle } = await open('/wall');
 
       await edit(page, settle, 'Monday, October 12');
       const dialog = page.querySelector<HTMLElement>('app-event-dialog form')!;
-      const start = dialog.querySelector<HTMLInputElement>('input[aria-label="Start time"]')!;
-      const end = () => dialog.querySelector<HTMLInputElement>('input[aria-label^="End time"]')!;
-      const commit = (input: HTMLInputElement, value: string) => {
-        input.value = value;
-        input.dispatchEvent(new Event('change'));
-      };
-      expect([start.value, end().value]).toEqual(['5:30 pm', '6:15 pm']);
+      const face = (label: string) => dialog.querySelector<HTMLButtonElement>(`button[aria-label^="${label}"]`)!;
+      expect(dialog.querySelectorAll('input[type="text"]').length).toBe(2);
+      expect([face('Start time').textContent?.trim(), face('End time').textContent?.trim()]).toEqual(['5:30 pm', '6:15 pm']);
 
-      commit(start, '4pm');
+      face('Day, ').click();
       await settle();
-      expect([start.value, end().value]).toEqual(['4:00 pm', '4:45 pm']);
-      commit(end(), '5:30');
+      const month = dialog.querySelector<HTMLElement>('app-date-field [role="dialog"]')!;
+      expect(month.querySelector('[role="grid"]')?.getAttribute('aria-label')).toBe('October 2026');
+      button(month, 'Next month').click();
       await settle();
-      expect(end().value).toBe('5:30 pm');
+      expect(month.querySelector('[role="grid"]')?.getAttribute('aria-label')).toBe('November 2026');
+      button(month, 'Previous month').click();
+      await settle();
+      month.querySelector<HTMLButtonElement>('[aria-label="Wednesday, October 14, 2026"]')!.click();
+      await settle();
+      expect(dialog.querySelector('app-date-field [role="dialog"]')).toBeNull();
+      expect(face('Day, ').textContent?.trim()).toBe('Wed, Oct 14');
 
-      commit(start, 'after school');
+      face('Start time').click();
       await settle();
-      expect(start.value).toBe('4:00 pm');
-      expect(dialog.querySelector('[role="alert"]')?.textContent).toBe('Type a time such as 3:30 pm or 15:30.');
+      const wheels = dialog.querySelector<HTMLElement>('app-time-wheel [role="dialog"]')!;
+      const wheel = (name: string) => wheels.querySelector<HTMLElement>(`[role="listbox"][aria-label="${name}"]`)!;
+      const option = (name: string, label: string) => Array.from(wheel(name).querySelectorAll<HTMLElement>('[role="option"]')).find((o) => o.textContent?.trim() === label)!;
+      option('Hour', '4').click();
+      await settle();
+      expect([face('Start time').textContent?.trim(), face('End time').textContent?.trim()]).toEqual(['4:30 pm', '5:15 pm']);
+      wheel('Minute').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', cancelable: true }));
+      await settle();
+      expect(face('Start time').textContent?.trim()).toBe('4:25 pm');
+      expect(option('Minute', '25').getAttribute('aria-selected')).toBe('true');
 
-      // Enter takes the time without saving, and the arrow keys step it like the buttons.
-      start.value = '16:15';
-      const enter = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true });
-      start.dispatchEvent(enter);
-      expect(enter.defaultPrevented).toBe(true);
-      start.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp' }));
+      face('End time').click();
       await settle();
-      expect(dialog.querySelector('[role="alert"]')).toBeNull();
-      expect([start.value, end().value]).toEqual(['4:30 pm', '6:00 pm']);
+      const endWheels = dialog.querySelectorAll<HTMLElement>('app-time-wheel [role="dialog"]');
+      const endWheel = endWheels[endWheels.length - 1];
+      const endOption = (name: string, label: string) => Array.from(endWheel.querySelectorAll<HTMLElement>(`[role="listbox"][aria-label="${name}"] [role="option"]`)).find((o) => o.textContent?.trim() === label)!;
+      endOption('am or pm', 'am').click();
+      await settle();
+      endOption('Hour', '1').click();
+      await settle();
+      endOption('Minute', '00').click();
+      await settle();
+      expect(face('End time').getAttribute('aria-label')).toBe('End time, Thu, Oct 15, 1:00 am');
       http.expectNone({ method: 'PUT' });
-
-      commit(end(), '1:00 AM');
-      await settle();
-      expect(end().getAttribute('aria-label')).toBe('End time, Tue, Oct 13');
       button(dialog, 'Save changes').click();
 
       const request = http.expectOne({ method: 'PUT', url: `/api/calendar/events/${swim.id}` });
-      expect(request.request.body).toMatchObject({ startDate: '2026-10-12', startTime: '16:30:00', endDate: '2026-10-13', endTime: '01:00:00' });
+      expect(request.request.body).toMatchObject({ startDate: '2026-10-14', startTime: '16:25:00', endDate: '2026-10-15', endTime: '01:00:00' });
     });
 
     it('changes every event of a series, keeping each on its own day', async () => {
@@ -234,7 +244,7 @@ describe('event screens', () => {
       button(dialog, 'All events').click();
       await settle();
       expect(button(dialog, 'A day later').disabled).toBe(true);
-      expect(dialog.querySelector('.stepper > span')?.textContent?.trim()).toBe('Wed, Oct 14');
+      expect(dialog.querySelector('app-date-field .face')?.textContent?.trim()).toBe('Wed, Oct 14');
       tess().click();
       button(dialog, 'Start later').click();
       button(dialog, 'Save changes').click();
@@ -345,7 +355,7 @@ describe('event screens', () => {
       change.value = 'all';
       change.dispatchEvent(new Event('change'));
       await settle();
-      expect(sheet.querySelector<HTMLInputElement>('input[type="date"]')!.disabled).toBe(true);
+      expect(sheet.querySelector<HTMLButtonElement>('app-date-field button')!.disabled).toBe(true);
       button(sheet, 'Delete event').click();
       await settle();
       button(sheet, 'Delete all events').click();
