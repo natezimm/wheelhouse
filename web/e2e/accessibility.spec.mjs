@@ -170,7 +170,17 @@ for (const look of looks) {
     await details.getByRole('button', { name: 'Edit event', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Edit event' })).toBeVisible();
     await check('wall editor', DIALOG);
-    await page.getByRole('dialog', { name: 'Edit event' }).getByRole('button', { name: 'Close', exact: true }).click();
+    const editor = page.getByRole('dialog', { name: 'Edit event' });
+    await editor.getByRole('button', { name: /^Day, / }).click();
+    await expect(page.getByRole('grid')).toBeVisible();
+    await check('wall editor calendar', 'app-date-field [role=dialog]');
+    await page.keyboard.press('Escape');
+    await editor.getByRole('button', { name: /^Start time, / }).click();
+    await expect(page.getByRole('listbox', { name: 'Hour' })).toBeVisible();
+    await check('wall editor time wheels', 'app-time-wheel [role=dialog]');
+    await page.keyboard.press('Escape');
+    await expect(editor).toBeVisible();
+    await editor.getByRole('button', { name: 'Close', exact: true }).click();
     await page.getByRole('button', { name: 'Show today at a glance' }).click();
     await expect(page.getByRole('dialog', { name: 'Today at a glance' })).toBeVisible();
     await check('wall glance', DIALOG);

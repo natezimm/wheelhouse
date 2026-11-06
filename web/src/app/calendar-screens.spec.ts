@@ -201,7 +201,7 @@ describe('calendar screens', () => {
       await settle();
 
       const dialog = page.querySelector<HTMLElement>('app-event-dialog form')!;
-      expect(Array.from(dialog.querySelectorAll('.stepper > span'), (s) => s.querySelector('input')?.value ?? s.textContent?.trim())).toEqual(['Wed, Oct 14', '2:30 pm', '3:30 pm']);
+      expect(Array.from(dialog.querySelectorAll('.stepper .face'), (s) => s.textContent?.trim())).toEqual(['Wed, Oct 14', '2:30 pm', '3:30 pm']);
     });
 
     it("shows one person's week when their chip is tapped, and everyone again after", async () => {
