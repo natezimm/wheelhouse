@@ -162,6 +162,24 @@ docker compose --project-name wheelhouse-demo logs --tail 100 api
 
 The API logs one JSON object per line. [docs/runbook.md](../docs/runbook.md) shows how to read them, what `/health` reports, and what to do for each alert and common failure.
 
+### Browse the database
+
+Each instance's PostgreSQL publishes no port, not even on the server's loopback, so reach it over SSH. For a quick query, run `psql` inside the container on the server:
+
+```bash
+docker compose --project-name wheelhouse-demo exec db psql -U wheelhouse -d wheelhouse
+```
+
+Table and column names are quoted CamelCase, as in `select * from "Families" limit 5;`.
+
+For a desktop client such as DBeaver or pgAdmin, find the database container's address on the server:
+
+```bash
+docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' wheelhouse-demo-db-1
+```
+
+Then connect the client to that address on port 5432 through its SSH tunnel option, using the server's address and your SSH user and key, with database and user `wheelhouse` and the password from `WHEELHOUSE_DB_PASSWORD` in the instance's `.env`. The address can change when the container is recreated; look it up again if the client stops connecting. Make the connection read-only for a family instance, and disconnect when you are done: an open transaction can hold a lock that a release's migration waits for.
+
 ## Alerts
 
 [`monitoring.sh`](monitoring.sh) sets up Google Cloud Monitoring to watch each instance's `https://<domain>/health` every 5 minutes from several regions, outside the server, so it also notices the whole VM going away. It emails when an instance stops answering for 5 minutes, when its calendar check has not been Healthy for 15 minutes (Google needs reconnecting, or a calendar or the sync worker has stopped), and when its HTTPS certificate expires within 14 days. Each email links to its section of the runbook. The demo gets the same checks; its calendar check is always Healthy, since it never syncs with Google.
