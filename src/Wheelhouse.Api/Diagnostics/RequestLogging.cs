@@ -78,8 +78,8 @@ public static class RequestLogging
         logger.Log(
             level,
             "{Method} {Path} answered {StatusCode} in {ElapsedMs} ms for family {FamilyId}, {Who} (route {Route})",
-            request.Method,
-            request.Path.Value,
+            request.Method.ReplaceLineEndings(" "),
+            request.Path.Value?.ReplaceLineEndings(" "),
             status,
             Math.Round(elapsed.TotalMilliseconds, 1),
             context.User.FindFirstValue(WheelhouseClaims.Family),
