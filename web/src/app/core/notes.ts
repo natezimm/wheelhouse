@@ -5,8 +5,20 @@
 export function notesText(notes: string | null | undefined): string {
   if (!notes) return '';
   if (!/[<&]/.test(notes)) return notes.trim();
-  const lines = notes.replace(/<(script|style)[\s\S]*?<\/\1>/gi, '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/?(p|div|li|h[1-6])(\s[^>]*)?>/gi, '\n');
-  // A detached document parses without running anything or loading images.
-  const text = new DOMParser().parseFromString(lines, 'text/html').body.textContent ?? '';
+  // Template contents stay inert. Only their plain text leaves this function.
+  const template = document.createElement('template');
+  template.innerHTML = notes;
+  const content = template.content;
+  for (const element of content.querySelectorAll('script, style')) {
+    element.remove();
+  }
+  for (const element of content.querySelectorAll('br')) {
+    element.replaceWith('\n');
+  }
+  for (const element of content.querySelectorAll('p, div, li, h1, h2, h3, h4, h5, h6')) {
+    element.before('\n');
+    element.after('\n');
+  }
+  const text = content.textContent ?? '';
   return text.replace(/[ \t]*\n[ \t]*/g, '\n').replace(/\n{2,}/g, '\n').trim();
 }
