@@ -28,3 +28,6 @@ appsettings.*.local.json
 
 # Browser smoke screenshots
 smoke-results/
+
+# Local Understand Anything analysis
+.ua/
