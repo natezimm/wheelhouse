@@ -44,10 +44,16 @@ services:
       Wheelhouse__ParentEmails: ${WHEELHOUSE_PARENT_EMAILS:-}
       Google__ClientId: ${WHEELHOUSE_GOOGLE_CLIENT_ID:-}
       Google__ClientSecret: ${WHEELHOUSE_GOOGLE_CLIENT_SECRET:-}
+      # Optional: send traces, metrics and logs to Grafana Cloud (docs/observability.md). Empty sends nothing.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      OTEL_RESOURCE_ATTRIBUTES: service.version=${WHEELHOUSE_VERSION},deployment.environment.name=${WHEELHOUSE_MODE}
       # Workstation GC: the server is small and each instance should stay light.
       DOTNET_gcServer: "0"
     # .NET sizes its heap to the container's limit. Locally a demo API used about 145 MB uncapped and
-    # about 87 MB under this limit after 40 visits, answering as fast.
+    # about 87 MB under this limit after 40 visits, answering as fast. OpenTelemetry, when an endpoint is
+    # set, added about 26 MB to Know Ball's API in the same kind of test, which still fits.
     mem_limit: 160m
     volumes:
       - keys:/home/app/.aspnet/DataProtection-Keys

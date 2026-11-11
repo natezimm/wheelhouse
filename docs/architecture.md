@@ -65,6 +65,7 @@ flowchart TB
   Meteo["Open-Meteo"]
   Push["Browser push services"]
   Monitor["Cloud Monitoring<br/>uptime checks, email alerts"]
+  Grafana["Grafana Cloud<br/>traces, metrics, logs"]
 
   Wall & Phone -->|"HTTPS, cookie"| Web
   Monitor -->|"GET /health every 5 min"| Web
@@ -81,6 +82,7 @@ flowchart TB
   Sync -->|"changes since sync token"| Google
   Endpoints -->|"forecast"| Meteo
   Endpoints -.-> Keys
+  Api -.->|"OTLP, when configured"| Grafana
 
   classDef client fill:#dcfce7,stroke:#15803d,color:#14532d
   classDef site fill:#e0f2fe,stroke:#0369a1,color:#0c4a6e
@@ -91,11 +93,12 @@ flowchart TB
   class Web site
   class Endpoints,Hub,Live,Sync,Remind,Ctx server
   class Db,Keys data
-  class Google,Meteo,Push external
+  class Google,Meteo,Push,Grafana external
 ```
 
 - **Browser app.** State lives in root-provided stores under [`web/src/app/core/`](../web/src/app/core/) that expose read-only signals. [`CalendarStore`](../web/src/app/core/calendar.ts) keeps the last confirmed snapshot and draws pending edits over it; [`CalendarLive`](../web/src/app/core/calendar-live.ts) owns the single SignalR connection and a 30-second recovery check.
 - **API.** Each feature folder (`Calendar`, `Families`, `Devices`, `Auth`, `Demo`, `Weather` and others) has a `MapX()` extension that [`Program.cs`](../src/Wheelhouse.Api/Program.cs) calls. Every endpoint needs a sign-in unless it opts out, and a test fails if the anonymous list changes.
+- **Telemetry.** With `OTEL_EXPORTER_OTLP_ENDPOINT` set, the API sends OpenTelemetry traces, metrics and logs straight to Grafana Cloud, with no collector on the VM ([observability](observability.md), [ADR 0013](adr/0013-opentelemetry-without-a-collector.md)).
 - **Database.** Every family-owned table gets a query filter on the signed-in family ([`WheelhouseDbContext`](../src/Wheelhouse.Api/Data/WheelhouseDbContext.cs)), so a query that forgets the family returns nothing rather than another family's rows. See [ADR 0002](adr/0002-family-scoping-in-the-db-context.md).
 - **Sign-in.** One encrypted cookie carries the family's id. Parents get it from Google sign-in, a wall display from a six-digit pairing code, and a demo visitor from `POST /api/demo/visit`. Each request re-checks the account or device, so removing one signs it out at once.
 

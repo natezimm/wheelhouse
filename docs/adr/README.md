@@ -16,3 +16,4 @@ Short records of the choices that shape Wheelhouse: the context at the time, wha
 | [0010](0010-alerts-from-cloud-monitoring-uptime-checks.md) | Alerts come from Cloud Monitoring uptime checks of `/health` | Accepted |
 | [0011](0011-performance-budget-in-ci.md) | A performance budget in CI: sizes held tightly, time loosely | Accepted |
 | [0012](0012-threat-model-and-security-tradeoffs.md) | A written threat model, and the security tradeoffs it accepts | Accepted |
+| [0013](0013-opentelemetry-without-a-collector.md) | OpenTelemetry, sent straight to a free hosted backend | Accepted |

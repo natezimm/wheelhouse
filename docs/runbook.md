@@ -22,7 +22,7 @@ What to do when an instance misbehaves. Every instance runs on the one VM as the
    wh logs --since 1h --no-log-prefix api | jq -c 'select(.LogLevel=="Error") | [.Timestamp, .Category, .Message]'
    ```
 
-   Errors a screen hit come from `Wheelhouse.ClientErrors`. To log every request, routine reads too, add `Logging__LogLevel__Wheelhouse.Requests=Debug` to the `api` service's environment for a while. The server's nginx keeps its own record in `/var/log/nginx/access.log` (status 499 means the browser gave up waiting).
+   With telemetry on ([observability](observability.md)), the same lines are in Grafana Cloud's Logs, each linked to its trace, and a screen's console names the trace id of an API call that failed. Errors a screen hit come from `Wheelhouse.ClientErrors`. To log every request, routine reads too, add `Logging__LogLevel__Wheelhouse.Requests=Debug` to the `api` service's environment for a while. The server's nginx keeps its own record in `/var/log/nginx/access.log` (status 499 means the browser gave up waiting).
 
 ## Site down
 

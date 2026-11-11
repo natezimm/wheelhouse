@@ -1,6 +1,8 @@
 # Local development stack. Ports bind to loopback only.
 #   docker compose up db -d          database for `dotnet run` and `npm start`
 #   docker compose up --build -d     the whole app at http://localhost:8080
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://dashboard:18890 docker compose --profile telemetry up --build -d
+#                                    the same, with traces, metrics and logs at http://localhost:18888
 name: wheelhouse
 
 services:
@@ -32,6 +34,10 @@ services:
       Wheelhouse__ParentEmails: ${WHEELHOUSE_PARENT_EMAILS:-}
       Google__ClientId: ${WHEELHOUSE_GOOGLE_CLIENT_ID:-}
       Google__ClientSecret: ${WHEELHOUSE_GOOGLE_CLIENT_SECRET:-}
+      # Empty sends nothing; the telemetry profile's dashboard listens at http://dashboard:18890.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+      Telemetry__TraceSampleRatio: "1"
     volumes:
       - keys:/home/app/.aspnet/DataProtection-Keys
     depends_on:
@@ -46,6 +52,15 @@ services:
       - "127.0.0.1:${WHEELHOUSE_HTTP_PORT:-8080}:80"
     depends_on:
       - api
+
+  # The .NET Aspire dashboard, which keeps traces, metrics and logs in memory (docs/observability.md).
+  dashboard:
+    profiles: [telemetry]
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:13.6.5
+    environment:
+      ASPIRE_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: "true"
+    ports:
+      - "127.0.0.1:18888:18888"
 
 volumes:
   db-data:

@@ -1,9 +1,11 @@
+using System.Diagnostics;
 using System.Threading.Channels;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Options;
 using Microsoft.EntityFrameworkCore;
 using Wheelhouse.Api.Data;
 using Wheelhouse.Api.Instance;
+using Wheelhouse.Api.Diagnostics;
 
 namespace Wheelhouse.Api.Calendar;
 
@@ -206,6 +208,23 @@ internal sealed class CalendarSyncService(
     /// <summary>Syncs <paramref name="families"/>, asked for by a parent, or every connected family that is not waiting out a failure when null.</summary>
     private async Task SyncAsync(IReadOnlyList<Guid>? families, CancellationToken stoppingToken)
     {
+        // A pass has no request around it, so it starts its own trace; Google's calls and the cache's SQL hang off it.
+        using var pass = WheelhouseTelemetry.Source.StartActivity("wheelhouse.calendar.sync");
+        pass?.SetTag("wheelhouse.sync.asked", families is not null);
+        var started = time.GetTimestamp();
+        try
+        {
+            await SyncFamiliesAsync(families, stoppingToken);
+        }
+        finally
+        {
+            WheelhouseTelemetry.SyncDuration.Record(time.GetElapsedTime(started).TotalSeconds,
+                new KeyValuePair<string, object?>("wheelhouse.sync.asked", families is not null));
+        }
+    }
+
+    private async Task SyncFamiliesAsync(IReadOnlyList<Guid>? families, CancellationToken stoppingToken)
+    {
         string? problem = null;
         try
         {
@@ -231,19 +250,25 @@ internal sealed class CalendarSyncService(
                 // Each family gets its own context, so nothing one family's failure left tracked is saved with the next.
                 await using var scope = scopes.CreateAsyncScope();
                 var sync = scope.ServiceProvider.GetRequiredService<CalendarSync>();
+                using var activity = WheelhouseTelemetry.Source.StartActivity("wheelhouse.calendar.sync.family");
+                activity?.SetTag("wheelhouse.family_id", familyId);
                 try
                 {
-                    if (!await sync.SyncFamilyAsync(familyId, stoppingToken))
+                    var connected = await sync.SyncFamilyAsync(familyId, stoppingToken);
+                    if (!connected)
                     {
                         problem = "A family's Google connection needs connecting again.";
                     }
 
                     _backoff.Succeeded(familyId);
+                    Count(connected ? "synced" : "needs_reconnect");
                 }
                 catch (Exception exception) when (exception is not OperationCanceledException || !stoppingToken.IsCancellationRequested)
                 {
                     // One family's failure must not hold up the others: log it and wait before asking Google again.
                     _backoff.Failed(familyId, exception);
+                    activity?.SetStatus(ActivityStatusCode.Error, exception.GetType().Name);
+                    Count(exception is GoogleRateLimitedException ? "rate_limited" : "failed");
                     logger.LogError(exception, "Could not sync the calendars of family {FamilyId}; trying again after {NotBefore}", familyId, _backoff.NotBefore(familyId));
                     problem = exception is GoogleRateLimitedException
                         ? "Google asked Wheelhouse to slow down; the calendar sync is waiting."
@@ -268,4 +293,7 @@ internal sealed class CalendarSyncService(
             health.Passed();
         }
     }
+
+    private static void Count(string outcome) =>
+        WheelhouseTelemetry.FamilySyncs.Add(1, new KeyValuePair<string, object?>("wheelhouse.outcome", outcome));
 }

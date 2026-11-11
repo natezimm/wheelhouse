@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Wheelhouse.Api.Auth;
 using Wheelhouse.Api.Calendar;
 using Wheelhouse.Api.Data;
+using Wheelhouse.Api.Diagnostics;
 
 namespace Wheelhouse.Api.Reminders;
 
@@ -117,7 +118,9 @@ public sealed class ReminderSender(WheelhouseDbContext db, WebPush push, ParentS
                 continue;
             }
 
-            switch (await push.SendAsync(new PushTarget(to.Endpoint, to.P256dh, to.Auth), message, to.Site, cancellationToken))
+            var outcome = await push.SendAsync(new PushTarget(to.Endpoint, to.P256dh, to.Auth), message, to.Site, cancellationToken);
+            WheelhouseTelemetry.Reminders.Add(1, new KeyValuePair<string, object?>("wheelhouse.outcome", outcome.ToString().ToLowerInvariant()));
+            switch (outcome)
             {
                 case PushOutcome.Sent:
                     delivered++;

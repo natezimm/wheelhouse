@@ -22,6 +22,7 @@ public static class ClientErrorEndpoints
         app.MapPost("/api/client-errors", (ClientErrorRequest request, ClaimsPrincipal user, ILoggerFactory loggers) =>
         {
             var logger = loggers.CreateLogger("Wheelhouse.ClientErrors");
+            WheelhouseTelemetry.ClientErrors.Add(1, new KeyValuePair<string, object?>("wheelhouse.layout", Layout(request.Layout)));
             logger.LogWarning(
                 "Client error on {Page} ({Layout}) for family {FamilyId}, {Who}: {Message}\n{Stack}",
                 Clip(request.Page, 200),
@@ -35,6 +36,13 @@ public static class ClientErrorEndpoints
 
         return app;
     }
+
+    /// <summary>The layout as a metric tag: one of the three, so a browser cannot invent new series.</summary>
+    public static string Layout(string? layout) => layout switch
+    {
+        "wall" or "desktop" or "phone" => layout,
+        _ => "other",
+    };
 
     /// <summary>Which display or parent it was; a demo visitor is neither.</summary>
     internal static string Who(ClaimsPrincipal user) =>
