@@ -9,5 +9,7 @@ RUN npm run build
 RUN find dist/web/browser -type f \( -name '*.js' -o -name '*.css' -o -name '*.svg' -o -name '*.html' -o -name '*.webmanifest' \) -size +1k -exec gzip -9 -k -n {} +
 
 FROM nginx:1.31-alpine
+# Take Alpine's fixes released since the base image was built, so the image scan finds no fixable advisories.
+RUN apk upgrade --no-cache
 COPY web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /web/dist/web/browser /usr/share/nginx/html
