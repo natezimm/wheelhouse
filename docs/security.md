@@ -102,7 +102,9 @@ Telemetry is off unless an instance's `.env` sets `OTEL_EXPORTER_OTLP_ENDPOINT` 
 
 - Changes reach `main` only through pull requests, which run CI. Pull requests from forks get no secrets, and no workflow uses `pull_request_target`.
 - Deploy secrets (`GCP_SSH_KEY`, `GCP_HOST`, `GCP_USER`, `GCP_KNOWN_HOSTS`) are used only by `release.yml` on `main` or a manual run. The server's host key is pinned in `GCP_KNOWN_HOSTS`.
-- Container images are built in CI and pushed to GitHub Container Registry; the server only pulls them.
+- Container images are built in CI and pushed to GitHub Container Registry; the server only pulls them. Each carries an SPDX SBOM and SLSA provenance, and a provenance attestation signed with the release workflow's GitHub identity: `gh attestation verify oci://ghcr.io/natezimm/wheelhouse-api:<version> --owner natezimm` proves an image came from this repository's CI.
+- Every action in the workflows is pinned to a commit SHA, its version in a comment, so a moved tag cannot change what runs; Dependabot updates both.
+- The API image is Ubuntu's chiseled .NET image (no shell or package manager). In `deploy/compose.yaml` no container can gain privileges, the API has no Linux capabilities and a read-only root filesystem, and nginx keeps only `CHOWN`, `SETUID`, `SETGID` and `NET_BIND_SERVICE`.
 - Dependabot (`.github/dependabot.yml`) proposes monthly, grouped updates for npm, NuGet, Actions and the Dockerfiles.
 
 ### Security scanning
@@ -113,6 +115,7 @@ Telemetry is off unless an instance's `.env` sets `OTEL_EXPORTER_OTLP_ENDPOINT` 
 | --- | --- | --- |
 | `CodeQL (csharp)`, `(javascript-typescript)`, `(actions)` | Injection, unsafe redirects, weak cookie or crypto settings, workflow script injection, with the `security-extended` queries | Alerts appear under the repository's Security tab and on the pull request; GitHub's code scanning check fails a pull request that adds a high or critical security alert (its default threshold) |
 | `dependency-review` | A pull request that adds or upgrades to a dependency with a high or critical advisory | That pull request |
+| `Image scan (api)`, `(web)` | OS packages, the .NET runtime, nginx and bundled packages in each image as a release builds it, with Grype | Any run, when a high or critical advisory has a fix; findings also go to the Security tab |
 | `audit` | Any NuGet package (direct or transitive) or shipped npm package with a high or critical advisory in today's database | Any run, including the Monday one, so an advisory against an untouched dependency is noticed within a week |
 
 It is separate from `ci.yml` on purpose: a release does not wait on it, so a newly published advisory flags pull requests without stopping a fix that is already tested from shipping. When `audit` fails, update the package (or wait for Dependabot's next run if no fixed version exists yet, and note it here). When CodeQL raises an alert that is a false positive, dismiss it in the Security tab with the reason, rather than suppressing the query.
