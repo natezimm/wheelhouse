@@ -122,7 +122,20 @@ public sealed class WeatherTests(ApiFactory factory)
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, first.StatusCode);
         Assert.Equal(HttpStatusCode.ServiceUnavailable, second.StatusCode);
-        Assert.Single(openMeteo.Requests);
+        // The first read tried once more; the second did not ask at all.
+        Assert.Equal(2, openMeteo.Requests.Count);
+    }
+
+    [Fact]
+    public async Task A_passing_failure_at_open_meteo_is_tried_once_more()
+    {
+        var openMeteo = new FakeOpenMeteo(HttpStatusCode.OK, PartlyCloudy) { FailFirst = 1 };
+        using var visitor = await VisitorAsync(openMeteo);
+
+        var weather = await visitor.GetFromJsonAsync<WeatherResponse>("/api/weather", ApiFactory.Json);
+
+        Assert.Equal("Partly cloudy", weather!.Description);
+        Assert.Equal(2, openMeteo.Requests.Count);
     }
 
     [Fact]
@@ -165,10 +178,13 @@ public sealed class WeatherTests(ApiFactory factory)
     {
         public List<Uri> Requests { get; } = [];
 
+        /// <summary>How many requests answer 503 before <c>status</c> does.</summary>
+        public int FailFirst { get; init; }
+
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Requests.Add(request.RequestUri!);
-            return Task.FromResult(new HttpResponseMessage(status)
+            return Task.FromResult(new HttpResponseMessage(Requests.Count <= FailFirst ? HttpStatusCode.ServiceUnavailable : status)
             {
                 Content = new StringContent(body, Encoding.UTF8, "application/json"),
             });

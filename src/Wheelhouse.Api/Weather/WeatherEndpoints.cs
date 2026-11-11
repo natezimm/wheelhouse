@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
+using Polly.Timeout;
 using Wheelhouse.Api.Auth;
 using Wheelhouse.Api.Data;
 
@@ -13,8 +14,12 @@ public static class WeatherEndpoints
         services.AddHttpClient<OpenMeteo>(client =>
         {
             client.BaseAddress = new Uri(OpenMeteo.BaseAddress);
-            client.Timeout = TimeSpan.FromSeconds(10);
-        }).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { ConnectCallback = OpenMeteo.ConnectAsync });
+            // Bounds both attempts and the reading of the body, which HttpClient does after the
+            // resilience handler returns, so a forecast that stalls part way still ends in a 503.
+            client.Timeout = OpenMeteo.WaitAtMost;
+        })
+        .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { ConnectCallback = OpenMeteo.ConnectAsync })
+        .AddResilienceHandler("open-meteo", OpenMeteo.Resilience);
         services.AddScoped<WeatherForecasts>();
         services.AddSingleton<WeatherHealth>();
         return services;
@@ -57,7 +62,7 @@ public static class WeatherEndpoints
         {
             return TypedResults.StatusCode(StatusCodes.Status503ServiceUnavailable);
         }
-        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+        catch (Exception exception) when (exception is HttpRequestException or TaskCanceledException or TimeoutRejectedException or System.Text.Json.JsonException)
         {
             logger.LogWarning(exception, "Open-Meteo could not be reached for the weather.");
             return TypedResults.StatusCode(StatusCodes.Status503ServiceUnavailable);
