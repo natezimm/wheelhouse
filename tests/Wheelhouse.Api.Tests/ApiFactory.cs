@@ -29,7 +29,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
         Converters = { new JsonStringEnumConverter() },
     };
 
-    private readonly PostgreSqlContainer _database = new PostgreSqlBuilder("postgres:17.11-bookworm").Build();
+    private readonly PostgreSqlContainer _database = new PostgreSqlBuilder("postgres:18.6-bookworm").Build();
 
     public async Task InitializeAsync()
     {

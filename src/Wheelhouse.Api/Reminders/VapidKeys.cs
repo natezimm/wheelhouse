@@ -79,7 +79,7 @@ public sealed class VapidKeys(IServiceScopeFactory scopes, IDataProtectionProvid
                 CreatedAt = time.GetUtcNow(),
             };
             // Another process may make one at the same moment; whichever is stored first is the key.
-            await db.Database.ExecuteSqlInterpolatedAsync(
+            await db.Database.ExecuteSqlAsync(
                 $"""INSERT INTO "PushKeys" ("Id", "PublicKey", "EncryptedPrivateKey", "CreatedAt") VALUES (1, {made.PublicKey}, {made.EncryptedPrivateKey}, {made.CreatedAt}) ON CONFLICT ("Id") DO NOTHING""",
                 cancellationToken);
             row = await db.PushKeys.AsNoTracking().SingleAsync(k => k.Id == 1, cancellationToken);

@@ -6,3 +6,6 @@ web/dist
 web/.angular
 .env
 .env.*
+.postgres-upgrade-backups
+.postgres-upgrade.lock
+**/__pycache__

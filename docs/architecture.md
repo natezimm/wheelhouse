@@ -49,7 +49,7 @@ flowchart TB
 
   subgraph Instance["One instance (Docker Compose)"]
     Web["web<br/>nginx: Angular build, CSP,<br/>proxies /api, /hubs, /health, /robots.txt"]
-    subgraph Api["api (ASP.NET Core 10)"]
+    subgraph Api["api (ASP.NET Core 11)"]
       Endpoints["Minimal API endpoints<br/>by feature folder"]
       Hub["/hubs/calendar<br/>SignalR"]
       Live["CalendarLiveService<br/>checks change numbers each second"]
