@@ -41,7 +41,7 @@ jobs:
     steps:
       - name: Choose and pin the release
         id: release
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
           AUTO_RELEASE: ${{ vars.AUTO_RELEASE }}
@@ -157,6 +157,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+      # Signing each image's build provenance with the workflow's GitHub identity.
+      id-token: write
+      attestations: write
     strategy:
       matrix:
         include:
@@ -165,7 +168,7 @@ jobs:
           - name: web
             dockerfile: web/Dockerfile
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.prepare.outputs.sha }}
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
@@ -174,7 +177,8 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+      - id: push
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           file: ${{ matrix.dockerfile }}
@@ -182,6 +186,15 @@ jobs:
           tags: ghcr.io/${{ github.repository_owner }}/wheelhouse-${{ matrix.name }}:${{ needs.prepare.outputs.version }}
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+          # An SPDX SBOM and SLSA provenance travel with the image in the registry.
+          sbom: true
+          provenance: mode=max
+      # gh attestation verify oci://ghcr.io/natezimm/wheelhouse-api:<version> --owner natezimm
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-name: ghcr.io/${{ github.repository_owner }}/wheelhouse-${{ matrix.name }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
 
   deploy:
     needs: [prepare, images]
@@ -195,7 +208,7 @@ jobs:
     env:
       VERSION: ${{ needs.prepare.outputs.version }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: ${{ needs.prepare.outputs.sha }}
 
@@ -225,7 +238,7 @@ jobs:
             StrictHostKeyChecking yes
           EOF
 
-      - uses: actions/setup-node@v7
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -259,7 +272,7 @@ jobs:
       - name: Expire old backups and unused Wheelhouse images
         run: ssh server 'python3 ~/wheelhouse/storage.py cleanup'
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
           name: release-demo-smoke
@@ -275,7 +288,7 @@ jobs:
       contents: write
     steps:
       - name: Publish release notes
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
         with:
