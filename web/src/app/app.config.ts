@@ -1,4 +1,4 @@
-import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { ApplicationConfig, ErrorHandler, inject, provideAppInitializer, provideBrowserGlobalErrorListeners } from '@angular/core';
 import { NavigationEnd, Router, provideRouter, withComponentInputBinding } from '@angular/router';
 import { filter, take } from 'rxjs';
@@ -7,6 +7,7 @@ import { CalendarLive } from './core/calendar-live';
 import { ReportingErrorHandler } from './core/error-reporting';
 import { FamilyStore } from './core/family';
 import { SessionStore } from './core/session';
+import { traceContextInterceptor } from './core/trace-context';
 
 /**
  * Starts fetching the first screen's code while the visitor is checked in, rather than after, so
@@ -23,7 +24,8 @@ export const appConfig: ApplicationConfig = {
     provideBrowserGlobalErrorListeners(),
     // Errors also go to the API's log, so a wall nobody watches can say what went wrong.
     { provide: ErrorHandler, useFactory: () => new ReportingErrorHandler() },
-    provideHttpClient(),
+    // Each API call starts a trace whose id is logged if it fails (docs/observability.md).
+    provideHttpClient(withInterceptors([traceContextInterceptor])),
     // The first screen waits for this: a demo visitor needs their cookie before anything loads.
     // The family is asked for as soon as the cookie exists, alongside the first screen's code.
     provideAppInitializer(() => {

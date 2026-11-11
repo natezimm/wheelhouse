@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using Wheelhouse.Api.Diagnostics;
 
 namespace Wheelhouse.Api.Calendar;
 
@@ -47,8 +48,11 @@ public sealed class GoogleRateLimitHandler(TimeProvider time) : DelegatingHandle
             var wait = asked ?? FirstWait * Math.Pow(2, attempt);
             if (attempt >= Retries || wait > LongestWait)
             {
+                WheelhouseTelemetry.GoogleThrottled.Add(1, new KeyValuePair<string, object?>("wheelhouse.outcome", "gave_up"));
                 throw new GoogleRateLimitedException(asked);
             }
+
+            WheelhouseTelemetry.GoogleThrottled.Add(1, new KeyValuePair<string, object?>("wheelhouse.outcome", "retried"));
 
             // A request's content is buffered, so it can be sent again; nothing was done the first time.
             await Task.Delay(wait, time, cancellationToken);

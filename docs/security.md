@@ -96,6 +96,8 @@ The cookie is marked `Secure` whenever the request came over HTTPS, which the se
 
 Logs never hold names, addresses, event titles or query strings (`Diagnostics/RequestLogging`). Client error reports are clipped and stripped of line breaks, so a screen cannot forge a log line. `/health` is public, so it holds ages, counts and the running version, never a family's ids.
 
+Telemetry is off unless an instance's `.env` sets `OTEL_EXPORTER_OTLP_ENDPOINT` and `OTEL_EXPORTER_OTLP_HEADERS` (a Grafana Cloud token that can only write). When it is on, the same log lines, request spans, SQL text (parameters, never their values) and metrics go to Grafana Cloud, which then holds family, device and account ids for 14 days. Outbound HTTP spans keep only the host, because Google's paths name calendars by their address and a push endpoint's path is the browser's subscription; ASP.NET Core leaves query strings out of spans. Turning it on for the demo is enough to show it; a family instance can leave it off.
+
 ## Delivery and dependencies
 
 - Changes reach `main` only through pull requests, which run CI. Pull requests from forks get no secrets, and no workflow uses `pull_request_target`.

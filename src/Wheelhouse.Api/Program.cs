@@ -48,6 +48,9 @@ builder.Services.AddGoogleCalendar();
 builder.Services.AddCalendarLive();
 builder.Services.AddReminders();
 
+// Traces, metrics and logs over OTLP, only when an endpoint is set (docs/observability.md).
+builder.AddTelemetry();
+
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<DemoCopies>();
 builder.Services.AddHostedService<DemoCleanupService>();
