@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Caching.Memory;
+using Polly.Timeout;
 using Wheelhouse.Api.Families;
 
 namespace Wheelhouse.Api.Weather;
@@ -44,7 +45,7 @@ public sealed class WeatherForecasts(OpenMeteo openMeteo, IMemoryCache cache, We
             forecast = await openMeteo.GetAsync(latitude, longitude, family.Units, family.TimeZone, cancellationToken);
         }
         catch (Exception exception) when (!cancellationToken.IsCancellationRequested
-            && exception is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException)
+            && exception is HttpRequestException or TaskCanceledException or TimeoutRejectedException or System.Text.Json.JsonException)
         {
             cache.Set(failedKey, true, FailureKeptFor);
             health.Failed();

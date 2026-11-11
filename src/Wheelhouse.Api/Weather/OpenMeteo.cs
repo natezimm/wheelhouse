@@ -2,6 +2,8 @@ using System.Globalization;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Http.Resilience;
+using Polly;
 using Wheelhouse.Api.Families;
 
 namespace Wheelhouse.Api.Weather;
@@ -16,6 +18,33 @@ public sealed class OpenMeteo(HttpClient http)
 
     /// <summary>How many days the forecast covers, today first: a week on the wall.</summary>
     public const int Days = 7;
+
+    /// <summary>
+    /// The longest a screen waits on Open-Meteo, both attempts and the wait between them together; a
+    /// failure is then remembered by <see cref="WeatherForecasts"/>, so the next screen does not wait.
+    /// </summary>
+    public static readonly TimeSpan WaitAtMost = TimeSpan.FromSeconds(10);
+
+    /// <summary>One attempt's time: long enough for <see cref="ConnectAsync"/> to move past a dead address.</summary>
+    public static readonly TimeSpan AttemptTakesAtMost = TimeSpan.FromSeconds(6);
+
+    /// <summary>
+    /// One quick retry of a 5xx, 408, 429, dropped connection or timed-out attempt, inside
+    /// <see cref="WaitAtMost"/>. A screen is waiting, so the retry neither waits long nor honours a
+    /// Retry-After; the per-place failure memory spaces out anything longer. No circuit breaker for
+    /// the same reason: that memory already stops a place asking while Open-Meteo is down.
+    /// </summary>
+    public static void Resilience(ResiliencePipelineBuilder<HttpResponseMessage> pipeline) => pipeline
+        .AddTimeout(WaitAtMost)
+        .AddRetry(new HttpRetryStrategyOptions
+        {
+            MaxRetryAttempts = 1,
+            BackoffType = DelayBackoffType.Constant,
+            Delay = TimeSpan.FromMilliseconds(300),
+            UseJitter = true,
+            ShouldRetryAfterHeader = false,
+        })
+        .AddTimeout(AttemptTakesAtMost);
 
     /// <summary>How long one of Open-Meteo's addresses gets to answer before the next is tried.</summary>
     public static readonly TimeSpan ConnectEach = TimeSpan.FromSeconds(3);
