@@ -81,14 +81,13 @@ password="$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')"
 docker run --detach --name "$db" --network "$net" --memory 256m \
   --env POSTGRES_USER=wheelhouse --env POSTGRES_DB=wheelhouse --env "POSTGRES_PASSWORD=$password" \
   "$postgres" postgres -c shared_buffers=32MB > /dev/null
+# initdb's temporary server accepts Unix sockets before setup is complete.
+# TCP readiness waits for the final server, avoiding its bootstrap restart.
 for _ in $(seq 60); do
-  docker exec "$db" pg_isready --quiet -U wheelhouse -d wheelhouse && break
+  docker exec "$db" pg_isready --quiet --host 127.0.0.1 -U wheelhouse -d wheelhouse && break
   sleep 1
 done
-docker exec "$db" pg_isready --quiet -U wheelhouse -d wheelhouse || { echo 'Scratch PostgreSQL did not start' >&2; exit 1; }
-# The image's entrypoint restarts the server once after its first setup; wait past that.
-sleep 2
-docker exec "$db" pg_isready --quiet -U wheelhouse -d wheelhouse
+docker exec "$db" pg_isready --quiet --host 127.0.0.1 -U wheelhouse -d wheelhouse || { echo 'Scratch PostgreSQL did not start' >&2; exit 1; }
 
 step 'Restoring the dump'
 restore_from=$SECONDS
