@@ -20,8 +20,8 @@ public sealed class OpenMeteo(HttpClient http)
     public const int Days = 7;
 
     /// <summary>
-    /// The longest a screen waits on Open-Meteo, both attempts and the wait between them together; a
-    /// failure is then remembered by <see cref="WeatherForecasts"/>, so the next screen does not wait.
+    /// The longest a screen waits on Open-Meteo, both attempts, the wait between them and the body
+    /// together (the client's own timeout); a failure is then remembered by <see cref="WeatherForecasts"/>, so the next screen does not wait.
     /// </summary>
     public static readonly TimeSpan WaitAtMost = TimeSpan.FromSeconds(10);
 
@@ -35,7 +35,6 @@ public sealed class OpenMeteo(HttpClient http)
     /// the same reason: that memory already stops a place asking while Open-Meteo is down.
     /// </summary>
     public static void Resilience(ResiliencePipelineBuilder<HttpResponseMessage> pipeline) => pipeline
-        .AddTimeout(WaitAtMost)
         .AddRetry(new HttpRetryStrategyOptions
         {
             MaxRetryAttempts = 1,

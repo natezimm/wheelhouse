@@ -14,8 +14,9 @@ public static class WeatherEndpoints
         services.AddHttpClient<OpenMeteo>(client =>
         {
             client.BaseAddress = new Uri(OpenMeteo.BaseAddress);
-            // The resilience handler's timeouts rule; this one would cover both attempts together.
-            client.Timeout = Timeout.InfiniteTimeSpan;
+            // Bounds both attempts and the reading of the body, which HttpClient does after the
+            // resilience handler returns, so a forecast that stalls part way still ends in a 503.
+            client.Timeout = OpenMeteo.WaitAtMost;
         })
         .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { ConnectCallback = OpenMeteo.ConnectAsync })
         .AddResilienceHandler("open-meteo", OpenMeteo.Resilience);
