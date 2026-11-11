@@ -98,7 +98,7 @@ public static class EventEndpoints
         if (creationId is not null)
         {
             var lockKey = BitConverter.ToInt64(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(creationId)));
-            await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({lockKey})", cancellationToken);
+            await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock({lockKey})", cancellationToken);
             var existing = await db.EventInstances
                 .Where(e => e.GoogleEventId == creationId || e.RecurringEventId == creationId)
                 .OrderBy(e => e.StartDate).ThenBy(e => e.StartsAt).FirstOrDefaultAsync(cancellationToken);

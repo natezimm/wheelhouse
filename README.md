@@ -48,7 +48,7 @@ flowchart LR
   Wall["Wall display<br/>Angular /wall"]
   Phone["Phone and desktop<br/>Angular /"]
   Web["web<br/>nginx: app, CSP,<br/>proxies /api and /hubs"]
-  Api["api<br/>ASP.NET Core 10<br/>minimal APIs, SignalR"]
+  Api["api<br/>ASP.NET Core 11<br/>minimal APIs, SignalR"]
   Db[("PostgreSQL<br/>event cache,<br/>change numbers")]
   Google["Google Calendar<br/>and sign-in"]
   Meteo["Open-Meteo"]
@@ -77,7 +77,7 @@ flowchart LR
 | Layer | Technology |
 | --- | --- |
 | Web | Angular 22 (standalone components, signals, zoneless), one app with wall and phone layouts |
-| API | ASP.NET Core 10 minimal APIs by feature folder, SignalR, Data Protection |
+| API | ASP.NET Core 11 minimal APIs by feature folder, SignalR, Data Protection |
 | Data | PostgreSQL with EF Core migrations |
 | Integrations | Google Calendar REST API and Google sign-in, Open-Meteo |
 | Tests | xUnit with Testcontainers PostgreSQL, Angular unit tests, Playwright |
@@ -95,7 +95,7 @@ Open http://localhost:8080 for the phone layout (or the desktop layout in a wind
 
 ### From source
 
-You need the .NET 10 SDK and Node 24 or later. Start only the database in Docker, then run the API and the web app.
+You need the .NET 11 SDK and Node 26 LTS (see `.nvmrc`). Start only the database in Docker, then run the API and the web app.
 
 ```bash
 docker compose up db -d

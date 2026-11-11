@@ -6,11 +6,11 @@ name: Release
 on:
   push:
     branches: [main]
-    tags: ['v*']
+    tags: ["v*"]
   workflow_dispatch:
     inputs:
       version:
-        description: 'New release version, for example v0.2.0'
+        description: "New release version, for example v0.2.0"
         required: true
         type: string
 
@@ -227,7 +227,7 @@ jobs:
 
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: .nvmrc
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
@@ -239,7 +239,7 @@ jobs:
         run: |
           ssh server 'mkdir -p ~/wheelhouse'
           scp deploy/compose.yaml server:wheelhouse/compose.candidate.yaml
-          scp deploy/deploy.sh deploy/restore.sh deploy/restore-drill.sh deploy/storage.py deploy/install-maintenance.sh deploy/nightly-backup.sh server:wheelhouse/
+          scp deploy/deploy.sh deploy/restore.sh deploy/restore-drill.sh deploy/storage.py deploy/install-maintenance.sh deploy/nightly-backup.sh deploy/upgrade-postgres.py server:wheelhouse/
           ssh server 'bash ~/wheelhouse/install-maintenance.sh'
 
       # A demo that fails to start or fails its browser check stops the release here, before any

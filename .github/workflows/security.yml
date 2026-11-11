@@ -81,7 +81,7 @@ jobs:
           global-json-file: global.json
       - uses: actions/setup-node@v7
         with:
-          node-version: 24
+          node-version-file: .nvmrc
       - name: NuGet packages, direct and transitive
         run: |
           dotnet restore

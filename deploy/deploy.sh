@@ -70,6 +70,11 @@ for env_file in "${env_files[@]}"; do
   compose=(docker compose --project-name "wheelhouse-$name" --project-directory "$dir" --env-file "$env_file" --file "$old_compose")
   db="$(WHEELHOUSE_VERSION="${old:-$version}" "${compose[@]}" ps -a -q db)"
   if [[ -n "$db" ]]; then
+    postgres_version="$(WHEELHOUSE_VERSION="${old:-$version}" "${compose[@]}" exec -T db psql -U wheelhouse -d wheelhouse -Atc 'SHOW server_version_num')"
+    [[ "$postgres_version" =~ ^[0-9]+$ && "$postgres_version" -ge 180000 && "$postgres_version" -lt 190000 ]] || {
+      echo "Migrate $name with upgrade-postgres.py before deploying PostgreSQL 18 (deploy/postgres-upgrade.md)." >&2
+      exit 1
+    }
     size="$(WHEELHOUSE_VERSION="${old:-$version}" "${compose[@]}" exec -T db psql -U wheelhouse -d wheelhouse -Atc "SELECT pg_database_size('wheelhouse')")"
     [[ "$size" =~ ^[0-9]+$ ]] || { echo 'Cannot estimate backup size' >&2; exit 1; }
     backup_bytes=$((backup_bytes + size * 2))

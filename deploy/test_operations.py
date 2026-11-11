@@ -26,7 +26,7 @@ with open(os.environ['COMMAND_LOG'],'a') as f:f.write(json.dumps({'project':proj
 if cmd[0]=='ps':
  if os.environ.get('FRESH')!='1':print('api-container' if cmd[-1]=='api' else 'db-container')
 elif cmd[0]=='exec':
- if 'psql' in cmd:print('1048576')
+ if 'psql' in cmd:print(os.environ.get('POSTGRES_VERSION','180006') if 'server_version_num' in cmd[-1] else '1048576')
  elif 'pg_dump' in cmd:
   if os.environ.get('FAIL_DUMP')==project:sys.exit(1)
   sys.stdout.write('database-snapshot')
@@ -110,6 +110,12 @@ class OperationsTests(unittest.TestCase):
         self.assertEqual((self.root/'compose.yaml').read_text(), 'new-compose')
         self.assertEqual(len((self.root/'release-smoke.tsv').read_text().splitlines()), 2)
         self.assertNotIn('never-print-this', result.stdout+result.stderr)
+
+    def test_postgres_major_upgrade_is_required_before_stopping_writers(self):
+        result = self.run_script('deploy.sh', 'v0.2.0', POSTGRES_VERSION='170011')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('upgrade-postgres.py', result.stderr)
+        self.assertFalse(any(c['cmd'][0] in ('stop', 'up') for c in self.docker_commands()))
 
     def test_demo_goes_first_and_family_keeps_its_version_until_its_turn(self):
         env = self.root/'b/.env'

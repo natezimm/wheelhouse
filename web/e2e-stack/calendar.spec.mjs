@@ -67,7 +67,7 @@ test('an event added on the screen is saved, survives a reload and can be delete
   }
   await editor.getByRole('button', { name: wall ? 'Save event' : 'Save', exact: true }).click();
   await saved(page);
-  expect((await calendar(page)).events.map((e) => e.title)).toContain(title);
+  await expect.poll(async () => (await calendar(page)).events.map((e) => e.title)).toContain(title);
 
   await page.reload();
   const event = page.getByRole('button', { name: new RegExp(title) }).first();

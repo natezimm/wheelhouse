@@ -1,5 +1,8 @@
 # Deploying Wheelhouse
 
+Existing PostgreSQL 17 instances must complete the [PostgreSQL 18 migration](postgres-upgrade.md)
+before the next release. New installations start directly on PostgreSQL 18.
+
 One server can run any number of Wheelhouse instances, for example a public demo and a family's private one. Each instance is a folder under `~/wheelhouse` with its own `.env`, database and domain. Instances share only the image version.
 
 Each merge to `main` runs the tests, tags the next version, publishes the images to GitHub Container Registry, and moves the demo and then the family instances on the server to that version. See [Release](#release).

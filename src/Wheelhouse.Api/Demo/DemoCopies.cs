@@ -32,7 +32,7 @@ public sealed class DemoCopies(WheelhouseDbContext db, IOptions<InstanceOptions>
         // One admission at a time, across API processes, so two newcomers at the limit cannot both
         // count room for themselves and leave one copy too many.
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
-        await db.Database.ExecuteSqlInterpolatedAsync($"SELECT pg_advisory_xact_lock({AdmissionLock})", cancellationToken);
+        await db.Database.ExecuteSqlAsync($"SELECT pg_advisory_xact_lock({AdmissionLock})", cancellationToken);
         var copies = db.Families.IgnoreQueryFilters().Where(family => family.ExpiresAt != null);
         var over = await copies.CountAsync(cancellationToken) - instance.Value.MaxDemoCopies + 1;
         if (over > 0)
