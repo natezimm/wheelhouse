@@ -63,7 +63,10 @@ def command(*args):
 def prune_images(root):
     versions = set()
     # All retained backup environments protect the images needed for recovery.
-    files = list(root.glob('*/.env')) + list((root / 'backups').rglob('instance.env'))
+    files = (list(root.glob('*/.env'))
+             + list((root / 'backups').rglob('instance.env'))
+             + list(root.glob('*/.postgres-upgrade-backups/*/instance.env'))
+             + list(root.glob('.pg18-maintenance-*/**/instance.env')))
     for path in files:
         for line in path.read_text().splitlines():
             if line.startswith('WHEELHOUSE_VERSION='):

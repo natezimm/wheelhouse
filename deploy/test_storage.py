@@ -69,6 +69,17 @@ class StorageTests(unittest.TestCase):
                 expire.assert_not_called()
                 prune.assert_not_called()
 
+    def test_migration_and_maintenance_snapshots_protect_images(self):
+        migration = self.root/'demo'/'.postgres-upgrade-backups'/'snapshot'
+        maintenance = self.root/'.pg18-maintenance-snapshot'/'snapshot'/'demo'
+        for directory, version in ((migration, 'v0.0.8'), (maintenance, 'v0.0.7')):
+            directory.mkdir(parents=True)
+            (directory/'instance.env').write_text(f'WHEELHOUSE_VERSION={version}\n')
+        images = '\n'.join(json.dumps({'Repository':'ghcr.io/natezimm/wheelhouse-api','Tag':tag,'ID':tag}) for tag in ['v0.0.8','v0.0.7'])
+        with patch.object(storage,'command',side_effect=['', images]) as command:
+            self.assertEqual(storage.prune_images(self.root),0)
+            self.assertEqual(command.call_count,2)
+
     def test_image_cleanup_protects_all_containers_and_retained_versions(self):
         self.snapshot('20261019T000000Z','v0.1.1')
         instance = self.root/'demo'
