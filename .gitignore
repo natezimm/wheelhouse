@@ -36,3 +36,4 @@ smoke-results/
 .postgres-upgrade-backups/
 .postgres-upgrade.lock
 .env.postgres-upgrade
+artifacts/

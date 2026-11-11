@@ -23,6 +23,7 @@ Run these from the repository root unless a line says otherwise. Use Node 26 LTS
 | Database only, for running from source | `docker compose up db -d` |
 | API from source, port 5080 | `dotnet run --project src/Wheelhouse.Api` |
 | Web dev server, port 4200, in `web/` | `npm start` |
+| Coverage floor, after `dotnet test --collect "XPlat Code Coverage" --results-directory artifacts/coverage` | `python3 scripts/coverage-floor.py artifacts/coverage/*/coverage.cobertura.xml Wheelhouse.Api=0.94` |
 | Live Google check (needs a test account's secrets, see `docs/live-google-check.md`) | `dotnet test --filter "Category=LiveGoogle"` |
 | New migration | `dotnet tool restore`, then `dotnet ef migrations add <Name> --project src/Wheelhouse.Api --output-dir Data/Migrations` |
 
@@ -33,6 +34,8 @@ The `stack` CI job builds the whole app with `docker compose`, runs `deploy/smok
 `security.yml` runs CodeQL (C#, TypeScript and the workflows), GitHub's dependency review on pull requests and an audit of NuGet and shipped npm packages for high or critical advisories, on pull requests, `main` and every Monday; a release does not wait on it. Locally, `dotnet list package --vulnerable --include-transitive` and, in `web/`, `npm audit --omit=dev` do the audit's part.
 
 There is no linter. Prettier settings live in `web/.prettierrc` but are not enforced, and some files do not match them, so do not reformat files you are not otherwise changing.
+
+CI's `api` job fails when the API tests' line coverage of `Wheelhouse.Api` falls under its floor (`scripts/coverage-floor.py`, table in the job summary). `ArchitectureTests` holds rules the compiler cannot: every table with a family id is `IFamilyOwned` and has a query filter, the legacy household types stay inside the database mapping, and only `GoogleCalendarApi`, `OpenMeteo` and `WebPush` use `HttpClient`. There is no mutation testing here: nearly every test needs the shared PostgreSQL container, which makes a run per mutant too slow to be useful.
 
 The API tests start their own PostgreSQL with Testcontainers. They never use the Compose database. `LiveGoogleTests` are the exception that calls Google: they skip unless the `LIVE_GOOGLE_*` variables are set, and `live-google.yml` runs them on demand (no schedule until its secrets are set) against a test account's calendar. When the Google client learns something new, add it there as well as to `FakeGoogle`. Before a calendar release, run the manual [parity checklist](docs/calendar-parity-checklist.md).
 
