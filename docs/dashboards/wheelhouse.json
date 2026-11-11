@@ -164,7 +164,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (wheelhouse_outcome) (increase(wheelhouse_calendar_sync_families_total[$__rate_interval]))",
+          "expr": "sum by (wheelhouse_outcome) (increase(wheelhouse_calendar_sync_families_total{job=\"wheelhouse\",deployment_environment_name=~\"$mode\"}[$__rate_interval]))",
           "legendFormat": "{{wheelhouse_outcome}}",
           "datasource": {
             "type": "prometheus",
@@ -196,7 +196,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (wheelhouse_outcome) (increase(wheelhouse_google_throttled_total[$__rate_interval]))",
+          "expr": "sum by (wheelhouse_outcome) (increase(wheelhouse_google_throttled_total{job=\"wheelhouse\",deployment_environment_name=~\"$mode\"}[$__rate_interval]))",
           "legendFormat": "{{wheelhouse_outcome}}",
           "datasource": {
             "type": "prometheus",
@@ -228,7 +228,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(wheelhouse_calendar_sync_duration_seconds_bucket[$__rate_interval])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(wheelhouse_calendar_sync_duration_seconds_bucket{job=\"wheelhouse\",deployment_environment_name=~\"$mode\"}[$__rate_interval])))",
           "legendFormat": "p95",
           "datasource": {
             "type": "prometheus",
@@ -260,7 +260,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (wheelhouse_outcome) (increase(wheelhouse_reminders_total[$__rate_interval]))",
+          "expr": "sum by (wheelhouse_outcome) (increase(wheelhouse_reminders_total{job=\"wheelhouse\",deployment_environment_name=~\"$mode\"}[$__rate_interval]))",
           "legendFormat": "reminder {{wheelhouse_outcome}}",
           "datasource": {
             "type": "prometheus",
@@ -269,7 +269,7 @@
         },
         {
           "refId": "B",
-          "expr": "sum by (wheelhouse_layout) (increase(wheelhouse_client_errors_total[$__rate_interval]))",
+          "expr": "sum by (wheelhouse_layout) (increase(wheelhouse_client_errors_total{job=\"wheelhouse\",deployment_environment_name=~\"$mode\"}[$__rate_interval]))",
           "legendFormat": "client error {{wheelhouse_layout}}",
           "datasource": {
             "type": "prometheus",
