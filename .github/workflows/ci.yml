@@ -38,7 +38,10 @@ jobs:
       - run: dotnet restore
       - run: dotnet build --no-restore --configuration Release
       # The integration tests start PostgreSQL with Testcontainers; the runner's Docker is enough.
-      - run: dotnet test --no-build --configuration Release
+      - run: dotnet test --no-build --configuration Release --collect "XPlat Code Coverage" --results-directory "$RUNNER_TEMP/coverage"
+      # Fails when line coverage falls under the floor and writes the table to the job summary.
+      - name: Coverage floor
+        run: python3 scripts/coverage-floor.py "$RUNNER_TEMP"/coverage/*/coverage.cobertura.xml Wheelhouse.Api=0.94
 
   web:
     # Playwright cannot install Chromium on the newer image ubuntu-latest moved to; pin until it can.
