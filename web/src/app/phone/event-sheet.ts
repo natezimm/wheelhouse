@@ -56,81 +56,7 @@ import { Clock } from '../core/clock';
           }
         </label>
 
-        <label class="field">
-          Calendar
-          <select [disabled]="event()?.recurring && scope() === 'this'" (change)="set({ calendarId: $any($event.target).value })">
-            @for (choice of choices(); track choice.id) {
-              <option [value]="choice.id" [selected]="choice.id === draft.calendarId">{{ choice.label }}</option>
-            }
-          </select>
-        </label>
-
-        @if (people().length > 1) {
-          <div class="field">
-            <span id="sheet-who">Who</span>
-            <div class="people" role="group" aria-labelledby="sheet-who">
-              @for (person of people(); track person.id) {
-                <button
-                  type="button"
-                  class="person"
-                  [class.owner]="person.owner"
-                  [style.--member]="person.color"
-                  [attr.aria-pressed]="person.chosen"
-                  [attr.aria-label]="person.owner ? person.name + ', owner of the calendar' : person.name"
-                  [disabled]="person.owner"
-                  (click)="set({ people: togglePerson(draft, person.id) })"
-                >
-                  <span class="mark" aria-hidden="true"><app-avatar-face [initial]="person.initial" [avatar]="person.avatar" /></span>{{ person.name }}
-                </button>
-              }
-            </div>
-          </div>
-        }
-
-        @if (!event()?.recurring) {
-          <app-repeat-picker [rule]="draft.recurrence" [day]="draft.startDate" (ruleChange)="set({ recurrence: $event })" />
-        } @else {
-          <label class="field">
-            Change
-            <select (change)="setScope($any($event.target).value)">
-              <option value="this" [selected]="scope() === 'this'">This event</option>
-              <option value="following" [selected]="scope() === 'following'">This and following events</option>
-              <option value="all" [selected]="scope() === 'all'">All events in the series</option>
-            </select>
-          </label>
-          @if (scope() !== 'this') {
-            <app-repeat-picker [allowNever]="false" [rule]="draft.recurrence" [day]="draft.startDate" (ruleChange)="set({ recurrence: $event })" />
-          }
-        }
-
-        <label class="all-day">
-          <input type="checkbox" [checked]="draft.allDay" [disabled]="series()" (change)="set({ allDay: $any($event.target).checked })" />
-          All day
-        </label>
-
-        @if (!isDisplay()) {
-          <label class="all-day">
-            <input type="checkbox" [checked]="draft.isPrivate" (change)="set({ isPrivate: $any($event.target).checked })" />
-            <span>Private <small>Wall displays show only that it's busy</small></span>
-          </label>
-        }
-
-        <label class="all-day">
-          <input type="checkbox" [checked]="draft.countdown" (change)="set({ countdown: $any($event.target).checked })" />
-          <span>Count down <small>The wall and phones show the days left</small></span>
-        </label>
-
-        @if (!draft.allDay) {
-          <label class="field">
-            Remind phones
-            <select (change)="set({ remind: +$any($event.target).value })">
-              @for (choice of remindChoices(draft.remind); track choice.minutes) {
-                <option [value]="choice.minutes" [selected]="choice.minutes === draft.remind">{{ choice.label }}</option>
-              }
-            </select>
-          </label>
-        }
-
+        <!-- When first, then who and where; the three rarer choices come last. -->
         <div class="pair">
           <div class="field">
             <span aria-hidden="true">{{ draft.allDay ? 'First day' : 'Starts' }}</span>
@@ -186,6 +112,58 @@ import { Clock } from '../core/clock';
           }
         </div>
 
+        <label class="all-day">
+          <input type="checkbox" [checked]="draft.allDay" [disabled]="series()" (change)="set({ allDay: $any($event.target).checked })" />
+          All day
+        </label>
+
+        @if (!event()?.recurring) {
+          <app-repeat-picker [rule]="draft.recurrence" [day]="draft.startDate" (ruleChange)="set({ recurrence: $event })" />
+        } @else {
+          <label class="field">
+            Change
+            <select (change)="setScope($any($event.target).value)">
+              <option value="this" [selected]="scope() === 'this'">This event</option>
+              <option value="following" [selected]="scope() === 'following'">This and following events</option>
+              <option value="all" [selected]="scope() === 'all'">All events in the series</option>
+            </select>
+          </label>
+          @if (scope() !== 'this') {
+            <app-repeat-picker [allowNever]="false" [rule]="draft.recurrence" [day]="draft.startDate" (ruleChange)="set({ recurrence: $event })" />
+          }
+        }
+
+        @if (people().length > 1) {
+          <div class="field">
+            <span id="sheet-who">Who</span>
+            <div class="people" role="group" aria-labelledby="sheet-who">
+              @for (person of people(); track person.id) {
+                <button
+                  type="button"
+                  class="person"
+                  [class.owner]="person.owner"
+                  [style.--member]="person.color"
+                  [attr.aria-pressed]="person.chosen"
+                  [attr.aria-label]="person.owner ? person.name + ', owner of the calendar' : person.name"
+                  [disabled]="person.owner"
+                  (click)="set({ people: togglePerson(draft, person.id) })"
+                >
+                  <span class="mark" aria-hidden="true"><app-avatar-face [initial]="person.initial" [avatar]="person.avatar" /></span>{{ person.name }}
+                </button>
+              }
+            </div>
+          </div>
+        }
+
+        <label class="field">
+          Calendar
+          <select [disabled]="event()?.recurring && scope() === 'this'" (change)="set({ calendarId: $any($event.target).value })">
+            @for (choice of choices(); track choice.id) {
+              <option [value]="choice.id" [selected]="choice.id === draft.calendarId">{{ choice.label }}</option>
+            }
+          </select>
+        </label>
+
         <label class="field">
           Location
           <input type="text" maxlength="255" autocomplete="off" [value]="draft.location" (input)="set({ location: $any($event.target).value })" />
@@ -195,6 +173,29 @@ import { Clock } from '../core/clock';
           Notes
           <textarea rows="3" maxlength="8192" [value]="draft.notes" (input)="set({ notes: $any($event.target).value })"></textarea>
         </label>
+
+        @if (!isDisplay()) {
+          <label class="all-day">
+            <input type="checkbox" [checked]="draft.isPrivate" (change)="set({ isPrivate: $any($event.target).checked })" />
+            <span>Private <small>Wall displays show only that it's busy</small></span>
+          </label>
+        }
+
+        <label class="all-day">
+          <input type="checkbox" [checked]="draft.countdown" (change)="set({ countdown: $any($event.target).checked })" />
+          <span>Count down <small>The wall and phones show the days left</small></span>
+        </label>
+
+        @if (!draft.allDay) {
+          <label class="field">
+            Remind phones
+            <select (change)="set({ remind: +$any($event.target).value })">
+              @for (choice of remindChoices(draft.remind); track choice.minutes) {
+                <option [value]="choice.minutes" [selected]="choice.minutes === draft.remind">{{ choice.label }}</option>
+              }
+            </select>
+          </label>
+        }
 
         </fieldset>
         @if (series()) {
