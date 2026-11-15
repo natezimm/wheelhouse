@@ -33,6 +33,8 @@ export interface PlacedSegment extends TimedSegment {
   lanes: number;
   /** Free minutes below it in its column, before the next event there or the end of the day. */
   room: number;
+  /** Free minutes above it in its column, after the event before it there or the start of the day. */
+  before: number;
 }
 
 /** Events that did not fit side by side, gathered into one "+N" block in the last column. */
@@ -45,6 +47,8 @@ export interface MoreBlock {
   events: CalendarEvent[];
   /** Minutes free below it in its lanes, as for a placed segment. */
   room: number;
+  /** Minutes free above it, as for a placed segment. */
+  before: number;
 }
 
 /** An all-day or long event as a bar across the visible days it covers. */
@@ -128,6 +132,7 @@ export function arrange(segments: readonly TimedSegment[], maxColumns = 3): { pl
     const lanes = Math.min(needed, maxColumns);
     const kept = needed > maxColumns ? maxColumns - 1 : maxColumns;
     const nextGroup = groups[index + 1]?.[0].start ?? DAY_MINUTES;
+    const lastGroup = index ? Math.max(...groups[index - 1].map((s) => s.end)) : 0;
     const hidden: TimedSegment[] = [];
     group.forEach((segment, i) => {
       const lane = lanesOf[i];
@@ -136,7 +141,8 @@ export function arrange(segments: readonly TimedSegment[], maxColumns = 3): { pl
         return;
       }
       const below = group.filter((other, j) => j > i && lanesOf[j] === lane && other.start >= segment.end).map((other) => other.start);
-      placed.push({ ...segment, lane, lanes, room: Math.min(nextGroup, ...below) - segment.end });
+      const above = group.filter((other, j) => j < i && lanesOf[j] === lane && other.end <= segment.start).map((other) => other.end);
+      placed.push({ ...segment, lane, lanes, room: Math.min(nextGroup, ...below) - segment.end, before: segment.start - Math.max(lastGroup, ...above) });
     });
     if (hidden.length) {
       more.push({
@@ -147,6 +153,7 @@ export function arrange(segments: readonly TimedSegment[], maxColumns = 3): { pl
         lanes,
         events: hidden.map((s) => s.event),
         room: nextGroup - Math.max(...hidden.map((s) => s.end)),
+        before: Math.min(...hidden.map((s) => s.start)) - lastGroup,
       });
     }
   });

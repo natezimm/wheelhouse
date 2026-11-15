@@ -158,6 +158,7 @@ export interface GridMore {
                 [style.top.px]="block.top"
                 [style.height.px]="block.height"
                 [style.--reach.px]="block.reach"
+                [style.--reach-up.px]="block.reachUp"
                 [style.--grip-below.px]="block.gripBelow"
                 [style.left]="block.left"
                 [style.width]="block.width"
@@ -207,6 +208,7 @@ export interface GridMore {
                 [style.left]="more.left"
                 [style.width]="more.width"
                 [style.--reach.px]="more.reach"
+                [style.--reach-up.px]="more.reachUp"
                 [attr.aria-label]="more.label"
                 (click)="moreOpened.emit({ column: column.source, events: more.events })"
               >
@@ -352,15 +354,16 @@ export interface GridMore {
       color: var(--event-ink);
     }
 
-    /* On the wall a short event still takes a finger: its hit area reaches into free space below. */
+    /* On the wall a short event still takes a finger: its hit area reaches into free space below,
+       or above when the next event leaves none, and never over another event. */
     .event::after,
     .more::after {
       content: '';
       position: absolute;
       left: 0;
       right: 0;
-      top: 0;
-      height: var(--reach, 100%);
+      top: calc(-1 * var(--reach-up, 0px));
+      height: calc(var(--reach, 100%) + var(--reach-up, 0px));
     }
 
     /* The bottom edge pulls the end: a grip shows where to take it, and its reach takes a finger. */
@@ -1023,6 +1026,12 @@ export class HourGrid {
       width: `calc(${100 / lanes}% - ${2 * layout.gap}px)`,
     });
     const reach = (height: number, room: number) => (layout.reach ? Math.max(height, Math.min(layout.reach, height + room * perMinute)) : null);
+    // With no room below (the next event starts as this one ends) the finger's target grows upward instead, into
+    // free time above, leaving the event up there the most it could want below itself.
+    const reachUp = (height: number, room: number, before: number) => {
+      const short = layout.reach - (reach(height, room) ?? layout.reach);
+      return short > 0 ? Math.max(0, Math.min(short, before * perMinute - (layout.reach - layout.minBlock))) : null;
+    };
     // On the wall the grip that pulls the end takes a finger in the free space below the event, never over the next one.
     const gripBelow = (room: number) => (layout.reach ? Math.min(GRIP_BELOW, Math.max(0, room * perMinute - layout.gap)) : null);
 
@@ -1074,6 +1083,7 @@ export class HourGrid {
               short,
               narrow: segment.lanes >= 3,
               reach: reach(height, segment.room),
+              reachUp: reachUp(height, segment.room, segment.before),
               gripBelow: gripBelow(segment.room),
               lines:
                 this.variant() === 'day'
@@ -1098,6 +1108,7 @@ export class HourGrid {
               top: y(block.start) + 1,
               height,
               reach: reach(height, block.room),
+              reachUp: reachUp(height, block.room, block.before),
               label:
                 this.variant() === 'day'
                   ? `${block.events.length} more events for ${column.name} from ${timeIn(zone, block.events[0].startsAt!)}`
