@@ -142,3 +142,43 @@ test('this and following changes an event and every later one, with the repeat s
   expect(writes[0].body).toMatchObject({ startDate: '2026-10-14', startTime: '10:15:00' });
   expect(writes[0].body).not.toHaveProperty('recurrence');
 });
+
+for (const [name, width, height, listed] of [
+  ['a tablet upright', 768, 1024, true],
+  ['a small desktop window', 900, 700, true],
+  ['a laptop window', 1280, 800, true],
+  ['a wide desktop window', 1600, 900, false],
+]) {
+  test(`${name} offers every repeat in full, as ${listed ? 'a list' : 'segments'}`, async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name === 'wall', 'the shared dialog in a window');
+    await page.setViewportSize({ width, height });
+    const writes = await stub(page);
+    await page.goto('/');
+    await page.locator('app-week-view .event', { hasText: 'Swim lesson' }).click();
+    await page.getByRole('dialog', { name: 'Swim lesson' }).getByRole('button', { name: 'Edit event', exact: true }).click();
+    const editor = page.locator('app-event-dialog [role=dialog]').first();
+    await expect(editor).toBeVisible();
+    const list = editor.getByRole('combobox', { name: 'Repeat', exact: true });
+    const segments = editor.getByRole('group', { name: 'Repeat', exact: true });
+
+    if (listed) {
+      await expect(segments).toBeHidden();
+      expect((await list.boundingBox()).height).toBeGreaterThanOrEqual(56);
+      await list.selectOption('weekly');
+      await expect(list).toHaveValue('weekly');
+    } else {
+      await expect(list).toBeHidden();
+      // No word is cut short with an ellipsis.
+      for (const button of await segments.getByRole('button').all()) {
+        expect(await button.evaluate((el) => el.scrollWidth <= el.clientWidth), await button.textContent()).toBe(true);
+      }
+      await segments.getByRole('button', { name: 'Weekly', exact: true }).click();
+    }
+    await expect(editor.locator('app-repeat-picker .said')).toHaveText('Every week on Monday');
+    await page.screenshot({ path: testInfo.outputPath('repeat-choices.png') });
+
+    await editor.getByRole('button', { name: 'Save changes', exact: true }).click();
+    await expect.poll(() => writes.length).toBe(1);
+    expect(writes[0].body).toMatchObject({ recurrence: 'RRULE:FREQ=WEEKLY;BYDAY=MO' });
+  });
+}

@@ -35,11 +35,22 @@ const WEEKDAY_LETTERS: Record<Weekday, [string, string]> = {
   selector: 'app-repeat-picker',
   template: `
     @if (layout() === 'wall') {
-      <div class="segments presets" role="group" aria-label="Repeat">
-        @for (preset of wallPresets(); track preset.id) {
-          <button type="button" [attr.aria-pressed]="!customOpen() && chosen()?.id === preset.id" (click)="choose(preset.rule)">{{ preset.short }}</button>
-        }
-        <button type="button" [attr.aria-pressed]="customOpen()" (click)="openCustom()">Custom</button>
+      <!-- Seven words need about 520 px, which the wall has. A narrower column (a tablet, a laptop window) gets the phone's list, drawn for touch. -->
+      <div class="choices">
+        <div class="segments presets" role="group" aria-label="Repeat">
+          @for (preset of wallPresets(); track preset.id) {
+            <button type="button" [attr.aria-pressed]="!customOpen() && chosen()?.id === preset.id" (click)="choose(preset.rule)">{{ preset.short }}</button>
+          }
+          <button type="button" [attr.aria-pressed]="customOpen()" (click)="openCustom()">Custom</button>
+        </div>
+        <div class="line listed">
+          <select aria-label="Repeat" (change)="pick($any($event.target).value)">
+            @for (preset of presets(); track preset.id) {
+              <option [value]="preset.id" [selected]="!customOpen() && chosen()?.id === preset.id">{{ preset.label }}</option>
+            }
+            <option value="custom" [selected]="customOpen()">Custom…</option>
+          </select>
+        </div>
       </div>
     } @else {
       <label class="field">
@@ -193,6 +204,20 @@ const WEEKDAY_LETTERS: Record<Weekday, [string, string]> = {
 
     .presets button {
       flex: 1 1 auto;
+    }
+    .choices {
+      container-type: inline-size;
+    }
+    .choices .listed {
+      display: none;
+    }
+    @container (max-width: 539.98px) {
+      .choices .presets {
+        display: none;
+      }
+      .choices .listed {
+        display: flex;
+      }
     }
     .segments button[aria-pressed='true'] {
       background: var(--segment);
