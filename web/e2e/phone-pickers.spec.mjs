@@ -77,3 +77,34 @@ test('the phone editor picks days on the same calendar and times on the same whe
   await expect(wheels).toHaveCount(0);
   await expect(sheet).toBeVisible();
 });
+
+test('the phone editor asks what and when first, and keeps the rarer choices for last', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'phone', 'the phone sheet');
+  await stub(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Add event' }).first().click();
+  const sheet = page.locator('app-event-sheet [role=dialog]');
+  const top = async (control) => (await control.boundingBox()).y;
+  const order = [
+    sheet.locator('label.field', { hasText: 'Title' }),
+    sheet.getByRole('button', { name: /^Starts, / }),
+    sheet.getByRole('button', { name: /^Ends, / }),
+    sheet.getByRole('checkbox', { name: 'All day' }),
+    sheet.getByLabel('Repeat', { exact: true }),
+    sheet.locator('label.field', { hasText: 'Calendar' }),
+    sheet.locator('label.field', { hasText: 'Location' }),
+    sheet.locator('label.field', { hasText: 'Notes' }),
+    sheet.getByRole('checkbox', { name: /^Private/ }),
+    sheet.getByRole('checkbox', { name: /^Count down/ }),
+    sheet.locator('label.field', { hasText: 'Remind phones' }),
+    sheet.getByRole('button', { name: 'Save', exact: true }),
+  ];
+  const tops = [];
+  for (const control of order) tops.push(await top(control));
+  expect(tops).toEqual([...tops].sort((a, b) => a - b));
+  // What and when are on the first screen, before anything is scrolled.
+  await expect(order[0]).toBeInViewport({ ratio: 1 });
+  await expect(order[1]).toBeInViewport({ ratio: 1 });
+  await expect(order[2]).toBeInViewport({ ratio: 1 });
+  await page.screenshot({ path: testInfo.outputPath('phone-order.png') });
+});
