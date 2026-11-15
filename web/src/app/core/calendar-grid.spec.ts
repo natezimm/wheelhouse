@@ -86,6 +86,21 @@ describe('calendar grid', () => {
     expect(more[0].events.map((e) => e.title)).toEqual(['C', 'D']);
   });
 
+  it('with one column allowed keeps the first of an overlap and gathers the rest beside it', () => {
+    const day = '2026-10-22';
+    const { placed, more } = arrange(
+      segmentsOf(at('A', day, '15:00', '16:00'), at('B', day, '15:30', '16:30'), at('C', day, '15:45', '17:00'), at('D', day, '18:00', '19:00')).get(day)!,
+      1,
+    );
+    // An event with nothing beside it keeps the whole day's width.
+    expect(placed.map((p) => [p.event.title, p.lane, p.lanes])).toEqual([
+      ['A', 0, 2],
+      ['D', 0, 1],
+    ]);
+    expect(more).toEqual([expect.objectContaining({ day, lane: 1, lanes: 2, start: 15 * 60 + 30, end: 17 * 60 })]);
+    expect(more[0].events.map((e) => e.title)).toEqual(['B', 'C']);
+  });
+
   it('orders the same events the same way however they arrive', () => {
     const day = '2026-10-22';
     const events = [at('Zumba', day, '09:00', '10:00'), at('Art', day, '09:00', '10:00'), at('Bake', day, '09:00', '11:00')];

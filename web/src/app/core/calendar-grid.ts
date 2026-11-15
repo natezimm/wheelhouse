@@ -98,7 +98,8 @@ function bySegment(a: TimedSegment, b: TimedSegment): number {
 /**
  * Puts one day's overlapping segments side by side. Segments that only touch (one ends as the
  * next starts) do not overlap. A group needing more than <code>maxColumns</code> columns keeps
- * the first ones and gathers the rest into a "+N" block in the last column.
+ * the first ones and gathers the rest into a "+N" block in the last column. With one column
+ * allowed, an overlap keeps its first event and puts every other in a "+N" beside it.
  */
 export function arrange(segments: readonly TimedSegment[], maxColumns = 3): { placed: PlacedSegment[]; more: MoreBlock[] } {
   const sorted = [...segments].sort(bySegment);
@@ -125,8 +126,9 @@ export function arrange(segments: readonly TimedSegment[], maxColumns = 3): { pl
       return lane;
     });
     const needed = ends.length;
-    const lanes = Math.min(needed, maxColumns);
-    const kept = needed > maxColumns ? maxColumns - 1 : maxColumns;
+    // One column still needs a second for the "+N", so the first event is never folded away with the rest.
+    const lanes = needed > maxColumns ? Math.max(2, maxColumns) : needed;
+    const kept = needed > maxColumns ? Math.max(1, maxColumns - 1) : maxColumns;
     const nextGroup = groups[index + 1]?.[0].start ?? DAY_MINUTES;
     const hidden: TimedSegment[] = [];
     group.forEach((segment, i) => {

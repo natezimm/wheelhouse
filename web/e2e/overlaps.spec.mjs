@@ -82,3 +82,30 @@ test('a wide Week day puts three overlapping events side by side, a narrow one f
   await expect(desktop.locator('.more')).toHaveText(['+2', '+3']);
   await page.screenshot({ path: testInfo.outputPath('desktop-week.png') });
 });
+
+test('a tablet’s Week day shows one overlapping event in full beside a slim stack of the rest', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'wall', 'a tablet window');
+  await stub(page);
+  for (const [width, height] of [[768, 1024], [820, 1180]]) {
+    await page.setViewportSize({ width, height });
+    await page.goto('/');
+    await page.getByRole('group', { name: 'View' }).getByRole('button', { name: 'Week' }).click();
+    const week = page.locator('app-week-view');
+    await week.locator('.event', { hasText: 'Call' }).scrollIntoViewIfNeeded();
+
+    // Monday keeps Call and stacks the two beside it; Wednesday keeps Chess and stacks three.
+    await expect(week.locator('.event', { hasText: 'Call' })).toBeVisible();
+    await expect(week.locator('.event', { hasText: 'Chess' })).toBeVisible();
+    await expect(week.locator('.event', { hasText: /Dentist|Piano|Review|Errands|Snack/ })).toHaveCount(0);
+    await expect(week.locator('.more')).toHaveText(['+2', '+3']);
+
+    // The event keeps most of the day, enough for a short title, and the stack is still a target.
+    const event = await week.locator('.event', { hasText: 'Call' }).boundingBox();
+    const stack = await week.locator('.more').first().boundingBox();
+    expect(event.width).toBeGreaterThan(1.4 * stack.width);
+    expect(event.x + event.width).toBeLessThanOrEqual(stack.x);
+    expect(stack.width).toBeGreaterThanOrEqual(24);
+    expect(await week.locator('.event', { hasText: 'Call' }).locator('.title').evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`tablet-week-${width}.png`) });
+  }
+});
