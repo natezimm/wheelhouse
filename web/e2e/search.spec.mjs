@@ -138,6 +138,7 @@ for (const layout of ['phone', 'desktop']) {
     await expect(search.getByRole('searchbox')).toBeFocused();
     await page.keyboard.type('zzz');
     await expect(search.getByRole('status')).toHaveText('No events match “zzz”.');
+    await expect(search.locator('.advice')).toHaveText('Search looks at titles and places. Try fewer letters or another word.');
     await page.keyboard.press('Escape');
     await expect(search).toBeHidden();
     expect(errors).toEqual([]);

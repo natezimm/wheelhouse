@@ -130,8 +130,8 @@ describe('calendar screens', () => {
         '5:30 – 6:15 pm',
         'Riverside Rec Center',
         'Does not repeat',
-        'Milo',
       ]);
+      // Milo is at the top; the Milo calendar is not named again under the facts.
       expect(page.querySelector('app-event-dialog')).toBeNull();
       expect(page.querySelector('[aria-label^="Swim lesson"]')?.classList.contains('selected')).toBe(true);
 
@@ -188,6 +188,8 @@ describe('calendar screens', () => {
       );
       expect(details.querySelector('.edit')).toBeNull();
       expect(texts(details.querySelectorAll('.day, .when'))).toEqual(['Friday, October 16', 'All day']);
+      // A calendar that is not named for the person at the top is still said.
+      expect(texts(details.querySelectorAll('.facts li'))).toEqual(['Does not repeat', 'School district']);
     });
 
     it('starts a new event at the half hour tapped on the grid', async () => {
@@ -782,6 +784,7 @@ describe('calendar screens', () => {
       await settle();
       const search = page.querySelector<HTMLElement>('app-event-search [role="dialog"]')!;
       expect(search.querySelector('.status')?.textContent).toContain('Search every event by title or place');
+      expect(search.querySelector('.advice')?.textContent).toContain('Events that are over are found too');
       // Keys are for typing while it is open.
       document.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', bubbles: true, cancelable: true }));
       expect(shownTitle(page)).toBe('October 12 – 18 2026');
