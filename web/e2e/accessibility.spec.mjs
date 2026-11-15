@@ -394,7 +394,11 @@ test('a day opened from the week, or the pairing screen, never leaves the keyboa
   await page.getByRole('button', { name: 'Open Monday, October 12' }).focus();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('button', { name: 'Day', exact: true })).toHaveAttribute('aria-pressed', 'true');
-  await expect(page.getByRole('region', { name: 'Calendar' })).toBeFocused();
+  const calendar = page.getByRole('region', { name: 'Calendar' });
+  await expect(calendar).toBeFocused();
+  // The day's events are drawn a moment after the view turns: until then the calendar holds nothing to
+  // stop at, and Tab would rightly go round to the top.
+  await expect(calendar.getByRole('button', { name: /^Trash & recycling, all day Monday/ })).toBeVisible();
   await page.keyboard.press('Tab');
   expect((await focused(page)).name).not.toBe('Show today at a glance');
 

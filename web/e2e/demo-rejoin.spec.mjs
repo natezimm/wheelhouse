@@ -87,8 +87,10 @@ for (const path of ['/', '/wall']) {
     await expect(page.getByRole('button', { name: /Old swim/ }).first()).toBeVisible();
 
     state.expired = true;
-    // The shared 30-second check finds the sign-in gone.
-    await page.clock.runFor(31_000);
+    // A regular check finds the sign-in gone, within 30 seconds. The clock moves a second at a
+    // time and stops once the visitor is checking in again: run on in one go, it could pass the
+    // check-in's eight-second limit before the answer arrived, and the app would ask twice.
+    for (let second = 0; second < 31 && state.visits < 2; second++) await page.clock.runFor(1000);
 
     await expect(page.getByRole('button', { name: /Fresh swim/ }).first()).toBeVisible();
     await expect(page.getByText('This Wheelhouse is private.')).toHaveCount(0);
