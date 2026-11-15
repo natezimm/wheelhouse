@@ -115,6 +115,21 @@ describe('calendar grid', () => {
     expect(placed.map((p) => p.room)).toEqual([15, 8 * 60]);
   });
 
+  it('says how much free room each event has above it', () => {
+    const day = '2026-10-22';
+    const { placed, more } = arrange(
+      segmentsOf(at('Walk', day, '09:00', '09:30'), at('Pickup', day, '15:00', '15:30'), at('Snack', day, '15:30', '16:30'), at('Call', day, '15:45', '16:00'), at('Chess', day, '15:45', '16:00'), at('Piano', day, '15:45', '16:00')).get(day)!,
+    );
+    // From the start of the day, from the group before, and from the event before it in its own column.
+    expect(placed.map((p) => [p.event.title, p.before])).toEqual([
+      ['Walk', 9 * 60],
+      ['Pickup', 5 * 60 + 30],
+      ['Snack', 0],
+      ['Call', 15],
+    ]);
+    expect(more[0].before).toBe(15);
+  });
+
   it('lays all-day bars across their days with exclusive ends, two lanes deep', () => {
     const { bars, lanes, hidden } = dayBars(
       [
