@@ -173,7 +173,7 @@ describe('CalendarLive', () => {
     expect(connections).toHaveLength(1);
   });
 
-  it('stops a previous family socket, clears its snapshot, and ignores its callbacks', async () => {
+  it('stops a previous family socket, clears its snapshot, ignores its callbacks, and reads the same days for the new family', async () => {
     live.start();
     await join();
     calendar.show('2026-10-12', '2026-10-19');
@@ -185,9 +185,13 @@ describe('CalendarLive', () => {
     previous.changed({ changeNumber: 101 });
     previous.reconnecting();
     previous.closed();
+    const again = read();
+    expect(again.request.params.get('from')).toBe('2026-10-12');
+    expect(again.request.params.get('to')).toBe('2026-10-19');
+    again.flush(snapshot(1));
+    // The new socket's own refresh, queued behind that read.
+    for (const queued of http.match((r) => r.url === '/api/calendar')) queued.flush(snapshot(1));
     expect(live.state()).toBe('connected');
-    calendar.show('2026-10-12', '2026-10-19');
-    read().flush(snapshot(1));
     expect(calendar.changeNumber()).toBe(1);
   });
 
