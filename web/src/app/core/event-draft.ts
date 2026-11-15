@@ -210,9 +210,12 @@ export function revise(draft: EventDraft, next: EventDraft, splitting = false): 
 }
 
 /** What stops a draft from being saved, said for people, or null when it can be. */
+/** What an editor says of an event saved with no title, beside its title field. */
+export const TITLE_PROBLEM = 'Give the event a title.';
+
 export function problemWith(draft: EventDraft): string | null {
   if (!draft.title.trim()) {
-    return 'Give the event a title.';
+    return TITLE_PROBLEM;
   }
   if (draft.allDay) {
     return draft.endDate < draft.startDate ? 'End the event on or after the day it starts.' : null;

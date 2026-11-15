@@ -1,8 +1,8 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, computed, inject, input, linkedSignal, output, signal } from '@angular/core';
+import { Component, ElementRef, computed, inject, input, linkedSignal, output, signal, viewChild } from '@angular/core';
 import { CalendarEvent, CalendarStore, eventRefusal } from '../core/calendar';
 import { Day, dayIn } from '../core/days';
-import { EventDraft, copyOf, draftOf, newDraft, onDayOf, peopleChoices, problemWith, requestOf, revise, remindChoices, startAt, togglePerson, writableCalendars } from '../core/event-draft';
+import { EventDraft, copyOf, draftOf, newDraft, onDayOf, peopleChoices, problemWith, requestOf, TITLE_PROBLEM, revise, remindChoices, startAt, togglePerson, writableCalendars } from '../core/event-draft';
 import { FamilyStore } from '../core/family';
 import { SessionStore } from '../core/session';
 import { ModalFocus } from '../shared/modal-focus';
@@ -41,7 +41,19 @@ import { Clock } from '../core/clock';
         <fieldset [disabled]="busy() || uncertain()">
         <label class="field">
           Title
-          <input type="text" maxlength="255" autocomplete="off" [value]="draft.title" (input)="set({ title: $any($event.target).value })" />
+          <input
+            #title
+            type="text"
+            maxlength="255"
+            autocomplete="off"
+            [value]="draft.title"
+            [attr.aria-invalid]="titleMissing() || null"
+            [attr.aria-describedby]="titleMissing() ? 'sheet-title-problem' : null"
+            (input)="set({ title: $any($event.target).value })"
+          />
+          @if (titleMissing()) {
+            <span id="sheet-title-problem" class="field-problem">{{ titleProblem }}</span>
+          }
         </label>
 
         <label class="field">
@@ -205,7 +217,7 @@ import { Clock } from '../core/clock';
               <button type="button" class="button" (click)="confirmingDelete.set(false)">Keep it</button>
             </div>
           } @else {
-            <button type="button" class="button quiet-danger" [disabled]="busy()" (click)="confirmingDelete.set(true)">Delete event</button>
+            <button type="button" class="button quiet-danger" [disabled]="busy()" (click)="askDelete()">Delete event</button>
           }
         }
       </form>
@@ -350,6 +362,16 @@ import { Clock } from '../core/clock';
       color: var(--muted);
     }
 
+    .field-problem {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--danger-text);
+    }
+
+    input[aria-invalid='true'] {
+      border-color: var(--danger-text);
+    }
+
     .message {
       padding: 10px 12px;
       border-radius: 12px;
@@ -482,6 +504,10 @@ export class EventSheet {
   protected readonly busy = signal(false);
   protected readonly confirmingDelete = linkedSignal(() => this.deleting());
   protected readonly message = signal<string | null>(null);
+  /** Save was tried with no title: the title field says so, scrolled into view and focused. */
+  protected readonly titleMissing = signal(false);
+  protected readonly titleProblem = TITLE_PROBLEM;
+  private readonly titleInput = viewChild<ElementRef<HTMLInputElement>>('title');
 
   protected readonly weekStartsOn = computed(() => this.family.family()?.weekStartsOn ?? 'Monday');
   protected readonly today = computed(() => {
@@ -504,7 +530,15 @@ export class EventSheet {
     if (draft) {
       this.edits.set(revise(draft, { ...draft, ...change }, this.following()));
       this.message.set(null);
+      this.titleMissing.set(false);
     }
+  }
+
+  /** Asks before deleting; a problem with an earlier save no longer applies. */
+  protected askDelete(): void {
+    this.message.set(null);
+    this.titleMissing.set(false);
+    this.confirmingDelete.set(true);
   }
 
   /** All events of a series keep their own days and share a calendar; see the wall's dialog. */
@@ -542,6 +576,14 @@ export class EventSheet {
       return;
     }
     const problem = problemWith(draft);
+    if (problem === TITLE_PROBLEM) {
+      // Said beside the title, which has scrolled out of sight by the time Save is in reach.
+      this.titleMissing.set(true);
+      const title = this.titleInput()?.nativeElement;
+      title?.focus({ preventScroll: true });
+      title?.scrollIntoView?.({ block: 'center' });
+      return;
+    }
     if (problem) {
       this.message.set(problem);
       return;

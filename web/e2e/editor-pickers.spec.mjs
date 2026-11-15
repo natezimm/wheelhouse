@@ -189,3 +189,33 @@ for (const { name, width, height, editor } of [
     await expect(wheels).toHaveCount(0);
   });
 }
+
+test('a short desktop window keeps Save in view, and a missing title is said at the title', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name === 'wall', 'the desktop window');
+  await page.setViewportSize({ width: 1280, height: 620 });
+  await stub(page);
+  await page.goto('/');
+  await page.locator('app-week-view .event', { hasText: 'Swim lesson' }).click();
+  await page.getByRole('dialog', { name: 'Swim lesson' }).getByRole('button', { name: 'Edit event', exact: true }).click();
+  const editor = page.locator('app-event-dialog [role=dialog]').first();
+  const save = editor.getByRole('button', { name: 'Save changes', exact: true });
+
+  // The fields scroll; Save and Delete do not, so they are on screen before anything is scrolled.
+  await expect(save).toBeInViewport({ ratio: 1 });
+  await expect(editor.getByRole('button', { name: 'Delete', exact: true })).toBeInViewport({ ratio: 1 });
+  const fields = editor.locator('.fields');
+  expect(await fields.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  await fields.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+  await expect(save).toBeInViewport({ ratio: 1 });
+
+  // Saving without a title brings the title back, focused, with the problem beside it.
+  const title = editor.locator('#event-title');
+  await title.fill('');
+  await save.click();
+  await expect(title).toBeFocused();
+  await expect(title).toBeInViewport();
+  await expect(title).toHaveAttribute('aria-invalid', 'true');
+  await expect(editor.locator('label[for=event-title]')).toBeInViewport({ ratio: 1 });
+  await expect(editor.locator('#event-title-problem')).toHaveText('Give the event a title.');
+  await page.screenshot({ path: testInfo.outputPath('short-dialog.png') });
+});
