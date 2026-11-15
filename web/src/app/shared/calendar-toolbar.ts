@@ -154,9 +154,33 @@ import { CalendarView, Period, VIEWS } from '../core/calendar-period';
       margin-left: auto;
     }
 
+    /* A laptop window (up to 1440 px) has no room for a long title such as "November 30 – December 6, 2026"
+       beside the people and the controls, so it says the days briefly. */
+    @media (max-width: 1439.98px) {
+      :host(.desktop) .full {
+        display: none;
+      }
+
+      :host(.desktop) .brief {
+        display: inline;
+      }
+    }
+
+    /* Under 1320 px the year goes too, kept for screen readers. */
+    @media (max-width: 1319.98px) {
+      :host(.desktop) .year {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+    }
+
     /* A narrower desktop window keeps every control on one line by dropping words: the year, the
        long day and month names, and Add event's label. A connection problem takes a line of its own. */
-    @media (max-width: 1180px) {
+    @media (max-width: 1240px) {
       :host(.desktop) h1 {
         font-size: 22px;
       }

@@ -129,7 +129,7 @@ import { StatusLine } from './status-line';
     }
 
     /* A narrow desktop toolbar keeps the dot and lets the word go, still read aloud. */
-    @media (max-width: 1180px) {
+    @media (max-width: 1240px) {
       :host(.desktop) .word {
         position: absolute;
         width: 1px;
