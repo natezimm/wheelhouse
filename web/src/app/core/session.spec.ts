@@ -200,4 +200,42 @@ describe('SessionStore', () => {
     await expect(starting).resolves.toBeUndefined();
     expect(session.isDemo()).toBe(false);
   });
+
+  it('checks a demo visitor in again for a fresh copy', async () => {
+    const starting = session.start();
+    http.expectOne('/api/session').flush({ mode: 'Demo', signedIn: false });
+    await tick();
+    http.expectOne({ method: 'POST', url: '/api/demo/visit' }).flush(null);
+    await starting;
+
+    const rejoining = session.rejoin();
+    await tick();
+    http.expectOne({ method: 'POST', url: '/api/demo/visit' }).flush(null);
+
+    await expect(rejoining).resolves.toBe(true);
+    expect(session.isDemo()).toBe(true);
+  });
+
+  it('says the demo could not start when checking in again fails', async () => {
+    const starting = session.start();
+    http.expectOne('/api/session').flush({ mode: 'Demo', signedIn: false });
+    await tick();
+    http.expectOne({ method: 'POST', url: '/api/demo/visit' }).flush(null);
+    await starting;
+
+    const rejoining = session.rejoin();
+    await tick();
+    http.expectOne({ method: 'POST', url: '/api/demo/visit' }).flush(null, { status: 429, statusText: 'Too Many Requests' });
+
+    await expect(rejoining).resolves.toBe(false);
+    expect(session.demoUnavailable()).toBe('busy');
+  });
+
+  it('never checks anyone in again on a family instance', async () => {
+    const starting = session.start();
+    http.expectOne('/api/session').flush({ mode: 'Family', signedIn: true, canSignIn: true });
+    await starting;
+
+    await expect(session.rejoin()).resolves.toBe(false);
+  });
 });

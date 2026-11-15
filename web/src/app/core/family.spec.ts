@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { marlowes } from '../testing/marlowes';
 import { FamilyStore, refusalMessage } from './family';
+import { SessionStore } from './session';
 
 describe('FamilyStore', () => {
   let store: FamilyStore;
@@ -76,6 +77,57 @@ describe('FamilyStore', () => {
     http.expectOne('/api/family').flush(null, { status: 500, statusText: 'Server Error' });
 
     expect(store.state()).toEqual({ status: 'unavailable' });
+  });
+
+  describe('on the demo', () => {
+    const tick = () => new Promise((resolve) => setTimeout(resolve));
+    const fresh = { ...marlowes, id: 'fresh-copy' };
+
+    beforeEach(async () => {
+      const starting = TestBed.inject(SessionStore).start();
+      http.expectOne('/api/session').flush({ mode: 'Demo', signedIn: false });
+      await tick();
+      http.expectOne({ method: 'POST', url: '/api/demo/visit' }).flush(null);
+      await starting;
+      store.load();
+      http.expectOne('/api/family').flush(marlowes);
+    });
+
+    it('gives a visitor whose copy is gone a fresh one, keeping the old on screen meanwhile', async () => {
+      store.refresh();
+      http.expectOne('/api/family').flush(null, { status: 401, statusText: 'Unauthorized' });
+      expect(store.state()).toEqual({ status: 'ready', family: marlowes });
+
+      await tick();
+      http.expectOne({ method: 'POST', url: '/api/demo/visit' }).flush(null);
+      await tick();
+      http.expectOne('/api/family').flush(fresh);
+
+      expect(store.state()).toEqual({ status: 'ready', family: fresh });
+    });
+
+    it('checks in once when several reads find the sign-in gone', async () => {
+      store.refresh();
+      store.refresh();
+      for (const read of http.match('/api/family')) read.flush(null, { status: 401, statusText: 'Unauthorized' });
+
+      await tick();
+      http.expectOne({ method: 'POST', url: '/api/demo/visit' }).flush(null);
+      await tick();
+      http.expectOne('/api/family').flush(fresh);
+      expect(store.family()?.id).toBe('fresh-copy');
+    });
+
+    it('lets the demo say it could not start when checking in again fails', async () => {
+      store.refresh();
+      http.expectOne('/api/family').flush(null, { status: 401, statusText: 'Unauthorized' });
+      await tick();
+      http.expectOne({ method: 'POST', url: '/api/demo/visit' }).flush(null, { status: 403, statusText: 'Forbidden' });
+      await tick();
+
+      expect(store.state()).toEqual({ status: 'private' });
+      expect(TestBed.inject(SessionStore).demoUnavailable()).toBe('failed');
+    });
   });
 
   describe('once loaded', () => {

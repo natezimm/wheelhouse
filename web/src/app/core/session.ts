@@ -80,26 +80,45 @@ export class SessionStore {
         return;
       }
 
-      try {
-        await firstValueFrom(
-          this.http.post('/api/demo/visit', null).pipe(
-            timeout(START_TIMEOUT_MS),
-            retry({
-              count: VISIT_RETRIES,
-              delay: (error) =>
-                error instanceof TimeoutError || (error instanceof HttpErrorResponse && (error.status === 0 || error.status >= 500))
-                  ? timer(VISIT_RETRY_MS)
-                  : throwError(() => error),
-            }),
-          ),
-        );
-        this.current.set({ status: 'demo', isDisplay: !!session.isDisplay });
-      } catch (error) {
-        const busy = error instanceof HttpErrorResponse && error.status === 429;
-        this.current.set({ status: 'demo-unavailable', reason: busy ? 'busy' : 'failed' });
-      }
+      const visit = await this.visit();
+      this.current.set(visit === 'ok' ? { status: 'demo', isDisplay: !!session.isDisplay } : { status: 'demo-unavailable', reason: visit });
     } catch {
       this.current.set({ status: 'unknown' });
+    }
+  }
+
+  /**
+   * On the demo, checks the visitor in again after their sign-in stopped working: their copy
+   * expired with the tab left open, or made room for newer visitors. They get a fresh copy rather
+   * than a screen saying the Wheelhouse is private. Resolves whether they have one; when not, the
+   * demo says it could not start. Elsewhere it does nothing and resolves false.
+   */
+  async rejoin(): Promise<boolean> {
+    if (!this.isDemo()) return false;
+    const visit = await this.visit();
+    // A fresh copy is a parent's, never a paired wall's.
+    this.current.set(visit === 'ok' ? { status: 'demo', isDisplay: false } : { status: 'demo-unavailable', reason: visit });
+    return visit === 'ok';
+  }
+
+  /** Asks the demo for this visitor's copy, retrying a lost answer or a server error. */
+  private async visit(): Promise<'ok' | 'busy' | 'failed'> {
+    try {
+      await firstValueFrom(
+        this.http.post('/api/demo/visit', null).pipe(
+          timeout(START_TIMEOUT_MS),
+          retry({
+            count: VISIT_RETRIES,
+            delay: (error) =>
+              error instanceof TimeoutError || (error instanceof HttpErrorResponse && (error.status === 0 || error.status >= 500))
+                ? timer(VISIT_RETRY_MS)
+                : throwError(() => error),
+          }),
+        ),
+      );
+      return 'ok';
+    } catch (error) {
+      return error instanceof HttpErrorResponse && error.status === 429 ? 'busy' : 'failed';
     }
   }
 

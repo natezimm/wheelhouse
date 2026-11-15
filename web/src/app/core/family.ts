@@ -1,6 +1,7 @@
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { Observable, Subscription, tap } from 'rxjs';
+import { SessionStore } from './session';
 
 export interface Member {
   id: string;
@@ -68,6 +69,7 @@ export type FamilyState =
 @Injectable({ providedIn: 'root' })
 export class FamilyStore {
   private readonly http = inject(HttpClient);
+  private readonly session = inject(SessionStore);
   private readonly current = signal<FamilyState>({ status: 'loading' });
 
   /** Counts accepted changes, so a check-in that started before one cannot undo it. */
@@ -115,8 +117,7 @@ export class FamilyStore {
     if (this.loading && !this.loading.closed) return;
     this.loading = this.http.get<Family>('/api/family').subscribe({
       next: (family) => this.current.set({ status: 'ready', family }),
-      error: (error: HttpErrorResponse) =>
-        this.current.set({ status: error.status === 401 ? 'private' : 'unavailable' }),
+      error: (error: HttpErrorResponse) => (error.status === 401 ? this.signedOut() : this.current.set({ status: 'unavailable' })),
     });
   }
 
@@ -139,9 +140,44 @@ export class FamilyStore {
       },
       error: (error: HttpErrorResponse) => {
         if (error.status === 401) {
-          this.current.set({ status: 'private' });
+          this.signedOut();
         }
       },
+    });
+  }
+
+  /** Whether a demo visitor is being checked in again, so a second 401 meanwhile does not start another. */
+  private rejoining = false;
+
+  /**
+   * The sign-in stopped working. On a family instance the family is private now. A demo visitor
+   * whose copy expired or made room for others is checked in again and shown their fresh copy,
+   * keeping the old one on screen meanwhile; when that fails the demo says it could not start.
+   */
+  private signedOut(): void {
+    if (!this.session.isDemo()) {
+      this.current.set({ status: 'private' });
+      return;
+    }
+    if (this.rejoining) return;
+    this.rejoining = true;
+    void this.session.rejoin().then((rejoined) => {
+      if (!rejoined) {
+        this.rejoining = false;
+        this.current.set({ status: 'private' });
+        return;
+      }
+      this.http.get<Family>('/api/family').subscribe({
+        next: (family) => {
+          this.rejoining = false;
+          this.writes++;
+          this.current.set({ status: 'ready', family });
+        },
+        error: () => {
+          this.rejoining = false;
+          this.current.set({ status: 'unavailable' });
+        },
+      });
     });
   }
 

@@ -105,7 +105,13 @@ export class CalendarLive {
     const old = this.connection;
     this.connection = undefined;
     if (old) void old.stop().catch(() => {});
-    if (previous && previous !== id) this.calendar.reset();
+    if (previous && previous !== id) {
+      const shown = this.calendar.state();
+      this.calendar.reset();
+      // Views ask for days only when their days change, so the new family's are read for them:
+      // a demo visitor given a fresh copy keeps the same days on screen.
+      if (id && shown.status !== 'idle') this.calendar.show(shown.from, shown.to);
+    }
     if (!id) {
       this.connectionState.set('stopped');
       return;
