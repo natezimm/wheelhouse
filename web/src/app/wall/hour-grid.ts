@@ -35,6 +35,10 @@ const LAYOUTS = {
 /** The widest hour-label gutter, and how wide a Week day must be to put three events side by side. */
 const GUTTER = 76;
 const THREE_LANES = 165;
+/** A Week day narrower than this (a tablet, a small window) shows one event across: two would each be under 56 px. */
+const TWO_LANES = 112;
+/** How wide the "+N" beside that one event is, gaps included: a 30 px target, and the event keeps the rest. */
+const STACK = 36;
 const WALL_TOUCH = 56;
 
 /** How far a mouse or pen moves before a press becomes a drag, and a finger before a long press gives way to scrolling. */
@@ -1016,12 +1020,20 @@ export class HourGrid {
     // On the wall each of the three must still be a 56 px finger wide, gaps included.
     const dayWidth = (this.bodyWidth() - GUTTER) / Math.max(1, columns.length);
     const threeLanes = layout.reach ? 3 * (WALL_TOUCH + 2 * layout.gap) : THREE_LANES;
-    const weekLanes = this.variant() === 'week' ? (dayWidth >= threeLanes ? 3 : 2) : 3;
+    // A day too narrow for two readable titles keeps one, with the others behind a slim "+N" beside it.
+    const alone = this.variant() === 'week' && !layout.reach && this.bodyWidth() > 0 && dayWidth < TWO_LANES;
+    const weekLanes = this.variant() === 'week' ? (alone ? 1 : dayWidth >= threeLanes ? 3 : 2) : 3;
 
-    const across = (lane: number, lanes: number) => ({
-      left: `calc(${(lane * 100) / lanes}% + ${layout.gap}px)`,
-      width: `calc(${100 / lanes}% - ${2 * layout.gap}px)`,
-    });
+    const across = (lane: number, lanes: number) =>
+      alone && lanes === 2
+        ? {
+            left: lane ? `calc(100% - ${STACK - layout.gap}px)` : `${layout.gap}px`,
+            width: lane ? `${STACK - 2 * layout.gap}px` : `calc(100% - ${STACK + 2 * layout.gap}px)`,
+          }
+        : {
+            left: `calc(${(lane * 100) / lanes}% + ${layout.gap}px)`,
+            width: `calc(${100 / lanes}% - ${2 * layout.gap}px)`,
+          };
     const reach = (height: number, room: number) => (layout.reach ? Math.max(height, Math.min(layout.reach, height + room * perMinute)) : null);
     // On the wall the grip that pulls the end takes a finger in the free space below the event, never over the next one.
     const gripBelow = (room: number) => (layout.reach ? Math.min(GRIP_BELOW, Math.max(0, room * perMinute - layout.gap)) : null);
