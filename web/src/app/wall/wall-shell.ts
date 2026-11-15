@@ -64,7 +64,7 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
       <header>
         <div class="now">
           @if (now(); as now) {
-            <button type="button" class="clock" aria-label="Show today at a glance" (click)="glance()">{{ now.time }}<span class="meridiem">{{ now.meridiem }}</span></button>
+            <button type="button" class="clock" aria-label="Show today at a glance" (click)="glance()">{{ now.time }}<span class="meridiem">{{ now.meridiem }}</span><svg class="cue" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7"></path></svg></button>
             <span class="date">
               <span class="weekday">{{ now.weekday }}</span>
               <span class="detail">{{ now.date }}@if (family.family(); as f) { · {{ f.name }}}</span>
@@ -196,6 +196,13 @@ export const CHECK_IN_EVERY_MS = 5 * 60_000;
       letter-spacing: -0.03em;
       line-height: 1;
       white-space: nowrap;
+    }
+
+    /* Two arrows opening outward: the clock is a button, and opens today at a glance. */
+    .cue {
+      margin-left: 10px;
+      color: var(--faint);
+      vertical-align: 0.5em;
     }
 
     .meridiem {

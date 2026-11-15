@@ -68,7 +68,10 @@ type SearchState =
         </button>
       </div>
 
-      <p class="status" role="status">{{ status() }}</p>
+      <p class="status" [class.lead]="advice()" role="status">{{ status() }}</p>
+      @if (advice(); as advice) {
+        <p class="advice">{{ advice }}</p>
+      }
 
       @for (group of groups(); track group.name) {
         <h2>{{ group.name }}</h2>
@@ -212,6 +215,22 @@ type SearchState =
       display: none;
     }
 
+    /* Before a search and after one that found nothing, the words are all there is: they lead, with what to try under them. */
+    .status.lead {
+      margin-top: 14px;
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+
+    .advice {
+      margin: 0 6px;
+      max-width: 44ch;
+      font-size: 15px;
+      line-height: 1.4;
+      color: var(--muted);
+    }
+
     h2 {
       margin: 8px 6px 0;
       font: 700 13px var(--font-body);
@@ -259,6 +278,28 @@ type SearchState =
     .time {
       color: var(--member-time);
       font-family: var(--font-time);
+    }
+
+    /* A long time ("10:30 am – 12:15 pm") stays on one line: the column is as wide as the widest
+       time in its list, and every title in the list still starts on the same line. */
+    @supports (grid-template-columns: subgrid) {
+      ul {
+        display: grid;
+        grid-template-columns: minmax(92px, max-content) minmax(0, 1fr);
+        column-gap: 14px;
+      }
+
+      li,
+      .row {
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: subgrid;
+      }
+
+      .when {
+        width: auto;
+        white-space: nowrap;
+      }
     }
 
     .what {
@@ -352,6 +393,14 @@ export class EventSearch {
         return total > events.length ? `The first ${events.length} of ${total}. Type more to narrow it down.` : partly;
       }
     }
+  });
+
+  /** What to try, said under the status before a search and after one that found nothing. */
+  protected readonly advice = computed(() => {
+    const state = this.state();
+    if (state.status === 'idle') return 'Events that are over are found too. Picking one opens its day.';
+    if (state.status === 'done' && !state.found.events.length) return 'Search looks at titles and places. Try fewer letters or another word.';
+    return null;
   });
 
   /** Upcoming events, then earlier ones, as the API orders them. */
