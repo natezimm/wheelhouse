@@ -296,6 +296,47 @@ describe('event screens', () => {
       expect(request.request.body.creationId).toMatch(/^[0-9a-f-]{36}$/);
     });
 
+    it('says a missing title beside the title, focuses it, and keeps Save out of the scrolling', async () => {
+      const { page, settle } = await open('/wall');
+
+      await edit(page, settle, 'Monday, October 12');
+      const dialog = page.querySelector<HTMLElement>('app-event-dialog form')!;
+      const title = dialog.querySelector<HTMLInputElement>('#event-title')!;
+      type(title, '   ');
+      await settle();
+      button(dialog, 'Save changes').click();
+      await settle();
+
+      http.expectNone({ method: 'PUT' });
+      expect(title.getAttribute('aria-invalid')).toBe('true');
+      expect(dialog.querySelector(`#${title.getAttribute('aria-describedby')}`)?.textContent).toBe('Give the event a title.');
+      expect(document.activeElement).toBe(title);
+      // Save sits in the footer, outside the fields that scroll.
+      expect(dialog.querySelector('.fields .actions')).toBeNull();
+      expect(dialog.querySelector('.footer .actions')).not.toBeNull();
+
+      type(title, 'Swim');
+      await settle();
+      expect(title.getAttribute('aria-invalid')).toBeNull();
+      expect(dialog.querySelector('#event-title-problem')).toBeNull();
+    });
+
+    it('drops an earlier problem once delete is asked for', async () => {
+      const { page, settle } = await open('/wall');
+
+      await edit(page, settle, 'Monday, October 12');
+      const dialog = page.querySelector<HTMLElement>('app-event-dialog form')!;
+      button(dialog, 'Save changes').click();
+      http.expectOne({ method: 'PUT' }).flush({ title: 'Google could not be reached. Try again in a moment.' }, { status: 503, statusText: 'Service Unavailable' });
+      await settle();
+      expect(dialog.querySelector('[role="alert"]')).not.toBeNull();
+
+      button(dialog, 'Delete').click();
+      await settle();
+      expect(dialog.querySelector('[role="alert"]')).toBeNull();
+      expect(dialog.querySelector('.confirm')?.textContent).toBe('Delete this event?');
+    });
+
     it('deletes an event only once it is confirmed', async () => {
       const { page, settle } = await open('/wall');
 
@@ -429,6 +470,31 @@ describe('event screens', () => {
 
       http.expectOne({ method: 'DELETE', url: `/api/calendar/events/${soccer.id}?following=true` }).flush(null, { status: 204, statusText: 'No Content' });
       http.expectOne((r) => r.url === '/api/calendar');
+    });
+
+    it('says a missing title beside the title and focuses it, with no stale message by Delete', async () => {
+      const { page, settle } = await open('/');
+
+      page.querySelector<HTMLButtonElement>('app-agenda-list li button')!.click();
+      await settle();
+      button(page.querySelector('app-event-details')!, 'Edit event').click();
+      await settle();
+      const sheet = page.querySelector<HTMLElement>('app-event-sheet form')!;
+      const title = sheet.querySelector<HTMLInputElement>('input[type="text"]')!;
+      type(title, '');
+      await settle();
+      button(sheet, 'Save').click();
+      await settle();
+
+      http.expectNone({ method: 'PUT' });
+      expect(title.getAttribute('aria-invalid')).toBe('true');
+      expect(sheet.querySelector(`#${title.getAttribute('aria-describedby')}`)?.textContent).toBe('Give the event a title.');
+      expect(document.activeElement).toBe(title);
+      expect(sheet.querySelector('[role="alert"]')).toBeNull();
+
+      button(sheet, 'Delete event').click();
+      await settle();
+      expect(sheet.querySelector('#sheet-title-problem')).toBeNull();
     });
 
     it('keeps a refused event open with the server’s reason', async () => {

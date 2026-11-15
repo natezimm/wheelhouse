@@ -15,6 +15,7 @@ import {
   newDraft,
   onDayOf,
   problemWith,
+  TITLE_PROBLEM,
   requestOf,
   peopleChoices,
   revise,
@@ -71,8 +72,13 @@ import { Clock } from '../core/clock';
               autocomplete="off"
               maxlength="255"
               [value]="draft.title"
+              [attr.aria-invalid]="titleMissing() || null"
+              [attr.aria-describedby]="titleMissing() ? 'event-title-problem' : null"
               (input)="set({ title: $any($event.target).value })"
             />
+            @if (titleMissing()) {
+              <p id="event-title-problem" class="field-problem">{{ titleProblem }}</p>
+            }
           </fieldset>
 
           <fieldset class="field" [disabled]="busy() || uncertain()">
@@ -240,7 +246,12 @@ import { Clock } from '../core/clock';
             <label for="event-notes">NOTES</label>
             <textarea id="event-notes" rows="3" maxlength="8192" [value]="draft.notes" (input)="set({ notes: $any($event.target).value })"></textarea>
           </fieldset>
+        </div>
 
+        <div class="footer">
+          @if (message(); as message) {
+            <p class="message" role="alert">{{ message }}</p>
+          }
           <div class="actions">
             @if (confirmingDelete()) {
               <span class="confirm">{{ series() ? 'Delete every event in this series?' : following() ? 'Delete this and every later event?' : 'Delete this event?' }}</span>
@@ -248,17 +259,13 @@ import { Clock } from '../core/clock';
               <button type="button" class="danger" [disabled]="busy()" (click)="remove()">{{ series() ? 'Delete all events' : following() ? 'Delete these events' : 'Delete event' }}</button>
             } @else {
               @if (event()) {
-                <button type="button" class="quiet-danger" [disabled]="busy()" (click)="confirmingDelete.set(true)">Delete</button>
+                <button type="button" class="quiet-danger" [disabled]="busy()" (click)="askDelete()">Delete</button>
               }
               <button type="button" class="ghost" [disabled]="busy()" (click)="closed.emit()">Cancel</button>
               <button type="submit" class="primary" [disabled]="busy()">{{ uncertain() ? 'Check save' : event() ? 'Save changes' : 'Save event' }}</button>
             }
           </div>
         </div>
-
-        @if (message(); as message) {
-          <p class="message" role="alert">{{ message }}</p>
-        }
       </form>
       </section>
     }
@@ -290,7 +297,8 @@ import { Clock } from '../core/clock';
       width: 1400px;
       max-width: calc(100% - 72px);
       max-height: calc(100% - 88px);
-      overflow-y: auto;
+      /* The fields scroll inside it; the title row and the footer with Save stay in view. */
+      overflow: hidden;
       transform: translateX(-50%);
       box-sizing: border-box;
       margin: 0;
@@ -361,6 +369,32 @@ import { Clock } from '../core/clock';
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
       gap: 24px 36px;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      /* Room for the controls' focus rings, which the scrolling would otherwise clip. */
+      margin: -6px;
+      padding: 6px;
+    }
+
+    /* Under the fields, never scrolled away: a problem with the save, then Delete, Cancel and Save. */
+    .footer {
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .field-problem {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--danger-text);
+    }
+
+    input[aria-invalid='true'] {
+      border-color: var(--danger-text);
     }
 
     .field {
@@ -731,6 +765,9 @@ export class EventDialog {
   protected readonly busy = signal(false);
   protected readonly confirmingDelete = linkedSignal(() => this.deleting());
   protected readonly message = signal<string | null>(null);
+  /** Save was tried with no title: the title field says so and takes the keyboard. */
+  protected readonly titleMissing = signal(false);
+  protected readonly titleProblem = TITLE_PROBLEM;
 
   /** Whether closing it would lose something: a change, or a save still going or to check. */
   readonly holdsWork = computed(() => this.edits() !== null || this.busy() || this.uncertain());
@@ -792,6 +829,14 @@ export class EventDialog {
     const before = this.draft();
     this.edits.set(before ? revise(before, draft, this.following()) : draft);
     this.message.set(null);
+    this.titleMissing.set(false);
+  }
+
+  /** Asks before deleting; a problem with an earlier save no longer applies. */
+  protected askDelete(): void {
+    this.message.set(null);
+    this.titleMissing.set(false);
+    this.confirmingDelete.set(true);
   }
 
   protected dayLabel(day: Day): string {
@@ -813,6 +858,15 @@ export class EventDialog {
       return;
     }
     const problem = problemWith(draft);
+    if (problem === TITLE_PROBLEM) {
+      // Said beside the field it is about, which may be scrolled out of sight, and focused.
+      this.titleMissing.set(true);
+      const title = this.titleInput()?.nativeElement;
+      title?.focus({ preventScroll: true });
+      // The whole field, so its label is in sight too, not only the box.
+      title?.closest('.field')?.scrollIntoView?.({ block: 'start' });
+      return;
+    }
     if (problem) {
       this.message.set(problem);
       return;
