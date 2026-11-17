@@ -6,6 +6,11 @@ TestResults/
 
 # Python
 __pycache__/
+*.py[cod]
+
+# Local PostgreSQL upgrade artifacts
+.postgres-upgrade-backups/
+.postgres-upgrade.lock
 
 # Node / Angular
 node_modules/
