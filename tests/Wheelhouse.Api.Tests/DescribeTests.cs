@@ -154,7 +154,8 @@ public sealed class DescribeTests(ApiFactory factory)
 
         Assert.Equal(new AiFeatures(Describe: true, Ask: false), (await SessionOf(parent)).Ai);
         Assert.Equal(new AiFeatures(false, false), (await SessionOf(display)).Ai);
-        Assert.Equal(new AiFeatures(false, false), (await SessionOf(stranger)).Ai);
+        // Said before signing in, since a demo visitor asks for the session before checking in.
+        Assert.Equal(new AiFeatures(Describe: true, Ask: false), (await SessionOf(stranger)).Ai);
         Assert.Equal(new AiFeatures(false, false), (await SessionOf(off)).Ai);
     }
 

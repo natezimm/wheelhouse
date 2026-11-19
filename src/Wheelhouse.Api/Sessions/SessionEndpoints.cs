@@ -20,8 +20,9 @@ public static class SessionEndpoints
         {
             var signedIn = user.HasClaim(claim => claim.Type == WheelhouseClaims.Family);
             var display = user.HasClaim(claim => claim.Type == WheelhouseClaims.Device);
-            // The AI features are for a signed-in parent on an instance that has them on.
-            var asks = signedIn && !display && ai.CurrentValue.IsAvailable;
+            // The AI features are for parents on an instance that has them on. Said before signing in
+            // too, since a demo visitor asks for the session before checking in.
+            var asks = !display && ai.CurrentValue.IsAvailable;
             return new SessionResponse(
                 instance.Value.Mode,
                 SignedIn: signedIn,
