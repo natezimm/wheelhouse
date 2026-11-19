@@ -44,6 +44,7 @@ public sealed class AnswerChecksTests
     [InlineData("You're all free from 1:30 to 4 p.m. on Saturday.")]
     [InlineData("Free 13:30-16:00, after soccer ends at 1:30 pm.")]
     [InlineData("Nov. 7 has a gap from 1:30 until 4pm.")]
+    [InlineData("Soccer is 11 am–1:30 pm on Saturday, then everyone is free until 4.")]
     public void A_sentence_that_names_only_what_it_cites_is_kept(string sentence)
     {
         Assert.True(Fits(sentence, [Event("Soccer", 11, 0, 13, 30)], [Slot(13, 30, 16)]));
@@ -52,6 +53,9 @@ public sealed class AnswerChecksTests
     [Theory]
     [InlineData("Everyone is free 1:30–3 pm on Saturday.")]
     [InlineData("Everyone is free at noon.")]
+    [InlineData("Soccer starts at 11 pm on Saturday.")]
+    [InlineData("Everyone is free 1:30–4 am on Saturday.")]
+    [InlineData("Everyone is free 1:30 to 4 a.m. on Saturday.")]
     [InlineData("Everyone is free 1:30–4 pm on Sunday.")]
     [InlineData("Everyone is free 1:30–4 pm on Nov 8.")]
     [InlineData("Everyone is free today from 1:30 to 4 pm.")]

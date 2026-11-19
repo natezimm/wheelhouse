@@ -171,15 +171,15 @@ public static class AnswerChecks
 
             if (!allDay)
             {
-                times.Add(Twelve(localStart.Hour, localStart.Minute));
-                times.Add(Twelve(localEnd.Hour, localEnd.Minute));
+                times.Add((localStart.Hour, localStart.Minute));
+                times.Add((localEnd.Hour, localEnd.Minute));
             }
         }
 
         if (spans.Count == 0)
         {
             days.UnionWith(tools.AskedDays);
-            times.UnionWith(tools.AskedTimes.Select(t => Twelve(t.Hour, t.Minute)));
+            times.UnionWith(tools.AskedTimes.Select(t => (t.Hour, t.Minute)));
         }
 
         // "Today" and "tomorrow" name days too.
@@ -197,18 +197,18 @@ public static class AnswerChecks
         {
             var hour = int.Parse(match.Groups["h"].Value, CultureInfo.InvariantCulture);
             var minute = match.Groups["m"].Success ? int.Parse(match.Groups["m"].Value, CultureInfo.InvariantCulture) : 0;
-            if (hour > 23 || !times.Contains(Twelve(hour, minute)))
+            if (hour > 23 || !Names(times, hour, minute, match.Groups["ap"]))
             {
                 return false;
             }
         }
 
-        if (NoonPattern.IsMatch(sentence) && !times.Contains(Twelve(12, 0)))
+        if (NoonPattern.IsMatch(sentence) && !times.Contains((12, 0)))
         {
             return false;
         }
 
-        if (MidnightPattern.IsMatch(sentence) && !times.Contains(Twelve(0, 0)))
+        if (MidnightPattern.IsMatch(sentence) && !times.Contains((0, 0)))
         {
             return false;
         }
@@ -297,14 +297,27 @@ public static class AnswerChecks
             : string.Create(CultureInfo.InvariantCulture, $"{hour}:{local.Minute:00}");
     }
 
-    private static (int, int) Twelve(int hour, int minute) => (hour % 12, minute);
+    /// <summary>
+    /// Whether a clock time the sentence names is one of the data's: with am or pm it must be that
+    /// very time, so 10 pm never passes for a 10 am event; without, either half of the day will do.
+    /// </summary>
+    private static bool Names(HashSet<(int, int)> times, int hour, int minute, Group meridiem)
+    {
+        if (!meridiem.Success || hour > 12)
+        {
+            return times.Contains((hour, minute)) || times.Contains(((hour + 12) % 24, minute));
+        }
+
+        var pm = char.ToLowerInvariant(meridiem.Value[0]) == 'p';
+        return times.Contains((hour % 12 + (pm ? 12 : 0), minute));
+    }
 
     private static string OneLine(string text) => text.ReplaceLineEndings(" ").Trim();
 
     private static readonly string[] Months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 
     /// <summary>A clock time: "1:30", "13:30", "4 pm", "4pm", "4 p.m.". A bare number is not one.</summary>
-    private static readonly Regex ClockTimePattern = new(@"\b(?<h>\d{1,2})(?::(?<m>[0-5]\d)\s*(?:[ap]\.?m\b\.?)?|\s*(?:[ap]\.?m\b\.?))", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+    private static readonly Regex ClockTimePattern = new(@"\b(?<h>\d{1,2})(?::(?<m>[0-5]\d)\s*(?:(?<ap>[ap])\.?m\b\.?)?|\s*(?:(?<ap>[ap])\.?m\b\.?))", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
     private static readonly Regex NoonPattern = new(@"\bnoon\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
