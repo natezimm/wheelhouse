@@ -79,6 +79,8 @@ Describe it and Ask the calendar call Anthropic with the instance's own key ([AD
 2. Make an API key for it and put it in the instance's `.env` as `WHEELHOUSE_ANTHROPIC_API_KEY=...`, with `WHEELHOUSE_AI_ENABLED=true`.
 3. Restart that instance's API with `wh up -d api` (the helper in [the runbook](../docs/runbook.md#first-look)), or wait for the next release. `/health`'s `ai` check says `enabled: true`.
 
+On a family instance, turning them on sends the family's event titles, places and times for the days a parent asks about to Anthropic (never notes, and private events only as "Busy"). Google's Limited Use rules allow that only for a feature the user asked for and disclosed in the privacy policy; `/privacy` describes it on every instance, so tell the family before you set the line.
+
 To turn them off at once, set `WHEELHOUSE_AI_ENABLED=false` and restart the API. The daily budget (`Ai__DailyUnits`, 2 million units by default) and what each alert means are in the [runbook](../docs/runbook.md#ai-degraded).
 
 ## Change an instance's domain
