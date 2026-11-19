@@ -18,6 +18,8 @@ import { DemoNotice } from '../shared/demo-notice';
 import { DemoTour } from '../shared/demo-tour';
 import { DemoWelcome, rememberWelcomeSeen, welcomeSeen } from '../shared/demo-welcome';
 import { EventDetails } from '../shared/event-details';
+import type { AskAddAt } from '../shared/ask-panel';
+import { AskPanel } from '../shared/ask-panel';
 import { EventSearch, SearchPick } from '../shared/event-search';
 import { keepFocus } from '../shared/keep-focus';
 import { ShortcutHelp, shortcutOf } from '../shared/shortcut-help';
@@ -42,6 +44,7 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
 @Component({
   selector: 'app-calendar-home',
   imports: [
+    AskPanel,
     CalendarConnection,
     CalendarFilter,
     CalendarSaveStatus,
@@ -78,6 +81,12 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.6-3.6"></path></svg>
           Search
         </button>
+        @if (session.canAsk()) {
+          <button type="button" (click)="askAbout('')" [attr.aria-pressed]="asking() !== null" title="Ask the calendar (A)">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"></path></svg>
+            Ask
+          </button>
+        }
         <a routerLink="/settings">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
           Settings
@@ -136,7 +145,7 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
           }
           <app-calendar-save-status class="toast" />
           @if (helping()) {
-            <app-shortcut-help (closed)="helping.set(false)" />
+            <app-shortcut-help [ask]="session.canAsk()" (closed)="helping.set(false)" />
           }
           @if (selected(); as id) {
             <app-event-details [eventId]="id" [copy]="pickedCopy()" layout="desktop" (closed)="selected.set(null)" (edit)="edit($event)" (remove)="edit($event, true)" (duplicate)="duplicate($event)" />
@@ -216,7 +225,22 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
     }
 
     @if (searching()) {
-      <app-event-search [layout]="wide() ? 'desktop' : 'phone'" (closed)="searching.set(false)" (picked)="pick($event)" />
+      <app-event-search [layout]="wide() ? 'desktop' : 'phone'" [ask]="session.canAsk()" (closed)="searching.set(false)" (picked)="pick($event)" (askInstead)="askAbout($event)" />
+    }
+
+    @if (asking(); as question) {
+      <!-- Its own small chunk, fetched the first time someone asks, so the calendar loads no slower. -->
+      @defer (on immediate) {
+        <app-ask-panel
+          [layout]="wide() ? 'desktop' : 'phone'"
+          [question]="question.text"
+          (closed)="asking.set(null)"
+          (picked)="pick($event)"
+          (openDay)="openAnswerDay($event)"
+          (addAt)="addFromAnswer($event)"
+          (searchInstead)="searchFromAnswer()"
+        />
+      }
     }
 
     @if (touring()) {
@@ -573,6 +597,9 @@ export class CalendarHome {
   /** Whether search is open. */
   protected readonly searching = signal(false);
 
+  /** Ask the calendar, while open, with the question it started with (from Search's box, or none). */
+  protected readonly asking = signal<{ text: string } | null>(null);
+
   /** Whether the list of keyboard shortcuts is open. */
   protected readonly helping = signal(false);
 
@@ -582,7 +609,7 @@ export class CalendarHome {
   private readonly welcomeClosed = signal(welcomeSeen());
   // It steps aside while details, an editor or the shortcuts are open, so it never covers their buttons.
   protected readonly welcoming = computed(
-    () => this.session.isDemo() && this.shown() !== null && !this.welcomeClosed() && !this.selected() && !this.editing() && !this.helping() && !this.searching(),
+    () => this.session.isDemo() && this.shown() !== null && !this.welcomeClosed() && !this.selected() && !this.editing() && !this.helping() && !this.searching() && !this.asking(),
   );
 
   protected closeWelcome(): void {
@@ -680,7 +707,7 @@ export class CalendarHome {
    */
   protected shortcut(event: KeyboardEvent): void {
     const action = shortcutOf(event);
-    if (!action || !this.wide() || this.signingIn() || this.editing() || this.helping() || this.searching() || this.touring() || !this.period()) {
+    if (!action || !this.wide() || this.signingIn() || this.editing() || this.helping() || this.searching() || this.asking() || this.touring() || !this.period()) {
       return;
     }
     const id = this.selected();
@@ -716,6 +743,9 @@ export class CalendarHome {
         break;
       case 'search':
         this.searching.set(true);
+        break;
+      case 'ask':
+        if (this.session.canAsk()) this.askAbout('');
         break;
       case 'help':
         this.helping.set(true);
@@ -754,9 +784,35 @@ export class CalendarHome {
     if (!family) return;
     this.pickedCopy.set(cached ? null : event);
     this.searching.set(false);
+    this.asking.set(null);
     this.focus.set(event.startDate ?? dayIn(family.timeZone, event.startsAt!));
     if (!this.wide()) this.choose('day');
     this.selected.set(event.id);
+  }
+
+  /** Ask instead, from Search with what was typed there, or from the rail or the A key. */
+  protected askAbout(text: string): void {
+    this.searching.set(false);
+    this.asking.set({ text });
+  }
+
+  /** "Open Saturday" on an answer: that day in view, on a phone as Day, as a search pick shows it. */
+  protected openAnswerDay(day: Day): void {
+    this.asking.set(null);
+    this.focus.set(day);
+    if (!this.wide()) this.choose('day');
+  }
+
+  /** "Add event at 1:30 pm" on an answer opens a new event there, unsaved, as tapping the grid does. */
+  protected addFromAnswer({ day, time }: AskAddAt): void {
+    this.asking.set(null);
+    this.editing.set({ event: null, day, wide: this.wide(), at: time, deleting: false });
+  }
+
+  /** "Search instead" when Ask could not help. */
+  protected searchFromAnswer(): void {
+    this.asking.set(null);
+    this.searching.set(true);
   }
 
   /** A new event goes on the day in view, or on today when it is in the week shown, or the week's first day. */
