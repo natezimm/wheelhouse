@@ -58,7 +58,7 @@ public sealed class DescribeEval(ApiFactory factory, ITestOutputHelper output)
             builder.ConfigureTestServices(services => services.AddSingleton<TimeProvider>(new FrozenTime(frozenAt)));
         });
 
-        var rows = new List<(string Id, bool Basic, int Right, int Fields, List<string> Wrong)>();
+        var rows = new List<(string Id, bool Basic, int Right, int Fields, List<string> Wrong, List<string> Missed)>();
         HttpClient? visitor = null;
         FamilyResponse? family = null;
         IReadOnlyList<CalendarSourceResponse> calendars = [];
@@ -69,6 +69,8 @@ public sealed class DescribeEval(ApiFactory factory, ITestOutputHelper output)
             var basic = testCase.TryGetProperty("basic", out var b) && b.GetBoolean();
             var expect = testCase.GetProperty("expect");
             (int Right, int Fields, List<string> Wrong)? worst = null;
+            // A date, time or rule a basic case gets wrong in any run counts, not only the worst run's.
+            var missed = new SortedSet<string>(StringComparer.Ordinal);
             for (var run = 0; run < Runs; run++)
             {
                 // A fresh copy every few calls, so the AI rate limit of one caller is never reached.
@@ -84,13 +86,14 @@ public sealed class DescribeEval(ApiFactory factory, ITestOutputHelper output)
                 response.EnsureSuccessStatusCode();
                 var draft = (await response.Content.ReadFromJsonAsync<EventDraftResponse>(ApiFactory.Json))!;
                 var score = Score(expect, draft, family!, calendars);
+                missed.UnionWith(score.Wrong.Where(w => Exact.Contains(w)));
                 if (worst is null || score.Right * worst.Value.Fields < worst.Value.Right * score.Fields)
                 {
                     worst = score;
                 }
             }
 
-            rows.Add((id, basic, worst!.Value.Right, worst.Value.Fields, worst.Value.Wrong));
+            rows.Add((id, basic, worst!.Value.Right, worst.Value.Fields, worst.Value.Wrong, [.. missed]));
         }
 
         visitor?.Dispose();
@@ -103,12 +106,12 @@ public sealed class DescribeEval(ApiFactory factory, ITestOutputHelper output)
 
         var right = rows.Sum(r => r.Right);
         var fields = rows.Sum(r => r.Fields);
-        var exactMisses = rows.Where(r => r.Basic).SelectMany(r => r.Wrong.Where(w => Exact.Contains(w)).Select(w => $"{r.Id}.{w}")).ToList();
+        var exactMisses = rows.Where(r => r.Basic).SelectMany(r => r.Missed.Select(w => $"{r.Id}.{w}")).ToList();
         var summary = new StringBuilder()
             .AppendLine("### Describe it evaluation")
             .AppendLine()
             .AppendLine($"Field accuracy (worst of {Runs} runs): **{right}/{fields} = {100.0 * right / fields:F1}%** (bar 90%)  ")
-            .AppendLine($"Basic cases' date, time and rule fields wrong: **{exactMisses.Count}** (bar 0)  ")
+            .AppendLine($"Basic cases' date, time and rule fields wrong in any run: **{exactMisses.Count}** (bar 0)  ")
             .AppendLine($"Model calls: {modelCalls}, budget units: {units:N0} (about ${units / 1_000_000.0 * 0.10:F3})")
             .AppendLine()
             .AppendLine("| Case | Basic | Right | Wrong fields |")

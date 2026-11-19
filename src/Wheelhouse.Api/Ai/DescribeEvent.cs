@@ -18,7 +18,7 @@ public sealed record EventDraftOutput(
     [property: Description("A short title, without the day, time, place or people's names unless they are part of it.")] string? Title,
     [property: Description("The place, if the words name one; otherwise null.")] string? Location,
     [property: Description("True for an all-day event, which has no times.")] bool AllDay,
-    [property: Description("The first day, yyyy-MM-dd, read from the day table; null if the words give no day.")] string? StartDate,
+    [property: Description("The first day, yyyy-MM-dd, from the day table, or a named month and day on or after today; null if the words give no day.")] string? StartDate,
     [property: Description("The start, HH:mm on a 24-hour clock; null for all-day or when no time is given.")] string? StartTime,
     [property: Description("The last day for a timed event, or the day after the last for an all-day one, yyyy-MM-dd; null if not given.")] string? EndDate,
     [property: Description("The end, HH:mm on a 24-hour clock; null when not given.")] string? EndTime,
@@ -61,7 +61,8 @@ public sealed class DescribeEvent(IChatClient chat, WheelhouseDbContext db, Time
 
     public const string Instructions = """
         You turn a parent's short description of one calendar event into structured fields for a family calendar.
-        Read days only from the day table: "today", "tomorrow", "next Thursday", "the 12th" and so on become a date from it.
+        Read relative days from the day table: "today", "tomorrow", "next Thursday", "the 12th" and so on become a date from it.
+        A month and day the words name ("Nov 26", "March 14", "December 18th") is that date on or after today, even past the end of the table; take its year from today's date.
         "Next <weekday>" means the first such weekday after today. A weekday with no other word means the next one on or after today.
         Times are on a 24-hour clock in the family's own time zone. "3" or "at 3" for an appointment or activity means 15:00 unless the words say morning.
         If no end is given, leave EndDate and EndTime null. All-day events have no times.
