@@ -1,0 +1,37 @@
+name: AI evaluation
+
+# Runs the AI features against the real model with the evaluation cases in
+# tests/Wheelhouse.Api.Tests/AiEval/cases.json and writes a score table to the job summary.
+# Manual only: run it after changing a prompt and paste the summary into the pull request.
+# A full run costs about ten cents. Setup: docs/ai-eval.md.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-eval
+  cancel-in-progress: false
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      AI_EVAL_ANTHROPIC_KEY: ${{ secrets.AI_EVAL_ANTHROPIC_KEY }}
+    steps:
+      # Without the key the evaluation would only skip, so say so instead of passing quietly.
+      - name: Secret
+        run: |
+          if [ -z "$AI_EVAL_ANTHROPIC_KEY" ]; then
+            echo "::error::AI_EVAL_ANTHROPIC_KEY is not set. See docs/ai-eval.md."
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6
+        with:
+          global-json-file: global.json
+      - run: dotnet restore
+      - run: dotnet build --no-restore --configuration Release
+      - run: dotnet test --no-build --configuration Release --filter "Category=AiEval" --logger "console;verbosity=normal"

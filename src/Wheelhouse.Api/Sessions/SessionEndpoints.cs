@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.Extensions.Options;
+using Wheelhouse.Api.Ai;
 using Wheelhouse.Api.Auth;
 using Wheelhouse.Api.Instance;
 
@@ -15,16 +16,26 @@ public static class SessionEndpoints
     /// </summary>
     public static IEndpointRouteBuilder MapSession(this IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/session", (ClaimsPrincipal user, IOptions<InstanceOptions> instance, IOptions<GoogleSignInOptions> google) =>
-            new SessionResponse(
+        app.MapGet("/api/session", (ClaimsPrincipal user, IOptions<InstanceOptions> instance, IOptions<GoogleSignInOptions> google, IOptionsMonitor<AiOptions> ai) =>
+        {
+            var signedIn = user.HasClaim(claim => claim.Type == WheelhouseClaims.Family);
+            var display = user.HasClaim(claim => claim.Type == WheelhouseClaims.Device);
+            // The AI features are for a signed-in parent on an instance that has them on.
+            var asks = signedIn && !display && ai.CurrentValue.IsAvailable;
+            return new SessionResponse(
                 instance.Value.Mode,
-                SignedIn: user.HasClaim(claim => claim.Type == WheelhouseClaims.Family),
+                SignedIn: signedIn,
                 CanSignIn: instance.Value.Mode == InstanceMode.Family && google.Value.IsConfigured,
-                IsDisplay: user.HasClaim(claim => claim.Type == WheelhouseClaims.Device)))
+                IsDisplay: display,
+                Ai: new AiFeatures(Describe: asks, Ask: false));
+        })
             .AllowAnonymous();
 
         return app;
     }
 }
 
-public sealed record SessionResponse(InstanceMode Mode, bool SignedIn, bool CanSignIn, bool IsDisplay = false);
+public sealed record SessionResponse(InstanceMode Mode, bool SignedIn, bool CanSignIn, bool IsDisplay = false, AiFeatures? Ai = null);
+
+/// <summary>Which AI features this visitor can use, so the screens show only those that work.</summary>
+public sealed record AiFeatures(bool Describe, bool Ask);

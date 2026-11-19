@@ -26,4 +26,8 @@
     <ProjectReference Include="..\..\src\Wheelhouse.Api\Wheelhouse.Api.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="AiEval\cases.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

@@ -44,7 +44,10 @@ public sealed class AiPlumbingTests(ApiFactory factory)
         // Switched on without a key is still off, and no Anthropic client is ever made.
         await using var keyless = factory.Demo.WithWebHostBuilder(builder => builder.UseSetting("Ai:Enabled", true));
         Assert.False(keyless.Services.GetRequiredService<IOptions<AiOptions>>().Value.IsAvailable);
-        Assert.Throws<AiUnavailableException>(() => keyless.Services.GetRequiredKeyedService<IChatClient>(AiSetup.ModelKey));
+        var model = keyless.Services.GetRequiredKeyedService<IChatClient>(AiSetup.ModelKey);
+        Assert.Null(model.GetService<ChatClientMetadata>());
+        await Assert.ThrowsAsync<AiUnavailableException>(() => model.GetResponseAsync(Question));
+        Assert.Throws<AiUnavailableException>(() => model.GetStreamingResponseAsync(Question));
 
         using var client = factory.CreateClient();
         Assert.Equal("Healthy", await AiHealthAsync(client));
