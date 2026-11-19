@@ -33,12 +33,12 @@ export function describeHints(unclear: readonly string[]): string[] {
 @Component({
   selector: 'app-describe-card',
   template: `
-    <section class="describe" [class.done]="filled()" aria-labelledby="describe-label">
+    <section class="describe card" [class.done]="filled()" aria-labelledby="describe-label">
       <label id="describe-label" for="describe-text" class="label">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"></path></svg>
         Describe it
       </label>
-      <div class="row">
+      <div class="row field">
         <input
           id="describe-text"
           type="text"
@@ -85,8 +85,7 @@ export function describeHints(unclear: readonly string[]): string[] {
       display: grid;
       gap: 10px;
       padding: 14px;
-      border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
-      border-radius: 16px;
+      border: var(--control-border);
       background: color-mix(in srgb, var(--accent) 8%, var(--surface));
     }
 
@@ -102,21 +101,13 @@ export function describeHints(unclear: readonly string[]): string[] {
     .label svg { color: var(--accent); }
 
     .row {
-      display: flex;
+      flex-direction: row;
       gap: 8px;
     }
 
     input {
       flex: 1;
       min-width: 0;
-      box-sizing: border-box;
-      height: 48px;
-      padding: 0 12px;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      background: var(--surface);
-      color: var(--ink);
-      font: 400 16px var(--font-body);
     }
 
     input::placeholder { color: var(--muted); }
@@ -132,7 +123,7 @@ export function describeHints(unclear: readonly string[]): string[] {
     .example {
       min-height: 44px;
       padding: 6px 12px;
-      border: 1px solid var(--line);
+      border: var(--control-border);
       border-radius: var(--pill);
       background: var(--surface);
       color: var(--ink);
