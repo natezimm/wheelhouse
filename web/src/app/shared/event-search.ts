@@ -219,7 +219,7 @@ type SearchState =
       min-height: 44px;
       padding: 6px 14px;
       box-sizing: border-box;
-      border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+      border: var(--control-border);
       border-radius: var(--pill);
       background: color-mix(in srgb, var(--accent) 8%, var(--surface));
       color: var(--ink);

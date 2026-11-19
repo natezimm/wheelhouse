@@ -263,8 +263,8 @@ interface EventRow {
       box-sizing: border-box;
       height: 48px;
       padding: 0 14px;
-      border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
-      border-radius: 12px;
+      border: var(--control-border);
+      border-radius: var(--event-radius);
       background: var(--field);
       color: var(--ink);
       font: 500 16px var(--font-body);
@@ -301,7 +301,7 @@ interface EventRow {
     .example {
       min-height: 44px;
       padding: 6px 12px;
-      border: 1px solid var(--line);
+      border: var(--control-border);
       border-radius: var(--pill);
       background: var(--surface);
       color: var(--ink);
@@ -333,8 +333,8 @@ interface EventRow {
     .status .sentence {
       margin: 0;
       padding: 14px;
-      border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
-      border-radius: 16px;
+      border: var(--control-border);
+      border-radius: var(--event-radius);
       background: color-mix(in srgb, var(--accent) 8%, var(--surface));
       font-size: 18px;
       font-weight: 700;
@@ -354,7 +354,8 @@ interface EventRow {
       min-height: 48px;
       padding: 8px 14px;
       box-sizing: border-box;
-      border: 1px dashed color-mix(in srgb, var(--accent) 60%, var(--line));
+      border: var(--control-border);
+      border-style: dashed;
       border-radius: var(--event-radius-small);
       display: flex;
       align-items: center;
