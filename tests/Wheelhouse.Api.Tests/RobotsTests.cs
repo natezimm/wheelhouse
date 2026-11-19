@@ -15,6 +15,7 @@ public sealed class RobotsTests(ApiFactory factory)
         var lines = (await response.Content.ReadAsStringAsync()).Split('\n', StringSplitOptions.TrimEntries);
         Assert.Contains("User-agent: *", lines);
         Assert.Contains("Disallow: /", lines);
+        Assert.Equal(System.Net.HttpStatusCode.NotFound, (await stranger.GetAsync("/sitemap.xml")).StatusCode);
     }
 
     [Fact]
@@ -27,5 +28,13 @@ public sealed class RobotsTests(ApiFactory factory)
         Assert.DoesNotContain("Disallow: /", lines);
         Assert.Contains("Disallow: /api/", lines);
         Assert.Contains("Allow: /", lines);
+        Assert.Contains("Sitemap: https://calendar.nathanzimmerman.com/sitemap.xml", lines);
+
+        using var sitemap = await stranger.GetAsync("/sitemap.xml");
+        sitemap.EnsureSuccessStatusCode();
+        Assert.Equal("application/xml", sitemap.Content.Headers.ContentType?.MediaType);
+        var xml = System.Xml.Linq.XElement.Parse(await sitemap.Content.ReadAsStringAsync());
+        System.Xml.Linq.XNamespace ns = "http://www.sitemaps.org/schemas/sitemap/0.9";
+        Assert.Equal("https://calendar.nathanzimmerman.com/", Assert.Single(xml.Elements(ns + "url")).Element(ns + "loc")?.Value);
     }
 }

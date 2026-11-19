@@ -21,7 +21,7 @@ public sealed class AccessTests(ApiFactory factory)
             .Select(endpoint => endpoint.RoutePattern.RawText);
 
         Assert.Equal(
-            ["/api/auth/google", "/api/demo/visit", "/api/pairing/", "/api/pairing/{id:guid}/finish", "/api/session", "/health", "/robots.txt"],
+            ["/api/auth/google", "/api/demo/visit", "/api/pairing/", "/api/pairing/{id:guid}/finish", "/api/session", "/health", "/robots.txt", "/sitemap.xml"],
             open.Order());
     }
 

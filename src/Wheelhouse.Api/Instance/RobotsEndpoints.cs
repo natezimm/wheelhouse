@@ -16,6 +16,11 @@ public static class RobotsEndpoints
         app.MapGet("/robots.txt", (IOptions<InstanceOptions> instance) => Results.Text(
                 instance.Value.Mode == InstanceMode.Demo ? Demo : Family, "text/plain; charset=utf-8"))
             .AllowAnonymous();
+        app.MapGet("/sitemap.xml", (IOptions<InstanceOptions> instance) =>
+                instance.Value.Mode == InstanceMode.Demo
+                    ? Results.Text("""<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://calendar.nathanzimmerman.com/</loc></url></urlset>""", "application/xml")
+                    : Results.NotFound())
+            .AllowAnonymous();
         return app;
     }
 
@@ -32,6 +37,7 @@ public static class RobotsEndpoints
         Disallow: /api/
         Disallow: /hubs/
         Allow: /
+        Sitemap: https://calendar.nathanzimmerman.com/sitemap.xml
 
         """;
 }
