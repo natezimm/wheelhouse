@@ -6,6 +6,7 @@ import {
   EventDraft,
   STEP_MINUTES,
   copyOf,
+  fromDescription,
   draftOf,
   endAt,
   moveDays,
@@ -30,6 +31,8 @@ import { AvatarFace } from '../shared/avatar-face';
 import { RepeatPicker } from '../shared/repeat-picker';
 import { DateField } from '../shared/date-field';
 import { TimeWheel } from '../shared/time-wheel';
+import { DescribeCard, DESCRIBE_EXAMPLES } from '../shared/describe-card';
+import { DescribedEvent } from '../core/ai';
 import { Clock } from '../core/clock';
 
 /**
@@ -39,7 +42,7 @@ import { Clock } from '../core/clock';
  */
 @Component({
   selector: 'app-event-dialog',
-  imports: [AvatarFace, DateField, ModalFocus, RepeatPicker, TimeWheel],
+  imports: [AvatarFace, DateField, DescribeCard, ModalFocus, RepeatPicker, TimeWheel],
   template: `
     <div class="scrim" aria-hidden="true" (click)="!busy() && closed.emit()"></div>
     @if (draft(); as draft) {
@@ -60,6 +63,10 @@ import { Clock } from '../core/clock';
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
           </button>
         </div>
+
+        @if (describing()) {
+          <app-describe-card class="describe" [examples]="describeExamples()" (described)="fillFrom($event)" />
+        }
 
         <div class="fields">
           <fieldset class="field" [disabled]="busy() || uncertain()">
@@ -317,6 +324,9 @@ import { Clock } from '../core/clock';
       align-items: center;
       gap: 20px;
     }
+
+    /* Above the fields, which scroll beneath it. */
+    .describe { flex-shrink: 0; }
 
     .top .saves {
       margin-left: auto;
@@ -699,6 +709,9 @@ export class EventDialog {
   /** An event to start a new one from, as Duplicate in its details does. */
   readonly copy = input<CalendarEvent | null>(null);
 
+  /** Offers Describe it for a new event: on a desktop window, never on the wall, which has no keyboard. */
+  readonly describe = input(false);
+
   readonly closed = output<void>();
 
   protected readonly step = STEP_MINUTES;
@@ -751,6 +764,22 @@ export class EventDialog {
   protected readonly remindChoices = remindChoices;
   /** A display shows private events only as busy, so it cannot make one. */
   protected readonly isDisplay = this.session.isDisplay;
+
+  /** Describe it belongs to a new event only, never an edit or a copy. */
+  protected readonly describing = computed(() => !this.event() && !this.copy() && this.describe() && this.session.canDescribe());
+  protected readonly describeExamples = computed(() => (this.session.isDemo() ? DESCRIBE_EXAMPLES : null));
+
+  /** Fills the form with what Describe it read, unsaved; Save sends it as any new event. */
+  protected fillFrom(described: DescribedEvent): void {
+    const draft = this.draft();
+    const family = this.family.family();
+    const first = this.choices()[0];
+    if (!draft || !family || !first || this.busy() || this.uncertain()) return;
+    const writable = this.calendar.calendars().filter((c) => this.choices().some((choice) => choice.id === c.id));
+    this.edits.set(fromDescription(described, draft, writable, first.id, family.timeZone));
+    this.message.set(null);
+    this.titleMissing.set(false);
+  }
 
   protected readonly heading = computed(() => (this.event() ? 'Edit event' : 'New event'));
   protected readonly savesTo = computed(() => (this.session.isDemo() ? 'Saves to the demo calendar' : 'Saves to Google Calendar'));
