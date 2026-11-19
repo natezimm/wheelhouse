@@ -28,7 +28,7 @@ public static class SessionEndpoints
                 SignedIn: signedIn,
                 CanSignIn: instance.Value.Mode == InstanceMode.Family && google.Value.IsConfigured,
                 IsDisplay: display,
-                Ai: new AiFeatures(Describe: asks, Ask: false));
+                Ai: new AiFeatures(Describe: asks, Ask: asks));
         })
             .AllowAnonymous();
 
