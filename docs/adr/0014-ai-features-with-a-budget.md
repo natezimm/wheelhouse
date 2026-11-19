@@ -14,7 +14,7 @@ Two features want a language model: **Describe it** (a parent types "Milo's dent
 - **Off unless turned on.** `Ai:Enabled` and `Ai:AnthropicApiKey` must both be set; the demo sets them, a family instance does not by default. Only parents may ask.
 - **Spending is capped three times.** A prepaid Anthropic account with auto-reload off caps the worst case at its balance (about $10). A daily budget for the whole instance (`Ai:DailyUnits`, 2 million units of input tokens plus five times output tokens, about $0.20 a day) is kept in PostgreSQL (`AiUsage`, one row a UTC day), checked before every model call and charged after, inside the tool loop so every step counts. Rate limits (6 a minute, 40 an hour per caller, one in flight per caller, four per instance) keep one visitor from spending the day. A breaker stops calls for 10 minutes after Anthropic refuses the key or its credit.
 - **Whole answers, no streaming, no embeddings.** Answers are short and checked before they are shown, which streaming would defeat. The family's events fit a question's window without a vector index; pgvector can come later if search outgrows it.
-- **Privacy.** Send the typed words, member and calendar names, and for Ask only the events the tools read: a private event as "Busy", notes never. Never log or tag prompts, answers or an error's text.
+- **Privacy.** Send the typed words and member names, and for Ask only the events the tools read: a private event as "Busy", notes never. Never log or tag prompts, answers or an error's text.
 
 ## Consequences
 

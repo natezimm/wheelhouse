@@ -42,7 +42,8 @@ public sealed class FakeChatClient : IChatClient
         }
 
         var response = Answer?.Invoke(sent, options) ?? new ChatResponse(new ChatMessage(ChatRole.Assistant, Reply));
-        response.Usage ??= Usage;
+        // A copy each time: the tool loop adds each answer's usage into the first one's.
+        response.Usage ??= new UsageDetails { InputTokenCount = Usage.InputTokenCount, OutputTokenCount = Usage.OutputTokenCount };
         return Task.FromResult(response);
     }
 
