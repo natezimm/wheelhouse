@@ -68,6 +68,14 @@ type SearchState =
         </button>
       </div>
 
+      @if (ask()) {
+        <button type="button" class="ask-instead" (click)="askInstead.emit(query().trim())">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path><path d="M19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z"></path></svg>
+          Ask instead
+          <span class="ask-hint">“When are we all free Saturday?”</span>
+        </button>
+      }
+
       <p class="status" [class.lead]="advice()" role="status">{{ status() }}</p>
       @if (advice(); as advice) {
         <p class="advice">{{ advice }}</p>
@@ -204,6 +212,38 @@ type SearchState =
       cursor: pointer;
     }
 
+    /* Ask: a question about the calendar rather than words to find. */
+    .ask-instead {
+      align-self: flex-start;
+      max-width: 100%;
+      min-height: 44px;
+      padding: 6px 14px;
+      box-sizing: border-box;
+      border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+      border-radius: var(--pill);
+      background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+      color: var(--ink);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font: 700 14px var(--font-body);
+      cursor: pointer;
+    }
+
+    .ask-instead svg {
+      flex-shrink: 0;
+      color: var(--accent);
+    }
+
+    .ask-hint {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 500;
+      color: var(--muted);
+    }
+
     .status {
       margin: 4px 6px;
       font-size: 14px;
@@ -331,7 +371,11 @@ export class EventSearch {
   private readonly clock = inject(Clock);
 
   readonly layout = input<'desktop' | 'phone'>('desktop');
+  /** Whether Ask the calendar is offered, as "Ask instead" under the box. */
+  readonly ask = input(false);
   readonly closed = output<void>();
+  /** Ask instead, with what was typed so far. */
+  readonly askInstead = output<string>();
   /** An event picked from the results. */
   readonly picked = output<SearchPick>();
 

@@ -89,7 +89,7 @@ async function stub(page, path, look = {}) {
     const url = new URL(route.request().url()).pathname;
     const body =
       url === '/api/session'
-        ? { mode: 'Demo', signedIn: true, canSignIn: false, isDisplay: false, ai: { describe: true, ask: false } }
+        ? { mode: 'Demo', signedIn: true, canSignIn: false, isDisplay: false, ai: { describe: true, ask: true } }
         : url === '/api/family'
           ? { ...family, ...look }
           : url === '/api/calendar'
@@ -102,7 +102,16 @@ async function stub(page, path, look = {}) {
                   ? []
                   : url === '/api/calendar/search'
                     ? { events: events.slice(3, 6), total: 3, notCached: [], complete: true }
-                    : {};
+                    : url === '/api/ai/ask'
+                      ? {
+                          kind: 'free',
+                          sentence: 'Everyone is free 1–3 pm on Tuesday.',
+                          slots: [{ start: '2026-10-13T17:00:00Z', end: '2026-10-13T19:00:00Z', memberIds: [] }],
+                          events: events.slice(3, 5),
+                          changeNumber: 1,
+                          notCached: [],
+                        }
+                      : {};
     await route.fulfill({ status: 200, json: body });
   });
   await page.route('https://fonts.googleapis.com/**', (route) => route.fulfill({ status: 200, body: '', contentType: 'text/css' }));
@@ -210,6 +219,15 @@ for (const look of looks) {
     await page.keyboard.press('c');
     await expect(page.getByRole('dialog', { name: 'New event' }).getByRole('textbox', { name: 'Describe it' })).toBeVisible();
     await check('desktop new event with Describe it', DIALOG);
+    await page.getByRole('dialog', { name: 'New event' }).getByRole('button', { name: 'Close', exact: true }).click();
+    // Ask, from the A key, with its answer card.
+    await page.keyboard.press('a');
+    const ask = page.getByRole('dialog', { name: 'Ask the calendar' });
+    await check('desktop ask', DIALOG);
+    await ask.getByRole('textbox', { name: 'Your question' }).fill('When are we all free Tuesday?');
+    await ask.getByRole('button', { name: 'Ask', exact: true }).click();
+    await expect(ask.getByRole('status')).toHaveText('Everyone is free 1–3 pm on Tuesday.');
+    await check('desktop ask answer', DIALOG);
 
     expect(found, found.join('\n')).toEqual([]);
   });
@@ -255,6 +273,11 @@ for (const look of looks) {
     await page.clock.runFor(1000);
     await expect(page.getByRole('dialog', { name: 'Search events' }).getByRole('heading').first()).toBeVisible();
     await check('phone search', DIALOG);
+    await page.getByRole('button', { name: /Ask instead/ }).click();
+    const ask = page.getByRole('dialog', { name: 'Ask the calendar' });
+    await expect(ask.getByRole('status')).toHaveText('Everyone is free 1–3 pm on Tuesday.');
+    await check('phone ask answer', DIALOG);
+    await ask.getByRole('button', { name: 'Close', exact: true }).click();
     await page.goto('/settings');
     await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
     await check('phone settings');

@@ -1,4 +1,4 @@
-import { Component, output } from '@angular/core';
+import { Component, computed, input, output } from '@angular/core';
 import { ModalFocus } from './modal-focus';
 
 /** The keys a desktop window answers to, as `?` lists them. */
@@ -11,12 +11,13 @@ export const SHORTCUTS: readonly { keys: string[]; does: string }[] = [
   { keys: ['M'], does: 'Month view' },
   { keys: ['C'], does: 'New event' },
   { keys: ['/'], does: 'Search events' },
+  { keys: ['A'], does: 'Ask the calendar' },
   { keys: ['E'], does: 'Edit the open event' },
   { keys: ['Delete'], does: 'Delete the open event' },
   { keys: ['?'], does: 'Show these shortcuts' },
 ];
 
-export type Shortcut = 'today' | 'next' | 'previous' | 'day' | 'week' | 'month' | 'create' | 'search' | 'edit' | 'delete' | 'help';
+export type Shortcut = 'today' | 'next' | 'previous' | 'day' | 'week' | 'month' | 'create' | 'search' | 'ask' | 'edit' | 'delete' | 'help';
 
 const KEYS: Record<string, Shortcut> = {
   t: 'today',
@@ -29,6 +30,7 @@ const KEYS: Record<string, Shortcut> = {
   m: 'month',
   c: 'create',
   '/': 'search',
+  a: 'ask',
   e: 'edit',
   Delete: 'delete',
   Backspace: 'delete',
@@ -65,7 +67,7 @@ export function shortcutOf(event: KeyboardEvent): Shortcut | null {
         </button>
       </div>
       <dl>
-        @for (shortcut of shortcuts; track shortcut.does) {
+        @for (shortcut of shortcuts(); track shortcut.does) {
           <div>
             <dt>
               @for (key of shortcut.keys; track key; let last = $last) {
@@ -190,5 +192,7 @@ export function shortcutOf(event: KeyboardEvent): Shortcut | null {
 })
 export class ShortcutHelp {
   readonly closed = output<void>();
-  protected readonly shortcuts = SHORTCUTS;
+  /** Whether Ask is offered, so A is listed only where it does something. */
+  readonly ask = input(false);
+  protected readonly shortcuts = computed(() => SHORTCUTS.filter((shortcut) => this.ask() || shortcut.keys[0] !== 'A'));
 }
