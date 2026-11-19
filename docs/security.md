@@ -14,7 +14,7 @@ To report a vulnerability, see [SECURITY.md](../SECURITY.md).
 | Data Protection keys | The instance's `keys` volume, and each nightly backup | Decrypting the refresh token and forging any cookie for that instance |
 | The VAPID private key | `PushKeys`, encrypted with Data Protection | Sending notifications to the family's subscribed phones |
 | Push subscriptions | `ReminderSubscriptions` | A phone's push endpoint and keys; with the VAPID key, unwanted notifications |
-| Instance secrets: database password, Google OAuth client secret, parent email list | The instance's `.env` on the server, and each nightly backup | Combined with server access, everything above |
+| Instance secrets: database password, Google OAuth client secret, parent email list, Anthropic API key | The instance's `.env` on the server, and each nightly backup | Combined with server access, everything above; the Anthropic key alone spends the account's prepaid credit (at most what is on it, since auto-reload is off) |
 | Deploy access | GitHub secrets `GCP_SSH_KEY` and friends | Running anything on the server |
 
 The demo holds none of this: its families are fictional, it never calls Google, and every copy is deleted within the hour after it expires.
@@ -60,11 +60,23 @@ The tradeoff is that this leans on browsers always sending `Origin` on cross-ori
 
 ## Rate limits
 
-Every request counts against `Auth/RateLimits`: 600 a minute and 120 changes a minute, per signed-in family (its phones and walls together) or per address for anyone else. Asking for pairing codes (10 per 10 minutes per address), guessing them (10 a minute) and making demo copies (20 an hour per address) have their own, tighter limits. The limiter runs after authentication and before authorization, so a refused request still counts, and a family's partition comes from its encrypted cookie, which cannot be forged to drain another family's allowance.
+Every request counts against `Auth/RateLimits`: 600 a minute and 120 changes a minute, per signed-in family (its phones and walls together) or per address for anyone else. Asking for pairing codes (10 per 10 minutes per address), guessing them (10 a minute), making demo copies (20 an hour per address) and asking the AI features (6 a minute and 40 an hour, see below) have their own, tighter limits. The limiter runs after authentication and before authorization, so a refused request still counts, and a family's partition comes from its encrypted cookie, which cannot be forged to drain another family's allowance.
 
 The address is the visitor's own: the server's nginx appends it to `X-Forwarded-For`, the web container passes the header through, and the API takes only the last entry, so a visitor who sends their own `X-Forwarded-For` cannot pose as someone else. The API is reachable only from the web container, and the web container only on the server's loopback.
 
 Tradeoffs: fixed one-minute windows allow up to twice the limit across a window boundary, and limits are kept in memory, so a restart resets them. Both are fine for a single small server. The limits protect the server and the family's Google quota, not against a determined, distributed attacker, which is out of scope for one VM.
+
+## AI features and Anthropic
+
+When an instance turns on the AI features (`WHEELHOUSE_AI_ENABLED` and `WHEELHOUSE_ANTHROPIC_API_KEY`, [ADR 0014](adr/0014-ai-features-with-a-budget.md)), Anthropic becomes an outside service the API calls with the instance's own key. Both are off on a family instance unless the family chooses them, and the demo sends only its fictional families' text. What reaches the model, what it may do and what limits it:
+
+- **Who may ask.** Parents only (`Parent` policy), never a paired wall. The AI endpoints answer 404 while the features are off.
+- **What is sent.** The words a parent typed, the family's member names and calendar names, and for Ask the events the tools read: titles, places and times, with a private event sent as "Busy" and notes never sent. Anthropic's API does not train on API data and keeps it for a limited time under its commercial terms.
+- **What the model can do.** Nothing by itself: it proposes an unsaved draft or answers from read-only tools scoped to the asking family. Every save still goes through the editors and `/api/calendar/events`.
+- **Cost.** A prepaid account with auto-reload off caps the worst case at its balance. Inside that, `AiBudget` holds a daily ceiling for the whole instance (`Ai:DailyUnits`, input tokens plus five times output tokens, kept in the `AiUsage` table so restarts do not reset it), and `AiLimits` allows 6 questions a minute and 40 an hour per caller (the address on the demo, the family elsewhere), one in flight per caller and four for the instance. Each call has a 20 second timeout and one retry.
+- **A leaked or revoked key.** A 401, 403, 402 or a "credit balance" refusal opens `AiBreaker` for 10 minutes, so a bad key is not tried on every request; rotate it in `.env` and restart the API. The key never leaves the server, and is never logged: logs and telemetry name only an error's type and status, never a prompt, an answer or an error's text.
+
+The Anthropic SDK can emit OpenTelemetry spans, but its source is not one `Diagnostics/Telemetry.cs` exports, so no prompt reaches Grafana Cloud.
 
 ## Google tokens
 

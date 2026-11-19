@@ -49,7 +49,7 @@ for env_file in "$root"/*/.env; do
 done
 
 mkdir -p "$dir"
-# The .env holds the database password and, on a family instance, the Google client secret,
+# The .env holds the database password, the Anthropic key once set and, on a family instance, the Google client secret,
 # so only its owner can read it.
 (
   umask 077
@@ -62,7 +62,13 @@ mkdir -p "$dir"
       echo "WHEELHOUSE_GOOGLE_CLIENT_ID="
       echo "WHEELHOUSE_GOOGLE_CLIENT_SECRET="
       echo "WHEELHOUSE_PARENT_EMAILS="
+      echo "# AI features (docs/adr/0014-ai-features-with-a-budget.md): off on a family instance unless chosen."
+      echo "WHEELHOUSE_AI_ENABLED=false"
+    else
+      echo "# AI features (docs/adr/0014-ai-features-with-a-budget.md): on for the demo once a key is set."
+      echo "WHEELHOUSE_AI_ENABLED=true"
     fi
+    echo "WHEELHOUSE_ANTHROPIC_API_KEY="
   } > "$dir/.env"
 )
 echo "Created $dir/.env ($mode, port $port)"

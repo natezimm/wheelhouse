@@ -23,6 +23,22 @@ namespace Wheelhouse.Api.Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Wheelhouse.Api.Ai.AiUsage", b =>
+                {
+                    b.Property<DateOnly>("Day")
+                        .HasColumnType("date");
+
+                    b.Property<int>("Calls")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("Units")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Day");
+
+                    b.ToTable("AiUsage");
+                });
+
             modelBuilder.Entity("Wheelhouse.Api.Auth.UserAccount", b =>
                 {
                     b.Property<Guid>("Id")

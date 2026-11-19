@@ -1,6 +1,7 @@
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Wheelhouse.Api.Ai;
 using Wheelhouse.Api.Auth;
 using Wheelhouse.Api.Calendar;
 using Wheelhouse.Api.Chores;
@@ -37,6 +38,9 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
 
     /// <summary>The instance's VAPID key for push reminders. Not a family's: there is one row.</summary>
     public DbSet<PushKey> PushKeys => Set<PushKey>();
+
+    /// <summary>The instance's daily use of the AI model. Not a family's: one row a day for the instance.</summary>
+    public DbSet<AiUsage> AiUsage => Set<AiUsage>();
 
     public DbSet<Chore> Chores => Set<Chore>();
     public DbSet<ChorePlan> ChorePlans => Set<ChorePlan>();
@@ -163,6 +167,12 @@ public sealed partial class WheelhouseDbContext(DbContextOptions<WheelhouseDbCon
             key.Property(k => k.Id).ValueGeneratedNever();
             key.Property(k => k.PublicKey).HasMaxLength(128);
             key.Property(k => k.EncryptedPrivateKey).HasMaxLength(1024);
+        });
+
+        modelBuilder.Entity<AiUsage>(usage =>
+        {
+            usage.ToTable("AiUsage");
+            usage.HasKey(u => u.Day);
         });
 
         modelBuilder.Entity<EventInstance>(instance =>
