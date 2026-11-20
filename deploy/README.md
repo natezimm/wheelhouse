@@ -71,6 +71,16 @@ Once, in the same Google Cloud project as sign-in:
 
 Then, signed in as a parent, open **Settings → Calendars → Connect Google Calendar** on a phone, pick the shared account, and allow calendar access. Choose which calendars show and whose each one is. If Google later stops accepting the connection (its password changed, or access was removed in the account), Settings says so and offers to connect again.
 
+## AI features
+
+Describe it and Ask the calendar call Anthropic with the instance's own key ([ADR 0014](../docs/adr/0014-ai-features-with-a-budget.md)). They stay off until both lines in the instance's `.env` are set; `new-instance.sh` writes `WHEELHOUSE_AI_ENABLED=true` for a demo and `false` for a family instance.
+
+1. In the [Anthropic Console](https://console.anthropic.com), make an organization for the instance (or a workspace in yours), buy prepaid credit (about $10 is months of demo use) and leave **auto-reload off**, so the balance is the most a leaked key can spend.
+2. Make an API key for it and put it in the instance's `.env` as `WHEELHOUSE_ANTHROPIC_API_KEY=...`, with `WHEELHOUSE_AI_ENABLED=true`.
+3. Restart that instance's API with `wh up -d api` (the helper in [the runbook](../docs/runbook.md#first-look)), or wait for the next release. `/health`'s `ai` check says `enabled: true`.
+
+To turn them off at once, set `WHEELHOUSE_AI_ENABLED=false` and restart the API. The daily budget (`Ai__DailyUnits`, 2 million units by default) and what each alert means are in the [runbook](../docs/runbook.md#ai-degraded).
+
 ## Change an instance's domain
 
 An instance can start on one domain, such as a subdomain, and move to another later. Keep the old domain working until everyone has moved.

@@ -53,6 +53,11 @@ services:
       Wheelhouse__ParentEmails: ${WHEELHOUSE_PARENT_EMAILS:-}
       Google__ClientId: ${WHEELHOUSE_GOOGLE_CLIENT_ID:-}
       Google__ClientSecret: ${WHEELHOUSE_GOOGLE_CLIENT_SECRET:-}
+      # Optional: the AI features (Describe it, Ask the calendar; ADR 0014). Off unless both are set: the key
+      # is the instance's own, on an Anthropic account with prepaid credit and auto-reload off. The demo
+      # turns them on; a family instance leaves them off unless the family chooses otherwise.
+      Ai__Enabled: ${WHEELHOUSE_AI_ENABLED:-false}
+      Ai__AnthropicApiKey: ${WHEELHOUSE_ANTHROPIC_API_KEY:-}
       # Optional: send traces, metrics and logs to Grafana Cloud (docs/observability.md). Empty sends nothing.
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
       OTEL_EXPORTER_OTLP_HEADERS: ${OTEL_EXPORTER_OTLP_HEADERS:-}

@@ -18,6 +18,7 @@ flowchart LR
   GoogleCal["Google Calendar API<br/>shared family account"]
   Meteo["Open-Meteo<br/>forecast, no key"]
   PushSvc["Browser push services<br/>Google, Mozilla, Apple, Microsoft"]
+  Anthropic["Anthropic API<br/>AI features, when turned on"]
 
   Parent -->|"signs in, edits events, manages Settings"| Wheelhouse
   Family -->|"reads the week, adds and moves events"| Wheelhouse
@@ -27,13 +28,14 @@ flowchart LR
   Wheelhouse -->|"today and next seven days"| Meteo
   Wheelhouse -->|"encrypted reminders"| PushSvc
   PushSvc -->|"notification"| Parent
+  Wheelhouse -.->|"a parent's words, read-only answers"| Anthropic
 
   classDef user fill:#f8fafc,stroke:#475569,color:#0f172a
   classDef server fill:#ffedd5,stroke:#c2410c,color:#7c2d12
   classDef external fill:#fee2e2,stroke:#b91c1c,color:#7f1d1d
   class Parent,Family,Visitor user
   class Wheelhouse server
-  class GoogleId,GoogleCal,Meteo,PushSvc external
+  class GoogleId,GoogleCal,Meteo,PushSvc,Anthropic external
 ```
 
 The demo never calls Google. Each visitor gets a 24-hour copy of the fictional Marlowe family, seeded relative to the day it is made ([`Demo/DemoSeedData.cs`](../src/Wheelhouse.Api/Demo/DemoSeedData.cs)).
@@ -66,6 +68,7 @@ flowchart TB
   Push["Browser push services"]
   Monitor["Cloud Monitoring<br/>uptime checks, email alerts"]
   Grafana["Grafana Cloud<br/>traces, metrics, logs"]
+  Anthropic["Anthropic API<br/>Claude Haiku"]
 
   Wall & Phone -->|"HTTPS, cookie"| Web
   Monitor -->|"GET /health every 5 min"| Web
@@ -83,6 +86,7 @@ flowchart TB
   Endpoints -->|"forecast"| Meteo
   Endpoints -.-> Keys
   Api -.->|"OTLP, when configured"| Grafana
+  Endpoints -.->|"AI features, when turned on; daily budget"| Anthropic
 
   classDef client fill:#dcfce7,stroke:#15803d,color:#14532d
   classDef site fill:#e0f2fe,stroke:#0369a1,color:#0c4a6e
@@ -93,12 +97,13 @@ flowchart TB
   class Web site
   class Endpoints,Hub,Live,Sync,Remind,Ctx server
   class Db,Keys data
-  class Google,Meteo,Push,Grafana external
+  class Google,Meteo,Push,Grafana,Anthropic external
 ```
 
 - **Browser app.** State lives in root-provided stores under [`web/src/app/core/`](../web/src/app/core/) that expose read-only signals. [`CalendarStore`](../web/src/app/core/calendar.ts) keeps the last confirmed snapshot and draws pending edits over it; [`CalendarLive`](../web/src/app/core/calendar-live.ts) owns the single SignalR connection and a 30-second recovery check.
 - **API.** Each feature folder (`Calendar`, `Families`, `Devices`, `Auth`, `Demo`, `Weather` and others) has a `MapX()` extension that [`Program.cs`](../src/Wheelhouse.Api/Program.cs) calls. Every endpoint needs a sign-in unless it opts out, and a test fails if the anonymous list changes.
 - **Telemetry.** With `OTEL_EXPORTER_OTLP_ENDPOINT` set, the API sends OpenTelemetry traces, metrics and logs straight to Grafana Cloud, with no collector on the VM ([observability](observability.md), [ADR 0013](adr/0013-opentelemetry-without-a-collector.md)).
+- **AI features.** When an instance turns them on, the `Ai` feature calls Anthropic through Microsoft.Extensions.AI's `IChatClient`, behind a daily budget kept in the database, a breaker and its own rate limits. The model never saves anything ([ADR 0014](adr/0014-ai-features-with-a-budget.md), [security](security.md#ai-features-and-anthropic)).
 - **Database.** Every family-owned table gets a query filter on the signed-in family ([`WheelhouseDbContext`](../src/Wheelhouse.Api/Data/WheelhouseDbContext.cs)), so a query that forgets the family returns nothing rather than another family's rows. See [ADR 0002](adr/0002-family-scoping-in-the-db-context.md).
 - **Sign-in.** One encrypted cookie carries the family's id. Parents get it from Google sign-in, a wall display from a six-digit pairing code, and a demo visitor from `POST /api/demo/visit`. Each request re-checks the account or device, so removing one signs it out at once.
 

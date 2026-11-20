@@ -44,6 +44,16 @@ The **calendar is behind Google** alert: `/health`'s `calendar` check has not be
 - **"Google asked Wheelhouse to slow down":** Google rate-limited the account. The worker backs off by itself (doubling up to 30 minutes, never sooner than Google asked) and clears once a sync works; nothing to do unless it lasts hours, when the Calendar API's quota page in the Google Cloud console shows why.
 - **"The last calendar sync failed":** look for `Could not sync the calendars of family` in the log. A Google outage clears by itself; a 403 for quota or a disabled Calendar API needs the Google Cloud console (APIs & Services).
 
+## AI degraded
+
+`/health`'s `ai` check is Degraded (it never fails `/health`, and the screens offer the plain form meanwhile). Its `description` says which case; `data.enabled` is false when the instance has the features off.
+
+- **"Anthropic refused the key or its credit":** the breaker stops calls for 10 minutes (`breakerSeconds` says how long is left) after a 401, 403, 402 or a low credit balance. Check the account's balance and the key in the Anthropic Console. Top up the prepaid credit (auto-reload stays off), or make a new key, put it in the instance's `.env` as `WHEELHOUSE_ANTHROPIC_API_KEY` and `wh up -d api`.
+- **"Today's AI budget is spent":** the instance reached `Ai:DailyUnits` for the UTC day. It clears at midnight UTC. If it happens often, someone may be scripting the demo: the request log names the address, and `select * from "AiUsage" order by "Day" desc limit 7;` in `wh exec db psql -U wheelhouse` shows the last week's use.
+- **"The model's last call failed":** a timeout, an overload or an outage at Anthropic. It clears with the next answer; look for `The model call failed` in the log for the error type and status.
+
+To turn the features off at once, set `WHEELHOUSE_AI_ENABLED=false` in the instance's `.env` and `wh up -d api`; the endpoints then answer 404 and the screens hide the entry points.
+
 ## Certificate expiring
 
 The **certificate expires soon** alert: the HTTPS certificate expires within 14 days, so certbot's automatic renewal has stopped. On the VM, `sudo certbot renew --dry-run` shows why (usually the domain's DNS no longer points at the VM, or port 80 is blocked), then `sudo certbot renew` and `sudo systemctl reload nginx`.

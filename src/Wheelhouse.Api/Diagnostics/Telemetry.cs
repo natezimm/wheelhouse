@@ -41,6 +41,14 @@ public static class WheelhouseTelemetry
     /// <summary>Errors browsers reported through /api/client-errors.</summary>
     public static readonly Counter<long> ClientErrors =
         Meter.CreateCounter<long>("wheelhouse.client_errors", "{error}", "Errors reported by browsers.");
+
+    /// <summary>Calls to the AI model, tagged with how each went (answered, failed, refused, over budget, breaker open).</summary>
+    public static readonly Counter<long> AiCalls =
+        Meter.CreateCounter<long>("wheelhouse.ai.calls", "{call}", "Calls to the AI model, by outcome.");
+
+    /// <summary>Budget units the model's answers cost: input tokens plus five times output tokens.</summary>
+    public static readonly Counter<long> AiUnits =
+        Meter.CreateCounter<long>("wheelhouse.ai.units", "{unit}", "AI budget units spent.");
 }
 
 /// <summary>

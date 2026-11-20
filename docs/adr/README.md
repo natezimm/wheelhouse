@@ -17,3 +17,4 @@ Short records of the choices that shape Wheelhouse: the context at the time, wha
 | [0011](0011-performance-budget-in-ci.md) | A performance budget in CI: sizes held tightly, time loosely | Accepted |
 | [0012](0012-threat-model-and-security-tradeoffs.md) | A written threat model, and the security tradeoffs it accepts | Accepted |
 | [0013](0013-opentelemetry-without-a-collector.md) | OpenTelemetry, sent straight to a free hosted backend | Accepted |
+| [0014](0014-ai-features-with-a-budget.md) | AI features through Microsoft.Extensions.AI, behind a budget that cannot overspend | Accepted |

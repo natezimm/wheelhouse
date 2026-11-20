@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Wheelhouse.Api.Ai;
 using Wheelhouse.Api.Auth;
 using Wheelhouse.Api.Calendar;
 using Wheelhouse.Api.Data;
@@ -27,7 +28,8 @@ builder.Services.AddDbContext<WheelhouseDbContext>((services, options) =>
 builder.Services.AddHealthChecks()
     .AddDbContextCheck<WheelhouseDbContext>("database")
     .AddCheck<CalendarSyncHealth>("calendar")
-    .AddCheck<WeatherHealth>("weather");
+    .AddCheck<WeatherHealth>("weather")
+    .AddCheck<AiHealth>("ai");
 
 // Requests reach the API through the server's nginx, which terminates HTTPS, then the web
 // container's. Take the visitor's scheme and address from the X-Forwarded headers the server's
@@ -47,6 +49,7 @@ builder.Services.AddWeather();
 builder.Services.AddGoogleCalendar();
 builder.Services.AddCalendarLive();
 builder.Services.AddReminders();
+builder.Services.AddAi();
 
 // Traces, metrics and logs over OTLP, only when an endpoint is set (docs/observability.md).
 builder.AddTelemetry();
