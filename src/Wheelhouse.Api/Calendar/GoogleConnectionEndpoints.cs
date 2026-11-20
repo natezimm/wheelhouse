@@ -27,6 +27,7 @@ public static class GoogleConnectionEndpoints
             .AddHttpMessageHandler(provider => new GoogleRateLimitHandler(provider.GetRequiredService<TimeProvider>()));
         services.AddOptions<CalendarSyncOptions>().BindConfiguration(CalendarSyncOptions.Section);
         services.AddScoped<CalendarSync>();
+        services.AddScoped<CalendarReader>();
         services.AddSingleton<CalendarSyncTrigger>();
         services.AddSingleton<CalendarSyncHealth>();
         services.AddHostedService<CalendarSyncService>();
