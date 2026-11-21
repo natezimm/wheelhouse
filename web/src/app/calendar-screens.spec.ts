@@ -779,6 +779,7 @@ describe('calendar screens', () => {
     it('finds events with / and opens a picked one on its day, with its details', async () => {
       const { page, settle } = await open('/', { from: '2026-10-12', to: '2026-10-19' });
       expect(shortcutOf(new KeyboardEvent('keydown', { key: '/' }))).toBe('search');
+      expect(shortcutOf(new KeyboardEvent('keydown', { key: 'a' }))).toBe('ask');
 
       document.dispatchEvent(new KeyboardEvent('keydown', { key: '/', bubbles: true, cancelable: true }));
       await settle();
