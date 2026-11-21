@@ -26,6 +26,7 @@ public static class AiSetup
         services.AddSingleton<AiLimits>();
         services.AddScoped<AiBudget>();
         services.AddScoped<DescribeEvent>();
+        services.AddScoped<AskCalendar>();
 
         services.AddKeyedSingleton<IChatClient>(ModelKey, (provider, _) =>
         {
@@ -47,7 +48,8 @@ public static class AiSetup
         });
 
         services.AddSingleton(provider => new ChatClientBuilder(provider.GetRequiredKeyedService<IChatClient>(ModelKey))
-            .UseFunctionInvocation(configure: loop =>
+            // No logger, so no log level can ever put the tools' arguments or results, which hold event titles, in the log.
+            .UseFunctionInvocation(Microsoft.Extensions.Logging.Abstractions.NullLoggerFactory.Instance, loop =>
             {
                 loop.MaximumIterationsPerRequest = MaxToolRounds;
                 // A tool's exception text never reaches the model, or the screens.

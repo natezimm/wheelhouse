@@ -13,9 +13,17 @@ Each case runs **three times** and counts its worst run, since the model's answe
 - at least **90%** of all expected fields right, and
 - **every** all-day, date, time and rule field right on the basic cases.
 
+**Ask the calendar** (13 questions about the seeded week, and 7 it must refuse or answer with "not synced", one of them a seeded title that gives the model orders): each case names the tools that answer it and the days, people and hours they should be asked about, the answer's kind, the free times it may give, the events it must cite (`cite`) and the others it may (`mayCite`). The model's tool calls are recorded on the way, and the answer is scored as it reaches a screen, after `AnswerChecks`. The bars:
+
+- the right tool with the right days, people and hours on at least **90%** of the questions;
+- the right kind (and only expected free times) on at least **90%** of all cases;
+- **no** case citing an event outside `cite` and `mayCite`;
+- at least **80%** of the `cite` events cited, over all cases; and
+- **every** refusal right: off topic, a change ("I can't change the calendar"), or not synced, with nothing cited and no time offered.
+
 ## Running it
 
-In GitHub: add the repository secret `AI_EVAL_ANTHROPIC_KEY` (a key on a prepaid account, separate from the instances' keys so their budgets are not touched), then run **AI evaluation** from the Actions tab. The job summary has the score table, the model calls and the units spent. A full run costs about ten cents.
+In GitHub: add the repository secret `AI_EVAL_ANTHROPIC_KEY` (a key on a prepaid account, separate from the instances' keys so their budgets are not touched), then run **AI evaluation** from the Actions tab. The job summary has the score table, the model calls and the units spent. A full run costs about twenty cents.
 
 Locally, with Docker running:
 
@@ -27,4 +35,4 @@ Without the key the tests are skipped, so pull requests and `dotnet test` never 
 
 ## When to run it
 
-After any change to a prompt (`DescribeEvent.Instructions` or what `DescribeEvent.Prompt` sends), to the model or its options, or to `DraftChecks`. Paste the job summary into the pull request. A case that fails because the words are truly ambiguous is a case to reword, not a bar to lower.
+After any change to a prompt (`DescribeEvent.Instructions`, `AskCalendar.Instructions`, what their `Prompt` sends, or the tools' descriptions and results in `CalendarTools`), to the model or its options, or to `DraftChecks` or `AnswerChecks`. Paste the job summary into the pull request. A case that fails because the words are truly ambiguous is a case to reword, not a bar to lower.

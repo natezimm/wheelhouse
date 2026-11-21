@@ -15,6 +15,7 @@ public static class AiEndpoints
     public static IEndpointRouteBuilder MapAi(this IEndpointRouteBuilder app)
     {
         app.MapPost("/api/ai/describe", Describe).RequireAuthorization(Policies.Parent).RequireAi();
+        app.MapPost("/api/ai/ask", Ask).RequireAuthorization(Policies.Parent).RequireAi();
         return app;
     }
 
@@ -32,6 +33,23 @@ public static class AiEndpoints
 
         return await describe.DescribeAsync(text, cancellationToken) is { } draft
             ? TypedResults.Ok(draft)
+            : TypedResults.NotFound();
+    }
+
+    private static async Task<Results<Ok<AskResponse>, ValidationProblem, NotFound>> Ask(
+        AskRequest request, AskCalendar ask, CancellationToken cancellationToken)
+    {
+        var question = request.Question?.Trim() ?? "";
+        if (question.Length is 0 or > AskCalendar.MaxQuestion)
+        {
+            return TypedResults.ValidationProblem(new Dictionary<string, string[]>
+            {
+                ["question"] = [$"Ask in 1 to {AskCalendar.MaxQuestion} characters."],
+            });
+        }
+
+        return await ask.AskAsync(question, cancellationToken) is { } answer
+            ? TypedResults.Ok(answer)
             : TypedResults.NotFound();
     }
 }
@@ -57,7 +75,7 @@ public static class AiEndpointFilters
                 ? ((int)Math.Ceiling(after.TotalSeconds)).ToString()
                 : "10";
             return TypedResults.Problem(
-                title: "Too many questions for now. Try again in a minute, or fill in the form yourself.",
+                title: "Too many questions for now. Try again in a minute.",
                 statusCode: StatusCodes.Status429TooManyRequests);
         }
 
@@ -70,8 +88,8 @@ public static class AiEndpointFilters
             http.Response.Headers.RetryAfter = ((int)Math.Ceiling(unavailable.RetryAfter.TotalSeconds)).ToString();
             return TypedResults.Problem(
                 title: unavailable.Reason == AiUnavailableReason.Budget
-                    ? "The assistant has done its share for today. Fill in the form yourself, or try again tomorrow."
-                    : "The assistant is not answering right now. Fill in the form yourself, or try again in a moment.",
+                    ? "The assistant has done its share for today. Try again tomorrow."
+                    : "The assistant is not answering right now. Try again in a moment.",
                 statusCode: StatusCodes.Status503ServiceUnavailable,
                 extensions: new Dictionary<string, object?> { ["reason"] = unavailable.Reason.ToString() });
         }
