@@ -25,13 +25,14 @@ public static class AiSetup
         services.AddSingleton<AiHealth>();
         services.AddSingleton<AiLimits>();
         services.AddScoped<AiBudget>();
+        services.AddScoped<DescribeEvent>();
 
         services.AddKeyedSingleton<IChatClient>(ModelKey, (provider, _) =>
         {
             var options = provider.GetRequiredService<IOptions<AiOptions>>().Value;
             if (!options.IsAvailable)
             {
-                throw new AiUnavailableException(AiUnavailableReason.Failed, BudgetedChatClient.RetryFailedAfter);
+                return new NoModel();
             }
 
             // The SDK's own HttpClient: one retry for a dropped connection, a 429 or a 5xx, and a short
@@ -61,5 +62,21 @@ public static class AiSetup
             .Build(provider));
 
         return services;
+    }
+
+    /// <summary>The model on an instance with the features off: never asked, since the endpoints answer 404 first.</summary>
+    private sealed class NoModel : IChatClient
+    {
+        public Task<ChatResponse> GetResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default) =>
+            throw new AiUnavailableException(AiUnavailableReason.Failed, BudgetedChatClient.RetryFailedAfter);
+
+        public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default) =>
+            throw new AiUnavailableException(AiUnavailableReason.Failed, BudgetedChatClient.RetryFailedAfter);
+
+        public object? GetService(Type serviceType, object? serviceKey = null) => null;
+
+        public void Dispose()
+        {
+        }
     }
 }

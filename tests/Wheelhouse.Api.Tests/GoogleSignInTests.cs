@@ -143,7 +143,7 @@ public sealed class GoogleSignInTests(ApiFactory factory)
         Assert.Equal(HttpStatusCode.NotFound, (await unconfigured.GetAsync("/api/auth/google")).StatusCode);
         Assert.False((await unconfigured.GetFromJsonAsync<SessionResponse>("/api/session", ApiFactory.Json))!.CanSignIn);
         Assert.Equal(
-            new SessionResponse(InstanceMode.Family, SignedIn: false, CanSignIn: true),
+            new SessionResponse(InstanceMode.Family, SignedIn: false, CanSignIn: true, Ai: new AiFeatures(false, false)),
             await configured.GetFromJsonAsync<SessionResponse>("/api/session", ApiFactory.Json));
     }
 
@@ -160,7 +160,7 @@ public sealed class GoogleSignInTests(ApiFactory factory)
         var member = Assert.Single(family.Members);
         Assert.Equal(("Alex", "A", MemberRole.Parent, "#2F5FC4"), (member.DisplayName, member.Initial, member.Role, member.Color));
         Assert.Equal(
-            new SessionResponse(InstanceMode.Family, SignedIn: true, CanSignIn: true),
+            new SessionResponse(InstanceMode.Family, SignedIn: true, CanSignIn: true, Ai: new AiFeatures(false, false)),
             await alex.GetFromJsonAsync<SessionResponse>("/api/session", ApiFactory.Json));
     }
 

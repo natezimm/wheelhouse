@@ -91,6 +91,7 @@ app.MapCalendarEvents();
 app.MapGoogleConnection();
 app.MapWeather();
 app.MapReminders();
+app.MapAi();
 app.MapClientErrors();
 
 app.Run();
