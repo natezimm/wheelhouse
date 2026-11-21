@@ -18,6 +18,7 @@ A family calendar for the kitchen wall and every phone in the house, built on th
 - **Edit from anywhere.** Add, change, duplicate and delete events, drag them to another time or day, pull an edge to change the length, and set repeats from "every weekday" to "the second Tuesday, ten times". Undo for ten seconds after changing or deleting one event.
 - **Live everywhere.** A change on one screen appears on every other within a second or two, and edits made in Google's own apps arrive within two minutes.
 - **Reminders on your phone.** Each phone chooses how early (5 minutes to 2 hours) and whose events, and any event can have its own time instead, such as an hour before soccer or a day before a trip. Tapping a notification opens the event. On an iPhone, add Wheelhouse to the Home Screen first.
+- **Describe it.** Type a new event in plain words, such as "Nora soccer every Tuesday 5:15 to 6:15 at Riverside Park until June", and Claude Haiku fills in the editor: title, place, times, people and the repeat rule. Nothing is saved until you check it and press Save. On in the demo, off on a family's instance unless they choose it.
 - **Family settings** on the phone: members and their colors and pictures, which Google calendars show and whose they are, paired wall displays, private events, and four themes (Daylight, Groovy, Classic, Bold), each with a night look.
 
 <p>
@@ -39,6 +40,7 @@ A family calendar for the kitchen wall and every phone in the house, built on th
 - **Optimistic edits with idempotent retries.** The screen draws a change at once over the last confirmed snapshot and rolls back only the edit that failed. A save that timed out offers Check save, which reads the day before retrying, and a retried create reuses the same `creationId`, which maps to one deterministic Google event id, so it cannot make a duplicate. ([`calendar.ts`](web/src/app/core/calendar.ts), [`EventIdentity.cs`](src/Wheelhouse.Api/Calendar/EventIdentity.cs))
 - **Live updates from committed change numbers.** Each family has a change number that advances in the same transaction as the calendar change. A background service publishes committed numbers over SignalR, carrying no event data, and clients fetch their visible days, so only committed state is ever announced and the read path's privacy rules are the only ones. ([ADR 0003](docs/adr/0003-per-family-change-numbers.md))
 - **Family isolation by default.** Every family-owned table gets an EF Core query filter on the signed-in family, so a query that forgets the family returns nothing rather than someone else's events. ([ADR 0002](docs/adr/0002-family-scoping-in-the-db-context.md), [`WheelhouseDbContext.cs`](src/Wheelhouse.Api/Data/WheelhouseDbContext.cs))
+- **AI that keeps the product's guarantees.** Describe it asks Claude Haiku for structured output through Microsoft.Extensions.AI and trusts none of it: C# checks every date, clock-change gap, repeat rule and person before the editor shows the draft, and the model can never save. Every call passes a daily budget kept in the database, a breaker for a refused key and its own rate limits, and an on-demand evaluation scores the real model on fixed cases. ([ADR 0014](docs/adr/0014-ai-features-with-a-budget.md), [`DraftChecks.cs`](src/Wheelhouse.Api/Ai/DraftChecks.cs))
 - **Staged, automatic releases.** Every merge to `main` is tested again, tagged, built into images and deployed to the demo first; only after the demo passes a browser smoke check do the family instances move. Each deploy snapshots the database first, and backups go to Cloud Storage nightly. ([`release.yml`](.github/workflows/release.yml), [deploy guide](deploy/README.md))
 
 ## Architecture
@@ -164,7 +166,7 @@ Also not built yet: an offline write queue, dimming the wall to a clock at night
 
 ## Secrets
 
-Nothing secret belongs in this repository. The only password in it is the local development database default. Real credentials live in each server instance's `.env`, outside git. To report a vulnerability, see [SECURITY.md](SECURITY.md).
+Nothing secret belongs in this repository. The only password in it is the local development database default. Real credentials (the database password, Google's OAuth client and, where the AI features are on, the Anthropic key) live in each server instance's `.env`, outside git. To report a vulnerability, see [SECURITY.md](SECURITY.md).
 
 ## License
 

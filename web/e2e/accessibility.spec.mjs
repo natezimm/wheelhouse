@@ -89,7 +89,7 @@ async function stub(page, path, look = {}) {
     const url = new URL(route.request().url()).pathname;
     const body =
       url === '/api/session'
-        ? { mode: 'Demo', signedIn: true, canSignIn: false, isDisplay: false }
+        ? { mode: 'Demo', signedIn: true, canSignIn: false, isDisplay: false, ai: { describe: true, ask: false } }
         : url === '/api/family'
           ? { ...family, ...look }
           : url === '/api/calendar'
@@ -205,6 +205,11 @@ for (const look of looks) {
     await page.keyboard.press('Shift+Slash');
     await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible();
     await check('desktop shortcuts', DIALOG);
+    await page.keyboard.press('Escape');
+    // A new event opens with Describe it above the form.
+    await page.keyboard.press('c');
+    await expect(page.getByRole('dialog', { name: 'New event' }).getByRole('textbox', { name: 'Describe it' })).toBeVisible();
+    await check('desktop new event with Describe it', DIALOG);
 
     expect(found, found.join('\n')).toEqual([]);
   });
@@ -240,6 +245,11 @@ for (const look of looks) {
     await page.keyboard.press('Escape');
     await expect(sheet).toBeVisible();
     await sheet.getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('button', { name: 'Add event', exact: true }).click();
+    const added = page.getByRole('dialog', { name: 'New event' });
+    await expect(added.getByRole('textbox', { name: 'Describe it' })).toBeVisible();
+    await check('phone new event with Describe it', DIALOG);
+    await added.getByRole('button', { name: 'Close', exact: true }).click();
     await page.getByRole('button', { name: 'Search events' }).click();
     await page.getByRole('searchbox').fill('a');
     await page.clock.runFor(1000);

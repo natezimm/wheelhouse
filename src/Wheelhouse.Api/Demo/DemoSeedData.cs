@@ -398,6 +398,13 @@ public static class DemoSeedData
             date: anchor.NextWeekday(DayOfWeek.Tuesday, 3), start: new(15, 30), end: new(16, 15),
             location: "Clearview Optometry"));
 
+        // Ask the calendar's demo example: "When is Milo's next dentist visit?"
+        events.Add(anchor.TimedEvent(
+            familyId, calendars.Milo.Id,
+            title: "Dentist check-up",
+            date: anchor.NextWeekday(DayOfWeek.Wednesday, 3), start: new(15, 45), end: new(16, 30),
+            location: "Bright Smiles Family Dentistry"));
+
         events.Add(anchor.TimedEvent(
             familyId, calendars.Family.Id,
             title: "Holiday lights drive",

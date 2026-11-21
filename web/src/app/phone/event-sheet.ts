@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, ElementRef, computed, inject, input, linkedSignal, output, signal, viewChild } from '@angular/core';
 import { CalendarEvent, CalendarStore, eventRefusal } from '../core/calendar';
 import { Day, dayIn } from '../core/days';
-import { EventDraft, copyOf, draftOf, newDraft, onDayOf, peopleChoices, problemWith, requestOf, TITLE_PROBLEM, revise, remindChoices, startAt, togglePerson, writableCalendars } from '../core/event-draft';
+import { EventDraft, copyOf, draftOf, fromDescription, newDraft, onDayOf, peopleChoices, problemWith, requestOf, TITLE_PROBLEM, revise, remindChoices, startAt, togglePerson, writableCalendars } from '../core/event-draft';
 import { FamilyStore } from '../core/family';
 import { SessionStore } from '../core/session';
 import { ModalFocus } from '../shared/modal-focus';
@@ -10,12 +10,14 @@ import { AvatarFace } from '../shared/avatar-face';
 import { RepeatPicker } from '../shared/repeat-picker';
 import { DateField } from '../shared/date-field';
 import { TimeWheel } from '../shared/time-wheel';
+import { DescribeCard, DESCRIBE_EXAMPLES } from '../shared/describe-card';
+import { DescribedEvent } from '../core/ai';
 import { Clock } from '../core/clock';
 
 /** The phone's sheet for adding an event, or changing or deleting one, over the calendar. */
 @Component({
   selector: 'app-event-sheet',
-  imports: [AvatarFace, DateField, ModalFocus, RepeatPicker, TimeWheel],
+  imports: [AvatarFace, DateField, DescribeCard, ModalFocus, RepeatPicker, TimeWheel],
   template: `
     @if (draft(); as draft) {
       <section
@@ -37,6 +39,10 @@ import { Clock } from '../core/clock';
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg>
           </button>
         </header>
+
+        @if (describing()) {
+          <app-describe-card [examples]="describeExamples()" (described)="fillFrom($event)" />
+        }
 
         <fieldset [disabled]="busy() || uncertain()">
         <label class="field">
@@ -491,6 +497,22 @@ export class EventSheet {
   protected readonly remindChoices = remindChoices;
   /** A display shows private events only as busy, so it cannot make one. */
   protected readonly isDisplay = this.session.isDisplay;
+
+  /** Describe it belongs to a new event only, never an edit or a copy. */
+  protected readonly describing = computed(() => !this.event() && !this.copy() && this.session.canDescribe());
+  protected readonly describeExamples = computed(() => (this.session.isDemo() ? DESCRIBE_EXAMPLES : null));
+
+  /** Fills the form with what Describe it read, unsaved; Save sends it as any new event. */
+  protected fillFrom(described: DescribedEvent): void {
+    const draft = this.draft();
+    const family = this.family.family();
+    const first = this.choices()[0];
+    if (!draft || !family || !first || this.busy() || this.uncertain()) return;
+    const writable = this.calendar.calendars().filter((c) => this.choices().some((choice) => choice.id === c.id));
+    this.edits.set(fromDescription(described, draft, writable, first.id, family.timeZone));
+    this.message.set(null);
+    this.titleMissing.set(false);
+  }
 
   protected readonly heading = computed(() => (this.event() ? 'Edit event' : 'New event'));
   protected readonly savesTo = computed(() => (this.session.isDemo() ? 'Saves to the demo calendar' : 'Saves to Google Calendar'));
