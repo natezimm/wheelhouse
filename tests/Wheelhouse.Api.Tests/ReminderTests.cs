@@ -263,10 +263,16 @@ public sealed class ReminderTests(ApiFactory factory)
         factory.Demo.WithWebHostBuilder(builder => builder.ConfigureTestServices(services =>
             services.AddHttpClient<WebPush>().ConfigurePrimaryHttpMessageHandler(() => push)));
 
-    private static async Task<HttpClient> VisitorAsync(WebApplicationFactory<Program> host)
+    /// <summary>
+    /// A visitor of a fresh demo copy with its seeded events taken away, so only a test's own events
+    /// can be due: the seed has events at fixed clock times today, which a run at that hour would meet.
+    /// </summary>
+    private async Task<HttpClient> VisitorAsync(WebApplicationFactory<Program> host)
     {
         var client = host.CreateClient(new WebApplicationFactoryClientOptions { HandleCookies = true });
         (await client.PostAsync("/api/demo/visit", content: null)).EnsureSuccessStatusCode();
+        await using var db = factory.DbContextFor((await FamilyOf(client)).Id);
+        await db.EventInstances.ExecuteDeleteAsync();
         return client;
     }
 
