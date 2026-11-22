@@ -44,6 +44,8 @@ export class SessionStore {
 
   /** Describe it: a parent's words fill in a new event. Never for a display, which has no keyboard. */
   readonly canDescribe = computed(() => this.ai().describe && !this.isDisplay());
+  /** Whether Ask the calendar is offered: the features are on and this is not a paired display. */
+  readonly canAsk = computed(() => this.ai().ask && !this.isDisplay());
 
   readonly isDemo = computed(() => this.current().status === 'demo');
   /** Why the demo could not check this visitor in, or null. */
