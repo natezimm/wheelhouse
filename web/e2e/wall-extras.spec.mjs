@@ -56,6 +56,9 @@ const weather = { temperature: 58, description: 'Clear', icon: 'Moon', high: 60,
 /** The family above with its live connection down. Changes to events are held and recorded. */
 async function stub(page, layout) {
   const writes = [];
+  // What the calendar reads answer; a test changes it once the server has taken a save, so a
+  // later read agrees with the save rather than putting the event back as it was.
+  writes.events = events;
   await page.clock.install({ time: new Date('2026-10-12T21:22:00Z') });
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url());
@@ -69,7 +72,7 @@ async function stub(page, layout) {
         : url.pathname === '/api/family'
           ? family
           : url.pathname === '/api/calendar'
-            ? { calendars, events, changeNumber: 1, needsReconnect: false }
+            ? { calendars, events: writes.events, changeNumber: 1, needsReconnect: false }
             : url.pathname === '/api/calendar/countdowns'
               ? countdowns
               : url.pathname === '/api/weather'
@@ -152,11 +155,20 @@ for (const layout of ['wall', 'desktop']) {
     expect(writes[0].body).toMatchObject({ startDate: '2026-10-12', startTime: '17:30:00', endDate: '2026-10-12', endTime: '19:00:00' });
     // Pulling the edge never opens the details.
     await expect(page.getByRole('dialog')).toHaveCount(0);
-    await writes[0].route.fulfill({ status: 200, json: { ...events[0], endsAt: '2026-10-12T23:00:00Z' } });
+    const saved = { ...events[0], endsAt: '2026-10-12T23:00:00Z' };
+    writes.events = [saved, ...events.slice(1)];
+    await writes[0].route.fulfill({ status: 200, json: saved });
 
-    // It cannot end before a quarter hour after it starts. The grip returns once the save is confirmed.
+    // It cannot end before a quarter hour after it starts. The grip returns once the save is confirmed,
+    // and is measured once the event has settled at its new end.
     await expect(swim.locator('.resize')).toBeVisible();
-    const again = await swim.locator('.resize').boundingBox();
+    let again = null;
+    await expect.poll(async () => {
+      const box = await swim.locator('.resize').boundingBox();
+      const settled = box !== null && again !== null && box.y === again.y && box.height === again.height;
+      again = box;
+      return settled;
+    }).toBe(true);
     await page.mouse.move(again.x + again.width / 2, again.y + again.height / 2);
     await page.mouse.down();
     await page.mouse.move(again.x + again.width / 2, again.y - hour * 3, { steps: 8 });
