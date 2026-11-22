@@ -179,6 +179,8 @@ test('a reminder shows as a notification, and tapping one opens its event on its
     }),
   );
   await cdp.send('ServiceWorker.enable');
+  // A push sent before the worker is active is dropped, so wait until it is.
+  await page.evaluate(() => navigator.serviceWorker.ready.then(() => true));
   const message = { title: 'Piano', body: 'In 15 min · 10 am', url: '/?day=2026-10-13&event=piano', tag: 'piano' };
   await cdp.send('ServiceWorker.deliverPushMessage', {
     origin: new URL(page.url()).origin,
