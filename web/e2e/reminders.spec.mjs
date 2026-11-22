@@ -182,13 +182,21 @@ test('a reminder shows as a notification, and tapping one opens its event on its
   // A push sent before the worker is active is dropped, so wait until it is.
   await page.evaluate(() => navigator.serviceWorker.ready.then(() => true));
   const message = { title: 'Piano', body: 'In 15 min · 10 am', url: '/?day=2026-10-13&event=piano', tag: 'piano' };
-  await cdp.send('ServiceWorker.deliverPushMessage', {
-    origin: new URL(page.url()).origin,
-    registrationId: await registration,
-    data: JSON.stringify(message),
-  });
+  const registrationId = await registration;
+  const deliver = () =>
+    cdp.send('ServiceWorker.deliverPushMessage', { origin: new URL(page.url()).origin, registrationId, data: JSON.stringify(message) });
+  // A push can still be dropped while the worker starts, so send it again until one shows; the tag keeps one notification.
   await expect
-    .poll(() => page.evaluate(() => navigator.serviceWorker.ready.then((r) => r.getNotifications()).then((n) => n.map((x) => [x.title, x.body, x.data.url]))))
+    .poll(
+      async () => {
+        const shown = await page.evaluate(() =>
+          navigator.serviceWorker.ready.then((r) => r.getNotifications()).then((n) => n.map((x) => [x.title, x.body, x.data.url])),
+        );
+        if (shown.length === 0) await deliver();
+        return shown;
+      },
+      { timeout: 15000 },
+    )
     .toEqual([['Piano', 'In 15 min · 10 am', '/?day=2026-10-13&event=piano']]);
 
   // The worker opens the reminder's address; the calendar shows the event on its day.
