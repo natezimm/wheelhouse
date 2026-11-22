@@ -2,6 +2,7 @@ import { CalendarEvent, CalendarSource, EventRequest, FAMILY_COLOR, sameMembers 
 import { instantAt } from './calendar-preview';
 import { Day, addDays, dayIn, minutesIn } from './days';
 import { notesText } from './notes';
+import { DescribedEvent } from './ai';
 import { Member } from './family';
 import { canonicalRule, followDay } from './repeat-rule';
 
@@ -165,6 +166,41 @@ export function copyOf(event: CalendarEvent, calendar: Pick<CalendarSource, 'id'
     countdown: false,
     countdownFrom: false,
     remindFrom: 0,
+  };
+}
+
+/**
+ * A new event from what Describe it read: unsaved, with everything it holds sent on Save as for any
+ * new event. Times come as 'HH:mm:ss' and become the editor's 'HH:mm'; an all-day event's exclusive
+ * end becomes its last day. A calendar it did not name, or one this screen cannot add to, falls back
+ * to <code>fallback</code>.
+ */
+export function fromDescription(
+  described: DescribedEvent,
+  base: EventDraft,
+  calendars: Pick<CalendarSource, 'id' | 'memberId'>[],
+  fallback: string,
+  timeZone: string,
+): EventDraft {
+  const named = calendars.find((c) => c.id === described.calendarId);
+  const calendar = named ?? calendars.find((c) => c.id === fallback);
+  const people = [...new Set(described.memberIds)].filter((id) => id !== calendar?.memberId);
+  const startTime = described.startTime?.slice(0, 5) ?? base.startTime;
+  const endTime = described.endTime?.slice(0, 5) ?? base.endTime;
+  return {
+    ...base,
+    calendarId: calendar?.id ?? fallback,
+    title: described.title,
+    location: described.location ?? '',
+    allDay: described.allDay,
+    startDate: described.startDate,
+    startTime,
+    endDate: described.allDay ? addDays(described.endDate, -1) : described.endDate,
+    endTime,
+    recurrence: described.recurrence ? canonicalRule(described.recurrence, described.startDate, timeZone) ?? described.recurrence : null,
+    recurrenceFrom: null,
+    people,
+    peopleFrom: [],
   };
 }
 

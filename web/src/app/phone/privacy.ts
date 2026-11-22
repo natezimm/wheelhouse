@@ -44,9 +44,9 @@ import { RouterLink } from '@angular/router';
 
       <h2>Who sees it</h2>
       <p>
-        Only people the family lets in: its parents, and the wall displays a parent has paired. Wheelhouse does not sell,
-        share or show Google data to anyone else, uses it for nothing but showing and editing the family's own calendar, and
-        has no ads or analytics.
+        Only people the family lets in: its parents, and the wall displays a parent has paired. Wheelhouse does not sell
+        Google data or share or show it to anyone else, except as described under Describe it below, uses it for nothing but
+        showing and editing the family's own calendar, and has no ads or analytics.
       </p>
       <p>
         Wheelhouse's use and transfer of information received from Google APIs adheres to the
@@ -61,6 +61,14 @@ import { RouterLink } from '@angular/router';
         Apple, Mozilla or Microsoft), encrypted so that only the phone can read the event's title, time and place.
       </p>
 
+      <h2>Describe it</h2>
+      <p>
+        When it is turned on, typing a new event in plain words sends what you typed to Anthropic, which runs the Claude model
+        that reads it, along with the family members' first names and today's date. No events, notes or email addresses are
+        sent. Anthropic does not use this to train its models. The model never changes the calendar: it fills in the editor,
+        and nothing is saved until you press Save. Describe it is on in the public demo and off unless a family chooses it.
+      </p>
+
       <h2>Removing it</h2>
       <p>
         A parent can disconnect Google in Settings. Wheelhouse then tells Google to withdraw its access and deletes the token
@@ -69,7 +77,10 @@ import { RouterLink } from '@angular/router';
       </p>
 
       <h2>The demo</h2>
-      <p>The public demo shows a made-up family. It never connects to Google, and each visitor's copy is deleted within a day.</p>
+      <p>
+        The public demo shows a made-up family. It never connects to Google, and each visitor's copy is deleted within a day.
+        Describe it is on there, so what a visitor types into it goes to Anthropic as described above.
+      </p>
     </article>
   `,
   styles: `

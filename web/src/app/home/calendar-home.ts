@@ -225,7 +225,7 @@ export const DESKTOP_QUERY = '(min-width: 768px)';
 
     @if (editing(); as open) {
       @if (open.wide) {
-        <app-event-dialog [event]="open.event" [day]="open.day" [at]="open.at" [deleting]="open.deleting" [copy]="open.copy ?? null" (closed)="editing.set(null)" />
+        <app-event-dialog [event]="open.event" [day]="open.day" [at]="open.at" [deleting]="open.deleting" [copy]="open.copy ?? null" [describe]="true" (closed)="editing.set(null)" />
       } @else {
         <app-event-sheet [event]="open.event" [day]="open.day" [at]="open.at" [deleting]="open.deleting" [copy]="open.copy ?? null" (closed)="editing.set(null)" />
       }

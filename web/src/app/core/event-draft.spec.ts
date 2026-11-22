@@ -1,6 +1,6 @@
 import { marloweCalendars, allDay, timed } from '../testing/calendar';
 import { marlowes } from '../testing/marlowes';
-import { clockLabel, copyOf, draftOf, endAt, moveDays, moveEnd, moveStart, movedTo, newDraft, onDayOf, peopleChoices, problemWith, remindChoices, remindText, requestOf, resizedTo, revise, startAt, togglePerson, writableCalendars } from './event-draft';
+import { clockLabel, copyOf, draftOf, fromDescription, endAt, moveDays, moveEnd, moveStart, movedTo, newDraft, onDayOf, peopleChoices, problemWith, remindChoices, remindText, requestOf, resizedTo, revise, startAt, togglePerson, writableCalendars } from './event-draft';
 
 describe('event drafts', () => {
   const zone = 'America/New_York';
@@ -235,5 +235,48 @@ describe('event drafts', () => {
 
     const series = { ...fresh, recurrenceFrom: fresh.recurrence };
     expect(revise(series, moveDays(series, 1)).recurrence).toBe('RRULE:FREQ=WEEKLY;BYDAY=TU');
+  });
+
+  describe('from what Describe it read', () => {
+    const calendars = [
+      { id: 'family', memberId: null },
+      { id: 'nora', memberId: 'm4' },
+    ];
+    const base = newDraft('2026-11-04', 'family', zone, new Date('2026-11-04T14:00:00Z'));
+    const soccer = {
+      calendarId: 'nora',
+      title: 'Soccer',
+      location: 'Riverside Park',
+      allDay: false,
+      startDate: '2026-11-10',
+      startTime: '17:15:00',
+      endDate: '2026-11-10',
+      endTime: '18:15:00',
+      recurrence: 'RRULE:FREQ=WEEKLY;BYDAY=TU;UNTIL=20270602T035959Z',
+      memberIds: ['m1'],
+      unclear: [],
+    };
+
+    it('fill in a new event that sends everything it holds on Save', () => {
+      const draft = fromDescription(soccer, base, calendars, 'family', zone);
+
+      expect(draft).toMatchObject({ calendarId: 'nora', title: 'Soccer', location: 'Riverside Park', startDate: '2026-11-10', startTime: '17:15', endTime: '18:15', people: ['m1'] });
+      expect(draft.recurrence).toContain('FREQ=WEEKLY;BYDAY=TU');
+      expect(requestOf(draft)).toMatchObject({ calendarId: 'nora', startTime: '17:15:00', memberIds: ['m1'], recurrence: draft.recurrence });
+    });
+
+    it('turn an all-day event’s exclusive end into its last day, keeping the editor’s times', () => {
+      const draft = fromDescription({ ...soccer, allDay: true, startTime: null, endTime: null, endDate: '2026-11-12', recurrence: null }, base, calendars, 'family', zone);
+
+      expect(draft).toMatchObject({ allDay: true, startDate: '2026-11-10', endDate: '2026-11-11', startTime: base.startTime, recurrence: null });
+      expect(requestOf(draft)).toMatchObject({ endDate: '2026-11-12', startTime: null });
+    });
+
+    it('fall back to the first calendar this screen can add to, never listing its owner as an extra person', () => {
+      const draft = fromDescription({ ...soccer, calendarId: 'gone', memberIds: ['m4', 'm1'] }, base, [{ id: 'nora', memberId: 'm4' }], 'nora', zone);
+
+      expect(draft.calendarId).toBe('nora');
+      expect(draft.people).toEqual(['m1']);
+    });
   });
 });

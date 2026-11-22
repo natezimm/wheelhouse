@@ -10,6 +10,8 @@ export interface Session {
   canSignIn: boolean;
   /** Signed in as a paired display, which reads the family but is not a parent. */
   isDisplay?: boolean;
+  /** The AI features this instance offers a parent (off unless the instance turns them on). */
+  ai?: { describe: boolean; ask: boolean };
 }
 
 /**
@@ -38,6 +40,10 @@ type SessionState =
 export class SessionStore {
   private readonly http = inject(HttpClient);
   private readonly current = signal<SessionState>({ status: 'unknown' });
+  private readonly ai = signal<{ describe: boolean; ask: boolean }>({ describe: false, ask: false });
+
+  /** Describe it: a parent's words fill in a new event. Never for a display, which has no keyboard. */
+  readonly canDescribe = computed(() => this.ai().describe && !this.isDisplay());
 
   readonly isDemo = computed(() => this.current().status === 'demo');
   /** Why the demo could not check this visitor in, or null. */
@@ -70,6 +76,7 @@ export class SessionStore {
   async start(): Promise<void> {
     try {
       const session = await firstValueFrom(this.http.get<Session>('/api/session').pipe(timeout(START_TIMEOUT_MS)));
+      this.ai.set({ describe: !!session.ai?.describe, ask: !!session.ai?.ask });
       if (session.mode !== 'Demo') {
         this.current.set({
           status: 'family',
